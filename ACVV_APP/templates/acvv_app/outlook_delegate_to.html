@@ -1,0 +1,189 @@
+{% load static %}
+{% block title %}Delegate Task{% endblock %}
+{% block content %}
+<style>
+/* -------------------------------------- */
+/* BASE STYLES & DELEGATE FORM STYLES */
+/* -------------------------------------- */
+/* NOTE: Pasting the full CSS provided in your request here, as it doesn't inherit cleanly */
+body{font-family:sans-serif;margin:0;color:#333;line-height:1.6;background-color:#d1e2c4}
+.delegate-container{max-width:700px;margin:40px auto;padding:30px;background-color:#fff;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.15);border:1px solid #c3e6cb}
+.delegate-container h1{margin-bottom:20px;color:#43a047;font-size:28px;border-bottom:2px solid #e0f2f1;padding-bottom:15px}
+.form-group{margin-bottom:20px}
+.form-group label{display:block;margin-bottom:5px;font-weight:700;color:#333;font-size:14px}
+.form-group input[type=text],.form-group select,.form-group textarea{width:100%;padding:8px 10px;border:1px solid #aed581;border-radius:4px;box-sizing:border-box;font-size:14px}
+.form-group input[type=text]:focus,.form-group select:focus,.form-group textarea:focus{border-color:#66bb6a;box-shadow:0 0 0 .1rem rgba(102,187,106,.5);outline:none}
+.btn-delegate{padding:12px;background-color:#81c784;color:white;border:none;border-radius:4px;cursor:pointer;font-size:18px;transition:background-color .3s ease}
+.btn-delegate:hover{background-color:#66bb6a}
+.button-container{display:flex;justify-content:space-between;align-items:center;margin-top:25px}
+.btn-cancel{ 
+    padding:12px 20px; 
+    background-color:#757575;
+    color:white; 
+    border:none; 
+    border-radius:4px; 
+    cursor:pointer; 
+    font-size:18px; 
+    transition:background-color .3s ease;
+    text-decoration:none;
+    display:inline-block;
+}
+.btn-cancel:hover{background-color:#616161}
+.btn-delegate-submit{width:auto;padding:12px 20px;margin-left:auto}
+.original-content-box{background-color:#fff8e1;border:1px solid #ffcc80;padding:15px;margin-bottom:25px;border-radius:4px}
+.original-content-box label{font-weight:700;color:#ff9800;font-size:14px;display:block;margin-bottom:5px}
+.original-content-box iframe{width:100%;min-height:300px;border:1px solid #ccc;border-radius:4px;display:block}
+.attachment-list{margin-top:15px;padding:10px;background-color:#f0fff0;border:1px dashed #c3e6cb;border-radius:4px}
+.attachment-list strong{color:#2e7d32;display:block;margin-bottom:5px;font-size:14px}
+.attachment-link{display:inline-block;margin-right:15px;color:#1e88e5;text-decoration:underline;font-size:13px}
+.form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin-bottom:20px}
+.search-input{width:100%;padding:10px;box-sizing:border-box;border:1px solid #aed581;border-radius:4px;font-size:1em}
+.search-input:focus{border-color:#66bb6a;box-shadow:0 0 0 .1rem rgba(102,187,106,.5);outline:none}
+.form-group #email_type option.hidden{display:none}
+.conditional-fields{grid-column:1/-1;display:contents}
+.form-grid>#conditional_fields_wrapper{display:grid;grid-template-columns:subgrid;gap:inherit;grid-column:1/-1}
+</style>
+
+<div class="delegate-container">
+    <h1>Outlook_delegate_to: {{ email_subject }}</h1>
+    
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <form method="post" action="{% url 'outlook_delegate_to' email_id=email_id %}">
+        {% csrf_token %}
+        
+        <div class="form-group">
+            <label for="email_subject">Email Subject:</label>
+            <input type="text" id="email_subject" name="email_subject_display" value="{{ email_subject }}" readonly>
+        </div>
+        
+        <div class="form-group original-content-box">
+            <label>Original Email Content (Read-only):</label>
+            
+            {# NOTE: Reverted to the original read-only textarea placeholder #}
+            <textarea style="width:100%; min-height:300px; border:1px solid #ccc; border-radius:4px; font-size: 14px; background-color: #f7f7f7;" readonly>{{ email_content|striptags }}</textarea>
+            
+            {% if attachments %}
+            <div class="attachment-list">
+                <strong>Attachments (Metadata included with delegation):</strong>
+                {% for att in attachments %}
+                <a href="#" class="attachment-link" onclick="alert('Download link view is not yet implemented.')">
+                    📄 {{ att.name }} ({{ att.size|filesizeformat }})
+                </a>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        
+        {# --- CLASSIFICATION FIELDS (Use select tags for validation) --- #}
+        <div class="form-grid" id="main_form_grid">
+            <div class="form-group" id="group-workrelated">
+                <label for="work_related">Work Related:*(Mandatory)*</label>
+                <select id="work_related" name="work_related" required>
+                    <option value="Yes">Yes</option>
+                    <option value="No">No</option>
+                </select>
+            </div>
+            <div class="conditional-fields" id="conditional_fields_wrapper">
+                
+                {# 🛑 NEW FIELD: MIP Names (Group Code) 🛑 #}
+                <div class="form-group" id="group-mipnames">
+                    <label for="mip_names">MIP Names (Group Code):</label>
+                    <input type="text" id="mip_names" name="mip_names" placeholder="Enter MIP or Group Code" class="search-input">
+                </div>
+                
+                {# Simplified fields, remove Member Group Search Input #}
+                <div class="form-group" id="group-emailcategory">
+                    <label for="email_category">Email Type:</label>
+                    <select id="email_category" name="email_category">
+                        <option value="">-- Select --</option>
+                        <option value="Schedule">Schedule</option>
+                        <option value="Claim">Claim</option>
+                        <option value="Query">Query</option>
+                        <option value="Bank">Bank</option>
+                        <option value="Info Only">Info Only</option>
+                        <option value="LPI">LPI</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" id="group-emailstatus">
+                    <label for="New">Email Status:</label>
+                    <select id="New" name="New">
+                        <option value="New">New</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="group-commtype">
+                    <label for="email_method">Communication Type:</label>
+                    <select id="email_method" name="email_method">
+                        <option value="Email">Inbox Email</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        
+        <div class="form-group" id="delegation_fields">
+            <label for="agent_name">Delegate To Agent:*(Mandatory)*</label>
+            <select id="agent_name" name="agent_name" required>
+                <option value="__Select Agent__">__Select Agent__</option>
+                {# Populated by context['available_users'] #}
+                {% for user in available_users %}
+                    <option value="{{ user.pk }}">{{ user.username }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <input type="hidden" name="email_id" value="{{ email_id }}">
+
+        <div class="button-container">
+            <a href="{% url 'outlook_dashboard' %}" class="btn-cancel">Cancel (Back to Inbox)</a>
+            <button type="submit" id="submit_button" class="btn-delegate btn-delegate-submit">Confirm Delegation</button>
+        </div>
+
+    </form>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded',function(){
+// --- Element Selectors ---
+const workRelatedSelect=document.getElementById('work_related');
+const delegationFields=document.getElementById('delegation_fields');
+const submitButton=document.getElementById('submit_button');
+const agentSelect=document.getElementById('agent_name');
+const conditionalFieldsWrapper=document.getElementById('conditional_fields_wrapper');
+const optionalInputs=document.querySelectorAll('#conditional_fields_wrapper select,#conditional_fields_wrapper input[type="text"]');
+
+// --- Conditional Visibility Logic ---
+function toggleDelegationFields(){
+    if(workRelatedSelect.value==='No'){
+        // If NOT work related (Recycle Bin action, assuming this means no delegation)
+        conditionalFieldsWrapper.style.display='none';
+        delegationFields.style.display='none';
+        submitButton.textContent='Move to Archive'; // Placeholder text change
+        agentSelect.removeAttribute('required');
+        
+        // Clear classification fields values (important for POST submission)
+        optionalInputs.forEach(input=>{
+            input.value = (input.tagName === 'SELECT') ? '' : ''; 
+        });
+    }else{
+        // If YES work related (Delegate action)
+        conditionalFieldsWrapper.style.display='grid'; 
+        delegationFields.style.display='block';
+        submitButton.textContent='Confirm Delegation';
+        agentSelect.setAttribute('required','required');
+        agentSelect.value='__Select Agent__'; // Reset to default selection
+    }
+}
+
+// --- Event Listeners and Initial Calls ---
+workRelatedSelect.addEventListener('change',toggleDelegationFields);
+toggleDelegationFields();
+});
+</script>
+{% endblock %}

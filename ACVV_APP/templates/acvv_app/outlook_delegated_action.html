@@ -1,0 +1,393 @@
+{% load static %}
+
+{% block title %}Task #{{ delegation.pk }}: {{ email.subject|default:"(No Subject)" }}{% endblock %}
+
+{% block content %}
+<style>
+    /* -------------------------------------------------------------------------
+    * BASE STYLES (from your original code)
+    * ------------------------------------------------------------------------- */
+    body {
+        font-family: sans-serif;
+        background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        min-height: 100vh;
+        padding: 40px 20px; /* Increased padding */
+        box-sizing: border-box;
+    }
+
+    /* -------------------------------------------------------------------------
+    * CUSTOM PROFESSIONAL STYLES (Pure CSS Implementation)
+    * ------------------------------------------------------------------------- */
+    .task-container {
+        width: 100%;
+        max-width: 1200px; /* Max width for a desktop view */
+        background: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        padding: 30px;
+    }
+
+    .main-grid {
+        display: flex;
+        flex-wrap: wrap; /* Allows columns to wrap on smaller screens */
+        gap: 20px;
+    }
+
+    .left-column {
+        flex: 2; /* Takes roughly 2/3 of the space */
+        min-width: 300px;
+    }
+
+    .right-column {
+        flex: 1; /* Takes roughly 1/3 of the space */
+        min-width: 300px;
+    }
+
+    /* --- Card Styling --- */
+    .custom-card {
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        overflow: hidden; /* Important for clean corners */
+    }
+
+    .card-header-primary {
+        background-color: #007bff; /* Primary Blue */
+        color: white;
+        padding: 15px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+    }
+
+    .card-header-dark {
+        background-color: #343a40; /* Dark Grey */
+        color: white;
+        padding: 15px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+    }
+
+    .card-body-content {
+        padding: 20px;
+    }
+    
+    /* --- Task Header --- */
+    .task-header h1 {
+        font-size: 28px;
+        margin-bottom: 5px;
+        color: #333;
+    }
+    .task-header .status-badge {
+        display: inline-block;
+        background-color: #ffc107; /* Warning Yellow */
+        color: #212529;
+        padding: 5px 12px;
+        border-radius: 50px;
+        font-weight: bold;
+        font-size: 14px;
+        margin-left: 10px;
+    }
+
+    /* --- Form Styling --- */
+    .form-label {
+        font-weight: bold;
+        display: block;
+        margin-bottom: 5px;
+        margin-top: 10px;
+    }
+    .form-control {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+        margin-bottom: 10px;
+    }
+    textarea.form-control {
+        min-height: 120px;
+        resize: vertical;
+    }
+
+    /* --- Notes History --- */
+    .notes-history-container {
+        border: 1px solid #eee;
+        background-color: #f8f9fa;
+        padding: 10px;
+        max-height: 380px;
+        overflow-y: auto;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+
+    .note-item {
+        border-left: 5px solid #28a745; /* Success Green for notes */
+        padding: 10px;
+        background: #ffffff;
+        margin-bottom: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        border-radius: 0 4px 4px 0;
+    }
+    .note-item small {
+        color: #28a745;
+        font-weight: bold;
+        display: block;
+        margin-bottom: 2px;
+    }
+    .note-item p {
+        margin: 0;
+    }
+
+    /* --- Collapsible Functionality (Pure CSS + JS) --- */
+    .collapse-toggle {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        padding: 15px;
+        background: #f8f9fa; /* Light background for toggles */
+        border: none;
+        text-align: left;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background 0.2s;
+        border-bottom: 3px solid #007bff;
+        color: #333;
+    }
+    .collapse-toggle:hover {
+        background: #e9ecef;
+    }
+    
+    .collapse-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+    }
+
+    .collapse-content.show {
+        max-height: 600px; /* Sufficient height for forms */
+        padding: 20px;
+    }
+
+    .toggle-icon {
+        transition: transform 0.3s ease;
+    }
+
+    .collapse-toggle[aria-expanded="true"] .toggle-icon {
+        transform: rotate(180deg);
+    }
+    
+    /* --- Button Styling --- */
+    .custom-btn {
+        padding: 10px 15px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background-color 0.2s;
+    }
+    .btn-primary {
+        background-color: #007bff;
+        color: white;
+    }
+    .btn-primary:hover {
+        background-color: #0056b3;
+    }
+    .btn-success {
+        background-color: #28a745;
+        color: white;
+        width: 100%;
+        padding: 12px;
+    }
+    .btn-success:hover {
+        background-color: #1e7e34;
+    }
+    .btn-back {
+        background-color: white;
+        color: #343a40;
+        border: 1px solid #343a40;
+        width: 100%;
+        margin-top: 20px;
+        padding: 12px;
+    }
+    .btn-back:hover {
+        background-color: #343a40;
+        color: white;
+    }
+
+
+    /* --- Media Queries for Responsiveness --- */
+    @media (max-width: 992px) {
+        .main-grid {
+            flex-direction: column;
+        }
+    }
+
+</style>
+
+<div class="task-container">
+    
+    {# --- HEADER: Task Title and Status --- #}
+    <div class="task-header">
+        <h1><i class="fas fa-tasks"></i> Task Action: #{{ delegation.pk }}</h1>
+        <p>Assigned to: <strong>{{ request.user.username }}</strong> | Status: <span class="status-badge">{{ delegation.get_status_display }}</span></p>
+        <hr style="border-top: 1px solid #eee; margin-bottom: 25px;">
+    </div>
+
+    {# --- System Messages (Assuming basic HTML alert structure) --- #}
+    {% if messages %}
+        <div class="message-area" style="margin-bottom: 20px;">
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}" role="alert" style="padding: 10px; border-radius: 4px; background: #fff3cd; border: 1px solid #ffeeba;">
+                {{ message }}
+                {# NOTE: Close button functionality requires JavaScript that is not provided by default #}
+            </div>
+        {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="main-grid">
+        
+        {# LEFT COLUMN: EMAIL CONTENT & COLLAPSABLE REPLY FORM #}
+        <div class="left-column">
+            
+            {# Email Content Card #}
+            <div class="custom-card">
+                <div class="card-header-primary">
+                    <i class="fas fa-inbox" style="margin-right: 10px;"></i> 
+                    <h5 style="margin: 0;">Email: {{ email.subject|default:"(No Subject)" }}</h5>
+                </div>
+                <div class="card-body-content">
+                    <div style="margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #ddd;">
+                        <small style="display: block;">
+                            From: <strong>{{ email.from.emailAddress.name }}</strong> &lt;{{ email.from.emailAddress.address }}&gt;
+                        </small>
+                        <small style="display: block;">
+                            To: {% for recipient in email.toRecipients %}{{ recipient.emailAddress.address }}{% if not forloop.last %}; {% endif %}{% endfor %}
+                        </small>
+                        <small style="display: block; color: #6c757d;">
+                            Received: {{ email.receivedDateTime|date:"Y-m-d H:i:s" }}
+                        </small>
+                    </div>
+                    
+                    {# Display email body content #}
+                    {% if email.body.contentType == 'html' %}
+                        <div class="email-body-html" style="padding: 15px; border: 1px solid #ddd; background: #f8f9fa; max-height: 500px; overflow-y: auto;">
+                            {{ email.body.content|safe }}
+                        </div>
+                    {% else %}
+                        <pre style="padding: 15px; border: 1px solid #ddd; background: #f8f9fa; white-space: pre-wrap; word-wrap: break-word; max-height: 500px; overflow-y: auto;">{{ email.body.content }}</pre>
+                    {% endif %}
+                </div>
+            </div>
+
+            {# COLLAPSABLE REPLY FORM #}
+            <div class="custom-card">
+                <button class="collapse-toggle" type="button" data-toggle="collapse" data-target="#collapseReplyForm" aria-expanded="false" aria-controls="collapseReplyForm">
+                    <span><i class="fas fa-reply" style="margin-right: 8px;"></i> Send Reply / New Email</span>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </button>
+                <div class="collapse-content" id="collapseReplyForm">
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div style="margin-bottom: 15px;">
+                            <label for="reply_recipient" class="form-label">Recipient:</label>
+                            <input type="email" class="form-control" id="reply_recipient" name="reply_recipient" 
+                                value="{{ email.from.emailAddress.address }}" required>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label for="reply_subject" class="form-label">Subject:</label>
+                            <input type="text" class="form-control" id="reply_subject" name="reply_subject" 
+                                value="Re: {{ email.subject|default:"(No Subject)" }}" required>
+                        </div>
+                        <div style="margin-bottom: 20px;">
+                            <label for="reply_body" class="form-label">Body (HTML allowed):</label>
+                            <textarea class="form-control" id="reply_body" name="reply_body" rows="6" required></textarea>
+                        </div>
+                        <button type="submit" class="custom-btn btn-primary" style="width: 100%; padding: 12px;"><i class="fas fa-paper-plane" style="margin-right: 8px;"></i> Send Reply (from {{ target_email }})</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        {# RIGHT COLUMN: NOTES #}
+        <div class="right-column">
+            <div class="custom-card">
+                <div class="card-header-dark">
+                    <i class="fas fa-clipboard-list" style="margin-right: 10px;"></i>
+                    <h5 style="margin: 0;">Notes & History</h5>
+                </div>
+                <div class="card-body-content" style="padding: 20px 20px 0 20px;">
+                    
+                    {# Display Existing Notes #}
+                    <div class="notes-history-container">
+                        {% for note in notes %}
+                        <div class="note-item">
+                            <small>
+                                <strong>{{ note.user.username }}</strong> 
+                                on {{ note.created_at|date:"Y-m-d H:i" }}
+                            </small>
+                            <p>{{ note.content }}</p>
+                        </div>
+                        {% empty %}
+                        <p style="text-align: center; color: #6c757d; margin: 10px;">No notes have been added yet.</p>
+                        {% endfor %}
+                    </div>
+                    
+                    <hr style="border-top: 1px solid #eee; margin-bottom: 20px;">
+                    
+                    {# COLLAPSABLE ADD NEW NOTE FORM #}
+                    <div>
+                        <button class="collapse-toggle" style="border-bottom: 3px solid #28a745; background: none; padding: 10px 0;" type="button" data-toggle="collapse" data-target="#collapseAddNote" aria-expanded="false" aria-controls="collapseAddNote">
+                            <span><i class="fas fa-plus-circle" style="margin-right: 8px; color: #28a745;"></i> Add New Note</span>
+                            <i class="fas fa-chevron-down toggle-icon"></i>
+                        </button>
+                        <div class="collapse-content" id="collapseAddNote">
+                            <form method="POST" action="{% url 'outlook_delegated_action' delegation_id=delegation.pk %}">
+                                {% csrf_token %}
+                                <div style="margin-bottom: 15px;">
+                                    <textarea class="form-control" name="note_content" rows="4" placeholder="Enter private note content here..." required></textarea>
+                                </div>
+                                <button type="submit" class="custom-btn btn-success"><i class="fas fa-sticky-note" style="margin-right: 8px;"></i> Save Note</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <a href="{% url 'outlook_delegated_box' %}" class="custom-btn btn-back">
+                <i class="fas fa-arrow-left" style="margin-right: 8px;"></i> Back to Delegated Tasks
+            </a>
+        </div>
+    </div>
+</div>
+
+{# --- PURE JAVASCRIPT FOR COLLAPSE FUNCTIONALITY --- #}
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.collapse-toggle').forEach(button => {
+            const targetId = button.getAttribute('data-target');
+            const targetEl = document.querySelector(targetId);
+
+            if (targetEl) {
+                button.addEventListener('click', function() {
+                    const isExpanded = this.getAttribute('aria-expanded') === 'true';
+                    
+                    // Toggle the 'show' class for CSS transition
+                    targetEl.classList.toggle('show');
+
+                    // Toggle aria-expanded state
+                    this.setAttribute('aria-expanded', !isExpanded);
+                });
+            }
+        });
+    });
+</script>
+{% endblock %}

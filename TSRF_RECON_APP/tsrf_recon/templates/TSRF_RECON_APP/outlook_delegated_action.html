@@ -1,0 +1,311 @@
+{% load static %}
+
+{% block title %}Task #{{ delegation.pk }}: {{ email.subject|default:"(No Subject)" }}{% endblock %}
+
+{% block content %}
+<style>
+    /* -------------------------------------------------------------------------
+    * BASE STYLES & LAYOUT
+    * ------------------------------------------------------------------------- */
+    body {
+        font-family: sans-serif;
+        background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        min-height: 100vh;
+        padding: 40px 20px;
+        box-sizing: border-box;
+    }
+
+    .task-container {
+        width: 100%;
+        max-width: 1200px;
+        background: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        padding: 30px;
+    }
+
+    .main-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+    }
+
+    .left-column { flex: 2; min-width: 300px; }
+    .right-column { flex: 1; min-width: 300px; }
+
+    /* --- Card Styling --- */
+    .custom-card {
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+    }
+
+    .card-header-primary { background-color: #007bff; color: white; padding: 15px; font-weight: bold; display: flex; align-items: center; }
+    .card-header-dark { background-color: #343a40; color: white; padding: 15px; font-weight: bold; display: flex; align-items: center; }
+    .card-body-content { padding: 20px; }
+    
+    /* --- Task Header --- */
+    .task-header h1 { font-size: 28px; margin-bottom: 5px; color: #333; }
+    .task-header .status-badge {
+        display: inline-block;
+        background-color: #ffc107;
+        color: #212529;
+        padding: 5px 12px;
+        border-radius: 50px;
+        font-weight: bold;
+        font-size: 14px;
+        margin-left: 10px;
+    }
+
+    /* --- Form Styling --- */
+    .form-label { font-weight: bold; display: block; margin-bottom: 5px; margin-top: 10px; }
+    .form-control {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+        margin-bottom: 10px;
+    }
+    textarea.form-control { min-height: 120px; resize: vertical; }
+
+    /* --- Notes History --- */
+    .notes-history-container {
+        border: 1px solid #eee;
+        background-color: #f8f9fa;
+        padding: 10px;
+        max-height: 380px;
+        overflow-y: auto;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+
+    .note-item {
+        border-left: 5px solid #28a745;
+        padding: 10px;
+        background: #ffffff;
+        margin-bottom: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        border-radius: 0 4px 4px 0;
+    }
+    .note-item small { color: #28a745; font-weight: bold; display: block; }
+
+    /* --- Collapsible --- */
+    .collapse-toggle {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        padding: 15px;
+        background: #f8f9fa;
+        border: none;
+        text-align: left;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        border-bottom: 3px solid #007bff;
+        color: #333;
+    }
+    
+    .collapse-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out, padding 0.3s ease-out; }
+    .collapse-content.show { max-height: 800px; padding: 20px; }
+
+    /* --- Buttons --- */
+    .custom-btn { padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: background 0.2s; }
+    .btn-primary { background-color: #007bff; color: white; }
+    .btn-success { background-color: #28a745; color: white; width: 100%; }
+    .btn-restore { background-color: #198754; color: white; width: 100%; padding: 15px; font-size: 1.1em; }
+    .btn-back { background-color: white; color: #343a40; border: 1px solid #343a40; width: 100%; margin-top: 20px; padding: 12px; display: block; text-align: center; text-decoration: none; }
+
+    @media (max-width: 992px) { .main-grid { flex-direction: column; } }
+</style>
+
+<div class="task-container">
+    <div class="task-header">
+        <h1><i class="fas fa-tasks"></i> Task Action: #{{ delegation.pk }}</h1>
+        <p>Assigned to: <strong>{{ delegation.assigned_user.username|default:"Unassigned" }}</strong> | Status: <span class="status-badge">{{ delegation.get_status_display }}</span></p>
+        <hr>
+    </div>
+
+    {% if messages %}
+        <div class="message-area" style="margin-bottom: 20px;">
+        {% for message in messages %}
+            <div class="alert" style="padding: 10px; border-radius: 4px; background: #fff3cd; border: 1px solid #ffeeba; color: #856404;">
+                {{ message }}
+            </div>
+        {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="main-grid">
+        
+        {# LEFT COLUMN: EMAIL CONTENT & FORMS #}
+        <div class="left-column">
+            
+            {# Email Content Card #}
+            <div class="custom-card">
+                <div class="card-header-primary">
+                    <i class="fas fa-inbox" style="margin-right: 10px;"></i> 
+                    <h5 style="margin: 0;">Email: {{ email.subject|default:"(No Subject)" }}</h5>
+                </div>
+                <div class="card-body-content">
+                    <div style="margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #ddd;">
+                        <small style="display: block;">From: <strong>{{ email.from.emailAddress.name }}</strong> &lt;{{ email.from.emailAddress.address }}&gt;</small>
+                        <small style="display: block; color: #6c757d;">Received: {{ email.receivedDateTime|date:"Y-m-d H:i:s" }}</small>
+                    </div>
+                    
+                    <div class="email-body-html" style="padding: 15px; border: 1px solid #ddd; background: #f8f9fa; max-height: 500px; overflow-y: auto;">
+                        {{ email.body.content|safe }}
+                    </div>
+                </div>
+            </div>
+
+            {# --- RESTORE BUTTON (Shown if DLT or REC) --- #}
+            {% if delegation.status == 'DLT' or delegation.status == 'REC' %}
+                <div class="custom-card" style="border: 2px solid #28a745;">
+                    <div class="card-body-content" style="text-align: center; padding: 30px;">
+                        <i class="fas fa-recycle" style="font-size: 3em; color: #28a745; margin-bottom: 15px;"></i>
+                        <h3>Task is in Recycle Bin</h3>
+                        <p>This item is currently hidden from the live inbox.</p>
+                        <form method="POST">
+                            {% csrf_token %}
+                            <input type="hidden" name="action_type" value="restore_to_inbox">
+                            <button type="submit" class="custom-btn btn-restore">
+                                <i class="fas fa-undo-alt"></i> Restore to Live Inbox
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            {% endif %}
+
+            {# --- REPLY FORM (Available if not in Recycle Bin) --- #}
+            {% if delegation.status != 'DLT' and delegation.status != 'REC' %}
+                <div class="custom-card">
+                    <button class="collapse-toggle" type="button" data-target="#collapseReplyForm">
+                        <span><i class="fas fa-reply" style="margin-right: 8px;"></i> Send Reply / New Email</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <div class="collapse-content" id="collapseReplyForm">
+                        <form method="POST">
+                            {% csrf_token %}
+                            <label class="form-label">Recipient:</label>
+                            <input type="email" class="form-control" name="reply_recipient" value="{{ email.from.emailAddress.address }}" required>
+                            
+                            <label class="form-label">Subject:</label>
+                            <input type="text" class="form-control" name="reply_subject" value="Re: {{ email.subject|default:"(No Subject)" }}" required>
+                            
+                            <label class="form-label">Body (HTML allowed):</label>
+                            <textarea class="form-control" name="reply_body" rows="6" required></textarea>
+                            
+                            <button type="submit" class="custom-btn btn-primary" style="width: 100%; margin-top: 15px;">
+                                <i class="fas fa-paper-plane"></i> Send Reply
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+
+        {# RIGHT COLUMN: METADATA & NOTES #}
+        <div class="right-column">
+            
+            {# METADATA UPDATE CARD #}
+            <div class="custom-card">
+                <div class="card-header-dark" style="background-color: #6c757d;">
+                    <i class="fas fa-edit" style="margin-right: 10px;"></i>
+                    <h5 style="margin: 0;">Task Metadata</h5>
+                </div>
+                <div class="card-body-content">
+                    <form method="POST">
+                        {% csrf_token %}
+                        <input type="hidden" name="action_type" value="update_metadata">
+                        
+                        <label class="form-label">Reference / Company Code:</label>
+                        <input type="text" name="company_code" class="form-control" value="{{ delegation.company_code|default:'' }}">
+                        
+                        <label class="form-label">Category:</label>
+                        <select name="email_category" class="form-control">
+                            <option value="">-- Select Category --</option>
+                            <option value="Schedule" {% if delegation.email_category == 'Schedule' %}selected{% endif %}>Schedule</option>
+                            <option value="Claim" {% if delegation.email_category == 'Claim' %}selected{% endif %}>Claim</option>
+                            <option value="Query" {% if delegation.email_category == 'Query' %}selected{% endif %}>Query</option>
+                            <option value="Bank" {% if delegation.email_category == 'Bank' %}selected{% endif %}>Bank</option>
+                            <option value="Info Only" {% if delegation.email_category == 'Info Only' %}selected{% endif %}>Info Only</option>
+                            <option value="LPI" {% if delegation.email_category == 'LPI' %}selected{% endif %}>LPI</option>
+                        </select>
+                        
+                        <label class="form-label">Status:</label>
+                        <select name="status" class="form-control">
+                            <option value="NEW" {% if delegation.status == 'NEW' %}selected{% endif %}>New</option>
+                            <option value="DEL" {% if delegation.status == 'DEL' %}selected{% endif %}>Delegated</option>
+                            <option value="PRG" {% if delegation.status == 'PRG' %}selected{% endif %}>In Progress</option>
+                            <option value="ACT" {% if delegation.status == 'ACT' %}selected{% endif %}>Actioned</option>
+                            <option value="COM" {% if delegation.status == 'COM' %}selected{% endif %}>Completed</option>
+                            <option value="DLT" {% if delegation.status == 'DLT' or delegation.status == 'REC' %}selected{% endif %}>Recycle_bin</option>
+                        </select>
+                        
+                        <button type="submit" class="custom-btn btn-primary" style="width: 100%; margin-top: 10px;">Update Metadata</button>
+                    </form>
+                </div>
+            </div>
+
+            {# NOTES CARD #}
+            <div class="custom-card">
+                <div class="card-header-dark">
+                    <i class="fas fa-clipboard-list" style="margin-right: 10px;"></i>
+                    <h5 style="margin: 0;">Internal History</h5>
+                </div>
+                <div class="card-body-content">
+                    <div class="notes-history-container">
+                        {% for note in notes %}
+                        <div class="note-item">
+                            <small><strong>{{ note.user.username }}</strong> on {{ note.created_at|date:"Y-m-d H:i" }}</small>
+                            <p>{{ note.content }}</p>
+                        </div>
+                        {% empty %}
+                        <p style="text-align: center; color: #6c757d;">No notes yet.</p>
+                        {% endfor %}
+                    </div>
+                    
+                    <button class="collapse-toggle" style="border-bottom: 2px solid #28a745; background: none;" type="button" data-target="#collapseAddNote">
+                        <span><i class="fas fa-plus-circle" style="color: #28a745;"></i> Add Note</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <div class="collapse-content" id="collapseAddNote">
+                        <form method="POST">
+                            {% csrf_token %}
+                            <textarea class="form-control" name="note_content" rows="4" placeholder="Enter note..." required></textarea>
+                            <button type="submit" class="custom-btn btn-success">Save Note</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <a href="{% if delegation.status == 'DLT' or delegation.status == 'REC' %}{% url 'outlook_recycle_bin' %}{% else %}{% url 'outlook_delegated_box' %}{% endif %}" class="btn-back">
+                <i class="fas fa-arrow-left"></i> Back to List
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.collapse-toggle').forEach(button => {
+            button.addEventListener('click', function() {
+                const targetId = this.getAttribute('data-target');
+                const targetEl = document.querySelector(targetId);
+                const isExpanded = this.getAttribute('aria-expanded') === 'true';
+                
+                targetEl.classList.toggle('show');
+                this.setAttribute('aria-expanded', !isExpanded);
+            });
+        });
+    });
+</script>
+{% endblock %}

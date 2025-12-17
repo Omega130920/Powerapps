@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ORG Detail: {{ org_record.levy_number }}</title>
+    <!-- Load Tailwind CSS for modern styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // Custom Tailwind configuration for consistent theme
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-green': '#81c784', // Main accent, buttons
+                        'hover-green': '#66bb6a',  // Hover state
+                        'container-light': '#f0fff0', // Main content box background (Honeydew) 
+                        'bg-top': '#d1e2c4', // Body background
+                        'accent-border': '#c3e6cb', // Borders
+                        'dark-title': '#1b5e20', // Dark green title color
+                        'note-bg': '#e6ffe6', // Light green background for note area
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="p-6 min-h-screen bg-bg-top">
+
+    <div class="controls-container w-full max-w-5xl mx-auto mb-6 flex justify-between items-center">
+        <!-- Back to ORG Table List -->
+        <a href="{% url 'org_table_view' %}" 
+            class="px-4 py-2 bg-primary-green text-white font-semibold rounded-lg shadow-md hover:bg-hover-green transition">
+            &larr; Back to ORG List
+        </a>
+    </div>
+
+    <div class="w-full max-w-5xl mx-auto bg-white p-8 shadow-2xl rounded-xl border border-accent-border">
+        <h1 class="text-3xl font-extrabold text-dark-title mb-6 border-b border-accent-border pb-3 text-center">
+            ORG Record Details (Levy: {{ org_record.levy_number }})
+        </h1>
+
+        <!-- MESSAGES (for success/error on note submission) -->
+        {% if messages %}
+            {% for message in messages %}
+                <div class="p-3 mb-4 rounded-lg text-sm {% if 'error' in message.tags %}bg-red-100 text-red-700{% else %}bg-green-100 text-green-700{% endif %}" role="alert">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <!-- ORG DATA DISPLAY -->
+        <div class="bg-gray-50 p-6 rounded-lg mb-8 shadow-inner">
+            <h2 class="text-xl font-bold text-dark-title mb-4 border-b pb-2">Latest Import Summary</h2>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-4 text-gray-700">
+                
+                <div><span class="font-semibold text-sm">Levy Code:</span> {{ org_record.employer_code|default:"N/A" }}</div>
+                <div><span class="font-semibold text-sm">Employer Name:</span> {{ org_record.employer_name|default:"N/A" }}</div>
+                <div><span class="font-semibold text-sm">Billing Period:</span> {{ org_record.billing_period|default:"N/A" }}</div>
+                
+                <div><span class="font-semibold text-sm">Due Amount:</span> R {{ org_record.due_amount|floatformat:2 }}</div>
+                <div><span class="font-semibold text-sm">CBR Status:</span> {{ org_record.cbr_status|default:"N/A" }}</div>
+                <div><span class="font-semibold text-sm">Overs/Unders:</span> R {{ org_record.overs_unders|floatformat:2 }}</div>
+                
+                <div class="col-span-1 sm:col-span-2 lg:col-span-3">
+                    <span class="font-semibold text-sm">Imported On:</span> {{ org_record.created_at|date:"Y-m-d H:i" }}
+                </div>
+                
+            </div>
+        </div>
+
+        <!-- NOTE ENTRY FORM -->
+        <div class="mb-8 p-6 bg-note-bg border border-primary-green/50 rounded-lg shadow-md">
+            <h2 class="text-xl font-bold text-dark-title mb-4">Add Organizational Note</h2>
+            <form method="POST">
+                {% csrf_token %}
+                <!-- The view handles hidden fields based on org_record, no need for redundant hidden fields here -->
+                
+                <textarea name="notes_text" id="notes_text" rows="4" required
+                          class="w-full p-3 border border-gray-300 rounded-lg focus:ring-primary-green focus:border-primary-green transition"
+                          placeholder="Enter note for Levy {{ org_record.levy_number }} (e.g., Follow up with accountant, Payment expected next week)..."></textarea>
+                
+                <div class="flex justify-end mt-4">
+                    <button type="submit" 
+                            class="px-6 py-2 bg-dark-title text-white font-semibold rounded-lg shadow-md hover:bg-green-800 transition">
+                        Save Note
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- HISTORICAL NOTES -->
+        <h2 class="text-xl font-bold text-dark-title mb-4 border-b pb-2">Historical Notes ({{ org_notes|length }})</h2>
+        <div class="space-y-4">
+            {% for note in org_notes %}
+                <div class="p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
+                    <div class="flex justify-between text-sm text-gray-500 mb-2">
+                        <span>
+                            Added by: <span class="font-semibold text-dark-title">{{ note.User }}</span>
+                        </span>
+                        <span>
+                            Date: {{ note.Date|date:"Y-m-d H:i" }}
+                        </span>
+                    </div>
+                    <p class="text-gray-800 whitespace-pre-wrap">{{ note.Notes }}</p>
+                </div>
+            {% empty %}
+                <p class="text-gray-500 italic">No historical notes found for this levy.</p>
+            {% endfor %}
+        </div>
+        
+    </div>
+
+</body>
+</html>

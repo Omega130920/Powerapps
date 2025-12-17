@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Confirmations</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        :root {
+            /* Matches the fresh lime green from the image */
+            --futura-green: #6bc26b; 
+            --text-dark: #333;
+            --border-light: #f0f0f0;
+            --border-separator: #ccc;
+        }
+
+        /* Merged Body Styles */
+        body {
+            font-family: sans-serif;
+            background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
+            margin: 10px;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        /* --- Header Section --- */
+        .top-bar {
+            /* Removed background-color: white to let gradient show, or kept transparent */
+            padding: 20px 30px;
+            display: flex;
+            justify-content: center; 
+            align-items: center;
+        }
+
+        /* Merged H1 Styles */
+        h1.page-title {
+            color: #1b5e20;
+            text-align: center;
+            margin-bottom: 0px;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+
+        /* Requested Container Class */
+        .container {
+            max-width: 95%;
+            margin: 2em auto;
+            padding: 1em;
+        }
+
+        /* Requested Return Button Class (Class exists, but no button in HTML per previous request) */
+        .return-button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin-bottom: 20px;
+            background-color: #81c784;
+            border: 1px solid #81c784;
+            border-radius: 5px;
+            text-decoration: none;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .return-button:hover {
+            background-color: #66bb6a;
+        }
+
+        /* --- Filters & Buttons --- */
+        .filter-container {
+            padding: 0 30px 15px 30px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .date-input-group {
+            display: flex;
+            align-items: center;
+            border: 1px solid #ccc;
+            padding: 4px 8px;
+            background: white;
+            border-radius: 4px;
+        }
+
+        .date-input {
+            border: none;
+            outline: none;
+            font-size: 0.9rem;
+            color: #555;
+            padding: 2px;
+            background: transparent;
+        }
+
+        /* Button Styling */
+        .filter-btn {
+            padding: 6px 15px;
+            font-size: 0.9rem;
+            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            text-decoration: none;
+            transition: 0.2s;
+            font-weight: 500;
+            border-radius: 4px; 
+        }
+
+        /* Search Button (Green) */
+        .btn-search {
+            background-color: var(--futura-green);
+            color: white;
+        }
+        .btn-search:hover {
+            background-color: #55aa55;
+            color: white;
+        }
+
+        /* Clear Button (Grey) */
+        .btn-clear {
+            background-color: #f0f0f0;
+            color: #555;
+            border: 1px solid #ccc;
+        }
+        .btn-clear:hover {
+            background-color: #e0e0e0;
+            color: #333;
+            border-color: #bbb;
+        }
+
+        /* Export Button (Blue) */
+        .btn-export {
+            background-color: #0d6efd; 
+            color: white;
+            margin-left: auto; 
+        }
+        .btn-export:hover {
+            background-color: #0b5ed7;
+            color: white;
+        }
+
+        /* --- Table Styling --- */
+        .table-responsive {
+            padding: 0;
+            /* Allow the table's border-radius to show */
+            overflow: visible; 
+        }
+
+        /* Merged Table Styles */
+        .custom-table {
+            width: 100%;
+            border-collapse: collapse; /* Note: box-shadow/border-radius on collapsed tables can be tricky in some browsers */
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            border-radius: 5px;
+            overflow: hidden;
+            background-color: #f0fff0;
+            border: 1px solid #c3e6cb;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+        }
+
+        .custom-table thead tr {
+            background-color: var(--futura-green);
+            color: white;
+            text-align: left;
+        }
+
+        .custom-table th {
+            padding: 12px 10px;
+            font-weight: 600;
+            white-space: nowrap;
+            vertical-align: bottom;
+            line-height: 1.2;
+        }
+
+        .custom-table td {
+            padding: 10px;
+            vertical-align: top;
+            color: #444;
+            /* Removed background-color: white to let the table's mint green show */
+            border-bottom: 1px solid #c3e6cb; 
+        }
+
+        /* --- Column Alignment --- */
+        /* Center Active Members */
+        .custom-table th:nth-child(3), 
+        .custom-table td:nth-child(3) {
+            text-align: center; 
+        }
+
+        /* Right Align Schedule Amount */
+        .custom-table th:nth-child(6), 
+        .custom-table td:nth-child(6),
+        .custom-table td.amount-col { 
+             text-align: right; 
+        }
+        
+        /* Right Align Bank Amount (Last Column) */
+        .custom-table th:nth-last-child(1),
+        .custom-table td:nth-last-child(1) {
+             text-align: right; 
+        }
+
+        /* --- Bill Separator --- */
+        .bill-separator td {
+            border-bottom: 2px solid #a5d6a7 !important; /* Slightly darker green separator */
+        }
+        
+        /* Light line for bank rows inside a bill */
+        .bank-row td {
+            border-bottom: 1px solid #c3e6cb;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Updated to use .container instead of .container-fluid to match your CSS -->
+    <div class="container">
+        <a href="{% url 'dashboard' %}" class="return-button">Back to Dashboard</a>
+        
+        <div class="top-bar">
+            <h1 class="page-title">Daily Confirmations</h1>
+        </div>
+
+        <form method="get" class="filter-container">
+            
+            <!-- Date Inputs -->
+            <div class="date-input-group">
+                <i class="fa-regular fa-calendar me-2 text-muted"></i>
+                <input type="date" name="start_date" class="date-input" value="{{ filter_start_date }}">
+            </div>
+
+            <span class="text-muted">-</span>
+
+            <div class="date-input-group">
+                <i class="fa-regular fa-calendar me-2 text-muted"></i>
+                <input type="date" name="end_date" class="date-input" value="{{ filter_end_date }}">
+            </div>
+
+            <!-- Action Buttons -->
+            <button type="submit" class="filter-btn btn-search">
+                <i class="fa-solid fa-magnifying-glass"></i> Search
+            </button>
+
+            <a href="{{ request.path }}" class="filter-btn btn-clear">
+                <i class="fa-solid fa-xmark"></i> Clear
+            </a>
+
+            <!-- Export Button (Pushed to Right) -->
+            <button type="submit" name="export_excel" value="true" class="filter-btn btn-export">
+                <i class="fa-solid fa-file-excel"></i> Export to Excel
+            </button>
+
+        </form>
+
+        <div class="table-responsive px-3">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>CC Dates<br>Month</th>
+                        <th>Company<br>Code</th>
+                        <th>Active<br>Members</th>
+                        <th>Schedule Date</th>
+                        <th>Final Date</th>
+                        <th>Schedule<br>Amount</th>
+                        <th>Confirmed Date</th>
+                        <th>Bank Date</th>
+                        <th>Bank Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in confirmation_records %}
+                        {% with source_count=record.source_details|length %}
+                            
+                            {# Determine row span #}
+                            {% with row_span=source_count|default:1 %}
+
+                                {% if source_count == 0 %}
+                                    <!-- SCENARIO A: No Bank Lines -->
+                                    <tr class="bill-separator">
+                                        <td>{{ record.cc_dates_month|date:"Y-m-d" }}</td>
+                                        <td>{{ record.company_code }}</td>
+                                        <td>{{ record.active_members }}</td>
+                                        <td>{{ record.schedule_date|date:"Y-m-d" }}</td>
+                                        <td>{{ record.final_date|date:"Y-m-d"|default:"-" }}</td>
+                                        <td class="amount-col">R {{ record.schedule_amount }}</td>
+                                        <td>-</td>
+                                        <td>-</td> 
+                                        <td>-</td> 
+                                    </tr>
+
+                                {% else %}
+                                    <!-- SCENARIO B: Has Bank Lines -->
+                                    {% for source in record.source_details %}
+                                        <tr class="{% if forloop.last %}bill-separator{% else %}bank-row{% endif %}">
+                                            
+                                            {# Render BILL info only on first iteration #}
+                                            {% if forloop.first %}
+                                                <td rowspan="{{ row_span }}">{{ record.cc_dates_month|date:"Y-m-d" }}</td>
+                                                <td rowspan="{{ row_span }}">{{ record.company_code }}</td>
+                                                <td rowspan="{{ row_span }}">{{ record.active_members }}</td>
+                                                <td rowspan="{{ row_span }}">{{ record.schedule_date|date:"Y-m-d" }}</td>
+                                                <td rowspan="{{ row_span }}">{{ record.final_date|date:"Y-m-d"|default:"-" }}</td>
+                                                <td rowspan="{{ row_span }}" class="amount-col">R {{ record.schedule_amount }}</td>
+                                                <td rowspan="{{ row_span }}">
+                                                    {{ record.confirmed_date|date:"Y-m-d"|default:"-" }}
+                                                </td>
+                                            {% endif %}
+
+                                            <!-- Render SOURCE info -->
+                                            <td>{{ source.date|date:"Y-m-d" }}</td>
+                                            <td>R {{ source.amount }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                {% endif %}
+
+                            {% endwith %}
+                        {% endwith %}
+                    {% empty %}
+                        <tr>
+                            <td colspan="9" class="text-center p-5 text-muted">No records found.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</body>
+</html>

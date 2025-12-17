@@ -1,0 +1,299 @@
+{% block title %}<a href="{% url 'dashboard' %}" class="return-button">Back to Dashboard</a>{% endblock %}
+
+{% block content %}
+<style>
+    /* -------------------------------------- */
+    /* Base Styles */
+    /* -------------------------------------- */
+    body {
+        font-family: sans-serif;
+        background: linear-gradient(to bottom, #d1e2c4, #d1e2c4); 
+        color: #333;
+        padding-top: 20px;
+    }
+    .return-button {
+        padding: 10px 20px;
+        background-color: #81c784;
+        border: 1px solid #81c784;
+        border-radius: 5px;
+        text-decoration: none;
+        color: white;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        text-align: center;
+    }
+
+    .return-button:hover {
+        background-color: #66bb6a;
+    }
+
+    .page-header {
+        max-width: 900px;
+        margin: 0 auto 20px auto;
+        padding: 0 15px;
+    }
+    
+    .member-add-form-container {
+        max-width: 900px;
+        margin: 0 auto 50px auto;
+        padding: 20px;
+        background-color: #f8f8f8; 
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    /* -------------------------------------- */
+    /* Collapsible Sections (Details/Summary) */
+    /* -------------------------------------- */
+
+    /* Style the main section container */
+    details {
+        border: 1px solid #aed581; /* Light border */
+        border-radius: 6px;
+        margin-bottom: 10px;
+        background-color: #ffffff;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+
+    /* Style the dropdown header */
+    summary {
+        padding: 15px 20px;
+        font-weight: bold;
+        background-color: #e6f1df; /* Very light green background for header */
+        border-radius: 6px 6px 0 0;
+        cursor: pointer;
+        outline: none; /* Remove focus outline */
+        list-style: none; /* Hide default dropdown arrow in some browsers */
+        color: #1b5e20; /* Dark Green text */
+        font-size: 16px;
+        position: relative;
+    }
+    
+    /* Custom arrow for summary */
+    summary::after {
+        content: '▼';
+        position: absolute;
+        right: 20px;
+        transition: transform 0.2s;
+    }
+
+    /* Rotate arrow when open */
+    details[open] summary::after {
+        transform: rotate(180deg);
+    }
+
+    /* Style the content area */
+    .form-section-card {
+        padding: 15px 20px 20px 20px;
+        background-color: #ffffff;
+    }
+
+    .section-title {
+        color: #1b5e20; /* Dark Green */
+        margin-top: 0;
+        margin-bottom: 10px;
+        display: inline; /* Keep it next to any potential number/icon */
+    }
+
+    /* -------------------------------------- */
+    /* Form Elements (.as_p styling) */
+    /* -------------------------------------- */
+    form p {
+        margin-bottom: 15px;
+    }
+    
+    form label {
+        display: block;
+        font-weight: bold;
+        margin-bottom: 5px;
+        color: #555;
+    }
+
+    input[type="text"], 
+    input[type="email"], 
+    input[type="number"], 
+    input[type="date"], 
+    textarea, 
+    select {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box; 
+        font-size: 14px;
+        background-color: #fff;
+    }
+
+    input[type="checkbox"], input[type="radio"] {
+        width: auto;
+        margin-right: 5px;
+    }
+
+    .form-section-card p:has(input[type="checkbox"]) label {
+        font-weight: normal;
+        display: inline;
+    }
+
+    /* -------------------------------------- */
+    /* Buttons */
+    /* -------------------------------------- */
+    .save-button, .cancel-button, .section-save-button {
+        display: inline-block;
+        padding: 8px 16px;
+        margin-top: 15px;
+        margin-right: 10px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        font-weight: bold;
+        text-align: center;
+        transition: background-color 0.2s;
+    }
+
+    /* Style for section-specific save buttons */
+    .section-save-button {
+        background-color: #66bb6a; /* Lighter Save Green */
+        color: white;
+        font-size: 13px;
+        float: right;
+    }
+
+    .section-save-button:hover {
+        background-color: #43a047; /* Medium Green */
+    }
+
+    /* Style for main page-level buttons */
+    .main-buttons {
+        text-align: right;
+        padding-top: 20px;
+    }
+    .main-buttons .save-button {
+        background-color: #1b5e20; /* Dark Green for main save */
+    }
+    .main-buttons .save-button:hover {
+        background-color: #003300; 
+    }
+    .main-buttons .cancel-button {
+        background-color: #ccc;
+        color: #333;
+    }
+
+</style>
+
+
+<form method="post">
+    {% csrf_token %}
+
+    <div class="page-header">
+        <h1>Create New Member</h1>
+        <p class="explanation">Update a section below and click 'Save Section' to update that data immediately.</p>
+    </div>
+
+    <div class="member-add-form-container">
+        
+        <details open> <summary>1. Core Member Group Details</summary>
+            <div class="form-section-card">
+                <p>This information is essential to create the member record.</p>
+                {{ member_form.as_p }} 
+                <button type="submit" name="save_member_form" value="1" class="section-save-button">Save Section</button>
+                <div style="clear: both;"></div> </div>
+        </details>
+        
+        <details>
+            <summary>2. CBC Details</summary>
+            <div class="form-section-card">
+                {{ cbc_form.as_p }}
+                <button type="submit" name="save_cbc_form" value="1" class="section-save-button">Save Section</button>
+                <div style="clear: both;"></div>
+            </div>
+        </details>
+        
+        <details>
+            <summary>3. CBC Admin Person</summary>
+            <div class="form-section-card">
+                {{ cbc_admin_form.as_p }}
+                <button type="submit" name="save_cbc_admin_form" value="1" class="section-save-button">Save Section</button>
+                <div style="clear: both;"></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>4. CBC Consultancy Person</summary>
+            <div class="form-section-card">
+                {{ cbc_consultancy_form.as_p }}
+                <button type="submit" name="save_cbc_consultancy_form" value="1" class="section-save-button">Save Section</button>
+                <div style="clear: both;"></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>5. CFA Details</summary>
+            <div class="form-section-card">
+                {{ cfa_form.as_p }}
+                <button type="submit" name="save_cfa_form" value="1" class="section-save-button">Save Section</button>
+                <div style="clear: both;"></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>6. CFA Admin Person</summary>
+            <div class="form-section-card">
+                {{ cfa_admin_form.as_p }}
+                <button type="submit" name="save_cfa_admin_form" value="1" class="section-save-button">Save Section</button>
+                <div style="clear: both;"></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>7. CFA 2 Details</summary>
+            <div class="form-section-card">
+                {{ cfa2_form.as_p }}
+                <button type="submit" name="save_cfa2_form" value="1" class="section-save-button">Save Section</button>
+                <div style="clear: both;"></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>8. CFA 3 Details</summary>
+            <div class="form-section-card">
+                {{ cfa3_form.as_p }}
+                <button type="submit" name="save_cfa3_form" value="1" class="section-save-button">Save Section</button>
+                <div style="clear: both;"></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>9. Communications Person</summary>
+            <div class="form-section-card">
+                {{ communications_form.as_p }}
+                <button type="submit" name="save_communications_form" value="1" class="section-save-button">Save Section</button>
+                <div style="clear: both;"></div>
+            </div>
+        </details>
+        
+        <details>
+            <summary>10. Human Resources</summary>
+            <div class="form-section-card">
+                {{ hr_form.as_p }}
+                <button type="submit" name="save_hr_form" value="1" class="section-save-button">Save Section</button>
+                <div style="clear: both;"></div>
+            </div>
+        </details>
+
+        <details>
+            <summary>11. Section 13A</summary>
+            <div class="form-section-card">
+                {{ section13a_form.as_p }}
+                <button type="submit" name="save_section13a_form" value="1" class="section-save-button">Save Section</button>
+                <div style="clear: both;"></div>
+            </div>
+        </details>
+
+        <div class="main-buttons">
+            <button type="submit" name="save_all" class="save-button">Save All Forms (Final)</button>
+            <a href="{% url 'dashboard' %}" class="cancel-button">Cancel</a>
+        </div>
+    </div>
+</form>
+{% endblock %}

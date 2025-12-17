@@ -1,0 +1,938 @@
+{% load static %}
+{% load math_filters %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% if is_fallback %}{{ unity_record.B_Company_Name }}{% else %}{{ unity_record.b_company_name }}{% endif %} Information</title>
+<style>
+/* --- STYLES (Retained) --- */
+html,body{height:100%;margin:0;padding:0;overflow:hidden}body{font-family:sans-serif;font-size:14px;background:linear-gradient(to bottom,#d1e2c4,rgb(143,207,127));color:#333;display:flex;justify-content:center;align-items:center}.container{width:95%;max-width:98%;height:90vh;display:flex;flex-direction:column;background-color:#f0fff0;padding:1.5em;border-radius:8px;box-shadow:0 4px 8px rgba(0,0,0,.1)}
+/* --- HEADER AND BUTTONS --- */
+.dashboard-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}.dashboard-button{padding:8px 16px;background-color:#81c784;border:1px solid #81c784;border-radius:5px;text-decoration:none;color:white;font-weight:700;transition:background-color .3s ease;font-size:13px}.dashboard-button:hover{background-color:#66bb6a}h1{color:#1b5e20;text-align:center;flex-grow:1;font-size:22px}.create-bill-button{background-color:#3f51b5;margin-right:15px}.create-bill-button:hover{background-color:#303f9f}.billing-buttons-container{display:flex;align-items:center;margin-top:15px;margin-bottom:15px}
+/* --- NEW Return Button Style --- */
+.return-button-task {
+    background-color: #f7931e; /* Orange, distinct from blue/green */
+    border-color: #f7931e;
+    padding: 8px 16px;
+    font-size: 13px;
+    margin-right: 15px; /* Add space next to the Back to List button */
+}
+.return-button-task:hover {
+    background-color: #ef6c00;
+}
+/* Ensure header uses space correctly */
+.dashboard-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
+/* --- LAYOUT AND TABS --- */
+.profile-layout{display:flex;gap:15px;flex:1;min-height:0}.tab-nav{list-style-type:none;padding:0;margin:0;display:flex;flex-direction:column;width:180px;border-right:2px solid #aed581;overflow-y:auto}.tab-nav li{padding:10px 15px;cursor:pointer;background-color:#81c784;border:1px solid #81c784;border-right:none;color:white;margin-bottom:4px;border-radius:5px 0 0 5px;white-space:nowrap;text-align:right;transition:all .2s ease;font-size:13px}.tab-nav li.active{background-color:#f0fff0;color:#1b5e20;border-top:2px solid #43a047;border-bottom:2px solid #43a047;border-left:2px solid #43a047;font-weight:700;transform:translateX(2px);z-index:1}.tab-nav li:hover{background-color:#66bb6a}.tab-content{flex:1;background-color:#f0fff0;padding:15px;border:1px solid #aed581;border-radius:8px;box-shadow:0 2px 5px rgba(0,0,0,.1);overflow-y:auto}.tab-pane{display:none}.tab-pane.active{display:block}
+/* --- TABLE STYLES --- */
+table{width:100%;border-collapse:collapse;margin-top:15px;margin-bottom:20px}th,td{padding:10px 12px;text-align:left;border-bottom:1px solid #aed581;font-size:13px}th{background-color:#e6ffe6;color:#1b5e20;font-weight:700;width:auto;white-space:nowrap}
+/* SORTING STYLES (NEW) */
+.sortable-header{cursor:pointer;user-select:none;position:relative}.sortable-header:hover{background-color:#dcedc8}.sortable-header::after{content:' ⇅';font-size:.8em;color:#888;margin-left:5px}.sortable-header.asc::after{content:' ▲';color:#1b5e20}.sortable-header.desc::after{content:' ▼';color:#1b5e20}#general-info table th,#edit-mode-container table th{width:30%;white-space:normal}#bank-lines td,#recon td,#billing td,#company-claims td{white-space:nowrap;vertical-align:middle}
+/* UPDATED BANK LINE COLUMN WIDTHS */
+#bank-lines th:nth-child(4), #bank-lines th:nth-child(5), #bank-lines th:nth-child(6) { width: 10%; } /* Amount columns */
+#bank-lines td:nth-child(7){white-space:normal;min-width:150px} /* Review Note */
+
+tr:nth-child(even){background-color:#f9f9f9}.empty-message{text-align:center;padding:15px;color:#777;font-style:italic;font-size:13px}
+/* --- CREDIT NOTE SPECIFIC STYLES --- */
+.credit-heading{color:#3f51b5;margin-top:20px;border-bottom:2px solid #aed581;padding-bottom:5px}.credit-table th{background-color:#e8eaf6;color:#3f51b5}
+/* --- STATUS TAGS (CORRECTED) --- */
+.status-tag{display:inline-block;padding:3px 8px;border-radius:4px;font-weight:700;font-size:.8em}
+/* New Recon Status Colors */
+.status-reconcomplete{background-color:#d1c4e9;color:#512da8}
+.status-open{background-color:#fffde7;color:#fbc02d}
+.status-pre-bill{background-color:#ffecb3;color:#ff6f00}
+.status-scheduled{background-color:#c8e6c9;color:#388e3c}
+.status-awaitinginput{background-color:#e0e0e0;color:#616161}
+.status-fullyconsumed { background-color: #81c784; color: #1b5e20; }
+.status-partiallyreconciled { background-color: #ff9800; color: white; }
+.status-unreconciled { background-color: #f44336; color: white; }
+.status-assigned { background-color: #3f51b5; color: white; }
+/* ... (Rest of styles omitted for brevity) ... */
+</style>
+</head>
+<body>
+<div class="container">
+<div class="dashboard-header">
+<a href="{% url 'unity_list' %}" class="dashboard-button">Back to List</a>
+
+{# --- NEW: CONDITIONAL RETURN BUTTON --- #}
+<div style="display: flex; align-items: center; gap: 10px;">
+{% if return_to_task and return_url %}
+<a href="{{ return_url }}" class="dashboard-button return-button-task">
+    ↩️ Return to Delegated Task
+</a>
+{% endif %}
+</div>
+{# --- END NEW --- #}
+
+<h1>Unity Management Details for {% if is_fallback %}{{ unity_record.B_Company_Name }} (Limited Data){% else %}{{ unity_record.b_company_name }}{% endif %}</h1>
+<div></div>
+</div>
+{% if messages %}
+<div class="messages-container">
+{% for message in messages %}
+<div class="fallback-warning">{{ message }}</div>
+{% endfor %}
+</div>
+{% endif %}
+<div class="profile-layout">
+<ul class="tab-nav">
+<li class="active" data-tab-target="#general-info">General Info</li>
+<li data-tab-target="#bank-lines">Bank Lines & Credit</li>
+<li data-tab-target="#company-claims">Company Claims</li>
+<li data-tab-target="#recon">Open Bills</li>
+<li data-tab-target="#billing">Recon History</li>
+<li data-tab-target="#notes-log">Notes</li>
+<li data-tab-target="#email-log">Emails</li>
+</ul>
+<div class="tab-content">
+
+<div id="general-info" class="tab-pane active">
+{% if is_fallback %}
+<div class="fallback-warning">Full details are unavailable. This record exists only in the Internal Funds list.</div>
+<table><tbody><tr><th>Company Code</th><td>{{ unity_record.A_Company_Code }}</td></tr><tr><th>Company Name</th><td>{{ unity_record.B_Company_Name }}</td></tr><tr><th>Source</th><td>{{ unity_record.Source }}</td></tr></tbody></table>
+{% else %}
+<div id="view-mode-container">
+<button type="button" class="edit-btn" onclick="toggleEditMode(true)">✏️ Edit Details</button>
+<div style="clear: both;"></div>
+<table>
+<tbody>
+<tr><th>Company Code</th><td>{{ unity_record.a_company_code }}</td></tr>
+<tr><th>Company Name</th><td>{{ unity_record.b_company_name }}</td></tr>
+<tr><th>Recon Contact 1</th><td>{{ unity_record.recon_contact_1_name|default:"-" }} <br><small style="color:#666">{{ unity_record.recon_contact_1_email|default:"" }}</small></td></tr>
+<tr><th>Recon Contact 2</th><td>{{ unity_record.recon_contact_2_name|default:"-" }} <br><small style="color:#666">{{ unity_record.recon_contact_2_email|default:"" }}</small></td></tr>
+<tr><th>Commencement Date</th><td>{{ unity_record.commencement_date|date:"Y-m-d"|default:"-" }}</td></tr>
+<tr><th>Fund Status</th><td>{{ unity_record.fund_status|default:"-" }}</td></tr>
+<tr><th>Fund Status Date</th><td>{{ unity_record.fund_status_date|date:"Y-m-d"|default:"-" }}</td></tr>
+<tr><th>Last Recon Note</th><td>{{ unity_record.i_last_recon }}</td></tr>
+<tr><th>Agent</th><td>{{ unity_record.c_agent }}</td></tr>
+<tr><th>Company Status</th><td>{{ unity_record.d_company_status }}</td></tr>
+<tr><th>Payment Method</th><td>{{ unity_record.e_payment_method }}</td></tr>
+<tr><th>Billing Method</th><td>{{ unity_record.f_billing_method }}</td></tr>
+<tr><th>Current Fiscal</th><td>{{ unity_record.g_current_fiscal }}</td></tr>
+<tr><th>Current Status</th><td>{{ unity_record.h_current_status }}</td></tr>
+<tr><th>Arrears</th><td>{{ unity_record.j_arrears }}</td></tr>
+</tbody>
+</table>
+</div>
+
+<div id="edit-mode-container" style="display: none;">
+<h2 style="margin-top: 0; color: #f57f17; border-bottom: 2px solid #f9a825; padding-bottom: 10px;">Editing Company Profile</h2>
+<form method="POST" action="">
+{% csrf_token %}
+<input type="hidden" name="update_general_info" value="true">
+<table>
+<tbody>
+<tr style="background-color: #eee;"><th>Company Code</th><td>{{ unity_record.a_company_code }}</td></tr>
+<tr style="background-color: #eee;"><th>Company Name</th><td>{{ unity_record.b_company_name }}</td></tr>
+<tr><th>Recon Contact 1 – Name & Surname</th><td><input type="text" name="recon_contact_1_name" value="{{ unity_record.recon_contact_1_name|default:'' }}" class="form-input" placeholder="Enter Name"></td></tr>
+<tr><th>Recon Contact 1 – Email Address</th><td><input type="email" name="recon_contact_1_email" value="{{ unity_record.recon_contact_1_email|default:'' }}" class="form-input" placeholder="Enter Email"></td></tr>
+<tr><th>Recon Contact 2 – Name & Surname</th><td><input type="text" name="recon_contact_2_name" value="{{ unity_record.recon_contact_2_name|default:'' }}" class="form-input" placeholder="Enter Name"></td></tr>
+<tr><th>Recon Contact 2 – Email Address</th><td><input type="email" name="recon_contact_2_email" value="{{ unity_record.recon_contact_2_email|default:'' }}" class="form-input" placeholder="Enter Email"></td></tr>
+<tr><th>Commencement Date</th><td><input type="date" name="commencement_date" value="{{ unity_record.commencement_date|date:'Y-m-d' }}" class="form-input"></td></tr>
+<tr><th>Fund Status Date</th><td><input type="date" name="fund_status_date" value="{{ unity_record.fund_status_date|date:'Y-m-d' }}" class="form-input"></td></tr>
+<tr><th>Last Recon Note</th><td><input type="text" name="last_recon_note" value="{{ unity_record.i_last_recon }}" class="form-input" placeholder="Note content..."></td></tr>
+<tr><th>Agent</th><td>
+<select name="agent" class="form-select">
+<option value="" {% if not unity_record.c_agent %}selected{% endif %}>-- Select Agent --</option>
+<option value="karen" {% if unity_record.c_agent == 'karen' %}selected{% endif %}>karen</option>
+<option value="Mymoena" {% if unity_record.c_agent == 'Mymoena' %}selected{% endif %}>Mymoena</option>
+<option value="merril" {% if unity_record.c_agent == 'merril' %}selected{% endif %}>merril</option>
+<option value="gail" {% if unity_record.c_agent == 'gail' %}selected{% endif %}>gail</option>
+<option value="Gail Le Roux" {% if unity_record.c_agent == 'Gail Le Roux' %}selected{% endif %}>Gail Le Roux</option>
+</select>
+</td></tr>
+<tr><th>Company Status</th><td>
+<select name="company_status" class="form-select">
+<option value="" {% if not unity_record.d_company_status %}selected{% endif %}>-- Select Status --</option>
+<option value="Active" {% if unity_record.d_company_status == 'Active' %}selected{% endif %}>Active</option>
+<option value="External" {% if unity_record.d_company_status == 'External' %}selected{% endif %}>External</option>
+<option value="Section 14" {% if unity_record.d_company_status == 'Section 14' %}selected{% endif %}>Section 14</option>
+<option value="Section 27" {% if unity_record.d_company_status == 'Section 27' %}selected{% endif %}>Section 27</option>
+<option value="Section 28" {% if unity_record.d_company_status == 'Section 28' %}selected{% endif %}>Section 28</option>
+<option value="Section 28 Approved" {% if unity_record.d_company_status == 'Section 28 Approved' %}selected{% endif %}>Section 28 Approved</option>
+<option value="Terminated" {% if unity_record.d_company_status == 'Terminated' %}selected{% endif %}>Terminated</option>
+</select>
+</td></tr>
+<tr><th>Fund Status</th><td>
+<select name="fund_status" class="form-select">
+<option value="" {% if not unity_record.fund_status %}selected{% endif %}>-- Select Fund Status --</option>
+<option value="Active" {% if unity_record.fund_status == 'Active' %}selected{% endif %}>Active</option>
+<option value="No Active Members" {% if unity_record.fund_status == 'No Active Members' %}selected{% endif %}>No Active Members</option>
+<option value="Section 27" {% if unity_record.fund_status == 'Section 27' %}selected{% endif %}>Section 27</option>
+<option value="Section 28" {% if unity_record.fund_status == 'Section 28' %}selected{% endif %}>Section 28</option>
+<option value="Section 28 Approved" {% if unity_record.fund_status == 'Section 28 Approved' %}selected{% endif %}>Section 28 Approved</option>
+<option value="Amendment" {% if unity_record.fund_status == 'Amendment' %}selected{% endif %}>Amendment</option>
+<option value="Dormant" {% if unity_record.fund_status == 'Dormant' %}selected{% endif %}>Dormant</option>
+<option value="Not taken Up" {% if unity_record.fund_status == 'Not taken Up' %}selected{% endif %}>Not taken Up</option>
+<option value="Section 14" {% if unity_record.fund_status == 'Section 14' %}selected{% endif %}>Section 14</option>
+<option value="Section 14 Approved" {% if unity_record.fund_status == 'Section 14 Approved' %}selected{% endif %}>Section 14 Approved</option>
+</select>
+</td></tr>
+<tr><th>Payment Method</th><td>
+<select name="payment_method" class="form-select">
+<option value="" {% if not unity_record.e_payment_method %}selected{% endif %}>-- Select Method --</option>
+<option value="EFT" {% if unity_record.e_payment_method == 'EFT' %}selected{% endif %}>EFT</option>
+<option value="Cash" {% if unity_record.e_payment_method == 'Cash' %}selected{% endif %}>Cash</option>
+<option value="Debit Order" {% if unity_record.e_payment_method == 'Debit Order' %}selected{% endif %}>Debit Order</option>
+</select>
+</td></tr>
+<tr><th>Billing Method</th><td>
+<select name="billing_method" class="form-select">
+<option value="" {% if not unity_record.f_billing_method %}selected{% endif %}>-- Select Method --</option>
+<option value="Pre-Bill Send" {% if unity_record.f_billing_method == 'Pre-Bill Send' %}selected{% endif %}>Pre-Bill Send</option>
+<option value="Schedule Request" {% if unity_record.f_billing_method == 'Schedule Request' %}selected{% endif %}>Schedule Request</option>
+<option value="Schedule Receive" {% if unity_record.f_billing_method == 'Schedule Receive' %}selected{% endif %}>Schedule Receive</option>
+</select>
+</td></tr>
+<tr><th>Current Fiscal</th><td>{{ unity_record.g_current_fiscal }}</td></tr>
+<tr><th>Current Status</th><td>
+<select name="current_status" class="form-select">
+<option value="" {% if not unity_record.h_current_status %}selected{% endif %}>-- Select Status --</option>
+<option value="Pre-Bill" {% if unity_record.h_current_status == 'Pre-Bill' %}selected{% endif %}>Pre-Bill</option>
+<option value="Schedule" {% if unity_record.h_current_status == 'Schedule' %}selected{% endif %}>Schedule</option>
+<option value="Reconciled" {% if unity_record.h_current_status == 'Reconciled' %}selected{% endif %}>Reconciled</option>
+</select>
+</td></tr>
+<tr><th>Arrears</th><td><input type="text" name="arrears" value="{{ unity_record.j_arrears }}" class="form-input"></td></tr>
+</tbody>
+</table>
+<div style="text-align: right; padding-top: 10px;">
+<button type="button" class="cancel-btn" onclick="toggleEditMode(false)">Cancel</button>
+<button type="submit" class="save-info-btn">Save General Info</button>
+</div>
+</form>
+</div>
+<div class="notes-section">
+<h2>Client Notes (Old System)</h2>
+<div class="notes-list-container">
+{% if notes %}
+<ul class="notes-list">
+{% for note in notes %}
+<li class="note-item"><div class="note-header"><span>{{ note.user }}</span><span>{{ note.date|date:"F d, Y P" }}</span></div><div class="note-text">{{ note.notes }}</div></li>
+{% endfor %}
+</ul>
+{% else %}
+<p class="empty-message">No notes found for this company.</p>
+{% endif %}
+</div>
+</div>
+{% endif %}
+</div>
+
+<div id="bank-lines" class="tab-pane">
+    {# --- NEW SURPLUS DISPLAY START --- #}
+    <h2 style="color:#388e3c; border-bottom: 2px solid #aed581; padding-bottom: 5px;">
+        💰 Available Surplus: R {{ available_surplus|default:"0.00"|floatformat:2 }}
+    </h2>
+    <div style="margin-bottom: 20px; font-size: 0.9em; color: #555;">
+        This figure represents the total unallocated surplus funds derived from settled bills.
+    </div>
+    {# --- NEW SURPLUS DISPLAY END --- #}
+    
+    <h2>Associated Bank Lines (Cash Segments)</h2>
+    {% if bank_lines %}
+    <table>
+    <thead>
+    <tr>
+        <th>Segment ID</th>
+        <th>Deposit Date</th>
+        <th>Original Deposit</th>
+        <th>Settled/Consumed</th>
+        <th>Remaining Balance</th>
+        <th>Status</th>
+        <th>Review Note</th>
+        <th>Action</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for line in bank_lines %}
+    {# --- Calculate Remaining Balance --- #}
+    {% with remaining_balance=line.transaction_amount|sub:line.amount_settled %}
+    
+    <tr onclick="window.location.href='{% url 'display_bankline_review' line.id %}?source=unity'" 
+        style="cursor: pointer; {% if remaining_balance <= 0 %}background-color: #f0f0f0; color: #888;{% endif %}">
+        
+        <td>#{{ line.id }}</td>
+        <td>{{ line.transaction_date|date:"Y-m-d" }}</td>
+        <td>R {{ line.transaction_amount|floatformat:2 }}</td>
+        <td style="color: #ff9800; font-weight: bold;">R {{ line.amount_settled|floatformat:2 }}</td>
+        <td style="color: {% if remaining_balance > 0 %}#1b5e20{% else %}#888{% endif %}; font-weight: bold;">
+            R {{ remaining_balance|floatformat:2 }}
+        </td>
+        <td>
+            <span class="status-tag status-{{ line.recon_status|lower|cut:' '|cut:'-' }}">
+                {{ line.recon_status }}
+            </span>
+        </td>
+        <td>{{ line.review_note|default:"-"|truncatechars:30 }}</td>
+        <td>
+            <a href="{% url 'display_bankline_review' line.id %}?source=unity" class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #3f51b5;" onclick="event.stopPropagation();">
+                Review/Edit
+            </a>
+        </td>
+    </tr>
+    {% endwith %}
+    {% endfor %}
+    </tbody>
+    </table>
+    {% else %}
+    <p class="empty-message">No reconciled bank lines found for this company code.</p>
+    {% endif %}
+    <h2 class="credit-heading">Associated Credit Note Lines</h2>
+    {% if credit_notes %}
+    <table class="credit-table">
+    <thead>
+    <tr><th>ID</th><th>Processed Date</th><th>Processed By</th><th>Credit Amount</th><th>Fiscal Date</th><th>Action</th></tr>
+    </thead>
+    <tbody>
+    {% for note in credit_notes %}
+    <tr onclick="window.location.href='{% url 'assign_fiscal_date' note_id=note.id %}?context=info'" style="cursor: pointer;">
+    <td>{{ note.id }}</td>
+    <td>{{ note.processed_date|date:"Y-m-d"|default:"N/A" }}</td>
+    <td>{{ note.processed_by}}</td>
+    <td>R {{ note.schedule_amount|default:"0.00"|floatformat:2 }}</td>
+    <td>{% if note.fiscal_date %}<span style="font-weight: bold; color: green;">{{ note.fiscal_date|date:"Y-m-d" }}</span>{% else %}<span style="color: orange;">N/A</span>{% endif %}</td>
+    <td><a href="{% url 'assign_fiscal_date' note_id=note.id %}?context=info" class="dashboard-button" style="text-decoration: none; padding: 5px 8px; font-size: 11px; background-color: #3f51b5;" onclick="event.stopPropagation();">Assign/Edit</a></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+    </table>
+    {% else %}
+    <p class="empty-message">No Credit Note records found for this company code.</p>
+    {% endif %}
+</div>
+
+<div id="company-claims" class="tab-pane">
+{# ... (content unchanged) ... #}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+<h2>Company Claims</h2>
+<button type="button" class="dashboard-button" onclick="openClaimModal()">➕ New Claim</button>
+</div>
+{% if company_claims %}
+<table id="claimsTable">
+<thead>
+<tr>
+<th onclick="sortClaimsTable(0)" class="sortable-header">Surname, Initial</th>
+<th onclick="sortClaimsTable(1)" class="sortable-header">Last Contrib.</th>
+<th onclick="sortClaimsTable(2)" class="sortable-header">Created</th>
+<th onclick="sortClaimsTable(3)" class="sortable-header">Type</th>
+<th onclick="sortClaimsTable(4)" class="sortable-header">Status</th>
+<th onclick="sortClaimsTable(5)" class="sortable-header">Allocation</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+{% for claim in company_claims %}
+<tr>
+<td>{{ claim.member_surname }}, {{ claim.member_name|slice:":1" }}</td>
+<td>{{ claim.last_contribution_date|date:"Y-m-d" }}</td>
+<td>{{ claim.claim_created_date|date:"Y-m-d" }}</td>
+<td>{{ claim.claim_type }}</td>
+<td><span class="status-tag {% if claim.claim_status == 'Paid' %}status-reconcomplete{% else %}status-open{% endif %}">{{ claim.claim_status }}</span></td>
+<td>{{ claim.claim_allocation }}</td>
+<td>
+<button class="dashboard-button"
+style="padding: 4px 8px; font-size: 11px;"
+onclick="editClaim(this)"
+data-id="{{ claim.id }}"
+data-id_number="{{ claim.id_number }}"
+data-member_name="{{ claim.member_name }}"
+data-member_surname="{{ claim.member_surname }}"
+data-claim_type="{{ claim.claim_type }}"
+data-exit_reason="{{ claim.exit_reason }}"
+data-claim_allocation="{{ claim.claim_allocation }}"
+data-claim_status="{{ claim.claim_status }}"
+data-payment_option="{{ claim.payment_option }}"
+data-claim_created_date="{{ claim.claim_created_date|date:'Y-m-d' }}"
+data-last_contribution_date="{{ claim.last_contribution_date|date:'Y-m-d' }}"
+data-date_submitted="{{ claim.date_submitted|date:'Y-m-d' }}"
+data-date_paid="{{ claim.date_paid|date:'Y-m-d' }}"
+>Edit</button>
+<template id="notes-data-{{ claim.id }}">
+{% for note in claim.notes.all %}
+<tr><td>{{ note.note_description }}</td><td>{{ note.note_selection }}</td><td>{{ note.created_at|date:"Y-m-d H:i" }}</td><td>{{ note.created_by.username }}</td></tr>
+{% empty %}
+<tr><td colspan="4" style="text-align:center; color:#777;">No notes found for this claim.</td></tr>
+{% endfor %}
+</template>
+</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% else %}
+<p class="empty-message">No claims found for this company.</p>
+{% endif %}
+<div id="claimModal" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+<div style="background: white; width: 90%; max-width: 1000px; margin: 30px auto; padding: 20px; border-radius: 8px; max-height: 90vh; overflow-y: auto;">
+<h2 style="color: #1b5e20; border-bottom: 2px solid #aed581; padding-bottom: 10px;">Manage Claim</h2>
+<form method="POST" action="{% url 'save_claim' company_code=unity_record.A_Company_Code|default:unity_record.a_company_code %}">
+{% csrf_token %}
+<input type="hidden" name="claim_id" id="modal_claim_id">
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+<div><label style="font-weight:bold;">Company Code</label><input type="text" name="company_code" value="{{ unity_record.A_Company_Code|default:unity_record.a_company_code }}" class="form-input" readonly style="background-color: #eee;"></div>
+<div><label style="font-weight:bold;">Agent</label><input type="text" name="agent" value="{{ unity_record.c_agent }}" class="form-input" readonly style="background-color: #eee;"></div>
+</div>
+<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+<div><label style="font-weight:bold;">ID / Passport *</label><input type="text" name="id_number" class="form-input" required></div>
+<div><label style="font-weight:bold;">First Name *</label><input type="text" name="member_name" class="form-input" required></div>
+<div><label style="font-weight:bold;">Surname *</label><input type="text" name="member_surname" class="form-input" required></div>
+</div>
+<div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+<div><label style="font-weight:bold;">Claim Type</label><select name="claim_type" class="form-select"><option value="Withdrawal">Withdrawal</option><option value="Retirement">Retirement</option><option value="Death">Death</option><option value="Disability">Disability</option><option value="Funeral">Funeral</option><option value="Surplus">Surplus</option><option value="Ill-Health">Ill-Health</option></select></div>
+<div><label style="font-weight:bold;">Reason For Exit</label><select name="exit_reason" class="form-select"><option value="">-- Select --</option><option value="Resignation">Resignation</option><option value="Dismissal">Dismissal</option><option value="Retirement">Retirement</option><option value="Retrenchment">Retrenchment</option><option value="Death">Death</option><option value="Disability">Disability</option><option value="Abscondment">Abscondment</option><option value="Ill-Health">Ill-Health</option></select></div>
+<div><label style="font-weight:bold;">Claim Allocation</label><select name="claim_allocation" class="form-select"><option value="New Claim">New Claim</option><option value="Dealing With Claim">Dealing With Claim</option><option value="Claim Query">Claim Query</option><option value="Claim Paid">Claim Paid</option><option value="Exit Processed">Exit Processed</select></div>
+</div>
+<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+<div><label style="font-weight:bold;">Claim Status</label><select name="claim_status" class="form-select"><option value="Claim Docs Requested">Claim Docs Requested</option><option value="Delegated">Delegated</option><option value="Incomplete">Incomplete</option><option value="Paid">Paid</option><option value="Submitted">Submitted</option><option value="Company in Arrears">Company in Arrears</option><option value="Payment/Schedule Due">Payment/Schedule Due</option><option value="Family Member – Sent to Sanlam">Family Member – Sent to Sanlam</option></select></div>
+<div><label style="font-weight:bold;">Payment Option</label><select name="payment_option" class="form-select"><option value="Leave Benefit in Fund">Leave Benefit in Fund</option><option value="Transfer Full Benefit">Transfer Full Benefit</option><option value="Portion Cash and Transfer Balance">Portion Cash and Transfer Balance</option><option value="Pay Full Benefit">Pay Full Benefit</option><option value="No Payment Instruction">No Payment Instruction</option></select></div>
+</div>
+<div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+<div><label style="font-weight:bold; color: #1b5e20;">Claim Created *</label><input type="date" name="claim_created_date" class="form-input" required value="{% now 'Y-m-d' %}"></div>
+<div><label style="font-weight:bold;">Last Contribution Date</label><input type="date" name="last_contribution_date" class="form-input"></div>
+<div><label style="font-weight:bold;">Date Submitted</label><input type="date" name="date_submitted" class="form-input"></div>
+<div><label style="font-weight:bold;">Date Paid</label><input type="date" name="date_paid" class="form-input"></div>
+</div>
+
+<div class="row" style="margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 15px; margin-bottom: 15px;">
+    <div class="col-md-12">
+        <label for="linked_email_id" style="font-weight: bold; color: #1e88e5;">
+            🔗 Attach Delegated Email (Optional)
+        </label>
+        <select id="linked_email_id" name="linked_email_id" class="form-select" style="border: 1px solid #1e88e5; width: 100%;">
+            <option value="">-- Select an email to link to this claim --</option>
+            
+            {% for email in my_delegated_emails %}
+                <option value="{{ email.email_id }}">
+                    📅 {{ email.received_timestamp|date:"Y-m-d" }} | 
+                    ✉️ {{ email.subject|slice:":40" }}... 
+                    (From: {{ email.sender_email }})
+                </option>
+            {% empty %}
+                <option value="" disabled>No delegated emails found for you.</option>
+            {% endfor %}
+            
+        </select>
+        <small class="text-muted" style="color: #777;">
+            Selecting an email here will link it to this claim record for future reference.
+        </small>
+    </div>
+</div>
+<hr style="border: 1px solid #aed581; margin: 20px 0;">
+<h3 style="color: #38761d;">Add Claim Note</h3>
+<div style="background-color: #f9f9f9; padding: 15px; border-radius: 6px; border: 1px solid #ccc;">
+<div style="margin-bottom: 10px;">
+<label style="font-weight:bold; display:block; margin-bottom:5px;">Note Selection</label>
+<select name="note_selection" id="note_selection" class="form-select" style="width: 100%;">
+<option value="">-- Select Note Type (Optional) --</option>
+<option value="BANK DETAILS FOLLOW UP WITH MEMBER/EMPLOYER">BANK DETAILS FOLLOW UP WITH MEMBER/EMPLOYER</option>
+<option value="BANK VERIFICATION FAILED – SANLAM">BANK VERIFICATION FAILED – SANLAM</option>
+<option value="CLAIM DOCUMENTS REQUESTED">CLAIM DOCUMENTS REQUESTED</option>
+<option value="CONTRIBUTION QUERY – SANLAM">CONTRIBUTION QUERY – SANLAM</option>
+<option value="CONTRIBUTION QUERY FEEDBACK TO SANLAM">CONTRIBUTION QUERY FEEDBACK TO SANLAM</option>
+<option value="CONTRIBUTION QUERY TO EMPLOYER">CONTRIBUTION QUERY TO EMPLOYER</option>
+<option value="FEEDBACK TO MEMBER/EMPLOYER">FEEDBACK TO MEMBER/EMPLOYER</option>
+<option value="FOLLOW UP INCOMPLETE CLAIM">FOLLOW UP INCOMPLETE CLAIM</option>
+<option value="INCOMPLETE CLAIM FORM RECEIVED">INCOMPLETE CLAIM FORM RECEIVED</option>
+<option value="NOT ON PENDING CLAIMS - BILL TO BE SUBMITTED">NOT ON PENDING CLAIMS - BILL TO BE SUBMITTED</option>
+<option value="OVERDUE PAYMENT ENQUIRY FROM MEMBER/EMPLOYER">OVERDUE PAYMENT ENQUIRY FROM MEMBER/EMPLOYER</option>
+<option value="SUBMITTED RFW ONLINE">SUBMITTED RFW ONLINE</option>
+<option value="SUBMITTED VIA E-MAIL">SUBMITTED VIA E-MAIL</option>
+<option value="TAX DIRECTIVE FAILED - SANLAM">TAX DIRECTIVE FAILED - SANLAM</option>
+<option value="TAX DIRECTIVE FOLLOW UP WITH MEMBER/EMPLOYER">TAX DIRECTIVE FOLLOW UP WITH MEMBER/EMPLOYER</option>
+</select>
+</div>
+<div style="margin-bottom: 10px;">
+<label style="font-weight:bold; display:block; margin-bottom:5px;">Note Description</label>
+<textarea name="note_description" id="note_description" rows="3" class="form-input" style="width: 98%; resize: vertical;" placeholder="Add specific details here..."></textarea>
+</div>
+</div>
+<h3 style="color: #38761d; margin-top: 20px;">Claim Notes History</h3>
+<div style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd;">
+<table style="margin: 0; font-size: 12px;">
+<thead style="background-color: #eee;"><tr><th>Note Description</th><th>Note Selection</th><th>Created On</th><th>User</th></tr></thead>
+<tbody id="claim_notes_tbody"><tr><td colspan="4" style="text-align:center; color:#777;">Save claim to add new notes.</td></tr></tbody>
+</table>
+</div>
+<div style="text-align: right; margin-top: 20px;">
+<button type="button" class="cancel-btn" onclick="document.getElementById('claimModal').style.display='none'">Cancel</button>
+<button type="submit" class="save-info-btn">Save Claim & Note</button>
+</div>
+</form>
+</div>
+</div>
+</div>
+
+<div id="recon" class="tab-pane">
+        {# --- NEW SURPLUS DISPLAY START --- #}
+    <h2 style="color:#388e3c; border-bottom: 2px solid #aed581; padding-bottom: 5px;">
+        💰 Available Surplus: R {{ available_surplus|default:"0.00"|floatformat:2 }}
+    </h2>
+    <div style="margin-bottom: 20px; font-size: 0.9em; color: #555;">
+        This figure represents the total unallocated surplus funds derived from settled bills.
+    </div>
+    {# --- NEW SURPLUS DISPLAY END --- #}
+<h2>Open Bills for Reconciliation</h2>
+<div class="billing-buttons-container">
+{% with code=unity_record.A_Company_Code|default:unity_record.a_company_code %}
+<a href="{% url 'create_pre_bill' company_code=code %}" class="dashboard-button create-bill-button" style="padding: 10px 20px; font-size: 14px;">➕ Create New Pre-Bill</a>
+{% endwith %}
+</div>
+{% if open_bills %}
+<div class="billing-table-container">
+<table>
+<thead>
+    <tr>
+        <th>Bill Date (ID)</th>
+        <th>Schedule Amount</th>
+        <th style="color: #F44336;">Unsettled Amount</th>
+        <th>Active Members</th>
+        <th>Status</th>
+        <th>Pre-Bill Date</th>       
+        <th>Schedule Date</th>
+        <th>Confirm Date</th>       
+        <th>Action</th>
+    </tr>
+</thead>
+<tbody>
+{% for record in open_bills %}
+<tr {% if record.display_status == 'AWAITING INPUT' %}style="background-color: #fff8e1;"{% endif %}>
+    <td>{{ record.A_CCDatesMonth|date:"Y-m-d" }} (#{{ record.id }})</td>
+    
+    <td>R {{ record.H_Schedule_Amount|default:"0.00"|floatformat:2 }}</td>
+    
+    {# CRITICAL FIX: NEW FIELD - Unsettled Amount (Remaining Liability) #}
+    <td style="font-weight: bold; color: #F44336;">
+        R {{ record.unsettled_amount|default:"0.00"|floatformat:2 }}
+    </td>
+    
+    <td>{{ record.E_Active_Members }}</td>
+    
+    {# --- STATUS DISPLAY: Use the status returned by the view directly --- #}
+    <td>
+        <span class="status-tag status-{{ record.display_status|lower|cut:" " }}">
+            {{ record.display_status }}
+        </span>
+    </td>
+    
+    {# --- CORRECTED DATE FIELDS --- #}
+    <td>{{ record.F_Pre_Bill_Date|date:"Y-m-d"|default:"-" }}</td>  
+    <td>{{ record.G_Schedule_Date|date:"Y-m-d"|default:"-" }}</td>  
+    <td>{{ record.J_Final_Date|date:"Y-m-d"|default:"-" }}</td>  
+    
+    {# --- ACTION BUTTONS --- #}
+    <td><a href="{% url 'edit_bill' company_code=record.C_Company_Code bill_id=record.id %}" class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #3f51b5;">Edit Bill</a><a href="{% url 'pre_bill_reconciliation_summary' company_code=record.C_Company_Code bill_id=record.id %}" class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #3f51b5;">Recon</a></td>
+
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% else %}
+<p class="empty-message">No open billing records found.</p>
+{% endif %}
+</div>
+
+<div id="billing" class="tab-pane">
+<h2>Settled Bill Audit History</h2>
+{% if settled_bills %}
+<div class="billing-table-container">
+<table>
+<thead>
+<tr>
+<th>Bill Date (ID)</th>
+<th>Active Members</th>
+<th>Schedule Amount</th>
+<th style="color: #388e3c; background-color: #c8e6c9;">Bankline Total</th>
+<th style="color: #8e3873ff; background-color: #c8e6c9;">Credit Allocated</th>
+<th style="color: #5e7014ff; background-color: #c8e6c9;">Surplus Allocated</th>
+<th style="color: #512da8; background-color: #c8e6c9;">Surplus Created</th>
+<th>Status</th>
+<th>Confirm Date</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+{% for record in settled_bills %}
+<tr style="background-color: #e8f5e9;">
+    <td>{{ record.A_CCDatesMonth|date:"Y-m-d" }} (#{{ record.id }})</td>
+    <td>{{ record.E_Active_Members }}</td>
+    <td>R {{ record.H_Schedule_Amount|default:"0.00"|floatformat:2 }}</td>
+    
+    {# 1. Bankline Total (Cash Paid) #}
+    <td style="font-weight: bold; color: #388e3c;">
+        R {{ record.bankline_total|default:"0.00"|floatformat:2 }}
+    </td>
+    
+    {# 2. Credit Allocated (Funds from Credit Note model used to settle THIS bill) #}
+    <td style="font-weight: bold; color: #8e3873ff;">
+        R {{ record.credit_allocated|default:"0.00"|floatformat:2 }}
+    </td>
+    
+    {# 3. Surplus Allocated (Funds from Unity Journal Entry used to settle THIS bill) #}
+    <td style="font-weight: bold; color: #5e7014ff;">
+        R {{ record.surplus_allocated_from_journals|default:"0.00"|floatformat:2 }}
+    </td>
+    
+    {# 4. Surplus Created (The surplus that THIS bill generated) #}
+    <td style="font-weight: bold; color: #512da8;">
+        R {{ record.surplus_created|default:"0.00"|floatformat:2 }}
+    </td>
+    
+    <td><span class="status-tag status-{{ record.display_status|lower|cut:" " }}">{{ record.display_status }}</span></td>
+    <td>{{ record.J_Final_Date|date:"Y-m-d"|default:"-" }}</td>
+    <td><a href="{% url 'settle_bill_report' company_code=record.C_Company_Code bill_id=record.id %}" class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #512da8;">View Audit Report</a></td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% else %}
+<p class="empty-message">No settled billing records found.</p>
+{% endif %}
+</div>
+
+<div id="notes-log" class="tab-pane">
+{# ... (content unchanged) ... #}
+<div class="row" style="display: flex; gap: 20px; min-height: 80vh;">
+<div class="col-left" style="flex: 2; min-width: 450px;">
+<form method="post" action="{% url 'unity_information' company_code=unity_record.A_Company_Code|default:unity_record.a_company_code %}" id="notes_master_form" enctype="multipart/form-data">
+{% csrf_token %}
+<input type="hidden" name="communication_type" id="hidden_comm_type" value="Notes Log">
+<h2 style="margin-top: 0; font-size: 1.8em; color: #1e88e5;">New Action / Note</h2>
+<div class="row" style="display: flex; gap: 15px; margin-bottom: 15px;">
+<div class="col-md-12" style="flex: 1;">
+<div class="card card-notes-select" style="background-color: #e3f2fd; padding: 15px; border-radius: 8px;">
+<label for="id_action_notes" style="font-weight: bold; display: block; margin-bottom: 5px; color: #1565c0;">Note Selector / Action:</label>
+<select id="id_action_notes" name="action_notes" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" required>
+<option value="" disabled selected>Select Action Note</option>
+<option value="0101 BALANCE CONFIRMATION FROM SANLAM">0101 BALANCE CONFIRMATION FROM SANLAM</option>
+<option value="AD HOC NOTE">AD HOC NOTE</option>
+<option value="FEEDBACK TO CRM">FEEDBACK TO CRM</option>
+<option value="FEEDBACK TO EMPLOYER">FEEDBACK TO EMPLOYER</option>
+<option value="FEEDBACK TO SANLAM">FEEDBACK TO SANLAM</option>
+<option value="INBOUND CALL">INBOUND CALL</option>
+<option value="NOT FOR RECON - FW TO CORRECT DEPARTMENT">NOT FOR RECON - FW TO CORRECT DEPARTMENT</option>
+<option value="OUTBOUND CALL">OUTBOUND CALL</option>
+</select>
+</div>
+</div>
+</div>
+<div class="add-note-form-section" id="regular-note-area" style="display: none; background-color: #f0fff0; padding: 15px; border-radius: 8px; border: 1px solid #c3e6cb;">
+<h3 style="margin-top: 0; font-size: 1.3em; color: #38761d;">Note Content</h3>
+<div style="display: flex; gap: 5px; align-items: stretch;">
+<textarea name="note_content" id="regular_note_content" placeholder="Type your detailed note or log of the incoming interaction here..." style="flex-grow: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; min-height: 80px;"></textarea>
+<button type="submit" name="note_submission_action" value="regular_note" id="regular_note_submit" class="add-note-button" style="padding: 8px 12px; white-space: nowrap; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; height: 100%;">Save Log</button>
+</div>
+</div>
+<div class="dialer-area" id="dialer-area" style="display: none; margin-top: 15px; padding: 15px; border: 2px dashed #38761d; border-radius: 8px; background-color: #f0fff0;">
+<h3 style="color: #38761d; margin-top: 0; font-size: 1.3em;">☎️ Outgoing Call Details</h3>
+<div style="display: flex; gap: 15px; margin-bottom: 15px;">
+<div class="form-group" style="flex: 1;"><label for="dialer_number" style="font-weight: bold;">Number to Dial:</label><input type="text" id="dialer_number" name="dialer_number" placeholder="Mobile or Work Number" style="width: 100%; padding: 10px; border: 1px solid #ccc;"></div>
+<div class="form-group" style="flex: 1;"><label for="call_status" style="font-weight: bold;">Call Status:</label><select id="call_status" name="call_status" style="width: 100%; padding: 8px; border: 1px solid #ccc;"><option value="">Select Outcome</option><option value="Completed - Success">Completed - Success</option><option value="Completed - Follow Up">Completed - Follow Up</option><option value="Completed - No Answer">Completed - No Answer</option></select></div>
+</div>
+<div style="text-align: center;"><button type="button" id="trigger_call_dialer" style="padding: 10px; background-color: #4CAF50; color: white; border: none;">📞 Dial Number</button><input type="hidden" name="call_duration_seconds" id="call_duration_seconds" value="0"><button type="submit" name="call_submission_action" value="log_call_note" id="call_note_submit" style="background-color: #3f51b5; color: white; border: none; padding: 10px; margin-left: 10px;">Log Outgoing Call Note</button></div>
+</div>
+</form>
+</div>
+
+<div class="col-right" style="flex: 1; min-width: 350px; padding: 15px; background-color: #e3f2fd; border-radius: 8px; overflow-y: auto;">
+<h2 style="margin-top: 0; font-size: 1.5em; color: #1565c0;">Notes Log</h2>
+<p style="font-size: 0.9em; color: #555;">Showing Calls, Meetings, and System Notes.</p>
+{% if communication_logs %}
+{% for log in communication_logs %}
+<div class="note-item" style="border-left: 4px solid {% if log.communication_type == 'Incoming Call' %}#4CAF50{% elif log.communication_type == 'Outgoing Call' %}#2196F3{% else %}#795548{% endif %}; padding: 10px; margin-bottom: 10px; background-color: #fff; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+<div style="font-size: 0.85em; display: flex; justify-content: space-between; color: #555;"><span style="font-weight: bold; color: #333;">{{ log.user }}</span><span>{{ log.date|date:"Y-m-d H:i" }}</span></div>
+<div style="font-size: 0.85em; color: #1565c0; font-weight: bold;">{{ log.communication_type }} {% if log.action_notes %} | <span style="color: #e65100;">{{ log.action_notes }}</span>{% endif %}</div>
+<p style="margin: 0; font-size: 0.95em; line-height: 1.4; color: #333;">{{ log.notes|linebreaksbr }}</p>
+</div>
+{% endfor %}
+{% else %}
+<p class="empty-message">No notes found.</p>
+{% endif %}
+{% if notes %}
+<h3 style="margin-top: 20px; font-size: 1.1em; color: #888; border-top: 1px dashed #ccc; padding-top: 10px;">Legacy Notes</h3>
+{% for note in notes %}
+<div class="note-item" style="background-color: #f9f9f9; padding: 8px; margin-bottom: 5px; border-left: 3px solid #ccc;"><small style="color: #777;">{{ note.user }} - {{ note.date|date:"Y-m-d" }}</small><p style="margin: 2px 0 0 0; font-size: 0.9em;">{{ note.notes }}</p></div>
+{% endfor %}
+{% endif %}
+</div>
+</div>
+</div>
+
+<div id="email-log" class="tab-pane">
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #aed581; padding-bottom: 10px;">
+<div>
+<h2 style="margin: 0; font-size: 1.5em; color: #1565c0;">Delegated & Sent Emails</h2>
+<p style="font-size: 0.9em; color: #555; margin: 5px 0 0 0;">Tracking delegated emails, replies, and direct outgoing mail.</p>
+</div>
+<button type="button" class="dashboard-button" style="background-color: #ff9800; border-color: #f57c00;" onclick="toggleEmailForm()">📧 Compose New Email</button>
+</div>
+
+<div id="email-composition-container" style="display: none; margin-bottom: 20px;">
+<form method="post" action="{% url 'unity_information' company_code=unity_record.A_Company_Code|default:unity_record.a_company_code %}" id="email_master_form" enctype="multipart/form-data" style="background-color: #fffaf5; border: 2px dashed #ff9800; border-radius: 8px; padding: 20px;">
+{% csrf_token %}
+<h3 style="color: #ff9800; margin-top: 0;">Compose Outgoing Email</h3>
+<input type="hidden" name="action" value="send_outgoing_member_note">
+<input type="hidden" name="communication_type" value="Sent Email">
+<input type="hidden" name="action_notes" value="Email Composed"> <input type="hidden" name="note_content" id="hidden_note_content_from_email"> <input type="hidden" name="email_body_html_content" id="email_body_html_content">
+
+<div class="form-group" style="margin-bottom: 10px;">
+<label for="member_recipient_email" style="font-weight: bold; display: block; margin-bottom: 5px;">To (Recipient's Email):</label>
+{% with e1=unity_record.recon_contact_1_email|default:"" e2=unity_record.recon_contact_2_email|default:"" %}
+{% if e1 and e2 %}
+{% with recipients=e1|add:","|add:e2 %}
+<input
+type="text"
+id="member_recipient_email"
+name="member_recipient_email"
+value="{{ recipients }}"
+placeholder="Enter email addresses separated by commas..."
+style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
+required>
+{% endwith %}
+{% else %}
+<input
+type="text"
+id="member_recipient_email"
+name="member_recipient_email"
+value="{{ e1 }}{{ e2 }}"
+placeholder="Enter email addresses separated by commas..."
+style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;"
+required>
+{% endif %}
+{% endwith %}
+</div>
+<div class="form-group" style="margin-bottom: 15px;">
+<label style="font-weight: bold; display: block; margin-bottom: 5px;">Subject:</label>
+<input type="text" name="member_email_subject_reply" value="[MIP: {{ unity_record.A_Company_Code|default:unity_record.a_company_code }}] New Communication" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+</div>
+<div class="form-group" style="margin-bottom: 15px;">
+<label style="font-weight: bold; display: block; margin-bottom: 5px;">Email Body:</label>
+<div id="member_email_body_editor" class="rich-text-editor" contenteditable="true" style="min-height: 200px; border: 1px solid #ccc; padding: 10px; border-radius: 4px; background-color: white;">
+<p>Dear Sir/Madam,</p><p>Regarding Member Group Code {{ unity_record.A_Company_Code|default:unity_record.a_company_code }},</p><p><br></p><p>Kind regards,</p><p>{{ request.user.username }}</p>
+</div>
+</div>
+<div class="form-group" style="margin-bottom: 10px;">
+<label for="attachments" style="font-weight: bold; display: block; margin-bottom: 5px;">Attach Documents:</label>
+<input type="file" id="attachments" name="attachments" multiple style="padding: 10px; background: #fff; border: 1px solid #ccc; width: 100%;">
+</div>
+<div style="text-align: right;">
+<button type="button" class="cancel-btn" style="margin-right: 10px;" onclick="toggleEmailForm()">Cancel</button>
+<button type="submit" name="email_submission_action" value="send_email_and_log" style="padding: 10px 20px; background-color: #f7931e; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Send Email & Log</button>
+</div>
+</form>
+</div>
+
+{% if combined_email_log %}
+{% for log in combined_email_log %}
+<div class="email-row" style="background-color: {% if log.type == 'Original' %}#fbfdff{% elif log.type == 'Direct Sent' %}#fff{% else %}#fff{% endif %}; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 15px; margin-bottom: 15px; border-left: 5px solid {{ log.badge_color }}; display: flex; align-items: flex-start; gap: 15px;">
+<div style="flex: 0 0 40px; text-align: center; font-size: 24px;">{{ log.icon }}</div>
+<div style="flex: 1;">
+<div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+<span style="font-weight: bold; color: {{ log.badge_color }}; font-size: 1.1em;">{{ log.subject }}</span>
+<span style="color: #777; font-size: 0.9em;">{{ log.timestamp|date:"Y-m-d H:i" }}</span>
+</div>
+<div style="font-size: 0.9em; color: #555; margin-bottom: 5px;">
+<span style="background: #e9ecef; padding: 2px 6px; border-radius: 4px;">User: <strong>{{ log.action_user }}</strong></span>
+{% if log.assigned_to %}
+<span style="background: #fff3cd; padding: 2px 6px; border-radius: 4px; margin-left: 10px;">
+{% if log.type == 'Direct Sent' %}To: {% else %}Assigned To: {% endif %}
+<strong>{{ log.assigned_to }}</strong>
+</span>
+{% endif %}
+<span style="margin-left: 10px; color: {{ log.badge_color }};">
+Status: {{ log.display_type }}
+</span>
+</div>
+<div style="margin-top: 8px;">
+<button type="button"
+style="padding: 5px 10px; background: #0288d1; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85em; font-weight: bold; margin-right: 10px;"
+onclick="viewEmail(this)"
+data-subject="{{ log.subject }}"
+data-sender="{{ log.action_user }}"
+data-recipient="{{ log.assigned_to|default:'-' }}"
+data-date="{{ log.timestamp|date:'Y-m-d H:i' }}"
+data-hidden-id="email-hidden-data-{{ forloop.counter }}"
+>
+👁️ View Thread
+</button>
+
+</div>
+<div id="email-hidden-data-{{ forloop.counter }}" style="display: none;">
+<div class="email-body-html">
+{% if log.body %}
+{{ log.body|safe }}
+{% elif log.body_html %}
+{{ log.body_html|safe }}
+{% elif log.html_content %}
+{{ log.html_content|safe }}
+{% elif log.notes %}
+{{ log.notes|safe|linebreaksbr }}
+{% else %}
+<span style="font-style: italic; color: #777;">No content available.</span>
+{% endif %}
+</div>
+<div class="email-attachments-list">
+{% if log.attachments %}
+{% for att in log.attachments %}
+<a href="{{ att.url }}" target="_blank">{{ att.name }}</a><br>
+{% endfor %}
+{% else %}
+No attachments found.
+{% endif %}
+</div>
+</div>
+</div>
+</div>
+{% endfor %}
+{% else %}
+<p class="empty-message" style="text-align:center; color:#999; padding:40px; background: #fff; border-radius: 8px;">No email history found for this record.</p>
+{% endif %}
+
+<div id="emailViewModal" class="modal-overlay">
+<div class="modal-content">
+<div class="modal-header">
+<h3>Email Details</h3>
+<button type="button" onclick="closeEmailModal()" style="background:none; border:none; font-size:1.5em; cursor:pointer;">&times;</button>
+</div>
+<div class="modal-body">
+<table class="email-meta-table">
+<tr><td class="email-meta-label">Subject:</td><td id="modal_email_subject"></td></tr>
+<tr><td class="email-meta-label">Date:</td><td id="modal_email_date"></td></tr>
+<tr><td class="email-meta-label">Sender:</td><td id="modal_email_sender"></td></tr>
+<tr><td class="email-meta-label">Receiver:</td><td id="modal_email_receiver"></td></tr>
+<tr><td class="email-meta-label">Attachments:</td><td id="modal_email_attachments"></td></tr>
+</table>
+<div class="email-body-content" id="modal_email_body">
+</div>
+</div>
+<div class="modal-footer">
+<button type="button" class="dashboard-button" onclick="closeEmailModal()">Close</button>
+</div>
+</div>
+</div>
+</div>
+
+</div>
+</div>
+</div>
+<script>
+// --- TOGGLE EDIT MODE ---
+function toggleEditMode(enableEdit){const viewMode=document.getElementById('view-mode-container');const editMode=document.getElementById('edit-mode-container');if(enableEdit){viewMode.style.display='none';editMode.style.display='block'}else{viewMode.style.display='block';editMode.style.display='none'}}
+// --- EMAIL FORM TOGGLE ---
+function toggleEmailForm(){const formContainer=document.getElementById('email-composition-container');if(formContainer.style.display==='none'){formContainer.style.display='block'}else{formContainer.style.display='none'}}
+// --- VIEW EMAIL MODAL LOGIC (NEW) ---
+function viewEmail(button){const modal=document.getElementById('emailViewModal');document.getElementById('modal_email_subject').textContent=button.getAttribute('data-subject');document.getElementById('modal_email_sender').textContent=button.getAttribute('data-sender');document.getElementById('modal_email_receiver').textContent=button.getAttribute('data-recipient');document.getElementById('modal_email_date').textContent=button.getAttribute('data-date');const hiddenId=button.getAttribute('data-hidden-id');const hiddenContainer=document.getElementById(hiddenId);if(hiddenContainer){const bodyContent=hiddenContainer.querySelector('.email-body-html').innerHTML;const attachContent=hiddenContainer.querySelector('.email-attachments-list').innerHTML;document.getElementById('modal_email_body').innerHTML=bodyContent;document.getElementById('modal_email_attachments').innerHTML=attachContent}modal.style.display='block'}
+function closeEmailModal(){document.getElementById('emailViewModal').style.display='none'}
+// --- SORTING LOGIC FOR CLAIMS TABLE ---
+function sortClaimsTable(n){var table,rows,switching,i,x,y,shouldSwitch,dir,switchcount=0;table=document.getElementById("claimsTable");switching=true;dir="asc";var headers=table.getElementsByTagName("TH");for(var j=0;j<headers.length;j++){headers[j].classList.remove("asc","desc")}while(switching){switching=false;rows=table.rows;for(i=1;i<(rows.length-1);i++){shouldSwitch=false;x=rows[i].getElementsByTagName("TD")[n];y=rows[i+1].getElementsByTagName("TD")[n];var xContent=x.innerText.toLowerCase();var yContent=y.innerText.toLowerCase();if(dir=="asc"){if(xContent>yContent){shouldSwitch=true;break}}else if(dir=="desc"){if(xContent<yContent){shouldSwitch=true;break}}}if(shouldSwitch){rows[i].parentNode.insertBefore(rows[i+1],rows[i]);switching=true;switchcount++}else{if(switchcount==0&&dir=="asc"){dir="desc";switching=true}}}headers[n].classList.add(dir)}
+document.addEventListener('DOMContentLoaded',function(){
+const defaultTabOverride="{{ default_tab_override|default:'#general-info' }}";
+const tabs=document.querySelectorAll('.tab-nav li');
+const panes=document.querySelectorAll('.tab-pane');
+const urlHash=window.location.hash;
+let initialTab='#general-info';
+if(urlHash){
+const hashTarget=document.querySelector(`.tab-nav li[data-tab-target="${urlHash}"]`);
+if(hashTarget){initialTab=urlHash}
+}else if(defaultTabOverride&&defaultTabOverride!=='#general-info'){
+initialTab=defaultTabOverride;
+}
+function switchTab(targetId){
+tabs.forEach(t=>t.classList.remove('active'));
+panes.forEach(p=>p.classList.remove('active'));
+const activeTab=document.querySelector(`[data-tab-target="${targetId}"]`);
+const activePane=document.querySelector(targetId);
+if(activeTab&&activePane){
+activeTab.classList.add('active');
+activePane.classList.add('active');
+history.replaceState(null,null,targetId);
+}
+}
+tabs.forEach(tab=>{tab.addEventListener('click',function(){switchTab(tab.dataset.tabTarget)})});
+switchTab(initialTab);
+const notesMasterForm=document.getElementById('notes_master_form');
+if(notesMasterForm){
+const actionSelect=document.getElementById('id_action_notes');
+const hiddenCommType=document.getElementById('hidden_comm_type');
+const regularNoteArea=document.getElementById('regular-note-area');
+const dialerArea=document.getElementById('dialer-area');
+const callLogSubmit=document.getElementById('call_note_submit');
+const dialButton=document.getElementById('trigger_call_dialer');
+const regularNoteContent=document.getElementById('regular_note_content');
+const regularNoteSubmit=document.getElementById('regular_note_submit');
+const dialerNumber=document.getElementById('dialer_number');
+const callStatus=document.getElementById('call_status');
+function toggleCommunicationForms(){
+const selectedValue=actionSelect.value;
+regularNoteArea.style.display='none';
+dialerArea.style.display='none';
+callLogSubmit.style.display='none';
+regularNoteContent.value='';
+regularNoteContent.removeAttribute('required');
+regularNoteContent.removeAttribute('disabled');
+regularNoteSubmit.removeAttribute('name');
+regularNoteSubmit.removeAttribute('disabled');
+dialerNumber.removeAttribute('required');
+callStatus.removeAttribute('required');
+if(selectedValue==='OUTBOUND CALL'){
+dialerArea.style.display='block';
+regularNoteArea.style.display='block';
+callLogSubmit.style.display='block';
+dialerNumber.setAttribute('required','required');
+regularNoteSubmit.setAttribute('disabled','true');
+hiddenCommType.value='Outgoing Call';
+}else if(selectedValue==='INBOUND CALL'){
+regularNoteArea.style.display='block';
+regularNoteContent.setAttribute('required','required');
+regularNoteSubmit.setAttribute('name','note_submission_action');
+hiddenCommType.value='Incoming Call';
+}else{
+regularNoteArea.style.display='block';
+regularNoteContent.removeAttribute('required');
+regularNoteSubmit.setAttribute('name','note_submission_action');
+hiddenCommType.value='Notes Log';
+}
+}
+actionSelect.addEventListener('change',toggleCommunicationForms);
+if(dialButton){dialButton.addEventListener('click',function(){const phoneNumber=dialerNumber.value.trim();if(phoneNumber===''){alert('Please enter the Number to Dial.');return}window.location.href='tel:'+phoneNumber.replace(/[^0-9+]/g,'')})}
+toggleCommunicationForms();
+notesMasterForm.addEventListener('submit',function(event){
+const isCallLog=(hiddenCommType.value==='Outgoing Call');
+if(isCallLog){
+if(dialerNumber.value.trim()===''){alert('The Number to Dial is required.');event.preventDefault();return}
+}else if(regularNoteArea.style.display==='block'&&regularNoteContent.hasAttribute('required')&&regularNoteContent.value.trim()===''){
+alert('Note content is required.');event.preventDefault()
+}
+});
+}
+const emailForm=document.getElementById('email_master_form');
+if(emailForm){
+emailForm.addEventListener('submit',function(event){
+const editor=document.getElementById('member_email_body_editor');
+const htmlInput=document.getElementById('email_body_html_content');
+const noteContentInput=document.getElementById('hidden_note_content_from_email');
+if(editor&&htmlInput){
+const content=editor.innerHTML.trim();
+if(!content||editor.innerText.trim()===''){
+alert('Email body cannot be empty.');
+event.preventDefault();
+return;
+}
+htmlInput.value=content;
+if(noteContentInput)noteContentInput.value=editor.innerText.trim();
+}
+});
+}
+});
+// --- CLAIM MODAL SCRIPTS ---
+function openClaimModal(){const modal=document.getElementById('claimModal');modal.querySelector('form').reset();document.getElementById('modal_claim_id').value='';const notesTable=document.getElementById('claim_notes_tbody');if(notesTable)notesTable.innerHTML='<tr><td colspan="4" style="text-align:center; color:#777;">Save claim to add new notes.</td></tr>';modal.style.display='block'}
+function editClaim(button){document.getElementById('modal_claim_id').value=button.getAttribute('data-id');document.querySelector('input[name="id_number"]').value=button.getAttribute('data-id_number');document.querySelector('input[name="member_name"]').value=button.getAttribute('data-member_name');document.querySelector('input[name="member_surname"]').value=button.getAttribute('data-member_surname');setSelect('claim_type',button.getAttribute('data-claim_type'));setSelect('exit_reason',button.getAttribute('data-exit_reason'));setSelect('claim_allocation',button.getAttribute('data-claim_allocation'));setSelect('claim_status',button.getAttribute('data-claim_status'));setSelect('payment_option',button.getAttribute('data-payment_option'));document.querySelector('input[name="claim_created_date"]').value=button.getAttribute('data-claim_created_date');document.querySelector('input[name="last_contribution_date"]').value=button.getAttribute('data-last_contribution_date');document.querySelector('input[name="date_submitted"]').value=button.getAttribute('data-date_submitted');document.querySelector('input[name="date_paid"]').value=button.getAttribute('data-date_paid');const notesSource=document.getElementById('notes-data-'+button.getAttribute('data-id'));const notesTarget=document.getElementById('claim_notes_tbody');if(notesSource&&notesTarget)notesTarget.innerHTML=notesSource.innerHTML;else if(notesTarget)notesTarget.innerHTML='<tr><td colspan="4" style="text-align:center; color:#777;">No notes available.</td></tr>';document.getElementById('claimModal').style.display='block'}
+function setSelect(name,value){const select=document.querySelector(`select[name="${name}"]`);if(select)select.value=(!value||value==='None')?"":value}
+</script>
+</body>
+</html>

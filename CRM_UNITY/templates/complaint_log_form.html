@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        /* Style for all form input/select/textarea elements */
+        .form-field { 
+            /* Tailwind classes applied to all form elements */
+            @apply w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition duration-150;
+        }
+        /* Override default Django form styling for input types */
+        input[type="text"], input[type="date"], input[type="datetime-local"], select, textarea {
+            /* Apply the form-field class to all relevant input types */
+            @apply form-field;
+        }
+
+        .return-button {
+            /* Using Tailwind classes for hover effect and look */
+            @apply px-4 py-2 bg-gray-500 border border-gray-500 rounded-lg no-underline text-white font-semibold transition duration-150 hover:bg-gray-600;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8 bg-gray-100">
+    {# Back to Dashboard button added outside the main container #}
+    <div class="max-w-4xl mx-auto mb-4">
+        <a href="{% url 'dashboard' %}" class="return-button">← Back to Dashboard</a>
+    </div>
+
+    <div class="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-2xl">
+        <h1 class="text-3xl font-bold text-indigo-700 mb-8 border-b pb-3">{{ title }}</h1>
+        <form method="post" action="{% url 'complaint_log' %}" class="space-y-6">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 font-semibold" role="alert">
+                    {{ form.non_field_errors }}
+                </div>
+            {% endif %}
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                {# Complainant #}
+                <div class="flex flex-col">
+                    <label for="{{ form.complainant.id_for_label }}" class="mb-1 text-sm font-medium text-gray-700">
+                        {{ form.complainant.label }}<span class="text-red-500">*</span>
+                    </label>
+                    {{ form.complainant }}
+                    {% if form.complainant.errors %}<small class="text-red-500 font-semibold mt-1">{{ form.complainant.errors }}</small>{% endif %}
+                </div>
+
+                {# Employer #}
+                <div class="flex flex-col">
+                    <label for="{{ form.employer.id_for_label }}" class="mb-1 text-sm font-medium text-gray-700">
+                        {{ form.employer.label }}
+                    </label>
+                    {{ form.employer }}
+                    {% if form.employer.errors %}<small class="text-red-500 font-semibold mt-1">{{ form.employer.errors }}</small>{% endif %}
+                </div>
+            </div>
+
+            <div class="flex flex-col">
+                <label for="{{ form.nature_of_complaint.id_for_label }}" class="mb-1 text-sm font-medium text-gray-700">
+                    {{ form.nature_of_complaint.label }}<span class="text-red-500">*</span>
+                </label>
+                {{ form.nature_of_complaint }}
+                {% if form.nature_of_complaint.errors %}<small class="text-red-500 font-semibold mt-1">{{ form.nature_of_complaint.errors }}</small>{% endif %}
+            </div>
+
+            <div class="flex flex-col">
+                <label for="{{ form.resolution.id_for_label }}" class="mb-1 text-sm font-medium text-gray-700">
+                    {{ form.resolution.label }}
+                </label>
+                {{ form.resolution }}
+                {% if form.resolution.errors %}<small class="text-red-500 font-semibold mt-1">{{ form.resolution.errors }}</small>{% endif %}
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                {# Created Date #}
+                <div class="flex flex-col">
+                    <label for="{{ form.created_date.id_for_label }}" class="mb-1 text-sm font-medium text-gray-700">
+                        {{ form.created_date.label }}
+                    </label>
+                    {{ form.created_date }}
+                    {% if form.created_date.errors %}<small class="text-red-500 font-semibold mt-1">{{ form.created_date.errors }}</small>{% endif %}
+                </div>
+                
+                {# Resolved Date #}
+                <div class="flex flex-col">
+                    <label for="{{ form.resolved_date.id_for_label }}" class="mb-1 text-sm font-medium text-gray-700">
+                        {{ form.resolved_date.label }}
+                    </label>
+                    {{ form.resolved_date }}
+                    {% if form.resolved_date.errors %}<small class="text-red-500 font-semibold mt-1">{{ form.resolved_date.errors }}</small>{% endif %}
+                </div>
+                
+                {# Current Status #}
+                <div class="flex flex-col">
+                    <label for="{{ form.current_status.id_for_label }}" class="mb-1 text-sm font-medium text-gray-700">
+                        {{ form.current_status.label }}
+                    </label>
+                    {{ form.current_status }}
+                    {% if form.current_status.errors %}<small class="text-red-500 font-semibold mt-1">{{ form.current_status.errors }}</small>{% endif %}
+                </div>
+            </div>
+
+            <button type="submit" class="w-full py-3 px-4 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 transition duration-150">
+                Log Complaint
+            </button>
+        </form>
+    </div>
+</body>
+</html>

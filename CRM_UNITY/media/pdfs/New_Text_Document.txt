@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ contact_info.member_group_name }} Profile Information</title>
+    <style>
+        /* CSS Variables for Theming */
+        :root {
+            --color-primary: #1b5e20; /* Dark Green */
+            --color-secondary: #43a047; /* Medium Green */
+            --color-light-green: #81c784; /* Light Green for buttons/tabs */
+            --color-background-body: #d1e2c4; /* Page background */
+            --color-background-container: #f0fff0; /* Container background */
+            --color-border-light: #aed581; /* Light border/separator */
+            --color-text-dark: #333;
+            --font-size-base: 14px;
+            --font-size-small: 13px;
+        }
+
+        /* Base Layout */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* This prevents scrolling */
+        }
+        
+        body {
+            font-family: sans-serif;
+            font-size: 14px; /* Reduced base font size */
+            background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            width: 95%;
+            max-width: 98%;
+            height: 90vh;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--color-background-container);
+            padding: 1.5em;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        /* Header and Buttons */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: var(--color-primary);
+            text-align: center;
+            flex-grow: 1;
+            font-size: 22px;
+            margin: 0;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            background-color: var(--color-light-green);
+            border: 1px solid var(--color-light-green);
+            border-radius: 5px;
+            text-decoration: none;
+            color: white;
+            font-weight: bold;
+            font-size: var(--font-size-small);
+            transition: background-color 0.3s ease;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .btn:hover {
+            background-color: #66bb6a; /* Slightly darker green */
+        }
+        
+        .header > a {
+            flex-shrink: 0; /* Prevents button from shrinking */
+        }
+        
+        .header > div {
+            /* Placeholder for alignment balance when needed */
+            width: 138.8px; /* Approximate width of the button for center alignment of h1 */
+        }
+
+        /* Profile Layout (Tabs and Content) */
+        .profile-layout {
+            display: flex;
+            gap: 15px;
+            flex: 1;
+            min-height: 0; /* Important for flex-child scrolling */
+        }
+        
+        /* Vertical Tabs Navigation */
+        .tab-nav {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            width: 180px;
+            border-right: 2px solid var(--color-border-light);
+            overflow-y: auto;
+        }
+        
+        .tab-nav li {
+            padding: 10px 15px;
+            cursor: pointer;
+            background-color: var(--color-light-green); 
+            border: 1px solid var(--color-light-green);
+            border-right: none;
+            color: white;
+            margin-bottom: 4px;
+            border-radius: 5px 0 0 5px;
+            white-space: nowrap;
+            text-align: right;
+            transition: all 0.2s ease;
+            font-size: var(--font-size-small);
+        }
+
+        .tab-nav li.active {
+            background-color: var(--color-background-container);
+            color: var(--color-primary);
+            border-top: 2px solid var(--color-secondary);
+            border-bottom: 2px solid var(--color-secondary);
+            border-left: 2px solid var(--color-secondary);
+            font-weight: bold;
+            transform: translateX(2px);
+            z-index: 1;
+        }
+
+        .tab-nav li:hover:not(.active) {
+            background-color: #66bb6a; 
+        }
+
+        /* Tab Content Area */
+        .tab-content {
+            flex: 1;
+            background-color: var(--color-background-container);
+            padding: 15px;
+            border: 1px solid var(--color-border-light);
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+        }
+        
+        .tab-pane {
+            display: none;
+        }
+        
+        .tab-pane.active {
+            display: block;
+        }
+
+        /* Table Styles */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        th, td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--color-border-light);
+            font-size: var(--font-size-small);
+        }
+        
+        th {
+            background-color: #e6ffe6;
+            color: var(--color-primary);
+            font-weight: bold;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        .empty-message {
+            text-align: center;
+            padding: 15px;
+            color: #777;
+            font-style: italic;
+            font-size: var(--font-size-small);
+        }
+        
+        /* Notes and Documents Shared Styles */
+        .content-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .content-section h2 {
+            font-size: 1.2em;
+            color: var(--color-primary);
+            margin-bottom: 10px;
+            border-bottom: 2px solid var(--color-border-light);
+            padding-bottom: 5px;
+        }
+        
+        /* Note Specific Styles */
+        .note-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .note-item {
+            background-color: #e6ffe6;
+            border: 1px solid var(--color-border-light);
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .note-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 8px;
+            border-bottom: 1px dashed var(--color-border-light);
+            padding-bottom: 5px;
+        }
+
+        .note-author {
+            font-weight: bold;
+            color: var(--color-primary);
+            font-size: 1em;
+        }
+
+        .note-timestamp {
+            font-size: 0.8em;
+            color: #666;
+            font-style: italic;
+        }
+
+        .note-content {
+            margin: 0;
+            color: var(--color-text-dark);
+            font-size: 1em;
+            line-height: 1.5;
+        }
+
+        .add-note-form-section textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            min-height: 100px;
+            font-size: 1em;
+            resize: vertical;
+        }
+
+        .add-note-button {
+            margin-top: 10px;
+            padding: 10px 20px;
+            background-color: var(--color-secondary);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+        }
+
+        .add-note-button:hover {
+            background-color: #388e3c; /* Darker secondary green */
+        }
+
+        /* Document/PDF Styles */
+        .pdf-upload-section {
+            padding: 15px;
+            border: 1px dashed var(--color-secondary);
+            border-radius: 8px;
+            margin-bottom: 20px;
+            background-color: #f8fff8;
+        }
+
+        .document-list-section table a {
+            color: var(--color-primary);
+            text-decoration: none;
+            font-weight: bold;
+        }
+        
+        .document-list-section table a:hover {
+            text-decoration: underline;
+        }
+        
+        .pdf-upload-form p {
+            margin: 5px 0;
+        }
+
+        .pdf-upload-form input[type="file"] {
+            margin-bottom: 10px;
+        }
+
+        .pdf-upload-button {
+            padding: 10px 20px;
+            background-color: var(--color-secondary);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+        }
+
+        .pdf-upload-button:hover {
+            background-color: #388e3c;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <a href="{% url 'global_members_list' %}" class="btn">Return to Members</a>
+            <h1>{{ contact_info.member_group_name }} Profile</h1>
+            <div></div> </div>
+
+        <div class="profile-layout">
+            <ul class="tab-nav">
+                <li class="active" data-tab-target="#general-info">General Info</li>
+                <li data-tab-target="#cbc">CBC</li>
+                <li data-tab-target="#cbc-admin">CBC Admin</li>
+                <li data-tab-target="#cbc-consultancy">CBC Consultancy</li>
+                <li data-tab-target="#cfa">CFA</li>
+                <li data-tab-target="#cfa-admin">CFA Admin</li>
+                <li data-tab-target="#cfa2">CFA 2</li>
+                <li data-tab-target="#cfa3">CFA 3</li>
+                <li data-tab-target="#communications">Communications</li>
+                <li data-tab-target="#hr">Human Resources</li>
+                <li data-tab-target="#section13a">Section 13A</li>
+                <li data-tab-target="#notes">Notes</li>
+                <li data-tab-target="#pdf-documents">PDF Documents</li>
+            </ul>
+
+            <div class="tab-content">
+                <section id="general-info" class="tab-pane active">
+                    <table>
+                        <tbody>
+                            <tr><th>Member Group Code</th><td>{{ contact_info.member_group_code }}</td></tr>
+                            <tr><th>Member Group Name</th><td>{{ contact_info.member_group_name }}</td></tr>
+                            <tr><th>Commencement Date</th><td>{{ contact_info.commencement_date }}</td></tr>
+                            <tr><th>Fund Status</th><td>{{ contact_info.fund_status }}</td></tr>
+                            <tr><th>Postal Address</th><td>{{ contact_info.business_postal_address }}</td></tr>
+                            <tr><th>Postal Code</th><td>{{ contact_info.business_postal_address_post_code }}</td></tr>
+                            <tr><th>Physical Address</th><td>{{ contact_info.business_physical_address }}</td></tr>
+                            <tr><th>Physical Code</th><td>{{ contact_info.business_physical_address_post_code }}</td></tr>
+                        </tbody>
+                    </table>
+                </section>
+
+                <section id="cbc" class="tab-pane">
+                    {% if cbc_info %}
+                    <table>
+                        <tbody>
+                            <tr><th>Title</th><td>{{ cbc_info.title }}</td></tr>
+                            <tr><th>First Name</th><td>{{ cbc_info.first_name }}</td></tr>
+                            <tr><th>Surname</th><td>{{ cbc_info.surname }}</td></tr>
+                            <tr><th>ID Number</th><td>{{ cbc_info.id_number }}</td></tr>
+                            <tr><th>E-mail</th><td>{{ cbc_info.email_address }}</td></tr>
+                            <tr><th>Indemnity</th><td>{{ cbc_info.indemnity }}</td></tr>
+                            <tr><th>Work Number</th><td>{{ cbc_info.work_dial_code }} {{ cbc_info.work_contact_number }}</td></tr>
+                            <tr><th>Fax Number</th><td>{{ cbc_info.fax_dial_code }} {{ cbc_info.fax_number }}</td></tr>
+                            <tr><th>Mobile Number</th><td>{{ cbc_info.mobile_number }}</td></tr>
+                            <tr><th>Postal Address</th><td>{{ cbc_info.business_postal_address }}</td></tr>
+                            <tr><th>Postal Code</th><td>{{ cbc_info.post_code }}</td></tr>
+                            <tr><th>Physical Address</th><td>{{ cbc_info.business_physical_address }}</td></tr>
+                            <tr><th>Physical Code</th><td>{{ cbc_info.post_code2 }}</td></tr>
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p class="empty-message">No CBC information available for this member.</p>
+                    {% endif %}
+                </section>
+                
+                <section id="cbc-admin" class="tab-pane">
+                    {% if cbc_admin_info %}
+                    <table>
+                        <tbody>
+                            <tr><th>Title</th><td>{{ cbc_admin_info.title }}</td></tr>
+                            <tr><th>First Name</th><td>{{ cbc_admin_info.first_name }}</td></tr>
+                            <tr><th>Surname</th><td>{{ cbc_admin_info.surname }}</td></tr>
+                            <tr><th>ID Number</th><td>{{ cbc_admin_info.id_number }}</td></tr>
+                            <tr><th>E-mail</th><td>{{ cbc_admin_info.email_address }}</td></tr>
+                            <tr><th>Work Number</th><td>{{ cbc_admin_info.work_dial_code }} {{ cbc_admin_info.work_contact_number }}</td></tr>
+                            <tr><th>Fax Number</th><td>{{ cbc_admin_info.fax_dial_code }} {{ cbc_admin_info.fax_number }}</td></tr>
+                            <tr><th>Mobile Number</th><td>{{ cbc_admin_info.mobile_number }}</td></tr>
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p class="empty-message">No CBC Admin Person information available.</p>
+                    {% endif %}
+                </section>
+                
+                <section id="cbc-consultancy" class="tab-pane">
+                    {% if cbc_consultancy_info %}
+                    <table>
+                        <tbody>
+                            <tr><th>Title</th><td>{{ cbc_consultancy_info.title }}</td></tr>
+                            <tr><th>First Name</th><td>{{ cbc_consultancy_info.first_name }}</td></tr>
+                            <tr><th>Surname</th><td>{{ cbc_consultancy_info.surname }}</td></tr>
+                            <tr><th>ID Number</th><td>{{ cbc_consultancy_info.id_number }}</td></tr>
+                            <tr><th>E-mail</th><td>{{ cbc_consultancy_info.email_address }}</td></tr>
+                            <tr><th>Work Number</th><td>{{ cbc_consultancy_info.work_dial_code }} {{ cbc_consultancy_info.work_contact_number }}</td></tr>
+                            <tr><th>Fax Number</th><td>{{ cbc_consultancy_info.fax_dial_code }} {{ cbc_consultancy_info.fax_number }}</td></tr>
+                            <tr><th>Mobile Number</th><td>{{ cbc_consultancy_info.mobile_number }}</td></tr>
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p class="empty-message">No CBC Consultancy Person information available.</p>
+                    {% endif %}
+                </section>
+
+                <section id="cfa" class="tab-pane">
+                    {% if cfa_info %}
+                    <table>
+                        <tbody>
+                            <tr><th>Title</th><td>{{ cfa_info.title }}</td></tr>
+                            <tr><th>First Name</th><td>{{ cfa_info.first_name }}</td></tr>
+                            <tr><th>Surname</th><td>{{ cfa_info.surname }}</td></tr>
+                            <tr><th>ID Number</th><td>{{ cfa_info.id_number }}</td></tr>
+                            <tr><th>E-mail</th><td>{{ cfa_info.email_address }}</td></tr>
+                            <tr><th>Work Number</th><td>{{ cfa_info.work_dial_code }} {{ cfa_info.work_contact_number }}</td></tr>
+                            <tr><th>Fax Number</th><td>{{ cfa_info.fax_dial_code }} {{ cfa_info.fax_number }}</td></tr>
+                            <tr><th>Mobile Number</th><td>{{ cfa_info.mobile_number }}</td></tr>
+                            <tr><th>Postal Address</th><td>{{ cfa_info.business_postal_address }}</td></tr>
+                            <tr><th>Postal Code</th><td>{{ cfa_info.post_code }}</td></tr>
+                            <tr><th>Physical Address</th><td>{{ cfa_info.business_physical_address }}</td></tr>
+                            <tr><th>Physical Code</th><td>{{ cfa_info.post_code2 }}</td></tr>
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p class="empty-message">No CFA information available for this member.</p>
+                    {% endif %}
+                </section>
+
+                <section id="cfa-admin" class="tab-pane">
+                    {% if cfa_admin_info %}
+                    <table>
+                        <tbody>
+                            <tr><th>Title</th><td>{{ cfa_admin_info.title }}</td></tr>
+                            <tr><th>First Name</th><td>{{ cfa_admin_info.first_name }}</td></tr>
+                            <tr><th>Surname</th><td>{{ cfa_admin_info.surname }}</td></tr>
+                            <tr><th>ID Number</th><td>{{ cfa_admin_info.id_number }}</td></tr>
+                            <tr><th>E-mail</th><td>{{ cfa_admin_info.email_address }}</td></tr>
+                            <tr><th>Work Number</th><td>{{ cfa_admin_info.work_dial_code }} {{ cfa_admin_info.work_contact_number }}</td></tr>
+                            <tr><th>Fax Number</th><td>{{ cfa_admin_info.fax_dial_code }} {{ cfa_admin_info.fax_number }}</td></tr>
+                            <tr><th>Mobile Number</th><td>{{ cfa_admin_info.mobile_number }}</td></tr>
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p class="empty-message">No CFA Admin Person information available.</p>
+                    {% endif %}
+                </section>
+
+                <section id="cfa2" class="tab-pane">
+                    {% if cfa2_info %}
+                    <table>
+                        <tbody>
+                            <tr><th>Title</th><td>{{ cfa2_info.title }}</td></tr>
+                            <tr><th>First Name</th><td>{{ cfa2_info.first_name }}</td></tr>
+                            <tr><th>Surname</th><td>{{ cfa2_info.surname }}</td></tr>
+                            <tr><th>ID Number</th><td>{{ cfa2_info.id_number }}</td></tr>
+                            <tr><th>E-mail</th><td>{{ cfa2_info.email_address }}</td></tr>
+                            <tr><th>Work Number</th><td>{{ cfa2_info.work_dial_code }} {{ cfa2_info.work_contact_number }}</td></tr>
+                            <tr><th>Fax Number</th><td>{{ cfa2_info.fax_dial_code }} {{ cfa2_info.fax_number }}</td></tr>
+                            <tr><th>Mobile Number</th><td>{{ cfa2_info.mobile_number }}</td></tr>
+                            <tr><th>Postal Address</th><td>{{ cfa2_info.business_postal_address }}</td></tr>
+                            <tr><th>Postal Code</th><td>{{ cfa2_info.post_code }}</td></tr>
+                            <tr><th>Physical Address</th><td>{{ cfa2_info.business_physical_address }}</td></tr>
+                            <tr><th>Physical Code</th><td>{{ cfa2_info.post_code2 }}</td></tr>
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p class="empty-message">No CFA 2 information available for this member.</p>
+                    {% endif %}
+                </section>
+
+                <section id="cfa3" class="tab-pane">
+                    {% if cfa3_info %}
+                    <table>
+                        <tbody>
+                            <tr><th>Title</th><td>{{ cfa3_info.title }}</td></tr>
+                            <tr><th>First Name</th><td>{{ cfa3_info.first_name }}</td></tr>
+                            <tr><th>Surname</th><td>{{ cfa3_info.surname }}</td></tr>
+                            <tr><th>ID Number</th><td>{{ cfa3_info.id_number }}</td></tr>
+                            <tr><th>E-mail</th><td>{{ cfa3_info.email_address }}</td></tr>
+                            <tr><th>Work Number</th><td>{{ cfa3_info.work_dial_code }} {{ cfa3_info.work_contact_number }}</td></tr>
+                            <tr><th>Fax Number</th><td>{{ cfa3_info.fax_dial_code }} {{ cfa3_info.fax_number }}</td></tr>
+                            <tr><th>Mobile Number</th><td>{{ cfa3_info.mobile_number }}</td></tr>
+                            <tr><th>Postal Address</th><td>{{ cfa3_info.business_postal_address }}</td></tr>
+                            <tr><th>Postal Code</th><td>{{ cfa3_info.post_code }}</td></tr>
+                            <tr><th>Physical Address</th><td>{{ cfa3_info.business_physical_address }}</td></tr>
+                            <tr><th>Physical Code</th><td>{{ cfa3_info.post_code2 }}</td></tr>
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p class="empty-message">No CFA 3 information available for this member.</p>
+                    {% endif %}
+                </section>
+                
+                <section id="communications" class="tab-pane">
+                    {% if communications_info %}
+                    <table>
+                        <tbody>
+                            <tr><th>Title</th><td>{{ communications_info.title }}</td></tr>
+                            <tr><th>First Name</th><td>{{ communications_info.first_name }}</td></tr>
+                            <tr><th>Surname</th><td>{{ communications_info.surname }}</td></tr>
+                            <tr><th>ID Number</th><td>{{ communications_info.id_number }}</td></tr>
+                            <tr><th>E-mail</th><td>{{ communications_info.email_address }}</td></tr>
+                            <tr><th>Work Number</th><td>{{ communications_info.work_dial_code }} {{ communications_info.work_contact_number }}</td></tr>
+                            <tr><th>Fax Number</th><td>{{ communications_info.fax_dial_code }} {{ communications_info.fax_number }}</td></tr>
+                            <tr><th>Mobile Number</th><td>{{ communications_info.mobile_number }}</td></tr>
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p class="empty-message">No Communications Person information available.</p>
+                    {% endif %}
+                </section>
+
+                <section id="hr" class="tab-pane">
+                    {% if hr_info %}
+                    <table>
+                        <tbody>
+                            <tr><th>Title</th><td>{{ hr_info.title }}</td></tr>
+                            <tr><th>First Name</th><td>{{ hr_info.first_name }}</td></tr>
+                            <tr><th>Surname</th><td>{{ hr_info.surname }}</td></tr>
+                            <tr><th>ID Number</th><td>{{ hr_info.id_number }}</td></tr>
+                            <tr><th>E-mail</th><td>{{ hr_info.email_address }}</td></tr>
+                            <tr><th>Indemnity</th><td>{{ hr_info.indemnity }}</td></tr>
+                            <tr><th>Work Number</th><td>{{ hr_info.work_dial_code }} {{ hr_info.work_contact_number }}</td></tr>
+                            <tr><th>Fax Number</th><td>{{ hr_info.fax_dial_code }} {{ hr_info.fax_number }}</td></tr>
+                            <tr><th>Mobile Number</th><td>{{ hr_info.mobile_number }}</td></tr>
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p class="empty-message">No Human Resources information available.</p>
+                    {% endif %}
+                </section>
+
+                <section id="section13a" class="tab-pane">
+                    {% if section13a_info %}
+                    <table>
+                        <tbody>
+                            <tr><th>Title</th><td>{{ section13a_info.title }}</td></tr>
+                            <tr><th>First Name</th><td>{{ section13a_info.first_name }}</td></tr>
+                            <tr><th>Surname</th><td>{{ section13a_info.surname }}</td></tr>
+                            <tr><th>ID Number</th><td>{{ section13a_info.id_number }}</td></tr>
+                            <tr><th>E-mail</th><td>{{ section13a_info.email_address }}</td></tr>
+                            <tr><th>Indemnity</th><td>{{ section13a_info.indemnity }}</td></tr>
+                            <tr><th>Work Number</th><td>{{ section13a_info.work_dial_code }} {{ section13a_info.work_contact_number }}</td></tr>
+                            <tr><th>Fax Number</th><td>{{ section13a_info.fax_dial_code }} {{ section13a_info.fax_number }}</td></tr>
+                            <tr><th>Mobile Number</th><td>{{ section13a_info.mobile_number }}</td></tr>
+                        </tbody>
+                    </table>
+                    {% else %}
+                    <p class="empty-message">No Section 13A information available.</p>
+                    {% endif %}
+                </section>
+
+                <section id="notes" class="tab-pane">
+                    <div class="content-section">
+                        <div class="add-note-form-section">
+                            <h2>Add New Note</h2>
+                            <form method="post" action="{% url 'member_information' member_group_code=contact_info.member_group_code %}">
+                                {% csrf_token %}
+                                <input type="hidden" name="add_note" value="1">
+                                <textarea name="note_content" placeholder="Type your note here..." required></textarea>
+                                <button type="submit" class="add-note-button">Add Note</button>
+                            </form>
+                        </div>
+                        
+                        <div class="existing-notes-list">
+                            <h2>Existing Notes</h2>
+                            {% if notes %}
+                            <div class="note-list">
+                                {% for note in notes %}
+                                <div class="note-item">
+                                    <div class="note-header">
+                                        <span class="note-author">Posted by: {{ note.user }}</span>
+                                        <span class="note-timestamp">{{ note.date|date:"Y-m-d H:i:s" }}</span>
+                                    </div>
+                                    <p class="note-content">{{ note.notes }}</p>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% else %}
+                            <p class="empty-message">No notes available for this member.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </section>
+                
+                <section id="pdf-documents" class="tab-pane">
+                    <div class="content-section">
+                        <div class="pdf-upload-section">
+                            <h2>Upload New Document (PDF)</h2>
+                            <form method="post" enctype="multipart/form-data" 
+                                action="{% url 'member_information' member_group_code=contact_info.member_group_code %}"
+                                class="pdf-upload-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="upload_document" value="1"> 
+                                
+                                {{ pdf_upload_form.as_p }}
+                                
+                                <button type="submit" class="pdf-upload-button">Upload Document</button>
+                            </form>
+                        </div>
+                        
+                        <div class="document-list-section">
+                            <h2>Existing Documents</h2>
+                            {% if documents %}
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>File Name</th>
+                                            <th>Description</th>
+                                            <th>title</th>
+                                            <th>Uploaded By</th>
+                                            <th>Date</th>
+                                            <th>Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for doc in documents %}
+                                        <tr>
+                                            <td>{{ doc.document_file.name|default:"N/A"|slice:"50" }}</td>
+                                            <td>{{ doc.description }}</td>
+                                            <td>{{ doc.title }}</td>
+                                            <td>{{ doc.uploaded_by }}</td>
+                                            <td>{{ doc.uploaded_at|date:"Y-m-d H:i" }}</td>
+                                            <td>
+                                                <a href="{% url 'member_information' member_group_code=contact_info.member_group_code %}?download_id={{ doc.id }}">
+                                                    Download
+                                                </a>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            {% else %}
+                                <p class="empty-message">No documents have been uploaded for this member yet.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const tabs = document.querySelectorAll('.tab-nav li');
+            const panes = document.querySelectorAll('.tab-pane');
+
+            // Function to activate a specific tab/pane
+            const activateTab = (tabElement) => {
+                const targetId = tabElement.dataset.tabTarget;
+                const targetPane = document.querySelector(targetId);
+
+                if (targetPane) {
+                    // Remove active from all
+                    tabs.forEach(t => t.classList.remove('active'));
+                    panes.forEach(p => p.classList.remove('active'));
+
+                    // Add active to selected tab and pane
+                    tabElement.classList.add('active');
+                    targetPane.classList.add('active');
+                }
+            };
+
+            // 1. Add click listeners to all tabs
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    activateTab(tab);
+                    // Update URL hash without refreshing the page
+                    window.history.pushState(null, null, tab.dataset.tabTarget);
+                });
+            });
+
+            // 2. Handle initial tab selection based on URL hash
+            const hash = window.location.hash;
+            if (hash) {
+                // Find tab based on hash (e.g., #notes)
+                const initialTab = document.querySelector(`.tab-nav li[data-tab-target="${hash}"]`);
+                if (initialTab) {
+                    // If a specific tab is in the URL, activate it
+                    activateTab(initialTab);
+                } else {
+                    // Fallback to the default tab if the hash is invalid
+                    activateTab(document.querySelector('.tab-nav li.active'));
+                }
+            }
+            // If no hash, the first tab is already set as 'active' in the HTML, no change needed.
+        });
+    </script>
+</body>
+</html>

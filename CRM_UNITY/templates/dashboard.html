@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Merril CRM Dashboard</title>
+    <style>
+        html, body {
+            height: auto;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        body {
+            font-family: sans-serif;
+            background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            font-size: 3.5em;
+            text-align: center;
+            margin-bottom: 30px;
+            margin-top: 40px;
+            width: 100%;
+        }
+
+        .button-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-auto-rows: minmax(100px, auto);
+            gap: 15px;
+            max-width: 900px;
+            width: 95%;
+            margin: 20px auto;
+        }
+
+        @media (max-width: 768px) {
+            .button-container {
+                grid-template-columns: repeat(2, 1fr);
+                max-width: 600px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .button-container {
+                grid-template-columns: 1fr;
+                max-width: 300px;
+            }
+        }
+
+        .button-block {
+            padding: 50px 20px;
+            background-color: rgb(119, 206, 97);
+            border: 1px solid rgb(119, 206, 97);
+            border-radius: 5px;
+            text-align: center;
+            cursor: pointer;
+            text-decoration: none;
+            color: white;
+            font-size: 1.6em;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.3s ease, border-color 0.3s ease, transform 0.2s;
+        }
+
+        .button-block:hover {
+            background-color: rgb(105, 187, 85);
+            border: 1px solid rgb(105, 187, 85);
+            transform: translateY(-2px);
+        }
+
+        .logout-wrapper {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+        }
+
+        .logout-button {
+            background-color: rgb(105, 187, 85);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+            margin: 0;
+            display: inline-block;
+        }
+
+        .logout-button:hover {
+            background-color: darkgreen;
+        }
+    </style>
+</head>
+<body>
+    <h1>Welcome to Merril CRM, {{ username }}</h1>
+    
+    <div class="logout-wrapper">
+        <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="logout-button">Logout</button>
+        </form>
+    </div>
+
+    <div class="button-container">
+        <a href="{% url 'global_members_list' %}" class="button-block">Global List</a>
+        <a href="{% url 'tasks' %}" class="button-block">Email Dashboard</a>
+
+        {% if request.user.username|lower == 'omega' %}
+            <a href="{% url 'fetch_emails' %}" class="button-block">Live Inbox</a>
+            <a href="{% url 'import_global_data' %}" class="button-block">Import Data</a>
+            <!--<a href="{% url 'delegation_report' %}" class="button-block">Reports</a>-->
+        {% endif %}
+
+        <a href="{% url 'complaint_log' %}" class="button-block">Complaint Log</a>
+        <a href="{% url 'add_member' %}" class="button-block">Add Member</a>
+        <a href="{% url 'recycle_bin' %}" class="button-block">Recycle Bin</a>
+    </div>
+
+</body>
+</html>

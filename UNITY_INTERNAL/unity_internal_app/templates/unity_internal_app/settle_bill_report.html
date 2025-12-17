@@ -1,0 +1,206 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Settlement Report - {{ bill.C_Company_Code }}</title>
+<style>
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #e8f5e9; margin: 30px; color: #333; }
+    .report-container { max-width: 1000px; margin: 0 auto; background: white; padding: 40px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); border-radius: 8px; border-top: 8px solid #2e7d32; }
+    
+    /* Header */
+    .header-row { display: flex; justify-content: space-between; align-items: start; margin-bottom: 40px; border-bottom: 2px solid #c8e6c9; padding-bottom: 20px; }
+    .company-info h1 { margin: 0 0 5px 0; color: #1b5e20; font-size: 26px; }
+    .company-info p { margin: 0; color: #666; }
+    .report-meta { text-align: right; }
+    .status-tag { background-color: #c8e6c9; color: #2e7d32; padding: 5px 12px; border-radius: 4px; font-weight: bold; letter-spacing: 1px; font-size: 0.9em; border: 1px solid #81c784; }
+
+    /* Bill Summary Box */
+    .bill-summary { background-color: #f1f8e9; padding: 20px; border-radius: 6px; display: flex; justify-content: space-between; margin-bottom: 30px; border: 1px solid #dcedc8; }
+    .summary-item label { display: block; font-size: 0.8em; color: #558b2f; text-transform: uppercase; font-weight: bold; margin-bottom: 5px; }
+    .summary-item span { font-size: 1.2em; font-weight: 600; color: #333; }
+    .large-amount { font-size: 1.5em !important; color: #1b5e20 !important; }
+
+    /* Tables */
+    .section-heading { margin-top: 30px; margin-bottom: 10px; color: #1565c0; font-size: 1.1em; font-weight: bold; border-bottom: 2px solid #e3f2fd; padding-bottom: 5px; display: flex; justify-content: space-between; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.95em; margin-bottom: 10px; }
+    th { background-color: #e3f2fd; color: #0d47a1; padding: 10px; text-align: left; border-bottom: 2px solid #bbdefb; }
+    td { padding: 10px; border-bottom: 1px solid #eee; color: #444; }
+    .amount-col { text-align: right; font-family: Consolas, monospace; font-weight: bold; }
+    .fiscal-col { color: #e65100; font-weight: bold; } /* Orange for visibility */
+    
+    /* Totals */
+    .total-row td { background-color: #fafafa; font-weight: bold; border-top: 2px solid #eee; }
+    
+    .grand-total-section { margin-top: 40px; border-top: 2px solid #ccc; padding-top: 20px; display: flex; justify-content: flex-end; }
+    .grand-total-table { width: 350px; }
+    .grand-total-table td { padding: 8px; font-size: 1.1em; }
+    .final-balance { font-size: 1.4em; color: #2e7d32; font-weight: bold; border-top: 2px solid #2e7d32; }
+
+    /* Button */
+    .btn-back { display: inline-block; margin-bottom: 20px; text-decoration: none; color: #1b5e20; font-weight: bold; }
+    .btn-back:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+    <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
+    <a href="{% url 'unity_information' company_code=company_code %}" class="btn-back">← Back to Dashboard List</a>
+    
+    <a href="{% url 'export_settled_bill_csv' company_code=company_code bill_id=bill.id %}" 
+        style="background-color: #2e7d32; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 0.9em; display: flex; align-items: center;">
+        📥 Export to Excel
+    </a>
+    </div>
+
+    <div class="report-container">
+        <div class="header-row">
+            <div class="company-info">
+                <h1>Settlement Audit Report</h1>
+                <p>{{ bill.D_Company_Name }}</p>
+                <p>Code: <strong>{{ company_code }}</strong> | Fund: {{ bill.B_Fund_Code }}</p>
+            </div>
+            <div class="report-meta">
+                <div class="status-tag">RECON COMPLETE</div>
+                <p style="margin-top: 10px; font-size: 0.9em; color: #888;">Report Generated: {% now "Y-m-d" %}</p>
+            </div>
+        </div>
+
+        <div class="bill-summary">
+            <div class="summary-item">
+                <label>Bill Reference ID</label>
+                <span>#{{ bill.id }}</span>
+            </div>
+            <div class="summary-item">
+                <label>Pre-Bill Date</label>
+                <span>{{ bill.F_Pre_Bill_Date|date:"Y-m-d" }}</span>
+            </div>
+            <div class="summary-item">
+                <label>Original Scheduled Amount</label>
+                <span class="large-amount">R {{ bill.H_Schedule_Amount }}</span>
+            </div>
+        </div>
+
+        {% if settlements %}
+        <div class="section-heading">
+            <span>Bank Line Settlements (Cash)</span>
+            <span>Total: R {{ settled_total|floatformat:2 }}</span>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Trans Date</th>
+                    <th>Fiscal Date</th> <th>Source Description</th>
+                    <th>Recon ID</th>
+                    <th class="amount-col">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in settlements %}
+                <tr>
+                    <td>{{ s.settlement_date|date:"Y-m-d" }}</td>
+                    <td class="fiscal-col">
+                        {{ s.reconned_bank_line.fiscal_date|date:"Y-m-d"|default:"-" }}
+                    </td>
+                    <td>{{ s.reconned_bank_line.bank_line.transaction_description|truncatechars:45 }}</td>
+                    <td>#{{ s.reconned_bank_line.bank_line_id }}</td>
+                    <td class="amount-col">R {{ s.settled_amount|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        {% if credit_settlements %}
+        <div class="section-heading">
+            <span>Applied Credit Notes</span>
+            <span>Total: R {{ credit_total|floatformat:2 }}</span>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Import Date</th>
+                    <th>Fiscal Date</th> <th>Review Note / Reference</th>
+                    <th>Credit ID</th>
+                    <th class="amount-col">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in credit_settlements %}
+                <tr>
+                    <td>{{ s.original_credit_note.processed_date|date:"Y-m-d" }}</td>
+                    <td class="fiscal-col">
+                        {{ s.original_credit_note.fiscal_date|date:"Y-m-d"|default:"Unassigned" }}
+                    </td>
+                    <td>{{ s.original_credit_note.review_note|default:"-" }}</td>
+                    <td>#{{ s.source_credit_note_id }}</td> 
+                    <td class="amount-col">R {{ s.settled_amount|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        {% if journal_settlements %}
+        <div class="section-heading">
+            <span>Journal Entries (Surplus Allocation)</span>
+            <span>Total: R {{ journal_total|floatformat:2 }}</span>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Allocation Date</th>
+                    <th>Fiscal Date</th> <th>Source Detail</th>
+                    <th>Journal ID</th>
+                    <th class="amount-col">Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in journal_settlements %}
+                <tr>
+                    <td>{{ s.settlement_date|date:"Y-m-d" }}</td>
+                    <td class="fiscal-col">
+                        {{ s.settlement_date|date:"Y-m-d" }}
+                    </td>
+                    <td>
+                        Surplus linked via JID #{{ s.source_journal_entry_id }}
+                    </td>
+                    <td>#{{ s.source_journal_entry_id }}</td>
+                    <td class="amount-col">R {{ s.settled_amount|floatformat:2 }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        <div class="grand-total-section">
+            <table class="grand-total-table">
+                <tr>
+                    <td>Total Schedule:</td>
+                    <td class="amount-col">R {{ bill.H_Schedule_Amount|floatformat:2 }}</td>
+                </tr>
+                <tr>
+                    <td>Less Total Paid:</td>
+                    <td class="amount-col" style="border-bottom: 1px solid #999;">( R {{ total_paid|floatformat:2 }} )</td>
+                </tr>
+                <tr>
+                    <td style="padding-top:10px; font-weight: bold;">Balance Remaining:</td>
+                    <td class="amount-col final-balance" style="padding-top:10px;">R 0.00</td> 
+                </tr>
+
+                {% if generated_surplus %}
+                <tr>
+                    <td colspan="2" style="padding-top: 20px;">
+                        <div style="background: #fff3e0; padding: 10px; border: 1px solid #ffe0b2; border-radius: 4px; text-align: center;">
+                            <strong style="color: #e65100;">Surplus Created</strong><br>
+                            <span style="font-size: 1.2em; font-weight: bold;">R {{ generated_surplus.surplus_amount|floatformat:2 }}</span>
+                        </div>
+                    </td>
+                </tr>
+                {% endif %}
+            </table>
+        </div>
+
+    </div>
+
+</body>
+</html>

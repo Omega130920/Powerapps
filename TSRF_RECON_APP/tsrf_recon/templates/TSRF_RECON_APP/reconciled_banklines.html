@@ -1,0 +1,296 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-green': '#81c784',
+                        'hover-green': '#66bb6a',
+                        'container-light': '#f0fff0',
+                        'bg-top': '#d1e2c4',
+                        'accent-border': '#c3e6cb',
+                        'dark-title': '#1b5e20',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Your custom CSS styles go here */
+        body {
+            font-family: sans-serif;
+            background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
+            margin: 20px;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        h1 {
+            color: #1b5e20;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        .return-button {
+            display: inline-block; padding: 10px 20px;
+            background-color: #81c784; border: 1px solid #81c784; border-radius: 5px;
+            text-decoration: none; color: white; cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .return-button:hover { background-color: #66bb6a; }
+
+        .search-form {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        /* Unified Filter Styles */
+        .filters-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 10px;
+            border-radius: 8px;
+            background-color: #e6ffe6;
+        }
+
+        .filters-container input[type="text"], 
+        .filters-container input[type="date"], 
+        .filters-container select {
+            padding: 8px 12px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            min-width: 150px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .filters-container .search-button, .filters-container .clear-button {
+            padding: 8px 16px;
+            background-color: #43a047;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+
+        .filters-container .search-button:hover {
+            background-color: #388e3c;
+        }
+        
+        .filters-container .clear-button {
+            background-color: #f44336;
+        }
+        .filters-container .clear-button:hover {
+             background-color: #d32f2f;
+        }
+
+
+        table {
+            width: 100%; border-collapse: collapse; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            border-radius: 5px; overflow: hidden; background-color: #f0fff0;
+            border: 1px solid #f0fff0; margin-bottom: 20px; font-size: 0.9em;
+        }
+        thead th {
+            background-color: #43a047; color: white; padding: 12px; text-align: left;
+            font-weight: bold; border-bottom: 2px solid #388e3c; white-space: nowrap;
+            border-right: 1px solid #388e3c;
+        }
+        thead th:last-child { border-right: none; }
+        tbody td {
+            padding: 10px 12px; border-bottom: 1px solid #aed581; border-right: 1px solid #aed581;
+            white-space: nowrap; /* Added for better column integrity */
+        }
+        tbody td:last-child { border-right: none; }
+        tbody tr:nth-child(even) { background-color: #e6ffe6; }
+        tbody tr { cursor: default; } /* Reconciled lines are not clickable */
+        tbody tr:hover { background-color: #ccffcc; }
+        
+        /* Pagination styles (unchanged) */
+        .pagination-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            padding: 10px;
+            border-top: 1px solid #c3e6cb;
+            background-color: #f0fff0;
+            border-radius: 0 0 8px 8px;
+        }
+        .pagination-link {
+            padding: 8px 15px;
+            background-color: #43a047;
+            color: white;
+            border-radius: 5px;
+            text-decoration: none;
+            transition: background-color 0.3s;
+            font-weight: bold;
+        }
+        .pagination-link:hover:not(.disabled) {
+            background-color: #388e3c;
+        }
+        .disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+
+<body class="p-2 min-h-screen flex flex-col items-center">
+
+    <div class="controls-container w-full max-w-full mx-auto mb-4 flex justify-between items-center">
+        <a href="{% url 'dashboard' %}" class="return-button">Back to Dashboard</a>
+        
+        <a href="{% url 'allocated_bank_line_list' %}" class="return-button bg-blue-600 hover:bg-blue-700">View Allocated Lines</a>
+    </div>
+
+    <div class="w-full max-w-full flex-grow bg-container-light p-4 shadow-xl rounded-xl border border-accent-border flex flex-col">
+        
+        <h1 class="text-3xl sm:text-4xl font-extrabold text-dark-title mb-8 border-b border-accent-border pb-3 text-center">
+            {{ title }}
+        </h1>
+        
+        <form method="get" class="filters-container">
+            
+            <input type="text" name="wildcard_query" placeholder="Wildcard Search (All Fields)" value="{{ wildcard_query }}">
+
+            <select name="note_selection_filter">
+                <option value="">Note Selection</option>
+                {% for note in note_options %}
+                    <option value="{{ note }}" {% if note == note_selection_filter %}selected{% endif %}>
+                        {{ note }}
+                    </option>
+                {% endfor %}
+            </select>
+            
+            <select name="type_filter">
+                <option value="">Type</option>
+                {% for type_option in type_options %}
+                    <option value="{{ type_option }}" {% if type_option == type_filter %}selected{% endif %}>
+                        {{ type_option }}
+                    </option>
+                {% endfor %}
+            </select>
+
+            <label for="fisical_start_date">Fisical Date From:</label>
+            <input type="date" id="fisical_start_date" name="fisical_start_date" value="{{ fisical_start_date }}">
+
+            <label for="fisical_end_date">To:</label>
+            <input type="date" id="fisical_end_date" name="fisical_end_date" value="{{ fisical_end_date }}">
+
+            <button type="submit" class="search-button">Filter</button>
+            
+            {% if wildcard_query or note_selection_filter or type_filter or fisical_start_date or fisical_end_date %}
+                <a href="{% url 'reconciled_bank_line_list' %}" class="clear-button">Clear Filters</a>
+            {% endif %}
+
+        </form>
+        <div class="scrollable-table-body shadow-lg rounded-lg border border-accent-border overflow-auto flex-grow">
+            
+            <table class="min-w-full divide-y divide-accent-border">
+                
+                <thead class="bg-primary-green/80 sticky top-0 z-10">
+                    <tr>
+                        <th class="table-cell text-left text-xs font-semibold uppercase tracking-wider text-white">Date</th>
+                        <th class="table-cell text-left text-xs font-semibold uppercase tracking-wider text-white">Description</th>
+                        <th class="table-cell text-right text-xs font-semibold uppercase tracking-wider text-white">Amount (ZAR)</th>
+                        <th class="table-cell text-left text-xs font-semibold uppercase tracking-wider text-white">Levy</th>
+                        <th class="table-cell text-left text-xs font-semibold uppercase tracking-wider text-white">Fisical</th>
+                        <th class="table-cell text-left text-xs font-semibold uppercase tracking-wider text-white">Type</th>
+                        <th class="table-cell text-left text-xs font-semibold uppercase tracking-wider text-white">Note Selection</th>
+                    </tr>
+                </thead>
+                
+                <tbody class="divide-y divide-accent-border/50 bg-white">
+                    {% for line in bank_lines_page %}<tr class="hover:bg-primary-green/10 transition duration-150 cursor-default">
+                        
+                        <td class="table-cell text-gray-700">{{ line.Date|date:"Y-m-d" }}</td>
+                        <td class="table-cell text-gray-700 max-w-xs truncate" title="{{ line.Reference_Description }}">
+                            {{ line.Reference_Description }}
+                        </td>
+                        <td class="table-cell font-semibold text-right
+                            {% if line.Amount < 0 %}
+                                text-red-700
+                            {% else %}
+                                text-primary-green
+                            {% endif %}"
+                        >
+                            {{ line.Amount|floatformat:2 }}
+                        </td>
+
+                        <td class="table-cell text-gray-700 text-left">
+                            {{ line.Levy_number|default:"-" }}
+                        </td>
+
+                        <td class="table-cell text-gray-700 text-left">
+                            {{ line.Fisical|default:"-" }}
+                        </td>
+
+                        <td class="table-cell text-gray-700 text-left">
+                            {{ line.Type|default:"-" }}
+                        </td>
+                        
+                        <td class="table-cell text-gray-700 text-left" title="{{ line.Column_5|default:'-' }}">
+                            {{ line.Column_5|default:"-" }}
+                        </td>
+                        
+                    </tr>
+                    {% empty %}<tr>
+                        <td colspan="7" class="table-cell text-center py-4 text-gray-500 italic">No fully assigned bank lines found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        
+        {% if bank_lines_page.has_other_pages %}
+        <div class="pagination-container rounded-t-none">
+            
+            {% if bank_lines_page.has_previous %}
+                <a href="?page={{ bank_lines_page.previous_page_number }}{% if wildcard_query %}&wildcard_query={{ wildcard_query }}{% endif %}{% if note_selection_filter %}&note_selection_filter={{ note_selection_filter }}{% endif %}{% if type_filter %}&type_filter={{ type_filter }}{% endif %}{% if fisical_start_date %}&fisical_start_date={{ fisical_start_date }}{% endif %}{% if fisical_end_date %}&fisical_end_date={{ fisical_end_date }}{% endif %}" class="pagination-link">
+                    &larr; Previous
+                </a>
+            {% else %}
+                <span class="pagination-link disabled">&larr; Previous</span>
+            {% endif %}
+            
+            <span class="text-sm font-semibold text-gray-700">
+                Page {{ bank_lines_page.number }} of {{ bank_lines_page.paginator.num_pages }}
+                (Total Records: {{ bank_lines_page.paginator.count }})
+            </span>
+            
+            {% if bank_lines_page.has_next %}
+                <a href="?page={{ bank_lines_page.next_page_number }}{% if wildcard_query %}&wildcard_query={{ wildcard_query }}{% endif %}{% if note_selection_filter %}&note_selection_filter={{ note_selection_filter }}{% endif %}{% if type_filter %}&type_filter={{ type_filter }}{% endif %}{% if fisical_start_date %}&fisical_start_date={{ fisical_start_date }}{% endif %}{% if fisical_end_date %}&fisical_end_date={{ fisical_end_date }}{% endif %}" class="pagination-link">
+                    Next &rarr;
+                </a>
+            {% else %}
+                <span class="pagination-link disabled">Next &rarr;</span>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        
+        <div class="mt-8 text-center flex-shrink-0">
+            <a href="javascript:history.back()" 
+                class="inline-block py-2 px-6 border border-transparent rounded-lg shadow-md text-sm font-semibold text-white 
+                        bg-primary-green hover:bg-hover-green transition duration-200 
+                        focus:outline-none focus:ring-4 focus:ring-primary-green focus:ring-opacity-50">
+                &larr; Back to Dashboard
+            </a>
+        </div>
+
+    </div>
+</body>
+</html>

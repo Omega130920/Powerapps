@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACVV Information</title>
+    <style>
+        /* Main layout for a non-scrollable page. */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* This prevents scrolling */
+        }
+        
+        body {
+            font-family: sans-serif;
+            font-size: 14px; /* Reduced base font size */
+            background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            width: 95%;
+            max-width: 98%;
+            height: 90vh;
+            display: flex;
+            flex-direction: column;
+            background-color: #f0fff0;
+            padding: 1.5em; /* Reduced padding */
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        /* Dashboard button and title alignment */
+        .dashboard-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px; /* Reduced margin */
+        }
+
+        .dashboard-button {
+            padding: 8px 16px; /* Reduced padding */
+            background-color: #81c784;
+            border: 1px solid #81c784;
+            border-radius: 5px;
+            text-decoration: none;
+            color: white;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+            font-size: 13px; /* Smaller font size for button */
+        }
+
+        .dashboard-button:hover {
+            background-color: #66bb6a;
+        }
+        
+        h1 {
+            color: #1b5e20;
+            text-align: center;
+            flex-grow: 1;
+            font-size: 22px; /* Reduced heading font size */
+        }
+
+        .return-button {
+            padding: 8px 16px; /* Reduced padding */
+            background-color: #81c784;
+            border: 1px solid #81c784;
+            border-radius: 5px;
+            text-decoration: none;
+            color: white;
+            transition: background-color 0.3s ease;
+            font-size: 13px; /* Smaller font size for button */
+        }
+
+        .return-button:hover {
+            background-color: #66bb6a;
+        }
+
+        .profile-layout {
+            display: flex;
+            gap: 15px; /* Reduced gap */
+            flex: 1;
+            min-height: 0;
+        }
+        
+        /* Tabs Style (Vertical) */
+        .tab-nav {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            width: 180px; /* Reduced width */
+            border-right: 2px solid #aed581;
+            overflow-y: auto;
+        }
+        
+        .tab-nav li {
+            padding: 10px 15px; /* Reduced padding */
+            cursor: pointer;
+            background-color: #81c784; 
+            border: 1px solid #81c784;
+            border-right: none;
+            color: white;
+            margin-bottom: 4px; /* Reduced margin */
+            border-radius: 5px 0 0 5px;
+            white-space: nowrap;
+            text-align: right;
+            transition: all 0.2s ease;
+            font-size: 13px; /* Smaller font size for tab text */
+        }
+
+        .tab-nav li.active {
+            background-color: #f0fff0;
+            color: #1b5e20;
+            border-top: 2px solid #43a047;
+            border-bottom: 2px solid #43a047;
+            border-left: 2px solid #43a047;
+            font-weight: bold;
+            transform: translateX(2px);
+            z-index: 1;
+        }
+
+        .tab-nav li:hover {
+            background-color: #66bb6a; 
+        }
+
+        .tab-content {
+            flex: 1;
+            background-color: #f0fff0;
+            padding: 15px; /* Reduced padding */
+            border: 1px solid #aed581;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+        }
+        
+        .tab-pane {
+            display: none;
+        }
+        
+        .tab-pane.active {
+            display: block;
+        }
+
+        /* Table Styles for data display */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px; /* Reduced margin */
+        }
+
+        th, td {
+            padding: 8px 12px; /* Reduced padding */
+            text-align: left;
+            border-bottom: 1px solid #aed581;
+            font-size: 13px; /* Smaller font size for table cells */
+        }
+        
+        th {
+            background-color: #e6ffe6;
+            color: #1b5e20;
+            font-weight: bold;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        .return-button-bottom {
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #81c784;
+            border: 1px solid #81c784;
+            border-radius: 5px;
+            text-decoration: none;
+            color: white;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+            text-align: center;
+        }
+
+        .return-button-bottom:hover {
+            background-color: #66bb6a;
+        }
+
+        /* New styles for the notes section */
+        .note-list {
+            border: 1px solid #c3e6cb;
+            border-radius: 5px;
+            padding: 15px;
+            margin-bottom: 20px;
+            background-color: #e6ffe6;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .note-item {
+            border-bottom: 1px solid #aed581;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+
+        .note-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .note-meta {
+            font-size: 0.8em;
+            color: #666;
+            display: flex;
+            justify-content: space-between;
+            margin-top: 5px;
+        }
+        
+        .note-meta .user {
+            font-weight: bold;
+            color: #1b5e20;
+        }
+        
+        .note-form {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #c3e6cb;
+            border-radius: 5px;
+        }
+        
+        .note-form textarea {
+            width: 100%;
+            min-height: 100px;
+            padding: 10px;
+            box-sizing: border-box;
+            border: 1px solid #aed581;
+            border-radius: 5px;
+            font-size: 1em;
+            resize: vertical;
+        }
+        
+        .note-form button {
+            display: block;
+            margin-top: 10px;
+            padding: 10px 20px;
+            background-color: #43a047;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        
+        .note-form button:hover {
+            background-color: #388e3c;
+        }
+        
+        .messages {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 15px 0;
+        }
+
+        .messages li {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            font-size: 0.9em;
+        }
+
+        .messages .success {
+            background-color: #c8e6c9;
+            color: #1b5e20;
+            border: 1px solid #aed581;
+        }
+
+        .messages .error {
+            background-color: #ffcdd2;
+            color: #b71c1c;
+            border: 1px solid #ef9a9a;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="dashboard-header">
+            <a href="{% url 'acvv_list' %}" class="dashboard-button">Return to List</a>
+            <h1>ACVV Information for {{ acvv_record.mip_names }}</h1>
+            <div></div>
+        </div>
+
+        <div class="profile-layout">
+            <ul class="tab-nav">
+                <li class="active" data-tab-target="#acvv-info">ACVV Info</li>
+                <li data-tab-target="#notes-tab">Notes</li>
+                <li data-tab-target="#button2">PDF Upload</li>
+                <li data-tab-target="#button3">BUTTON 3</li>
+                <li data-tab-target="#button4">BUTTON 4</li>
+                <li data-tab-target="#button5">BUTTON 5</li>
+            </ul>
+
+            <div class="tab-content">
+                {% if messages %}
+                <ul class="messages">
+                    {% for message in messages %}
+                    <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+                <div id="acvv-info" class="tab-pane active">
+                    <table>
+                        <tr><th>MIP Names</th><td>{{ acvv_record.mip_names }}</td></tr>
+                        <tr><th>Branch Code</th><td>{{ acvv_record.branch_code }}</td></tr>
+                        <tr><th>Member</th><td>{{ acvv_record.member }}</td></tr>
+                        <tr><th>Status</th><td>{{ acvv_record.status }}</td></tr>
+                        <tr><th>Contribution Amount</th><td>{{ acvv_record.contribution_amount }}</td></tr>
+                        <tr><th>Notes</th><td>{{ acvv_record.notes }}</td></tr>
+                        <tr><th>Schedule Date Received</th><td>{{ acvv_record.schedule_date_received }}</td></tr>
+                        <tr><th>Deb Order Date Confirm</th><td>{{ acvv_record.deb_order_date_confirm }}</td></tr>
+                        <tr><th>Bank info Upload</th><td>{{ acvv_record.bank_info_upload }}</td></tr>
+                        <tr><th>Email Address</th><td>{{ acvv_record.mg_email_address }}</td></tr>
+                        <tr><th>Tel</th><td>{{ acvv_record.tel }}</td></tr>
+                    </table>
+                </div>
+                
+                <!-- Correctly added Notes Tab -->
+                <div id="notes-tab" class="tab-pane">
+                    <h2>Notes</h2>
+                    <div class="note-list">
+                        {% for note in notes %}
+                        <div class="note-item">
+                            <div class="note-meta">
+                                <span class="user">Posted by: {{ note.user }}</span>
+                                <span class="date">{{ note.date|date:"Y-m-d H:i:s" }}</span>
+                            </div>
+                            <p>{{ note.notes }}</p>
+                        </div>
+                        {% empty %}
+                            <p>No notes found for this record.</p>
+                        {% endfor %}
+                    </div>
+                    <div class="note-form">
+                        <h3>Add New Note</h3>
+                        <form method="post">
+                            {% csrf_token %}
+                            <textarea name="note_content" placeholder="Type your note here..."></textarea>
+                            <button type="submit">Add Note</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const tabs = document.querySelectorAll('.tab-nav li');
+            const panes = document.querySelectorAll('.tab-pane');
+
+            function showTab(targetId) {
+                tabs.forEach(t => t.classList.remove('active'));
+                panes.forEach(p => p.classList.remove('active'));
+
+                const targetTab = document.querySelector(`.tab-nav li[data-tab-target="${targetId}"]`);
+                const targetPane = document.querySelector(targetId);
+
+                if (targetTab) targetTab.classList.add('active');
+                if (targetPane) targetPane.classList.add('active');
+            }
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    showTab(tab.dataset.tabTarget);
+                });
+            });
+
+            // Check for URL fragment and show the corresponding tab
+            const fragment = window.location.hash;
+            if (fragment && fragment.startsWith('#')) {
+                showTab(fragment);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Leads List</title>
+    
+    <style>
+        /* --- Root Colors (Reused from Client List) --- */
+        :root {
+            --primary-green: rgb(119, 206, 97);
+            --accent-green: rgb(105, 187, 85);
+            --bg-light-green: #e9f5e0; 
+            --page-bg: linear-gradient(to bottom, #d1e2c4);
+            --text-default: #333;
+            --export-blue: #0070c0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: var(--page-bg);
+            margin: 0;
+            padding: 0;
+        }
+
+        /* --- Header Bar --- */
+        .header-bar {
+            background-color: var(--primary-green);
+            padding: 15px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header-bar .search-box {
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #777;
+            font-size: 1rem;
+            width: 250px;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        .header-bar .export-button {
+            background-color: var(--export-blue);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .header-controls {
+             display: flex;
+             gap: 15px;
+             align-items: center;
+        }
+
+        /* --- Main Content Area --- */
+        .content-area {
+            padding: 25px;
+            overflow-x: auto;
+        }
+        h1 {
+            color: var(--accent-green);
+            font-size: 1.8rem;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+
+        /* --- Lead Table --- */
+        .lead-table {
+            width: 100%;
+            min-width: 1500px; 
+            border-collapse: collapse;
+            background-color: #fff;
+            border-radius: 8px;
+            overflow: hidden; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .lead-table th, .lead-table td {
+            border: 1px solid #ddd;
+            padding: 12px 15px;
+            text-align: left;
+            font-size: 0.95rem;
+            color: var(--text-default);
+        }
+        
+        .lead-table thead .header-row {
+            background-color: var(--accent-green);
+            color: white;
+            font-weight: 700;
+            text-align: center;
+        }
+        .lead-table thead .header-row th {
+            border-color: #72a566;
+            vertical-align: middle;
+        }
+
+        .lead-table thead .filter-row {
+            background-color: var(--bg-light-green); 
+        }
+        
+        .lead-table .filter-row th {
+            padding: 8px 15px;
+        }
+
+        .filter-input {
+            width: 100%;
+            box-sizing: border-box;
+            max-width: none;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        
+        /* Table Body Rows */
+        .lead-table tbody tr:nth-child(even) {
+            background-color: #f7fff5;
+        }
+        .lead-table tbody tr:hover {
+            background-color: #d1e2c4;
+            cursor: pointer;
+        }
+        
+        /* Status Colors */
+        .status-new { background-color: #e3f2fd; color: #1e88e5; }
+        .status-in-progress { background-color: #fff3e0; color: #ff9800; }
+        .status-taken-up { background-color: #e8f5e9; color: var(--primary-green); }
+        .status-not-taken-up { background-color: #ffebee; color: #e53935; }
+        .status-parked { background-color: #f3e5f5; color: #8e24aa; }
+
+        .lead-status { 
+            padding: 4px 8px; 
+            border-radius: 4px; 
+            font-weight: 600; 
+            white-space: nowrap;
+            display: inline-block;
+            font-size: 0.85rem;
+        }
+
+        /* Sorter Button */
+        .sorter-button {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            width: 100%;
+            text-align: center;
+            justify-content: center;
+        }
+        .sorter-icon { margin-left: 5px; font-size: 0.7rem; }
+
+    </style>
+</head>
+<body>
+
+    <div class="header-bar">
+        <!-- Assuming a consulting_home URL exists for general navigation -->
+        <a href="{% url 'consulting_home' %}" class="back-link" style="color: white; font-weight: 700;">&larr; Back to Home</a>
+        <div class="header-controls">
+             <input type="text" class="search-box" id="globalSearchInput" placeholder="Search Company or Contact..."> 
+             <button class="export-button">Export</button>
+        </div>
+    </div>
+
+    <div class="content-area">
+        <!-- THIS IS THE CORRECT H1 FOR THE LIST VIEW -->
+        <h1>New Leads</h1>
+
+        <table class="lead-table" id="leadTable">
+            <thead>
+                <tr class="header-row">
+                    <th>LEAD RECEIVED FROM</th>
+                    <th>
+                        <!-- Auto sort from new to old - lead received date -->
+                        <button class="sorter-button" onclick="sortLeads('-date_received')">
+                            DATE RECEIVED
+                            <span class="sorter-icon" id="receivedDateSortIcon">
+                                {% if current_sort == '-date_received' %}▼{% else %}↕{% endif %}
+                            </span>
+                        </button>
+                    </th>
+                    <th>COMPANY NAME</th>
+                    <th>CONTACT PERSON</th>
+                    <th>CONTACT NUMBER</th>
+                    <th>CONTACT EMAIL</th>
+                    <th>PRODUCT REQUIRED</th>
+                    <th>STATUS</th>
+                    <th>ASSIGNED TO</th>
+                    <th>DATE ACCEPTED</th>
+                    <th>START DATE</th>
+                    <th>
+                        <!-- Sort button for last follow up: toggles new to old/old to new -->
+                        <button class="sorter-button" onclick="sortLeads('last_follow_up')">
+                            LAST FOLLOW UP
+                            <span class="sorter-icon" id="followUpSortIcon">
+                                {% if current_sort == 'last_follow_up_desc' %}▼{% elif current_sort == 'last_follow_up_asc' %}▲{% else %}↕{% endif %}
+                            </span>
+                        </button>
+                    </th>
+                    <th>NOTES</th>
+                </tr>
+                <tr class="filter-row" id="filterRow">
+                    <!-- 0: LEAD RECEIVED FROM -->
+                    <th><input type="text" class="filter-input" placeholder="Filter source..." data-column="0"></th>
+                    <!-- 1: DATE RECEIVED (Filtering, not sorting) -->
+                    <th><input type="text" class="filter-input" placeholder="Filter date..." data-column="1"></th>
+                    <!-- 2: COMPANY NAME -->
+                    <th><input type="text" class="filter-input" placeholder="Filter company..." data-column="2"></th>
+                    <!-- 3: CONTACT PERSON -->
+                    <th><input type="text" class="filter-input" placeholder="Filter contact..." data-column="3"></th>
+                    <!-- 4: CONTACT NUMBER -->
+                    <th><input type="text" class="filter-input" placeholder="Filter number..." data-column="4"></th>
+                    <!-- 5: CONTACT EMAIL -->
+                    <th><input type="text" class="filter-input" placeholder="Filter email..." data-column="5"></th>
+                    <!-- 6: PRODUCT REQUIRED (Dropdown) -->
+                    <th>
+                        <select class="filter-input" data-column="6">
+                            <option value="">All</option>
+                            {% for product in product_options %}
+                            <option value="{{ product|lower }}">{{ product }}</option>
+                            {% endfor %}
+                        </select>
+                    </th>
+                    <!-- 7: STATUS (Dropdown filter) -->
+                    <th>
+                        <select class="filter-input" data-column="7">
+                            <option value="">All</option>
+                            <option value="new">New</option>
+                            <option value="in progress">In Progress</option>
+                            <option value="taken up">Taken Up</option>
+                            <option value="not taken up">Not Taken Up</option>
+                            <option value="parked">Parked</option>
+                        </select>
+                    </th>
+                    <!-- 8: ASSIGNED TO (Dropdown filter) -->
+                    <th>
+                        <select class="filter-input" data-column="8">
+                            <option value="">All</option>
+                            {% for consultant in consultant_options %}
+                            <option value="{{ consultant|lower }}">{{ consultant|upper }}</option>
+                            {% endfor %}
+                        </select>
+                    </th>
+                    <!-- 9: DATE ACCEPTED -->
+                    <th><input type="text" class="filter-input" placeholder="Filter accepted date..." data-column="9"></th>
+                    <!-- 10: START DATE -->
+                    <th><input type="text" class="filter-input" placeholder="Filter start date..." data-column="10"></th>
+                    <!-- 11: LAST FOLLOW UP -->
+                    <th><input type="text" class="filter-input" placeholder="Filter last follow up..." data-column="11"></th>
+                    <!-- 12: NOTES -->
+                    <th><input type="text" class="filter-input" placeholder="Filter notes..." data-column="12"></th>
+                </tr>
+            </thead>
+            <tbody id="leadTableBody">
+                {% for lead in leads %}
+                
+                <tr data-lead-id="{{ lead.id }}" data-status="{{ lead.status|lower|cut:' ' }}">
+                    <td>{{ lead.lead_received_from }}</td>
+                    <td>{{ lead.date_received|date:"Y-m-d" }}</td>
+                    <td>{{ lead.company_name|upper }}</td>
+                    <td>{{ lead.contact_person }}</td>
+                    <td>{{ lead.contact_number|default:"N/A" }}</td>
+                    <td>{{ lead.contact_email|default:"N/A" }}</td>
+                    <td>{{ lead.product_required }}</td>
+                    <td>
+                        <!-- Status formatting: uses lead.status converted to lowercase/hyphenated CSS class -->
+                        {% with status_class=lead.status|lower|cut:' ' %}
+                        <span class="lead-status status-{{ status_class }}">{{ lead.status|upper }}</span>
+                        {% endwith %}
+                    </td>
+                    <td>{{ lead.assigned_to|upper|default:"UNASSIGNED" }}</td>
+                    <td>{{ lead.date_accepted|default:"N/A"|date:"Y-m-d" }}</td>
+                    <td>{{ lead.start_date|default:"N/A"|date:"Y-m-d" }}</td>
+                    <td>{{ lead.last_follow_up|default:"N/A"|date:"Y-m-d" }}</td>
+                    <td title="{{ lead.internal_notes|default:'No notes' }}">{{ lead.internal_notes|truncatechars:30 }}</td>
+                </tr>
+                
+                {% empty %}
+                <tr>
+                    <td colspan="13" style="text-align: center; padding: 40px; color: #888;">
+                        No new leads found.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+    // Wait for the document to be fully loaded
+    document.addEventListener('DOMContentLoaded', function () {
+        
+        // --- Core Filtering Logic ---
+        const globalSearch = document.getElementById('globalSearchInput'); 
+        const filterInputs = document.querySelectorAll('#filterRow .filter-input');
+        const tableBody = document.getElementById('leadTableBody');
+        const tableRows = tableBody.getElementsByTagName('tr');
+        const TOTAL_COLUMNS = 13; 
+
+        function filterTable() {
+            if (!globalSearch) return; 
+
+            const globalSearchValue = globalSearch.value.toLowerCase().trim();
+            const columnFilters = Array.from(filterInputs).map(input => ({
+                value: input.value.toLowerCase().trim(),
+                column: parseInt(input.dataset.column) 
+            }));
+
+            for (let i = 0; i < tableRows.length; i++) {
+                const row = tableRows[i];
+                const cells = row.getElementsByTagName('td');
+                if (cells.length < TOTAL_COLUMNS) continue; 
+                
+                let rowVisible = true; 
+
+                // 1. Global Search Filter 
+                if (globalSearchValue) {
+                    const companyName = cells[2].textContent.toLowerCase();
+                    const contactPerson = cells[3].textContent.toLowerCase();
+                    const internalNotes = cells[12].textContent.toLowerCase();
+
+                    if (!companyName.includes(globalSearchValue) && 
+                        !contactPerson.includes(globalSearchValue) &&
+                        !internalNotes.includes(globalSearchValue)) 
+                    {
+                        rowVisible = false;
+                    }
+                }
+
+                // 2. Column Filters
+                if (rowVisible) {
+                    for (const filter of columnFilters) {
+                        if (filter.value === "") continue; // Skip if filter is empty
+                        
+                        const cellValue = cells[filter.column].textContent.toLowerCase().trim();
+                        
+                        // Dropdowns (Product (6), Status (7), Assigned To (8)) use exact match
+                        if ([6, 7, 8].includes(filter.column)) { 
+                            if (cellValue !== filter.value) {
+                                rowVisible = false;
+                                break;
+                            }
+                        } else {
+                            // Text input filters use 'includes' (wildcard search).
+                            if (!cellValue.includes(filter.value)) {
+                                rowVisible = false;
+                                break; 
+                            }
+                        }
+                    }
+                }
+                row.style.display = rowVisible ? '' : 'none';
+            }
+        }
+
+        // Attach event listeners
+        if (globalSearch) {
+            globalSearch.addEventListener('input', filterTable);
+        }
+        filterInputs.forEach(input => {
+            input.addEventListener('input', filterTable);
+            input.addEventListener('change', filterTable);
+        });
+        
+        // --- Sorting Logic (Using URL parameters to trigger server-side sort) ---
+        window.sortLeads = function(sortKey) {
+            const currentSort = "{{ current_sort }}";
+            let newSort;
+            
+            // Toggle between ascending and descending for Last Follow Up
+            if (sortKey === 'last_follow_up') {
+                if (currentSort === 'last_follow_up_asc') {
+                    newSort = 'last_follow_up_desc';
+                } else {
+                    newSort = 'last_follow_up_asc';
+                }
+            } else if (sortKey === '-date_received') {
+                 // Re-assert descending order for date received if clicked
+                 newSort = '-date_received';
+            } else {
+                newSort = sortKey;
+            }
+            
+            // Build the new URL, preserving current location but replacing the sort param
+            const url = new URL(window.location.href);
+            url.searchParams.set('sort', newSort);
+            window.location.href = url.toString();
+        }
+
+        // --- Row Click Handler (UPDATED to redirect to lead_info) ---
+        document.querySelectorAll('#leadTableBody tr').forEach(row => {
+            row.addEventListener('click', function(event) {
+                const leadId = row.dataset.leadId;
+                if (leadId) {
+                    // Redirect to the new lead info page (e.g., /leads/1/info/)
+                    window.location.href = `/leads/${leadId}/info/`; 
+                }
+            });
+        });
+    });
+    </script>
+
+</body>
+</html>

@@ -1,0 +1,169 @@
+{% load static %}
+
+{% block title %}My Delegated Tasks{% endblock %}
+
+{% block content %}
+<style>
+/* -------------------------------------- */
+/* BASE STYLES & LAYOUT (From Sample) */
+/* -------------------------------------- */
+body {
+    font-family: sans-serif;
+    margin: 0;
+    color: #333;
+    line-height: 1.6;
+    background-color: #d1e2c4;
+    background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+    box-sizing: border-box;
+}
+.log-container {
+    max-width: 1400px;
+    width: 100%;
+    margin: 40px auto;
+    padding: 20px;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.log-header {
+    border-bottom: 2px solid #aed581;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.log-header h1 {
+    margin: 0;
+    color: #43a047; /* Green title color */
+    font-size: 28px;
+}
+.task-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+.task-table th, .task-table td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+    font-size: 14px;
+    word-wrap: break-word;
+}
+.task-table th {
+    background-color: #43a047;
+    color: white;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.task-table tr:nth-child(even) { background-color: #f9fbe7; }
+.task-table tr:hover {
+    background-color: #e8f5e9;
+    cursor: pointer;
+}
+/* Custom Status Colors from Sample */
+.status-delegated { color: #2e7d32; font-weight: bold; }
+.status-new { color: #1e88e5; font-weight: bold; } /* Using this for non-DEL statuses */
+
+/* Custom Button Styles (For "Back" link) */
+.return-button {
+    padding: 10px 20px;
+    background-color: #81c784;
+    border: 1px solid #81c784;
+    border-radius: 5px;
+    text-decoration: none;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    text-align: center;
+    display: inline-block; /* Essential for anchors */
+}
+.return-button:hover { background-color: #66bb6a; }
+.btn-action { /* Styling for the View/Action button */
+    padding: 8px 12px;
+    background-color: #f7931e;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 14px;
+    cursor: pointer;
+}
+</style>
+
+{# --- Global Links (Adapted from your sample's style) --- #}
+<div class="Dashboard" style="margin-top: 25px;">
+    <a href="{% url 'dashboard' %}" class="return-button">Back to Dashboard</a>
+</div>
+
+<div class="log-container">
+    
+    <div class="log-header">
+        <h1><i class="fas fa-tasks"></i> My Delegated Outlook Tasks</h1>
+        <p>Total Tasks: <strong>{{ tasks|length }}</strong></p>
+    </div>
+    
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+            </button>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    {% if tasks %}
+    <table class="task-table">
+        <thead>
+            <tr>
+                <th style="width: 15%;">Status</th>
+                <th style="width: 15%;">Received</th>
+                <th style="width: 35%;">Subject</th>
+                <th style="width: 20%;">From</th>
+                <th style="width: 15%;">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for task in tasks %}
+            <tr onclick="window.location.href='{% url 'outlook_delegated_action' delegation_id=task.delegation_id %}'" class="clickable-row">
+                
+                <td class="{% if task.status == 'Delegated' %}status-delegated{% else %}status-new{% endif %}">
+                    <b>{{ task.status }}</b>
+                </td>
+                
+                <td>{{ task.received|date:"Y-m-d H:i" }}</td>
+                
+                <td>
+                    {# Linking the subject for easy access #}
+                    <a href="{% url 'outlook_delegated_action' delegation_id=task.delegation_id %}" style="text-decoration: none; color: inherit;">
+                        {{ task.subject|default:"(No Subject)" }}
+                    </a>
+                </td>
+                
+                <td>{{ task.from }}</td>
+                
+                <td>
+                    <a href="{% url 'outlook_delegated_action' delegation_id=task.delegation_id %}" class="btn-action">
+                        View/Action
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="alert alert-info" role="alert" style="margin-top: 20px;">
+        You currently have no active tasks delegated to you.
+    </div>
+    {% endif %}
+
+</div>
+{% endblock %}

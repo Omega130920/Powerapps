@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compose Email - {{ company_code }}</title>
+    <style>
+        :root {
+            --color-primary: #1b5e20;
+            --color-secondary: #43a047;
+            --color-bg: #f0fff0;
+        }
+        body {
+            font-family: sans-serif;
+            background-color: #d1e2c4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .compose-container {
+            background-color: var(--color-bg);
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            width: 90%;
+            max-width: 600px;
+        }
+        h2 { color: var(--color-primary); margin-top: 0; border-bottom: 2px solid var(--color-secondary); padding-bottom: 10px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; color: #333; }
+        input[type="text"], input[type="email"], textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 14px;
+        }
+        textarea { height: 200px; resize: vertical; }
+        .button-group { display: flex; justify-content: space-between; margin-top: 20px; }
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            text-decoration: none;
+            color: white;
+        }
+        .btn-send { background-color: var(--color-secondary); }
+        .btn-cancel { background-color: #d32f2f; }
+    </style>
+</head>
+<body>
+    <div class="compose-container">
+        <h2>New Email Query: {{ company_code }}</h2>
+        <form method="post" action="">
+            {% csrf_token %}
+            <div class="form-group">
+                <label>To:</label>
+                <input type="email" name="to_email" value="{{ to_email }}" required>
+            </div>
+            <div class="form-group">
+                <label>Subject:</label>
+                <input type="text" name="subject" value="{{ subject }}" required>
+            </div>
+            <div class="form-group">
+                <label>Message:</label>
+                <textarea name="body" placeholder="Type your message here..." required></textarea>
+            </div>
+            <div class="button-group">
+                <a href="javascript:history.back()" class="btn btn-cancel">Cancel</a>
+                <button type="submit" class="btn btn-send">Send via Outlook</button>
+            </div>
+        </form>
+    </div>
+</body>
+</html>

@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <style>
+        html, body {
+            height: auto;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        body {
+            font-family: sans-serif;
+            background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            font-size: 3.5em;
+            text-align: center;
+            margin-bottom: 30px;
+            margin-top: 40px;
+            width: 100%;
+        }
+
+        .button-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-auto-rows: minmax(100px, auto);
+            gap: 15px;
+            max-width: 900px;
+            width: 95%;
+            margin: 20px auto;
+        }
+
+        @media (max-width: 768px) {
+            .button-container {
+                grid-template-columns: repeat(2, 1fr);
+                max-width: 600px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .button-container {
+                grid-template-columns: 1fr;
+                max-width: 300px;
+            }
+        }
+
+        .button-block {
+            padding: 50px 20px;
+            background-color: rgb(119, 206, 97);
+            border: 1px solid rgb(119, 206, 97);
+            border-radius: 5px;
+            text-align: center;
+            cursor: pointer;
+            text-decoration: none;
+            color: white;
+            font-size: 1.6em;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+
+        .button-block:hover {
+            background-color: rgb(105, 187, 85);
+            border: 1px solid rgb(105, 187, 85);
+        }
+
+        .logout-wrapper {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+        }
+
+        .logout-button {
+            background-color: rgb(105, 187, 85);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+            margin: 0;
+            display: inline-block;
+        }
+
+        .logout-button:hover {
+            background-color: darkgreen;
+        }
+
+        footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            text-align: left;
+            padding: 10px 20px;
+            background-color: rgba(0, 0, 0, 0.1);
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+    <h1>Welcome to TSRF, {{ username }}</h1>
+    <div class="logout-wrapper">
+        <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="logout-button">Logout</button>
+        </form>
+    </div>
+
+    <div class="button-container">
+        <a href="{% url 'levy_list' %}" class="button-block">Master File</a>
+        <a href="{% url 'process_import' %}" class="button-block">Import File BANK</a>
+        <a href="{% url 'process_org_import' %}" class="button-block">Import File ORG</a>
+        <a href="{% url 'bank_line_list' %}" class="button-block">View Bank Line Data</a>
+        <a href="{% url 'allocated_bank_line_list' %}" class="button-block">Allocated Bank Lines</a>
+        <a href="{% url 'reconciled_bank_line_list' %}" class="button-block">Assigned Bank Lines</a>
+        
+        <a href="{% url 'add_levy' %}" class="button-block">Add New Levy Member</a>
+        <a href="{% url 'outlook_dashboard' %}" class="button-block">Email List</a>
+        <a href="{% url 'outlook_delegated_box' %}" class="button-block">Delegated Box</a>
+        <a href="{% url 'outlook_recycle_bin' %}" class="button-block">Recycle Bin</a>
+    </div>
+
+</body>
+</html>

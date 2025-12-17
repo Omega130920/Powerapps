@@ -1,0 +1,103 @@
+# -------------------------------------------------------------------------
+# Python-specific files
+# -------------------------------------------------------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+/htmlcov/
+.tox/
+.coverage
+
+# VSCode settings directory
+.vscode/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# -------------------------------------------------------------------------
+# Django-specific files
+# -------------------------------------------------------------------------
+# SQLite database (if used, though you use MySQL)
+*.sqlite3
+
+# Django media files (uploaded by users)
+/media/
+
+# Ignore automatically generated migration files if they become too noisy
+# NOTE: You usually want to track migrations, but this is an option:
+# acvv/migrations/
+
+# -------------------------------------------------------------------------
+# SECRETS AND SENSITIVE DATA (CRITICAL)
+# -------------------------------------------------------------------------
+# Ignore the .env file containing API keys and database credentials
+.env
+
+# -------------------------------------------------------------------------
+# Operating System / IDE Files
+# -------------------------------------------------------------------------
+# Windows files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Mac files
+.DS_Store
+
+# Logs
+*.log
+
+# Ignore everything in the tokens folder
+**/oauth_tokens/
+*.pickle
+
+# Ignore the .env in the subfolder
+CRM_UNITY/.env
+.env
+
+# General Python
+**/__pycache__/
+**/*.py[cod]
+**/*.pickle
+
+# Secrets
+**/.env
+**/client_secrets.json
+**/oauth_tokens/
+
+# Database Backups & SQLite
+**/*.sql
+**/*.sqlite3
+
+# Environment
+venv/
+env/
+.venv/
+
+# Databases & Backups (CRITICAL)
+*.sql
+*.sqlite3
+**/db.sqlite3
+
+# Python & Django
+**/__pycache__/
+**/*.py[cod]
+**/*.pickle
+venv/
+.venv/
+env/
+
+# Secrets
+**/.env
+**/client_secrets.json
+**/oauth_tokens/
+
+# OS Files
+Thumbs.db
+.DS_Store

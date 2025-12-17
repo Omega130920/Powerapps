@@ -1,0 +1,245 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Import Bank Transactions</title>
+<style>
+    /* --- GLOBAL STYLES --- */
+    body {
+        font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
+        color: #333;
+        padding: 20px;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start; /* Align top for better scrolling on small screens */
+        min-height: 100vh;
+        margin: 0;
+    }
+
+    /* --- CONTAINER --- */
+    .container {
+        background-color: #f0fff0;
+        padding: 40px;
+        border-radius: 12px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        max-width: 700px;
+        width: 100%;
+        margin-top: 20px;
+        border: 1px solid #c3e6cb;
+    }
+
+    h1 {
+        color: #1b5e20;
+        text-align: center;
+        margin-top: 0;
+        margin-bottom: 30px;
+        font-size: 26px;
+        font-weight: 600;
+    }
+
+    /* --- MESSAGES --- */
+    .messages {
+        list-style: none;
+        padding: 0;
+        margin-bottom: 25px;
+    }
+    .messages li {
+        padding: 12px 15px;
+        margin-bottom: 10px;
+        border-radius: 6px;
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+    }
+    .success {
+        background-color: #d4edda;
+        color: #155724;
+        border-left: 5px solid #28a745;
+    }
+    .error {
+        background-color: #f8d7da;
+        color: #721c24;
+        border-left: 5px solid #dc3545;
+    }
+
+    /* --- FORM STYLING --- */
+    form {
+        background-color: #ffffff;
+        padding: 25px;
+        border-radius: 8px;
+        border: 1px solid #aed581;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+
+    label {
+        font-weight: 700;
+        color: #1b5e20;
+        margin-bottom: -10px;
+    }
+
+    /* Custom File Input Styling */
+    input[type="file"] {
+        padding: 10px;
+        background-color: #f9f9f9;
+        border: 2px dashed #aed581;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        font-size: 14px;
+        width: 100%;
+        box-sizing: border-box;
+    }
+    input[type="file"]:hover {
+        background-color: #e8f5e9;
+        border-color: #1b5e20;
+    }
+
+    button[type="submit"] {
+        padding: 12px 20px;
+        background-color: #43a047;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: 600;
+        transition: background-color 0.3s, transform 0.2s;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+    }
+    button[type="submit"]:hover {
+        background-color: #2e7d32;
+        transform: translateY(-1px);
+    }
+
+    /* --- INFO BOX --- */
+    .info {
+        margin-top: 30px;
+        padding: 20px;
+        background-color: #e8f5e9;
+        border: 1px solid #c8e6c9;
+        border-radius: 8px;
+        color: #2e7d32;
+        font-size: 14px;
+        line-height: 1.6;
+    }
+    
+    .info strong {
+        display: block;
+        margin-bottom: 10px;
+        font-size: 15px;
+        color: #1b5e20;
+    }
+
+    /* Grid layout for the columns list */
+    .info ol {
+        margin: 0;
+        padding-left: 20px;
+        display: grid;
+        grid-template-columns: 1fr 1fr; /* Two columns */
+        gap: 5px 20px;
+    }
+    
+    .info li {
+        margin-bottom: 4px;
+        color: #333;
+    }
+    
+    .warning-text {
+        margin-top: 15px;
+        padding-top: 15px;
+        border-top: 1px solid #aed581;
+        font-style: italic;
+        color: #555;
+    }
+
+    /* --- BACK BUTTON --- */
+    .back-link-container {
+        margin-top: 30px;
+        text-align: center;
+    }
+    .back-button {
+        display: inline-block;
+        padding: 10px 20px;
+        background-color: #81c784;
+        color: white;
+        text-decoration: none;
+        border-radius: 5px;
+        font-weight: bold;
+        transition: background-color 0.3s;
+        border: 1px solid #66bb6a;
+    }
+    .back-button:hover {
+        background-color: #66bb6a;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 600px) {
+        .info ol {
+            grid-template-columns: 1fr; /* Single column on mobile */
+        }
+        .container {
+            padding: 20px;
+        }
+    }
+</style>
+</head>
+<body>
+
+<div class="container">
+    
+    <h1>📤 Import Bank Transactions</h1>
+    
+    {% if messages %}
+        <ul class="messages">
+            {% for message in messages %}
+                <li class="{{ message.tags }}">
+                    {% if message.tags == 'success' %}✅ {% elif message.tags == 'error' %}⚠️ {% endif %}
+                    {{ message }}
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <label for="excel_file">Select Excel File (.xlsx or .xls):</label>
+        <input type="file" name="excel_file" id="excel_file" accept=".xlsx, .xls" required>
+        <button type="submit">Import and Process Data</button>
+    </form>
+
+    <div class="info">
+        <strong>Required Column Order:</strong>
+        <ol>
+            <li>Bank account name</li>
+            <li>Account number</li>
+            <li>Statement reference</li>
+            <li>DATE (Parsable format)</li>
+            <li>Balance (Numeric)</li>
+            <li>Transaction amount</li>
+            <li>Transaction description</li>
+            <li>INTERNAL IDENTIFICATION</li>
+            <li>Specialist</li>
+            <li>Date identified (Date)</li>
+            <li>Fiscal</li>
+            <li>Comments</li>
+            <li>Interim fiscal</li>
+        </ol>
+        <!--<div class="warning-text">
+            ⚠️ The importer is configured to <strong>skip the first row</strong> (header). Uploading a file will <strong>clear all existing data</strong> in the `importbank` table.
+        </div>
+    </div>-->
+    
+    <div class="back-link-container">
+        <a href="{% url 'dashboard' %}" class="back-button">← Back to Dashboard</a>
+    </div>
+
+</div>
+
+</body>
+</html>

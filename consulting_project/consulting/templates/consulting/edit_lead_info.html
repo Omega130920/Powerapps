@@ -1,0 +1,202 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Lead: {{ lead.company_name }}</title>
+    <style>
+        :root {
+            --primary-green: rgb(119, 206, 97);
+            --accent-green: rgb(105, 187, 85);
+            --bg-light-green: #d1e2c4;
+            --text-default: #333;
+            --action-blue: #0070c0;
+        }
+        body { 
+            font-family: sans-serif;
+            line-height: 1.6;
+            background: linear-gradient(to bottom, var(--bg-light-green), rgb(143, 207, 127));
+            color: var(--text-default);
+            padding: 20px;
+        }
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 30px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: var(--action-blue);
+            border-bottom: 3px solid var(--bg-light-green);
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+            font-size: 1.8em;
+        }
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: var(--accent-green);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+        label {
+            display: block;
+            font-weight: 700;
+            margin-bottom: 5px;
+            color: var(--text-default);
+            font-size: 0.9rem;
+        }
+        input[type="text"], input[type="email"], input[type="date"], input[type="number"], select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--action-blue);
+            outline: none;
+        }
+        .save-button {
+            background-color: var(--primary-green);
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 6px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background-color 0.3s ease;
+        }
+        .save-button:hover { background-color: var(--accent-green); }
+
+        .messages {
+            list-style: none;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+        }
+        .messages li {
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .messages li.success {
+            background-color: #e8f5e9;
+            color: #4caf50;
+            border: 1px solid #c8e6c9;
+        }
+        .messages li.error {
+            background-color: #ffebee;
+            color: #f44336;
+            border: 1px solid #ffcdd2;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Link back to the read-only detail view -->
+        <a href="{% url 'lead_info' lead_id=lead.id %}" class="back-link">&larr; Back to Lead Details</a>
+
+        <h1>Editing Lead: {{ lead.company_name }}</h1>
+
+        {% if messages %}
+            <ul class="messages">
+                {% for message in messages %}
+                <li {% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+
+        <!-- Form posts back to the same URL, which is handled by lead_edit_view's POST logic -->
+        <form method="POST" action="{% url 'edit_lead' lead_id=lead.id %}">
+            {% csrf_token %}
+            <div class="form-grid">
+
+                <!-- Primary Lead Information -->
+                <div class="form-group">
+                    <label for="company_name">Company Name*</label>
+                    <input type="text" id="company_name" name="company_name" value="{{ lead.company_name }}" required>
+                </div>
+                <div class="form-group">
+                    <label for="lead_received_from">Lead Received From</label>
+                    <input type="text" id="lead_received_from" name="lead_received_from" value="{{ lead.lead_received_from|default:'' }}">
+                </div>
+                <div class="form-group">
+                    <label for="date_received">Date Received</label>
+                    <input type="date" id="date_received" name="date_received" value="{{ date_received_str }}">
+                </div>
+
+                <!-- Contact Information -->
+                <div class="form-group">
+                    <label for="contact_person">Contact Person</label>
+                    <input type="text" id="contact_person" name="contact_person" value="{{ lead.contact_person|default:'' }}">
+                </div>
+                <div class="form-group">
+                    <label for="contact_number">Contact Number</label>
+                    <input type="text" id="contact_number" name="contact_number" value="{{ lead.contact_number|default:'' }}">
+                </div>
+                <div class="form-group">
+                    <label for="contact_email">Contact Email</label>
+                    <input type="email" id="contact_email" name="contact_email" value="{{ lead.contact_email|default:'' }}">
+                </div>
+
+                <!-- Product and Assignment -->
+                <div class="form-group">
+                    <label for="product_required">Product Required</label>
+                    <select id="product_required" name="product_required">
+                        {% for product in product_options %}
+                            <option value="{{ product }}" {% if product == lead.product_required %}selected{% endif %}>{{ product }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="assigned_to">Assigned To</label>
+                    <select id="assigned_to" name="assigned_to">
+                        {% for consultant in consultant_options %}
+                            <option value="{{ consultant }}" {% if consultant == lead.assigned_to %}selected{% endif %}>{{ consultant }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="status">Status*</label>
+                    <select id="status" name="status" required>
+                        {% for status in status_options %}
+                            <option value="{{ status }}" {% if status == lead.status %}selected{% endif %}>{{ status }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Dates -->
+                <div class="form-group">
+                    <label for="date_accepted">Date Accepted</label>
+                    <input type="date" id="date_accepted" name="date_accepted" value="{{ date_accepted_str }}">
+                </div>
+                <div class="form-group">
+                    <label for="start_date">Start Date (Projection)</label>
+                    <input type="date" id="start_date" name="start_date" value="{{ start_date_str }}">
+                </div>
+
+            </div>
+            
+            <button type="submit" class="save-button">Save Lead Updates</button>
+        </form>
+    </div>
+</body>
+</html>

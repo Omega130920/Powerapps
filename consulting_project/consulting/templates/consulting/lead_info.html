@@ -1,0 +1,437 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lead Details: {{ lead.company_name }}</title>
+    
+    <style>
+        /* --- Root Colors based on new style guide --- */
+        :root {
+            --primary-green: rgb(119, 206, 97);
+            --accent-green: rgb(105, 187, 85);
+            --bg-light-green: #d1e2c4;
+            --text-default: #333;
+            --action-blue: #0070c0; /* Blue for Edit button */
+            --status-new: #1e88e5;
+            --status-progress: #ff9800;
+        }
+
+        /* --- Global Styles --- */
+        body { 
+            font-family: sans-serif;
+            line-height: 1.6;
+            background: linear-gradient(to bottom, var(--bg-light-green), rgb(143, 207, 127));
+            color: var(--text-default);
+            padding: 20px;
+        }
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 30px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: var(--accent-green);
+            border-bottom: 3px solid var(--bg-light-green);
+            padding-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 1.8em;
+        }
+
+        /* --- Navigation & Buttons --- */
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: var(--accent-green);
+            text-decoration: none;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .edit-button {
+            background-color: var(--action-blue);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background-color 0.3s ease;
+        }
+        .edit-button:hover { background-color: #005a9c; }
+
+        /* --- Tab Navigation --- */
+        .tab-nav {
+            display: flex;
+            border-bottom: 2px solid var(--bg-light-green);
+            margin-bottom: 25px;
+            flex-wrap: wrap; 
+        }
+        .tab-button {
+            padding: 10px 15px;
+            cursor: pointer;
+            background-color: #f7f7f7;
+            border: 1px solid #ccc;
+            border-bottom: none;
+            margin-right: 5px;
+            border-radius: 5px 5px 0 0;
+            font-weight: 600;
+            color: #555;
+            white-space: nowrap;
+        }
+        .tab-button.active {
+            background-color: #fff;
+            border-bottom: 2px solid #fff;
+            margin-bottom: -2px;
+            color: var(--primary-green);
+        }
+        .tab-content { display: none; padding-top: 15px; }
+        .tab-content.active { display: block; }
+
+        /* --- Data Grid & Items (Read-only) --- */
+        .data-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); 
+            gap: 20px; 
+            margin-bottom: 30px;
+        }
+        .data-item {
+            padding: 15px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            background-color: #fcfcfc;
+        }
+        .data-item label {
+            display: block;
+            font-weight: 700;
+            color: var(--accent-green);
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+        .data-item p {
+            margin: 0;
+            padding: 0;
+            font-size: 1rem;
+            color: var(--text-default);
+            word-wrap: break-word;
+        }
+        .full-width { grid-column: 1 / -1; }
+        
+        /* --- Form Elements for Notes Section --- */
+        select, textarea {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            width: 100%;
+            font-size: 1rem;
+        }
+        textarea {
+             min-height: 80px;
+             resize: vertical;
+        }
+
+        /* --- Status Badge --- */
+        .lead-status { 
+            padding: 4px 8px; 
+            border-radius: 4px; 
+            font-weight: 600; 
+            white-space: nowrap;
+            display: inline-block;
+            font-size: 0.9em;
+        }
+        .status-Taken-Up { background-color: #e8f5e9; color: var(--primary-green); }
+        .status-New { background-color: #e3f2fd; color: var(--status-new); }
+        .status-In-Progress { background-color: #fff3e0; color: var(--status-progress); }
+        .status-Not-Taken-Up { background-color: #ffebee; color: #e53935; }
+        .status-Parked { background-color: #f3e5f5; color: #8e24aa; }
+
+        /* --- Notes Section Styles --- */
+        .note-section-container { 
+            border: 1px solid var(--bg-light-green); 
+            padding: 20px; 
+            margin-bottom: 30px; 
+            border-radius: 8px; 
+            background-color: #f7fff5;
+        }
+        .note-section-container h3 {
+            color: var(--accent-green);
+            font-size: 1.3rem;
+            border-bottom: 1px dashed #ccc;
+            padding-bottom: 10px;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        .note-history-item {
+            border-left: 5px solid #ccc; /* Light grey for raw display */
+            padding: 10px 15px;
+            margin-bottom: 15px;
+            background-color: #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border-radius: 4px;
+        }
+        .note-history-item pre {
+            white-space: pre-wrap; /* Preserve formatting but wrap long lines */
+            word-wrap: break-word;
+            margin: 0;
+            padding: 5px 0;
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: #555;
+        }
+        .note-meta {
+            font-size: 0.8em;
+            color: #777;
+            margin-bottom: 5px;
+        }
+
+        /* --- Conversion Tab Styles --- */
+        .conversion-guide {
+            padding: 20px;
+            border: 2px dashed var(--primary-green);
+            border-radius: 8px;
+            background-color: #f7fff5;
+            text-align: center;
+        }
+        .conversion-guide h3 { color: var(--accent-green); margin-top: 0;}
+        .convert-button {
+            background-color: var(--primary-green);
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+        .convert-button:hover { background-color: var(--accent-green); }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+        <a href="{% url 'lead_list' %}" class="back-link">&larr; Back to Leads List</a>
+
+        <h1>
+            <span>Lead: {{ lead.company_name }} 
+                (<span class="lead-status status-{{ lead.status|cut:' ' }}">
+                    {{ lead.status|upper }}
+                </span>)
+            </span>
+            <!-- The EDIT button is located here, linking to the edit_lead view -->
+            <a href="{% url 'edit_lead' lead_id=lead.id %}" class="edit-button">Edit Lead Information</a>
+        </h1>
+
+        <div class="tab-nav">
+            <button class="tab-button active" onclick="openTab(event, 'tab1')">Lead Overview</button>
+            <button class="tab-button" onclick="openTab(event, 'tab2')">Notes & Follow-ups</button>
+            <button class="tab-button" onclick="openTab(event, 'tab3')">Load New Client</button>
+        </div>
+
+        <!-- TAB 1: Lead Overview (Read-only) -->
+        <div id="tab1" class="tab-content active">
+            <h2>Lead Source and Status</h2>
+            <div class="data-grid">
+                <div class="data-item"><label>Lead Received From</label><p>{{ lead.lead_received_from }}</p></div>
+                <div class="data-item"><label>Date Received</label><p>{{ lead.date_received|date:"Y-m-d" }}</p></div>
+                <div class="data-item"><label>Product Required</label><p>{{ lead.product_required }}</p></div>
+                <div class="data-item"><label>Assigned To</label><p>{{ lead.assigned_to|default:"UNASSIGNED" }}</p></div>
+                <div class="data-item"><label>Date Accepted</label><p>{{ lead.date_accepted|default:"N/A"|date:"Y-m-d" }}</p></div>
+                <div class="data-item"><label>Start Date (Projection)</label><p>{{ lead.start_date|default:"N/A"|date:"Y-m-d" }}</p></div>
+                
+                <!-- This field shows the combined notes history now -->
+                <div class="data-item full-width"><label>Internal Notes / Raw History</label><p>{{ lead.internal_notes|default:"None" }}</p></div>
+            </div>
+
+            <h2>Contact Information</h2>
+            <div class="data-grid">
+                <div class="data-item"><label>Company Name</label><p>{{ lead.company_name }}</p></div>
+                <div class="data-item"><label>Contact Person</label><p>{{ lead.contact_person }}</p></div>
+                <div class="data-item"><label>Contact Number</label><p>{{ lead.contact_number|default:"N/A" }}</p></div>
+                <div class="data-item"><label>Contact Email</label><p>{{ lead.contact_email|default:"N/A" }}</p></div>
+            </div>
+        </div> 
+
+        <!-- TAB 2: Notes & Follow-ups (FUNCTIONAL FORM and RAW HISTORY) -->
+        <div id="tab2" class="tab-content">
+            <h2>Log New Communication</h2>
+            
+            <form method="POST" action="{% url 'log_lead_note' lead_id=lead.id %}">
+                {% csrf_token %}
+                
+                <div class="note-section-container">
+                    <h3>Log New Interaction (Follow-up)</h3>
+                    <p style="color: #555;">(Saving this form will update the **Last Follow Up** date and log the details in the history below. Current Communication Type: **{{ lead.communication_type|default:'N/A' }}** | Note Type: **{{ lead.note_type|default:'N/A' }}**)</p>
+                    
+                    <div class="data-grid" style="grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;">
+                        
+                        <!-- Communication Type (Functional Dropdown) -->
+                        <div class="data-item" style="padding: 0;">
+                            <label for="communication_type">Communication Type</label>
+                            <select id="communication_type" name="communication_type" required>
+                                <option value="outbound_call" {% if lead.communication_type == 'outbound_call' %}selected{% endif %}>Outbound Call</option>
+                                <option value="inbound_call" {% if lead.communication_type == 'inbound_call' %}selected{% endif %}>Inbound Call</option>
+                                <option value="email" {% if lead.communication_type == 'email' %}selected{% endif %}>Email</option>
+                                <option value="meeting" {% if lead.communication_type == 'meeting' %}selected{% endif %}>Meeting</option>
+                                <option value="other" {% if lead.communication_type == 'other' %}selected{% endif %}>Other</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Email/Note Type (Functional Dropdown - named note_category in form, saved to note_type in DB) -->
+                        <div class="data-item" style="padding: 0;">
+                            <label for="note_category">Email/Note Type</label>
+                            <select id="note_category" name="note_category" required>
+                                <option value="general_enquiry" {% if lead.note_type == 'general_enquiry' %}selected{% endif %}>General Enquiry</option>
+                                <option value="qualification" {% if lead.note_type == 'qualification' %}selected{% endif %}>Qualification</option>
+                                <option value="proposal" {% if lead.note_type == 'proposal' %}selected{% endif %}>Proposal</option>
+                                <option value="follow_up" {% if lead.note_type == 'follow_up' %}selected{% endif %}>Follow Up</option>
+                                <option value="admin" {% if lead.note_type == 'admin' %}selected{% endif %}>Admin / Status Change</option>
+                            </select>
+                        </div>
+                        
+                    </div>
+                    
+                    <!-- Note Content (Functional textarea) -->
+                    <div class="data-item full-width" style="margin-top: 10px; padding: 0;">
+                        <label for="note_content">Note Content</label>
+                        <textarea id="note_content" name="note_content" required placeholder="Log the details of your follow-up, discussion, or sent email..."></textarea>
+                    </div>
+                    
+                    <button type="submit" class="edit-button" style="margin-top: 15px; background-color: var(--primary-green);">Log Follow-up / Post Note</button>
+                </div>
+            </form>
+
+            <h2>Follow-up History (Raw Log)</h2>
+            
+            {% if lead.internal_notes %}
+                <div class="note-history-item">
+                    <!-- Displaying the raw log in a pre block to maintain saved formatting -->
+                    <p style="font-weight: 600; color: #555;">Notes are appended (oldest first). Newest notes are at the bottom of the raw text.</p>
+                    <pre>{{ lead.internal_notes }}</pre>
+                </div>
+            {% else %}
+                <p style="color: #555;">No follow-up history logged yet for this lead.</p>
+            {% endif %}
+
+        </div>
+
+        <!-- TAB 3: Conversion Checklist (The next step after qualification) -->
+        <div id="tab3" class="tab-content">
+            <h2>Add New Client</h2>
+            
+            <div class="conversion-guide">
+                <h3>Process to Add New Lead Client</h3>
+                <p>The qualification process ensures the lead is ready to move into the Client phase. Once qualified, the data will be mapped to a new Client record and transferred to the main client list.</p>
+                
+                <ul style="list-style: disc; text-align: left; max-width: 400px; margin: 20px auto; padding-left: 20px;">
+                    <li>Status must be set to 'Taken Up'.</li>
+                    <li>Required product details finalized.</li>
+                    <li>Consultant accepted the assignment (Date Accepted is set).</li>
+                    <li>Minimum contact information captured.</li>
+                </ul>
+                
+                <p style="font-weight: 600; color: #e53935;">Current Status: {{ lead.status|upper }}</p>
+                
+                <p>Use the Edit button to update the status. Once the status is 'Taken Up', click the button below:</p>
+                
+                <button class="convert-button" onclick="simulateConversion('{{ lead.id }}')">
+                    Add New Client (Start Client Onboarding Form)
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        function openTab(evt, tabName) {
+            let tabContent = document.getElementsByClassName("tab-content");
+            // FIX: Corrected loop condition: i=0; i < tabContent.length; i++
+            for (let i = 0; i < tabContent.length; i++) { 
+                tabContent[i].style.display = "none";
+            }
+            let tabButtons = document.getElementsByClassName("tab-button");
+            for (let i = 0; i < tabButtons.length; i++) {
+                tabButtons[i].classList.remove("active");
+            }
+            // Activate the selected tab
+            document.getElementById(tabName).style.display = "block";
+            evt.currentTarget.classList.add("active");
+            
+            // Update URL hash to persist tab selection on refresh/redirect
+            window.history.pushState(null, null, '#' + tabName);
+        }
+        
+        function simulateConversion(leadId) {
+            
+            console.log(`Conversion triggered for Lead ID: ${leadId}. Preparing to redirect to add_client with pre-filled data.`);
+
+            // Get data fields from the Django context for pre-filling the client form
+            // NOTE: Using '{{ var|escapejs }}' ensures Django handles encoding for JS consumption.
+            const leadData = {
+                // Mapping to client_client field names:
+                client_name: "{{ lead.company_name|default:''|escapejs }}",
+                consultant: "{{ lead.assigned_to|default:'UNASSIGNED'|escapejs }}",
+                product: "{{ lead.product_required|default:''|escapejs }}",
+                status: "Active", // Hardcoded initial client status
+                
+                // Contact Details for initial contact
+                contact_person: "{{ lead.contact_person|default:''|escapejs }}",
+                contact_email: "{{ lead.contact_email|default:''|escapejs }}",
+                contact_number: "{{ lead.contact_number|default:''|escapejs }}",
+                
+                // Date fields are only useful if passed to a date input
+                date: "{{ lead.date_received|default:''|date:'d/m/Y' }}", // Format for add_client form (DD/MM/YYYY)
+                
+                // We don't pass years_active, employees, or other detailed FICA data
+            };
+
+            // Build the query string
+            const params = new URLSearchParams();
+            for (const key in leadData) {
+                if (leadData[key]) {
+                    // JavaScript now adds the parameter after Django template inserts the value
+                    params.append(key, leadData[key]);
+                }
+            }
+
+            // Redirect to the add_client URL with query parameters
+            window.location.href = `{% url 'add_client' %}?${params.toString()}`;
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check for hash to determine which tab to open
+            const hash = window.location.hash;
+            let initialTab = 'tab1';
+            
+            if (hash && hash.startsWith('#tab')) {
+                initialTab = hash.substring(1);
+            }
+
+            const tabButton = document.querySelector(`.tab-button[onclick*="'${initialTab}'"]`);
+            
+            if (tabButton) {
+                // Corrected: Simulate click using the openTab logic
+                // We fake the event object needed by openTab
+                openTab({ currentTarget: tabButton }, initialTab);
+            } else {
+                 // Fallback to default tab1 
+                const defaultTabButton = document.querySelector('.tab-button:first-child');
+                if (defaultTabButton) {
+                    const tabName = defaultTabButton.getAttribute('onclick').match(/'([^']+)'/)[1];
+                    openTab({ currentTarget: defaultTabButton }, tabName);
+                }
+            }
+        });
+    </script>
+</body>
+</html>

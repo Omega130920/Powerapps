@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="content="width=device-width, initial-scale=1.0">
+<title>Recycle Bin / Archived Log</title>
+<style>
+/* -------------------------------------- */
+/* BASE STYLES */
+/* -------------------------------------- */
+body {
+    font-family: sans-serif;
+    background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+    box-sizing: border-box;
+}
+.log-container {
+    max-width: 1400px; 
+    margin: 40px auto;
+    padding: 20px;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.log-header {
+    border-bottom: 2px solid #aed581;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.log-header h1 {
+    margin: 0;
+    color: #f4511e; /* Orange/Red title color for Recycle Bin */
+}
+#search_input {
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    width: 300px;
+    font-size: 14px;
+    transition: border-color 0.3s;
+}
+#search_input:focus {
+    border-color: #f4511e; /* Focus color for Recycle Bin theme */
+    outline: none;
+}
+.log-controls {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+/* NEW STYLE for Delete Button */
+.btn-delete-selected {
+    padding: 8px 15px;
+    background-color: #d32f2f; /* Red for Delete */
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s ease;
+}
+.btn-delete-selected:hover {
+    background-color: #b71c1c;
+}
+
+.task-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+.task-table th, .task-table td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+    font-size: 14px;
+    word-wrap: break-word;
+}
+.task-table th {
+    /* Recycle Bin table header color */
+    background-color: #f4511e; 
+    color: white;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.task-table tr:nth-child(even) { background-color: #ffedea; } /* Light pink/orange for even rows */
+.task-table tr.data-row:hover { /* Updated hover class to only apply to data rows */
+    background-color: #ffccbc; /* Darker hover for archived */
+    cursor: default; /* Remove default pointer for row click */
+}
+.status-recycled { color: #f4511e; font-weight: bold; }
+
+.log-notes {
+    font-style: italic;
+    color: #555;
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+/* Style for note text to distinguish from type text */
+.task-note-text {
+    color: #d84315; /* Darker red for note visibility */
+    font-weight: 500;
+    font-style: normal;
+}
+
+.dashboard-links a {
+    margin-right: 15px;
+    color: #1a73e8;
+    text-decoration: none;
+    font-weight: 500;
+}
+.dashboard-links a:hover {
+    text-decoration: underline;
+}
+.return-button {
+    padding: 10px 20px;
+    background-color: #81c784;
+    border: 1px solid #81c784;
+    border-radius: 5px;
+    text-decoration: none;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    text-align: center;
+    }
+
+.return-button:hover {
+    background-color: #66bb6a;
+}
+</style>
+</head>
+<body>
+
+<div class="log-container">
+    <div class="log-header">
+        <h1>🗑️ Recycle Bin / Archived Emails</h1>
+        <div class="log-controls">
+            <input type="text" id="search_input" placeholder="🔍 Search all columns..." autofocus>
+            <form method="POST" action="{% url 'delete_recycled' %}" id="delete_form" style="display: contents;">
+                {% csrf_token %}
+                <button type="submit" id="delete_btn" class="btn-delete-selected" disabled>
+                    🗑️ Delete Selected
+                </button>
+            </form>
+            <p>Total Archived: <strong id="total-archived">{{ recycled_tasks|length }}</strong></p>
+        </div>
+    </div>
+    
+    {% if recycled_tasks %}
+    <table class="task-table" id="main_table">
+        <thead>
+            <tr>
+                <th style="width: 3%;"><input type="checkbox" id="select_all"></th>
+                <th style="width: 27%;">Subject</th>
+                <th style="width: 12%;">Archived By</th>
+                <th style="width: 10%;">Category</th>
+                <th style="width: 10%;">Member Code</th>
+                <th style="width: 10%;">Archive Date</th>
+                <th style="width: 18%;">Reason / Enquiry Type</th> 
+                <th style="width: 10%;">Status</th> 
+            </tr>
+        </thead>
+        <tbody id="table_body">
+            {% for task in recycled_tasks %}
+            
+            <tr data-status="recycled" class="data-row">
+                
+                <td>
+                    <input type="checkbox" name="email_ids" value="{{ task.email_id }}" form="delete_form" class="delete-checkbox">
+                </td>
+
+                <td title="{{ task.subject }}" 
+                    onclick="window.location.href='{% url 'delegate_action' email_id=task.email_id %}';"> 
+                    <a href="{% url 'delegate_action' email_id=task.email_id %}" style="text-decoration: none; color: inherit; display: block;">
+                        {{ task.subject }}
+                    </a>
+                </td>
+                
+                <td><strong>{{ task.delegated_by }}</strong></td>
+                
+                <td>{{ task.category|default:"N/A" }}</td>
+                
+                <td>{{ task.mip_number|default:"N/A" }}</td>
+                
+                <td>
+                    {{ task.received_timestamp|date:"d M Y" }}
+                </td>
+                
+                <td>
+                    {% if task.notes %}
+                        {% with last_note=task.notes|last %}
+                            <span class="task-note-text" title="Note added by {{ last_note.user }} on {{ last_note.timestamp }}">
+                                NOTE: {{ last_note.note|slice:":40" }}...
+                            </span>
+                        {% endwith %}
+                    {% else %}
+                        <span class="log-notes" title="{{ task.type|default:'No specific enquiry type.' }}">
+                            {{ task.type|default:'Non-work related' }}
+                        </span>
+                    {% endif %}
+                </td>
+                
+                <td title="{{ task.status }}">
+                    <span class="status-recycled">
+                        {{ task.status }}
+                    </span>
+                </td>
+            </tr>
+            
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>🎉 The Recycle Bin is empty! All non-work related emails are cleared.</p>
+    {% endif %}
+
+    <div class="Dashboard" style="margin-top: 25px;">
+        <a href="{% url 'dashboard' %}" class="return-button">Back to Dashboard</a>
+        <a href="{% url 'fetch_emails' %}" class="return-button">Go to Live Inbox</a>
+        <a href="{% url 'tasks' %}" class="return-button">View Delegated Tasks</a>
+    </div>
+
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('search_input');
+    const tableBody = document.getElementById('table_body');
+    const selectAllCheckbox = document.getElementById('select_all');
+    const deleteCheckboxes = document.querySelectorAll('.delete-checkbox');
+    const deleteButton = document.getElementById('delete_btn');
+    
+    if (!searchInput || !tableBody) {
+        return;
+    }
+
+    // --- 1. Live Search Logic (Unchanged) ---
+    const rows = tableBody.getElementsByClassName('data-row'); // Use the new class
+    
+    function liveSearch() {
+        const filter = searchInput.value.toLowerCase();
+        
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const cells = row.getElementsByTagName('td');
+            let found = false;
+
+            // Start from j=1 to skip the checkbox cell (index 0)
+            for (let j = 1; j < cells.length; j++) {
+                const cellText = cells[j].innerText || cells[j].textContent;
+                
+                if (cellText.toLowerCase().indexOf(filter) > -1) {
+                    found = true;
+                    break; 
+                }
+                
+            }
+
+            if (found) {
+                row.style.display = ""; 
+            } else {
+                row.style.display = "none";
+            }
+        }
+    }
+
+    searchInput.addEventListener('input', liveSearch);
+
+    // --- 2. Multi-Select/Bulk Delete Logic (NEW) ---
+
+    // Function to update the Delete button state
+    function updateDeleteButtonState() {
+        const checkedCount = document.querySelectorAll('.delete-checkbox:checked').length;
+        deleteButton.disabled = checkedCount === 0;
+        deleteButton.textContent = checkedCount > 0 ? `🗑️ Delete Selected (${checkedCount})` : `🗑️ Delete Selected`;
+    }
+
+    // Event listener for "Select All"
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+            deleteCheckboxes.forEach(checkbox => {
+                checkbox.checked = selectAllCheckbox.checked;
+            });
+            updateDeleteButtonState();
+        });
+    }
+
+    // Event listeners for individual checkboxes
+    deleteCheckboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            // If any checkbox is unchecked, uncheck the 'Select All' box
+            if (!this.checked) {
+                if (selectAllCheckbox) {
+                    selectAllCheckbox.checked = false;
+                }
+            }
+            // Check if all are checked to tick 'Select All'
+            else if (document.querySelectorAll('.delete-checkbox:checked').length === deleteCheckboxes.length) {
+                 if (selectAllCheckbox) {
+                    selectAllCheckbox.checked = true;
+                }
+            }
+            updateDeleteButtonState();
+        });
+    });
+
+    // Initialize button state
+    updateDeleteButtonState();
+
+});
+</script>
+
+</body>
+</html>

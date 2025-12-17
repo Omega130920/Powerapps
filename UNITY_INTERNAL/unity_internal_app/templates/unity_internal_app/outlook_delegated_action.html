@@ -1,0 +1,406 @@
+{% load static %}
+
+{% block title %}Task #{{ delegation.pk }}: {{ email.subject|default:"(No Subject)" }}{% endblock %}
+
+{% block content %}
+<style>
+    /* -------------------------------------------------------------------------
+    * BASE STYLES
+    * ------------------------------------------------------------------------- */
+    body {
+        font-family: sans-serif;
+        background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        min-height: 100vh;
+        padding: 40px 20px;
+        box-sizing: border-box;
+    }
+
+    .task-container {
+        width: 100%;
+        max-width: 1200px;
+        background: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        padding: 30px;
+    }
+
+    .main-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+    }
+
+    .left-column {
+        flex: 2;
+        min-width: 300px;
+    }
+
+    .right-column {
+        flex: 1;
+        min-width: 300px;
+    }
+
+    /* --- Card Styling --- */
+    .custom-card {
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+    }
+
+    .card-header-primary {
+        background-color: #007bff;
+        color: white;
+        padding: 15px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+    }
+
+    .card-header-dark {
+        background-color: #343a40;
+        color: white;
+        padding: 15px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+    }
+
+    .card-body-content {
+        padding: 20px;
+    }
+    
+    /* --- Task Header --- */
+    .task-header h1 {
+        font-size: 28px;
+        margin-bottom: 5px;
+        color: #333;
+    }
+    .task-header .status-badge {
+        display: inline-block;
+        background-color: #ffc107;
+        color: #212529;
+        padding: 5px 12px;
+        border-radius: 50px;
+        font-weight: bold;
+        font-size: 14px;
+        margin-left: 10px;
+    }
+
+    /* --- Form Styling --- */
+    .form-label {
+        font-weight: bold;
+        display: block;
+        margin-bottom: 5px;
+        margin-top: 10px;
+    }
+    .form-control {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+        margin-bottom: 10px;
+    }
+    textarea.form-control {
+        min-height: 120px;
+        resize: vertical;
+    }
+
+    /* --- Notes History --- */
+    .notes-history-container {
+        border: 1px solid #eee;
+        background-color: #f8f9fa;
+        padding: 10px;
+        max-height: 380px;
+        overflow-y: auto;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+
+    .note-item {
+        border-left: 5px solid #28a745;
+        padding: 10px;
+        background: #ffffff;
+        margin-bottom: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        border-radius: 0 4px 4px 0;
+    }
+
+    /* --- Collapsible Functionality --- */
+    .collapse-toggle {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        padding: 15px;
+        background: #f8f9fa;
+        border: none;
+        text-align: left;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        border-bottom: 3px solid #007bff;
+        color: #333;
+    }
+    
+    .collapse-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+    }
+
+    .collapse-content.show {
+        max-height: 1000px;
+        padding: 20px;
+    }
+
+    .toggle-icon {
+        transition: transform 0.3s ease;
+    }
+
+    .collapse-toggle[aria-expanded="true"] .toggle-icon {
+        transform: rotate(180deg);
+    }
+    
+    /* --- Button Styling --- */
+    .custom-btn {
+        padding: 10px 15px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background-color 0.2s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        text-decoration: none;
+    }
+    .btn-primary { background-color: #007bff; color: white; }
+    .btn-success { background-color: #28a745; color: white; width: 100%; }
+    .btn-update-metadata { background-color: #1e88e5; color: white; width: 100%; }
+    .btn-back { background-color: white; color: #343a40; border: 1px solid #343a40; width: 100%; margin-top: 20px; }
+
+    /* --- RESTORE BUTTON STYLE --- */
+    .btn-restore {
+        background-color: #d32f2f;
+        color: white;
+        width: 100%;
+        font-size: 18px;
+        padding: 15px;
+        margin-bottom: 25px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: 0.3s;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+    }
+    .btn-restore:hover {
+        background-color: #b71c1c;
+    }
+
+    @media (max-width: 992px) {
+        .main-grid { flex-direction: column; }
+    }
+</style>
+
+<div class="task-container">
+    
+    <div class="task-header">
+        <h1><i class="fas fa-tasks"></i> Task Action: #{{ delegation.pk }}</h1>
+        <p>
+            Assigned to: <strong>{{ delegation.assigned_user.username|default:"Unassigned (Archived)" }}</strong> 
+            | Status: <span class="status-badge">{{ delegation.get_status_display }}</span>
+        </p>
+        <hr style="border-top: 1px solid #eee; margin-bottom: 25px;">
+    </div>
+
+    {% if messages %}
+        <div class="message-area" style="margin-bottom: 20px;">
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}" role="alert" style="padding: 10px; border-radius: 4px; background: #fff3cd; border: 1px solid #ffeeba; margin-bottom: 10px;">
+                {{ message }}
+            </div>
+        {% endfor %}
+        </div>
+    {% endif %}
+
+    {# --- RESTORE BUTTON (Shown only if work_related is False) --- #}
+    {% if delegation.work_related == False %}
+    <form method="POST" action="{% url 'outlook_delegated_action' delegation_id=delegation.pk %}">
+        {% csrf_token %}
+        <input type="hidden" name="action_type" value="restore_to_inbox">
+        <button type="submit" class="btn-restore">
+            <i class="fas fa-undo"></i> RESTORE TO MAIN INBOX QUEUE
+        </button>
+    </form>
+    {% endif %}
+
+    <div class="custom-card">
+        <div class="card-header-dark" style="background-color: #1e88e5;">
+            <i class="fas fa-info-circle" style="margin-right: 10px;"></i>
+            <h5 style="margin: 0;">Internal Email Info & Metadata</h5>
+        </div>
+        <div class="card-body-content">
+            <form method="POST" action="{% url 'outlook_delegated_action' delegation_id=delegation.pk %}">
+                {% csrf_token %}
+                <input type="hidden" name="action_type" value="update_metadata">
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; align-items: end;">
+                    <div class="form-group">
+                        <label for="company_code" class="form-label">Member Group Code:</label>
+                        <input type="text" id="company_code" name="company_code" value="{{ delegation.company_code|default:'' }}" class="form-control">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email_category" class="form-label">Email Type:</label>
+                        <select id="email_category" name="email_category" class="form-control">
+                            <option value="">-- Select Type --</option>
+                            <option value="Schedule" {% if delegation.email_category == 'Schedule' %}selected{% endif %}>Schedule</option>
+                            <option value="Claim" {% if delegation.email_category == 'Claim' %}selected{% endif %}>Claim</option>
+                            <option value="Query" {% if delegation.email_category == 'Query' %}selected{% endif %}>Query</option>
+                            <option value="Bank" {% if delegation.email_category == 'Bank' %}selected{% endif %}>Bank</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="status" class="form-label">Email Status:</label>
+                        <select id="status" name="status" class="form-control">
+                            <option value="DEL" {% if delegation.status == 'DEL' %}selected{% endif %}>Delegated</option>
+                            <option value="PRG" {% if delegation.status == 'PRG' %}selected{% endif %}>In Progress</option>
+                            <option value="ACT" {% if delegation.status == 'ACT' %}selected{% endif %}>Actioned</option>
+                            <option value="COM" {% if delegation.status == 'COM' %}selected{% endif %}>Completed</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <button type="submit" class="custom-btn btn-update-metadata">
+                            <i class="fas fa-sync-alt"></i> Update Info
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="main-grid">
+        <div class="left-column">
+            <div class="custom-card">
+                <div class="card-header-primary">
+                    <i class="fas fa-inbox" style="margin-right: 10px;"></i> 
+                    <h5 style="margin: 0;">Email: {{ email.subject|default:"(No Subject)" }}</h5>
+                </div>
+                <div class="card-body-content">
+                    <div style="padding: 15px; border: 1px solid #ddd; background: #f8f9fa; max-height: 500px; overflow-y: auto;">
+                        {% if email.body.contentType == 'html' %}
+                            {{ email.body.content|safe }}
+                        {% else %}
+                            <pre style="white-space: pre-wrap;">{{ email.body.content }}</pre>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            {# --- HIDE REPLY FORM IF RECYCLED --- #}
+            {% if delegation.work_related %}
+            <div class="custom-card">
+                <button class="collapse-toggle" type="button" data-target="#collapseReplyForm">
+                    <span><i class="fas fa-reply" style="margin-right: 8px;"></i> Send Reply</span>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </button>
+                <div class="collapse-content" id="collapseReplyForm">
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="form-group">
+                            <label class="form-label">Action Note:</label>
+                            <select name="action_notes" class="form-control" required>
+                                <option value="Feedback to Member">Feedback to Member</option>
+                                <option value="Enquiry to Sanlam">Enquiry to Sanlam</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Recipient:</label>
+                            <input type="email" class="form-control" name="reply_recipient" value="{{ email.from.emailAddress.address }}">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Body:</label>
+                            <textarea class="form-control" name="reply_body" rows="6"></textarea>
+                        </div>
+                        <button type="submit" class="custom-btn btn-primary" style="width: 100%;">Send Email</button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="right-column">
+            <div class="custom-card">
+                <div class="card-header-dark">
+                    <i class="fas fa-clipboard-list" style="margin-right: 10px;"></i>
+                    <h5 style="margin: 0;">History</h5>
+                </div>
+                <div class="card-body-content">
+                    <div class="notes-history-container">
+                        {% for note in notes %}
+                        <div class="note-item">
+                            <small><strong>{{ note.user.username }}</strong> - {{ note.created_at|date:"M d, H:i" }}</small>
+                            <p>{{ note.content }}</p>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    
+                    <button class="collapse-toggle" style="border-bottom: 3px solid #28a745;" type="button" data-target="#collapseAddNote">
+                        <span><i class="fas fa-plus-circle" style="color: #28a745;"></i> Add Note</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <div class="collapse-content" id="collapseAddNote">
+                        <form method="POST">
+                            {% csrf_token %}
+                            <textarea class="form-control" name="note_content" rows="4" required></textarea>
+                            <button type="submit" class="custom-btn btn-success">Save Note</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            {# --- ADJUST BACK BUTTON BASED ON SOURCE --- #}
+            {% if delegation.work_related == False %}
+            <a href="{% url 'outlook_recycle_bin' %}" class="custom-btn btn-back">
+                <i class="fas fa-arrow-left"></i> Back to Recycle Bin
+            </a>
+            {% else %}
+            <a href="{% url 'outlook_delegated_box' %}" class="custom-btn btn-back">
+                <i class="fas fa-arrow-left"></i> Back to Queue
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.collapse-toggle').forEach(button => {
+            const targetId = button.getAttribute('data-target');
+            const targetEl = document.querySelector(targetId);
+            if (targetEl) {
+                button.addEventListener('click', function() {
+                    const isExpanded = this.getAttribute('aria-expanded') === 'true';
+                    targetEl.classList.toggle('show');
+                    this.setAttribute('aria-expanded', !isExpanded);
+                });
+            }
+        });
+    });
+</script>
+{% endblock %}

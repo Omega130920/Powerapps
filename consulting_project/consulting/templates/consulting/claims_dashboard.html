@@ -1,0 +1,1037 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claims Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <style>
+        /* --- Root Colors (Reused from Client List) --- */
+        :root {
+            --primary-green: rgb(119, 206, 97);
+            --accent-green: rgb(105, 187, 85);
+            --bg-light-green: #e9f5e0; 
+            --page-bg: linear-gradient(to bottom, #d1e2c4);
+            --text-default: #333;
+            --export-blue: #0070c0;
+        }
+
+        /* Custom styles for aesthetic */
+        body { 
+            font-family: sans-serif;
+            background: linear-gradient( rgb(143, 207, 127));
+        }
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 30px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+        }
+        .section-header {
+            color: var(--accent-green);
+            border-bottom: 3px solid var(--bg-light-green);
+            padding-bottom: 15px;
+            font-size: 1.8em;
+            margin-bottom: 20px;
+        }
+
+        /* Button Styling */
+        .action-button {
+            background-color: var(--primary-green);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            transition: background-color 0.3s;
+        }
+        .action-button:hover {
+            background-color: var(--accent-green);
+        }
+        
+        /* Table Styling */
+        .claims-table th, .claims-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        .claims-table th {
+            background-color: #f7fff5;
+            color: var(--accent-green);
+            font-weight: 700;
+            font-size: 0.9em;
+            text-transform: uppercase;
+        }
+        /* Style for clickable rows */
+        .claims-table tr {
+            cursor: pointer; /* Makes rows look clickable */
+        }
+        .claims-table tr:hover {
+            background-color: #e0f2f1; /* Light teal hover color for interaction */
+        }
+        
+        /* Status Badges */
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.8em;
+            white-space: nowrap;
+        }
+        /* Using slugify for status classes */
+        .status-inprogress { background-color: #fff3e0; color: #ff9800; }
+        .status-pending { background-color: #e3f2fd; color: #1e88e5; }
+        .status-resolved { background-color: #e8f5e9; color: var(--primary-green); }
+
+        /* Form Styling */
+        .input-group, .select-group {
+            margin-bottom: 15px;
+        }
+        .input-group label, .select-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: var(--text-default);
+        }
+        .input-group input, .select-group select, .input-group textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-sizing: border-box;
+        }
+        
+        /* Modal Backdrop */
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            width: 90%;
+            /* UPDATED: Increased max-width for more breathing room */
+            max-width: 1100px; 
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        /* Detail Modal Specific Styles (Restored) */
+        .detail-item {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            padding: 8px 0;
+            border-bottom: 1px dotted #eee;
+        }
+        .detail-item label {
+            font-weight: 600;
+            color: #555;
+        }
+        /* Class to hide static text and show inputs */
+        .edit-input {
+            display: none;
+        }
+        /* Override span display for static text */
+        .detail-item span {
+            word-break: break-word;
+            display: block; /* Ensure span takes full space when visible */
+        }
+
+        .note-list-header th {
+            background-color: var(--accent-green);
+            color: white;
+            padding: 8px;
+        }
+        .note-row td {
+            padding: 6px 8px;
+            border-bottom: 1px solid #eee;
+        }
+        .note-row:hover {
+            background-color: #f0fdf4;
+        }
+        /* Style for the new Note section header */
+        .notes-section-header {
+            color: var(--accent-green);
+            font-size: 1.5em;
+            margin-top: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--bg-light-green);
+        }
+        /* Style for the Reminder section header */
+        .reminder-section-header {
+            color: var(--accent-green);
+            font-size: 1.5em;
+            margin-top: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--bg-light-green);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+        <a href="{% url 'consulting_home' %}" class="text-lg font-semibold text-gray-600 hover:text-green-700 transition">&larr; Back to Dashboard</a>
+        
+        <h1 class="section-header mt-4">Claims Master Records</h1>
+
+        <!-- Top Controls: Search, Filter, New Claim -->
+        <div class="flex flex-wrap justify-between items-center mb-6 gap-4">
+            <div class="flex space-x-4">
+                <input type="text" id="search-input" placeholder="Search Member, Name, ID, or Employer..." class="p-2 border border-gray-300 rounded-lg w-72">
+                
+                <select id="filter-claim-type" class="p-2 border border-gray-300 rounded-lg">
+                    <option value="">Filter by Claim Type</option>
+                    {% for type in claim_types %}
+                        <option value="{{ type }}">{{ type }}</option>
+                    {% endfor %}
+                </select>
+                <select id="filter-consultant" class="p-2 border border-gray-300 rounded-lg">
+                    <option value="">Filter by Consultant</option>
+                    {% for consultant in consultants %}
+                        <option value="{{ consultant }}">{{ consultant }}</option>
+                    {% endfor %}
+                </select>
+                <select id="filter-insurer" class="p-2 border border-gray-300 rounded-lg">
+                    <option value="">Filter by Insurer</option>
+                    {% for insurer in insurers %}
+                        <option value="{{ insurer }}">{{ insurer }}</option>
+                    {% endfor %}
+                </select>
+                <select id="filter-status" class="p-2 border border-gray-300 rounded-lg">
+                    <option value="">Filter by Status</option>
+                    <option value="InProgress">In Progress</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Resolved">Resolved</option>
+                </select>
+            </div>
+            
+            <div class="flex space-x-4">
+                <button class="action-button bg-gray-500 hover:bg-gray-600" onclick="exportClaims()">
+                    <i class="fas fa-file-excel mr-2"></i>Export
+                </button>
+                <button class="action-button" onclick="showCreateClaimModal()">
+                    <i class="fas fa-plus mr-2"></i>Load New Claim
+                </button>
+            </div>
+        </div>
+
+        <!-- Claims List Table: Populated by Django Context -->
+        <div class="overflow-x-auto rounded-lg shadow-md">
+            <table id="claims-table" class="claims-table min-w-full">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">ID</th>
+                        <th>Member No</th>
+                        <th>First Name</th>
+                        <th>Surname</th>
+                        <th>ID/Passport No</th>
+                        <th>Employer Name</th>
+                        <th>Insurer</th>
+                        <th>Last Action</th>
+                        <th>Claim Type</th>
+                        <th>Consultant</th>
+                        <th>Status</th>
+                        <th>Created Date</th>
+                    </tr>
+                </thead>
+                <tbody id="claims-table-body">
+                    {% for claim in claims %}
+                        <!-- Added onclick handler to show details from embedded JS data -->
+                        <tr data-claim-id="{{ claim.id }}" onclick="showClaimDetails({{ claim.id }})">
+                            <td>{{ claim.id }}</td>
+                            <td>{{ claim.member_no }}</td>
+                            <td>{{ claim.first_name }}</td>
+                            <td>{{ claim.surname }}</td>
+                            <td>{{ claim.id_passport }}</td>
+                            <td>{{ claim.employer_name }}</td>
+                            <td>{{ claim.insurer }}</td>
+                            <td>{{ claim.last_action }}</td>
+                            <td>{{ claim.claim_type }}</td>
+                            <td>{{ claim.consultant }}</td>
+                            <!-- Using slugify filter for CSS class matching -->
+                            <td><span class="status-badge status-{{ claim.status|slugify }}">{{ claim.status }}</span></td>
+                            <td>{{ claim.created_date|date:"Y-m-d" }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="12" class="text-center text-gray-500 py-4">No claims found in the database. Load a new one above.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal for Creating New Claim Record -->
+    <div id="create-claim-modal" class="modal-backdrop hidden">
+        <div class="modal-content">
+            <h2 class="section-header border-none">Create New Claim Record</h2>
+            <!-- Standard form submission posts directly to Django view -->
+            <form id="new-claim-form" method="POST" action="{% url 'create_new_claim' %}">
+                {% csrf_token %}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="input-group">
+                        <label for="new_member_no">Member Number</label>
+                        <input type="text" id="new_member_no" name="new_member_no" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="new_id_passport">ID/Passport Number</label>
+                        <input type="text" id="new_id_passport" name="new_id_passport" required>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="new_first_name">First Name</label>
+                        <input type="text" id="new_first_name" name="new_first_name" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="new_surname">Surname</label>
+                        <input type="text" id="new_surname" name="new_surname" required>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="new_employer_code">Employer Code</label>
+                        <input type="text" id="new_employer_code" name="new_employer_code" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="new_employer_name">Employer Name</label>
+                        <input type="text" id="new_employer_name" name="new_employer_name" required>
+                    </div>
+
+                    <div class="select-group">
+                        <label for="new_insurer">Insurer</label>
+                        <select id="new_insurer" name="new_insurer" required>
+                            <option value="">Select Insurer</option>
+                            {% for insurer in insurers %}
+                                <option value="{{ insurer }}">{{ insurer }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="select-group">
+                        <label for="new_claim_type">Claim Type</label>
+                        <select id="new_claim_type" name="new_claim_type" required>
+                            <option value="">Select Claim Type</option>
+                            {% for type in claim_types %}
+                                <option value="{{ type }}">{{ type }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="select-group md:col-span-2">
+                        <label for="new_consultant">Consultant</label>
+                        <select id="new_consultant" name="new_consultant" required>
+                            <option value="">Select Consultant</option>
+                            {% for consultant in consultants %}
+                                <option value="{{ consultant }}">{{ consultant }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="input-group col-span-1 md:col-span-2">
+                        <label for="new_notes">Initial Notes</label>
+                        <textarea id="new_notes" name="new_notes" rows="3"></textarea>
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" class="action-button bg-gray-400 hover:bg-gray-500" onclick="hideCreateClaimModal()">Cancel</button>
+                    <button type="submit" class="action-button"><i class="fas fa-save mr-2"></i>Save Claim</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Modal for Viewing Claim Details (Restored Detail Structure) -->
+    <div id="claim-detail-modal" class="modal-backdrop hidden">
+        <!-- Removed max-w-xl class from modal-content to rely solely on the CSS max-width -->
+        <div class="modal-content"> 
+            <!-- Top Section (Member Details) -->
+            <div class="flex justify-between items-center section-header">
+                <h2 id="detail-claim-title" class="text-xl font-bold border-none p-0 m-0">Claim Details: #</h2>
+                <!-- Button to toggle Edit/Save mode -->
+                <div class="flex items-center space-x-2">
+                    <button id="edit-save-button" type="button" 
+                        class="px-4 py-2 text-sm font-semibold bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition duration-150" 
+                        onclick="enableEditMode()">
+                        Edit Details
+                    </button>
+                    <!-- Close button -->
+                    <button type="button" class="text-gray-500 hover:text-gray-800 text-2xl" onclick="hideClaimDetailModal()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Main Data Grid -->
+            <!-- Wrapped content in a form for submission -->
+            <form id="update-claim-form" method="POST" action="{% url 'update_claim_details' %}"> 
+                {% csrf_token %}
+                <input type="hidden" id="update_claim_id" name="claim_id">
+
+                <div id="detail-content" class="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-x-6">
+                    <!-- Column 1: Core Details -->
+                    <div>
+                        <h3 class="text-lg font-semibold mb-2 text-gray-700">Client Information</h3>
+                        
+                        <!-- Member No (Text Input) -->
+                        <div class="detail-item">
+                            <label>Member No:</label>
+                            <span data-key="memberNo" data-type="static"></span>
+                            <input type="text" name="member_no" id="edit_memberNo" class="edit-input border p-1 rounded-md text-sm" data-type="input">
+                        </div>
+                        
+                        <!-- ID/Passport No (Text Input) -->
+                        <div class="detail-item">
+                            <label>ID/Passport No:</label>
+                            <span data-key="idPassport" data-type="static"></span>
+                            <input type="text" name="id_passport" id="edit_idPassport" class="edit-input border p-1 rounded-md text-sm" data-type="input">
+                        </div>
+                        
+                        <!-- First Name (Text Input) -->
+                        <div class="detail-item">
+                            <label>Name:</label>
+                            <span data-key="firstName" data-type="static"></span>
+                            <input type="text" name="first_name" id="edit_firstName" class="edit-input border p-1 rounded-md text-sm" data-type="input">
+                        </div>
+                        
+                        <!-- Surname (Text Input) -->
+                        <div class="detail-item">
+                            <label>Surname:</label>
+                            <span data-key="surname" data-type="static"></span>
+                            <input type="text" name="surname" id="edit_surname" class="edit-input border p-1 rounded-md text-sm" data-type="input">
+                        </div>
+                    </div>
+
+                    <!-- Column 2: Claim Details -->
+                    <div>
+                        <h3 class="text-lg font-semibold mb-2 text-gray-700">Claim Status</h3>
+                        
+                        <!-- Claim Type (Select Dropdown) -->
+                        <div class="detail-item">
+                            <label>Claim Type:</label>
+                            <span data-key="claimType" data-type="static"></span>
+                            <select name="claim_type" id="edit_claimType" class="edit-input border p-1 rounded-md text-sm" data-type="select">
+                                <option value="">Select Claim Type</option>
+                                {% for type in claim_types %}
+                                    <option value="{{ type }}">{{ type }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Insurer (Select Dropdown) -->
+                        <div class="detail-item">
+                            <label>Insurer:</label>
+                            <span data-key="insurer" data-type="static"></span>
+                            <select name="insurer" id="edit_insurer" class="edit-input border p-1 rounded-md text-sm" data-type="select">
+                                <option value="">Select Insurer</option>
+                                {% for insurer in insurers %}
+                                    <option value="{{ insurer }}">{{ insurer }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <!-- Consultant (Select Dropdown) -->
+                        <div class="detail-item">
+                            <label>Consultant:</label>
+                            <span data-key="consultant" data-type="static"></span>
+                            <select name="consultant" id="edit_consultant" class="edit-input border p-1 rounded-md text-sm" data-type="select">
+                                <option value="">Select Consultant</option>
+                                {% for consultant in consultants %}
+                                    <option value="{{ consultant }}">{{ consultant }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <!-- Status (Select Dropdown) -->
+                        <div class="detail-item">
+                            <label>Status:</label>
+                            <span data-key="status" data-type="static"></span>
+                            <select name="status" id="edit_status" class="edit-input border p-1 rounded-md text-sm" data-type="select">
+                                <option value="InProgress">In Progress</option>
+                                <option value="Pending">Pending</option>
+                                <option value="Resolved">Resolved</option>
+                            </select>
+                        </div>
+                        <!-- Non-editable fields: Last Action and Created Date -->
+                        <div class="detail-item"><label>Last Action:</label><span data-key="lastAction"></span></div>
+                        <div class="detail-item"><label>Created Date:</label><span data-key="createdDate"></span></div>
+
+                    </div>
+
+                    <!-- Initial Notes / Quick Summary (Textarea) -->
+                    <div class="lg:col-span-2 mt-4 border-t pt-4">
+                        <h3 class="text-md font-semibold mb-2 text-gray-700">Initial Request Notes</h3>
+                        <!-- Static Textarea -->
+                        <div id="detail-notes" class="bg-gray-50 p-3 rounded-lg text-sm text-gray-700 whitespace-pre-wrap border" data-type="static"></div>
+                        <!-- Editable Textarea -->
+                        <textarea name="initial_notes" id="edit_initialNotes" rows="3" class="edit-input border p-2 rounded-md w-full text-sm" data-type="input"></textarea>
+                    </div>
+                </div>
+            </form>
+            <!-- END Form -->
+
+
+            <!-- Reminder Section -->
+            <div class="mt-8">
+                <h2 id="reminder-header" class="reminder-section-header flex justify-between items-center">
+                    <span>Set Reminder</span>
+                    <button onclick="toggleReminderArea()" class="action-button p-2 text-sm bg-gray-500 hover:bg-gray-600">
+                        <i class="fas fa-bell"></i> Set Reminder
+                    </button>
+                </h2>
+                <!-- Reminder Creation Area (Initially Hidden) -->
+                <div id="reminder-creation-area" class="bg-notes-bg p-4 rounded-lg shadow hidden mb-4">
+                    <h4 class="font-semibold text-gray-700 mb-3">Schedule Follow-up Email</h4>
+                    
+                    <div class="grid grid-cols-3 gap-4 mb-4">
+                        <div class="input-group m-0">
+                            <label for="reminder_date">Reminder Date</label>
+                            <input type="date" id="reminder_date" class="p-2 border rounded-lg w-full" required>
+                        </div>
+                        <div class="input-group m-0 col-span-2">
+                            <label for="reminder_email">Recipient Email(s) (Comma Separated)</label>
+                            <input type="email" id="reminder_email" class="p-2 border rounded-lg w-full" 
+                                   placeholder="e.g., user@example.com, another@example.com" multiple required>
+                        </div>
+                    </div>
+                    
+                    <div class="input-group m-0">
+                        <label for="reminder_note">Reminder Note (Email Body)</label>
+                        <textarea id="reminder_note" rows="3" placeholder="Enter the note/instructions for the reminder email..." class="w-full p-2 border rounded-lg mb-3"></textarea>
+                    </div>
+
+                    <div class="flex justify-between items-center">
+                         <div class="text-xs text-gray-500 italic">This function triggers a server-side email reminder.</div>
+                         <button onclick="saveReminder()" class="action-button bg-orange-500 hover:bg-orange-600">
+                             <i class="fas fa-clock mr-2"></i>Schedule Reminder
+                         </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notes and Communication Section -->
+            <div class="mt-8">
+                <h2 id="notes-header" class="notes-section-header flex justify-between items-center">
+                    <span>Notes & Communication (<span id="note-count">0</span>)</span>
+                    <button onclick="addNote()" class="action-button p-2 text-sm bg-gray-500 hover:bg-gray-600">
+                        <i class="fas fa-plus"></i> Add Note
+                    </button>
+                </h2>
+
+                <!-- Note Creation Area (Initially Hidden) -->
+                <div id="note-creation-area" class="bg-notes-bg p-4 rounded-lg shadow hidden mb-4">
+                    <h4 class="font-semibold text-gray-700 mb-3">Record New Communication</h4>
+                    <div class="grid grid-cols-2 gap-4 mb-4">
+                        <div class="select-group m-0">
+                            <label for="new_note_type">Communication Type</label>
+                            <!-- ADDED onchange EVENT LISTENER -->
+                            <select id="new_note_type" class="p-2 border rounded-lg w-full" onchange="updateNoteSelections()">
+                                <option value="Inbound Email">Inbound Email</option>
+                                <option value="Outbound Email">Outbound Email</option>
+                                <option value="Inbound Call">Inbound Call</option>
+                                <option value="Outbound Call">Outbound Call</option>
+                                <option value="General Note">General Note</option>
+                            </select>
+                        </div>
+                        <div class="select-group m-0">
+                            <label for="new_note_selection">Note Selection</label>
+                            <!-- Initial options will be set by JS on modal open -->
+                            <select id="new_note_selection" class="p-2 border rounded-lg w-full">
+                                <!-- Options will be dynamically inserted here by JavaScript -->
+                            </select>
+                        </div>
+                    </div>
+                    <textarea id="new_note_body" rows="3" placeholder="Enter detailed note body..." class="w-full p-2 border rounded-lg mb-3"></textarea>
+                    
+                    <div class="flex justify-between items-center">
+                         <div class="text-xs text-gray-500 italic">Attachments feature omitted for simplicity.</div>
+                         <button onclick="saveNewNote()" class="action-button"><i class="fas fa-paper-plane mr-2"></i>Post Note</button>
+                    </div>
+                </div>
+
+                <!-- Existing Notes List -->
+                <div class="overflow-y-auto max-h-72">
+                    <table class="w-full min-w-full text-sm">
+                        <thead class="sticky top-0 bg-white shadow-sm">
+                            <tr class="note-list-header">
+                                <th class="w-1/4">Note Title</th>
+                                <th class="w-1/2">Preview / Note Body</th>
+                                <th class="w-1/4">Created By / Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="existing-notes-body">
+                            <!-- Notes populated by JS: populateNotes(claimId) -->
+                            <tr><td colspan="3" class="text-center text-gray-400 py-3">No notes recorded yet.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Hidden Forms for Server Submission -->
+            
+            <!-- Hidden Form for Note Submission -->
+            <form id="new-note-form" method="POST" action="{% url 'create_claim_note' %}" class="hidden">
+                {% csrf_token %}
+                <input type="hidden" id="note_claim_id" name="note_claim_id">
+                <input type="hidden" id="note_comm_type_hidden" name="note_comm_type">
+                <input type="hidden" id="note_selection_hidden" name="note_selection">
+                <textarea id="note_body_hidden" name="note_body"></textarea>
+            </form>
+
+            <!-- Hidden Form for Reminder Submission (NEW) -->
+            <form id="new-reminder-form" method="POST" action="{% url 'create_claim_reminder' %}" class="hidden">
+                {% csrf_token %}
+                <input type="hidden" id="reminder_claim_id" name="reminder_claim_id">
+                <input type="hidden" id="reminder_date_hidden" name="reminder_date_hidden">
+                <input type="hidden" id="reminder_email_hidden" name="reminder_email_hidden">
+                <textarea id="reminder_note_hidden" name="reminder_note_hidden"></textarea>
+            </form>
+
+
+            <!-- Bottom Button for Closing -->
+            <div id="modal-footer-actions" class="flex justify-end space-x-3 mt-6 border-t pt-4">
+                <!-- NEW: Save Button visible ONLY in Edit Mode -->
+                <button id="bottom-save-button" type="button" 
+                    class="action-button hidden" 
+                    onclick="saveClaimChanges()">
+                    <i class="fas fa-save mr-2"></i>Save Changes
+                </button>
+                <button type="button" class="action-button bg-gray-400 hover:bg-gray-500" onclick="hideClaimDetailModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // --- DATA CONSTANTS FOR CONDITIONAL DROPDOWNS ---
+        const NOTE_SELECTIONS = {
+            'Inbound Email': [
+                'New Claim Received',
+                'Outstanding documents received',
+                'Employer follow up on claim',
+                'Enquiry from Insurer',
+                'Feedback from Insurer'
+            ],
+            'Outbound Email': [
+                'Requested outstanding documents from ER',
+                'Claim documents submitted to insurer',
+                'Outstanding documents submitted to insurer',
+                'Feedback to employer',
+                'Enquiry to insurer'
+            ],
+            // Default options for Calls and General Notes (can be expanded if needed)
+            'Inbound Call': [
+                'General Enquiry (Inbound)',
+                'Follow-up Request (Inbound)',
+            ],
+            'Outbound Call': [
+                'General Follow-up (Outbound)',
+                'Request for Documents (Outbound)',
+            ],
+            'General Note': [
+                'Internal File Note',
+                'Reminder Set',
+            ]
+        };
+        // ----------------------------------------------------
+
+
+        // --- EMBEDDED DATA: All claims data and nested notes are loaded here ---
+        let CLAIMS_DATA;
+        try {
+            // Safely parse the JSON string passed from the Django view
+            CLAIMS_DATA = JSON.parse('{{ claims_json|escapejs }}');
+        } catch (e) {
+            console.error("Error parsing CLAIMS_DATA JSON from server context:", e);
+            CLAIMS_DATA = [];
+        }
+
+        // --- Global variable to track the currently open claim ---
+        let currentClaimId = null; 
+        let currentClaimData = null; // Store full data for reminder context
+
+        /**
+         * Dynamically updates the 'Note Selection' dropdown based on the chosen 'Communication Type'.
+         */
+        function updateNoteSelections() {
+            const commTypeSelect = document.getElementById('new_note_type');
+            const selectionSelect = document.getElementById('new_note_selection');
+            const selectedType = commTypeSelect.value;
+
+            // Clear existing options
+            selectionSelect.innerHTML = '';
+            
+            const options = NOTE_SELECTIONS[selectedType] || [];
+
+            if (options.length === 0) {
+                const defaultOption = document.createElement('option');
+                defaultOption.value = 'General Note';
+                defaultOption.textContent = `General Note (${selectedType})`;
+                selectionSelect.appendChild(defaultOption);
+                return;
+            }
+
+            // Populate new options
+            options.forEach(optionText => {
+                const option = document.createElement('option');
+                option.value = optionText;
+                option.textContent = optionText;
+                selectionSelect.appendChild(option);
+            });
+        }
+
+
+        // --- Detail View Logic (Client-Side Lookup) ---
+
+        /**
+         * Looks up the claim locally and displays details in the modal, preparing editable fields.
+         * @param {number} claimId - The ID of the selected claim.
+         */
+        function showClaimDetails(claimId) {
+            // Ensure we start in view mode
+            exitEditMode(false); 
+
+            // Find the claim record including the nested 'notes' array
+            const claim = CLAIMS_DATA.find(c => c.id === claimId);
+
+            if (!claim) {
+                console.error(`Claim ID ${claimId} not found in client data.`);
+                return;
+            }
+            
+            // Set the current claim ID and data when opening the modal
+            currentClaimId = claimId; 
+            currentClaimData = claim;
+            
+            // Set hidden claim ID for form submission
+            document.getElementById('update_claim_id').value = claimId;
+
+            // --- 1. Populate Core Details (Static and Editable Inputs) ---
+            document.getElementById('detail-claim-title').textContent = `Claim Details: #${claim.id}`;
+            
+            const detailMap = {
+                memberNo: claim.memberNo,
+                idPassport: claim.idPassport,
+                firstName: claim.firstName,
+                surname: claim.surname,
+                claimType: claim.claimType,
+                insurer: claim.insurer,
+                consultant: claim.consultant,
+                status: claim.status,
+            };
+
+            // Populate static spans and inputs/selects with current values
+            for (const key in detailMap) {
+                const staticElement = document.querySelector(`[data-key="${key}"][data-type="static"]`);
+                const inputElement = document.getElementById(`edit_${key}`);
+                
+                if (staticElement) staticElement.textContent = detailMap[key];
+                
+                // For select/input elements, set the value. 
+                // Note: For <select>, setting the .value handles pre-selection automatically if option exists.
+                if (inputElement) {
+                    if (inputElement.tagName === 'SELECT' || inputElement.tagName === 'INPUT') {
+                        inputElement.value = detailMap[key];
+                    }
+                }
+            }
+
+            // Handle Initial Notes/Summary (Textarea)
+            document.getElementById('detail-notes').textContent = claim.initialNotes || 'No initial notes recorded.';
+            document.getElementById('edit_initialNotes').value = claim.initialNotes || '';
+
+
+            // --- 2. Populate Notes Section using data fetched from the server ---
+            populateNotes(claim.notes || []); 
+
+            // --- 3. Initialize Note Selections when modal opens ---
+            document.getElementById('new_note_type').value = 'Inbound Email'; // Set default type
+            updateNoteSelections();
+
+            // --- 4. Show the modal ---
+            document.getElementById('claim-detail-modal').classList.remove('hidden');
+        }
+        
+        // --- Edit Mode Logic ---
+
+        /**
+         * Toggles the display mode from static text to input fields.
+         */
+        function enableEditMode() {
+            const isEdit = true;
+            toggleEditModeDisplay(isEdit);
+
+            // Change header button to Save
+            const headerButton = document.getElementById('edit-save-button');
+            headerButton.textContent = 'Save Changes';
+            headerButton.classList.remove('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+            headerButton.classList.add('action-button', 'bg-primary-green', 'text-white', 'hover:bg-accent-green');
+            headerButton.setAttribute('onclick', 'saveClaimChanges()');
+            
+            // Show bottom save button
+            document.getElementById('bottom-save-button').classList.remove('hidden');
+        }
+
+        /**
+         * Switches display back to static text and submits the form (if confirmed).
+         */
+        function saveClaimChanges() {
+            // In a real app, this is where you'd confirm and submit the form.
+            if (window.confirm("Are you sure you want to save these changes?")) {
+                // Submit the form containing the editable data
+                document.getElementById('update-claim-form').submit();
+                // Note: If submission is asynchronous (AJAX), you'd call exitEditMode() on success.
+            }
+        }
+
+        /**
+         * Switches display back to static text without saving.
+         * @param {boolean} updateButton - Whether to reset the button text/handler. Default is true.
+         */
+        function exitEditMode(updateButton = true) {
+            const isEdit = false;
+            toggleEditModeDisplay(isEdit);
+
+            if (updateButton) {
+                // Change header button back to Edit
+                const headerButton = document.getElementById('edit-save-button');
+                headerButton.textContent = 'Edit Details';
+                headerButton.classList.add('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+                headerButton.classList.remove('action-button', 'bg-primary-green', 'text-white', 'hover:bg-accent-green');
+                headerButton.setAttribute('onclick', 'enableEditMode()');
+            }
+            
+            // Hide bottom save button
+            document.getElementById('bottom-save-button').classList.add('hidden');
+        }
+
+        /**
+         * Shared utility to control element visibility based on edit mode state.
+         * @param {boolean} isEdit - True for edit mode (show inputs), false for view mode (show static spans).
+         */
+        function toggleEditModeDisplay(isEdit) {
+            // Static elements (spans, static notes div)
+            document.querySelectorAll('[data-type="static"]').forEach(el => {
+                el.style.display = isEdit ? 'none' : 'block';
+            });
+
+            // Input elements (input, select, textarea with class 'edit-input')
+            document.querySelectorAll('.edit-input').forEach(el => {
+                el.style.display = isEdit ? 'block' : 'none';
+            });
+        }
+        // --- End Edit Mode Logic ---
+        
+        // --- Reminder Logic ---
+        
+        /**
+         * Toggles the visibility of the reminder creation area.
+         */
+        function toggleReminderArea() {
+            const area = document.getElementById('reminder-creation-area');
+            area.classList.toggle('hidden');
+            
+            // Optional: Prefill reminder email with consultant email if available (Placeholder for real data)
+            if (!area.classList.contains('hidden')) {
+                // Assuming you have a way to fetch the consultant's email (e.g., from currentClaimData)
+                // For now, we'll leave it blank or default to a placeholder
+                const defaultEmail = "consultant.email@example.com"; 
+                document.getElementById('reminder_email').value = defaultEmail;
+
+                // Set min date to today
+                const today = new Date().toISOString().split('T')[0];
+                document.getElementById('reminder_date').setAttribute('min', today);
+            }
+        }
+        
+        /**
+         * Submits the reminder by populating and submitting a hidden form.
+         */
+        function saveReminder() {
+            const date = document.getElementById('reminder_date').value;
+            const emails = document.getElementById('reminder_email').value.trim();
+            const note = document.getElementById('reminder_note').value.trim();
+            
+            if (!date || !emails || !note) {
+                console.error('All reminder fields must be filled.');
+                return;
+            }
+
+            if (!currentClaimData) {
+                console.error('No claim active to set a reminder for.');
+                return;
+            }
+            
+            // 1. Transfer values to the hidden reminder form fields
+            document.getElementById('reminder_claim_id').value = currentClaimId;
+            document.getElementById('reminder_date_hidden').value = date;
+            document.getElementById('reminder_email_hidden').value = emails;
+            document.getElementById('reminder_note_hidden').value = note;
+
+            // 2. Log and submit the hidden form
+            console.log(`Submitting reminder for Claim ID: ${currentClaimId} on ${date}`);
+            
+            // Submits the hidden form to the Django view, causing a redirect/page refresh
+            document.getElementById('new-reminder-form').submit();
+        }
+
+
+        /**
+         * Populates the notes table for the given claim ID.
+         * @param {Array} notesArray - The array of note objects for this specific claim.
+         */
+        function populateNotes(notesArray) {
+            const tbody = document.getElementById('existing-notes-body');
+            const noteCountElement = document.getElementById('note-count');
+            tbody.innerHTML = '';
+            
+            noteCountElement.textContent = notesArray.length;
+
+            if (notesArray.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" class="text-center text-gray-400 py-3">No notes recorded yet.</td></tr>';
+                return;
+            }
+
+            // NOTE: The notes are assumed to be sorted by date (newest first) from the Django view.
+            notesArray.forEach(note => {
+                const row = document.createElement('tr');
+                row.classList.add('note-row');
+                
+                // Get a preview of the note body
+                const bodyPreview = note.body.length > 50 ? `${note.body.substring(0, 50)}...` : note.body;
+                
+                row.innerHTML = `
+                    <td class="font-semibold">${note.title}</td>
+                    <td>${bodyPreview}</td> 
+                    <td class="text-xs text-gray-500">${note.createdBy} - ${note.date.split(' ')[0]}</td>
+                `;
+                // In a production app, clicking would open a full note viewer
+                row.onclick = () => console.log(`Viewing full note: ${note.title} created by ${note.createdBy} on ${note.date}`); 
+                tbody.appendChild(row);
+            });
+        }
+
+        /**
+         * Toggles the visibility of the note creation area.
+         */
+        function addNote() {
+            const area = document.getElementById('note-creation-area');
+            area.classList.toggle('hidden');
+            
+            // Initialize selections when showing the note area (if needed)
+            if (!area.classList.contains('hidden')) {
+                // Ensure note type defaults to the first option (Inbound Email) and selections are set
+                document.getElementById('new_note_type').value = 'Inbound Email';
+                updateNoteSelections();
+            }
+        }
+
+        /**
+         * Posts the new note by populating and submitting a hidden form.
+         */
+        function saveNewNote() {
+            const type = document.getElementById('new_note_type').value;
+            const selection = document.getElementById('new_note_selection').value;
+            const body = document.getElementById('new_note_body').value.trim();
+            
+            if (!body) {
+                console.error('Note body cannot be empty.');
+                return;
+            }
+            
+            if (!currentClaimId) {
+                console.error('Cannot post note: No claim ID is currently active.');
+                return;
+            }
+
+            // 1. Transfer values to the hidden form fields
+            document.getElementById('note_claim_id').value = currentClaimId;
+            document.getElementById('note_comm_type_hidden').value = type;
+            document.getElementById('note_selection_hidden').value = selection;
+            document.getElementById('note_body_hidden').value = body;
+            
+            // 2. Log and submit the form
+            console.log(`Submitting new note for Claim ID: ${currentClaimId}`);
+            
+            // Submits the hidden form to the Django view, causing a redirect/page refresh
+            document.getElementById('new-note-form').submit();
+        }
+
+
+        // --- Modal Control Functions ---
+        function showCreateClaimModal() {
+            document.getElementById('create-claim-modal').classList.remove('hidden');
+        }
+
+        function hideCreateClaimModal() {
+            document.getElementById('create-claim-modal').classList.add('hidden');
+            document.getElementById('new-claim-form').reset(); 
+        }
+        
+        function hideClaimDetailModal() {
+            document.getElementById('claim-detail-modal').classList.add('hidden');
+            currentClaimId = null; // Clear active claim ID
+            currentClaimData = null;
+            exitEditMode(false); // Ensure mode is reset on close
+        }
+
+
+        // --- Export Logic ---
+        function exportClaims() {
+            const rows = document.getElementById('claims-table-body').querySelectorAll('tr');
+            if (rows.length === 0 || rows[0].querySelector('td[colspan="12"]')) {
+                console.log("No data to export.");
+                return;
+            }
+
+            let csvContent = "data:text/csv;charset=utf-8,";
+            
+            // Headers
+            const headers = Array.from(document.querySelectorAll('#claims-table thead th')).map(th => th.textContent.trim()).join(',');
+            csvContent += headers + "\n";
+            
+            // Rows
+            rows.forEach(row => {
+                const rowData = Array.from(row.querySelectorAll('td')).map(td => {
+                    const badge = td.querySelector('.status-badge');
+                    let text = badge ? badge.textContent.trim() : td.textContent.trim();
+                    
+                    if (text.includes(',')) {
+                        text = `"${text}"`;
+                    }
+                    return text;
+                }).join(',');
+                csvContent += rowData + "\n";
+            });
+
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "claims_export_" + new Date().toISOString().slice(0, 10) + ".csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            console.log("Claims data exported to CSV.");
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+             // Initial setup on load
+        });
+    </script>
+</body>
+</html>

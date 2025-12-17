@@ -1,0 +1,636 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client Profile: {{ client.client_name }}</title>
+    
+    <style>
+        /* --- Root Colors based on new style guide --- */
+        :root {
+            /* Green Primary (The block/button color) */
+            --primary-green: rgb(119, 206, 97);
+            /* Darker Green (Hover/Accent) */
+            --accent-green: rgb(105, 187, 85);
+            /* Light Green Background */
+            --bg-light-green: #d1e2c4;
+            /* Text/Container Shadow color */
+            --text-dark: #333;
+            /* Table Header background */
+            --table-header-bg: #e9f5e0; /* Light green/off-white tone */
+            /* Default Text color for container */
+            --text-default: #333;
+            /* Action Button Color (Blue for Edit) */
+            --action-blue: #0070c0;
+        }
+
+        /* --- Global Background Styles (From New Style) --- */
+        html, body {
+            height: auto;
+            margin: 0;
+            overflow-x: hidden;
+            box-sizing: border-box; /* Ensure padding doesn't cause overflow */
+        }
+        
+        body { 
+            font-family: sans-serif;
+            line-height: 1.6;
+            /* Applying the requested gradient background */
+            background: linear-gradient(to bottom, var(--bg-light-green), rgb(143, 207, 127));
+            color: var(--text-default);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        /* --- Container --- */
+        .container {
+            max-width: 1000px;
+            margin: 0 auto; /* Removed top/bottom margin for a smoother look with padding:20px on body */
+            padding: 30px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+            width: 100%; /* Ensure it respects max-width */
+        }
+
+        /* --- Headings --- */
+        h1 {
+            /* Updated color to better match the green theme or stay neutral */
+            color: var(--accent-green);
+            border-bottom: 3px solid var(--bg-light-green); /* Light accent line */
+            padding-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 1.8em; /* Adjusted h1 size for content page */
+        }
+        h2 {
+            font-size: 1.4rem;
+            color: var(--primary-green); /* Primary green for sections */
+            border-bottom: 1px solid var(--bg-light-green);
+            padding-bottom: 5px;
+            margin-top: 30px;
+            margin-bottom: 20px;
+        }
+        .sub-header {
+            font-size: 1.1rem;
+            color: var(--accent-green);
+            margin-top: 20px;
+            padding-bottom: 5px;
+            border-bottom: 1px dashed var(--bg-light-green);
+        }
+        
+        /* --- Links & Buttons --- */
+        .back-link {
+            display: inline-block;
+            margin-bottom: 20px;
+            color: var(--accent-green);
+            text-decoration: none;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+
+        .edit-button {
+            background-color: var(--action-blue); /* Using blue for Edit button distinction */
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: background-color 0.3s ease;
+        }
+        .edit-button:hover {
+            background-color: #005a9c; 
+        }
+
+        /* --- Tab Navigation --- */
+        .tab-nav {
+            display: flex;
+            border-bottom: 2px solid var(--bg-light-green);
+            margin-bottom: 25px;
+            flex-wrap: wrap; 
+        }
+        .tab-button {
+            padding: 10px 15px;
+            cursor: pointer;
+            background-color: #f7f7f7; /* Slightly lighter than body background, but still light */
+            border: 1px solid #ccc;
+            border-bottom: none;
+            margin-right: 5px;
+            border-radius: 5px 5px 0 0;
+            font-weight: 600;
+            color: #555;
+            white-space: nowrap;
+        }
+        .tab-button.active {
+            background-color: #fff;
+            border-bottom: 2px solid #fff;
+            margin-bottom: -2px;
+            color: var(--primary-green); /* Active tab color */
+        }
+
+        /* --- Content Display Grid --- */
+        .tab-content { display: none; padding-top: 15px; }
+        .tab-content.active { display: block; }
+        .data-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); 
+            gap: 20px; 
+            margin-bottom: 20px;
+        }
+        .data-item {
+            padding: 15px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            background-color: #fcfcfc;
+        }
+        .data-item label {
+            display: block;
+            font-weight: 700;
+            color: var(--accent-green); /* Accent green for labels */
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+        .data-item p {
+            margin: 0;
+            padding: 0;
+            font-size: 1rem;
+            color: var(--text-default);
+            word-wrap: break-word;
+        }
+        .full-width { grid-column: 1 / -1; }
+
+        /* --- Specific Section Styles --- */
+        .file-status {
+            font-size: 0.9em;
+            color: #555;
+            margin-top: 5px;
+        }
+        .file-status.uploaded { color: var(--primary-green); font-weight: bold; } /* Green for uploaded */
+        .file-status.missing { color: #dc3545; } /* Red retained for error/missing info */
+
+        .contacts-table, .director-table, .owner-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        .contacts-table th, .director-table th, .owner-table th {
+            text-align: left;
+            padding: 10px;
+            background-color: var(--table-header-bg); /* Light green/off-white tone */
+            border: 1px solid var(--bg-light-green);
+        }
+        .contacts-table td, .director-table td, .owner-table td {
+            padding: 10px;
+            border: 1px solid #eee;
+            vertical-align: top;
+            font-size: 0.9em;
+        }
+        
+        .pep-section-display {
+            border: 1px solid var(--bg-light-green);
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 8px;
+            background-color: #fff;
+        }
+        .pep-section-display h4 {
+            font-size: 1.1em;
+            color: var(--primary-green);
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+        .pep-section-display strong {
+            display: block;
+            margin-top: 5px;
+            font-weight: 600;
+        }
+        
+        /* --- Styles for Notes Tab (Tab 3) --- */
+        .note-section-container { 
+            border: 1px solid var(--bg-light-green); 
+            padding: 20px; 
+            margin-bottom: 30px; 
+            border-radius: 8px; 
+            background-color: #f7fff5;
+        }
+        .note-section-container h3 {
+            color: var(--accent-green);
+            font-size: 1.3rem;
+            border-bottom: 1px dashed #ccc;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+        .note-history-item {
+            border-left: 5px solid var(--primary-green);
+            padding: 10px 15px;
+            margin-bottom: 15px;
+            background-color: #fff;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            border-radius: 4px;
+        }
+        .note-meta {
+            font-size: 0.8em;
+            color: #777;
+            margin-bottom: 5px;
+        }
+        
+        /* Added styling for the select inputs within the note-logging section */
+        .note-section-container select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1rem;
+            background-color: #fff;
+        }
+        .note-section-container select:focus {
+             border-color: var(--primary-green);
+             box-shadow: 0 0 0 2px rgba(119, 206, 97, 0.3);
+        }
+
+        /* --- Styles for NEW Doc Folders Tab (Tab 4) --- */
+        .folder-list-container {
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            padding: 20px;
+            background-color: #fcfcfc;
+        }
+        .folder-list {
+            list-style: none;
+            padding: 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 15px;
+        }
+        .folder-list li {
+            background-color: #e9f5e0; /* Light green background for list items */
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 12px 15px;
+            font-size: 1rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+        }
+        .folder-list li:before {
+            content: "\1F4C1"; /* Folder icon/emoji */
+            margin-right: 10px;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+        <a href="{% url 'client_list' %}" class="back-link">&larr; Back to Client List</a>
+
+        <h1>
+            Client Profile: {{ client.client_name }} ({{ client.future_client_number }})
+            {% if client.future_client_number %}
+                <a href="{% url 'edit_client' client_code=client.future_client_number %}" class="edit-button">Edit Client</a>
+            {% else %}
+                <!-- Link disabled if client code is missing -->
+                <span class="edit-button" style="opacity: 0.6; cursor: not-allowed; background-color: #aaa;">Edit Client (Code Missing)</span>
+            {% endif %}
+        </h1>
+
+        <div class="tab-nav">
+            <button class="tab-button active" onclick="openTab(event, 'tab1')">Client Details</button>
+            <button class="tab-button" onclick="openTab(event, 'tab2')">Contacts ({{ client_contacts|length }})</button>
+            <!-- NEW TABS -->
+            <button class="tab-button" onclick="openTab(event, 'tab3')">Notes</button>
+            <button class="tab-button" onclick="openTab(event, 'tab4')">Doc Folders</button>
+            <!-- END NEW TABS -->
+            <button class="tab-button" onclick="openTab(event, 'tab5')">FICA & Due Diligence</button>
+        </div>
+
+        <div id="tab1" class="tab-content active">
+            <h2>General Information</h2>
+            <div class="data-grid">
+                <div class="data-item"><label>Client Number</label><p>{{ client.future_client_number }}</p></div>
+                <div class="data-item"><label>Client Name</label><p>{{ client.client_name }}</p></div>
+                <div class="data-item"><label>Consultant</label><p>{{ client.consultant }}</p></div>
+                <div class="data-item"><label>Industry</label><p>{{ client.industry }}</p></div>
+                <div class="data-item"><label>Status</label><p>{{ client.status }}</p></div>
+                <div class="data-item"><label>Start Date</label><p>{{ date_added_formatted }}</p></div>
+                <div class="data-item"><label>Date Added</label><p>{{ date_added_formatted }}</p></div>
+                <div class="data-item"><label>Years Active</label><p>{{ client.years_active }}</p></div>
+                <div class="data-item"><label>Employees</label><p>{{ client.employees }}</p></div>
+                <div class="data-item"><label>Scheme Code</label><p>{{ client.future_client_number }}</p></div>
+            </div>
+
+            <h2>Product & Agreement Details</h2>
+            <div class="data-grid">
+                <div class="data-item"><label>Product</label><p>{{ client.product }}</p></div>
+                <div class="data-item"><label>Third Party Contract</label><p>{{ client.third_party_contract|yesno:"Yes,No" }}</p></div>
+                <div class="data-item"><label>Third Party Contact</label><p>{{ client.third_party_contact }}</p></div>
+                <div class="data-item"><label>Administrator</label><p>{{ client.administrator }}</p></div>
+                <div class="data-item"><label>Umbrella Fund</label><p>{{ client.umbrella_fund }}</p></div>
+                <div class="data-item"><label>Insurer</label><p>{{ client.insurer }}</p></div>
+                <div class="data-item"><label>Assets</label><p>{{ client.assets }}</p></div>
+                <div class="data-item"><label>Consulting Letter Status</label><p>{{ client.consulting_letter_status|yesno:"Yes,No" }}</p>
+                    <span class="file-status {% if client.consulting_letter_file %}uploaded{% else %}missing{% endif %}">File: {{ client.consulting_letter_file|default:'Not Uploaded' }}</span>
+                </div>
+                <div class="data-item"><label>SLA Status</label><p>{{ client.sla_status|yesno:"Yes,No" }}</p>
+                    <span class="file-status {% if client.sla_file %}uploaded{% else %}missing{% endif %}">File: {{ client.sla_file|default:'Not Uploaded' }}</span>
+                </div>
+                <div class="data-item"><label>3rd Party Doc Status</label><p>{{ client.third_party_doc_status|yesno:"Yes,No" }}</p>
+                    <span class="file-status {% if client.third_party_doc_file %}uploaded{% else %}missing{% endif %}">File: {{ client.third_party_doc_file|default:'Not Uploaded' }}</span>
+                </div>
+            </div>
+        </div> 
+
+        <div id="tab2" class="tab-content">
+            {% if client_contacts %}
+            <h2 class="full-width">Client Contacts</h2>
+            <table class="contacts-table">
+                <thead>
+                    <tr><th>Name</th><th>Job Title</th><th>Contact</th><th>Email</th><th>Address</th><th>Notes</th></tr>
+                </thead>
+                <tbody>
+                    {% for contact in client_contacts %}
+                    <tr>
+                        <td>{{ contact.name }} {{ contact.surname }}</td>
+                        <td>{{ contact.job_title|default:'N/A' }}</td>
+                        <td>Cell: {{ contact.cell_no|default:'N/A' }}<br>Landline: {{ contact.landline|default:'N/A' }}</td>
+                        <td>{{ contact.email|default:'N/A' }}</td>
+                        <td>Physical: {{ contact.physical_address|default:'N/A' }}<br>Postal: {{ contact.postal_address|default:'N/A' }}</td>
+                        <td>{{ contact.notes|default:'N/A' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p>No contact persons registered for this client.</p>
+            {% endif %}
+        </div>
+        
+        <!-- UPDATED TAB 3: NOTES CONTENT -->
+        <div id="tab3" class="tab-content">
+            <h2>Notes & Communication History</h2>
+            <div class="note-section-container">
+                <h3>Log a New Interaction</h3>
+                <p style="color: #555;">(Placeholder for note creation, email sending, and user tracking functionality. This interaction will be implemented in a future phase.)</p>
+                
+                <!-- Communication Type and Email/Note Type dropdowns updated -->
+                <div class="data-grid" style="gap: 15px; margin-bottom: 10px;">
+                    <div class="data-item">
+                        <label for="comm_type">Communication Type</label>
+                        <select id="comm_type">
+                            <option value="Inbound Email">Inbound Email</option>
+                            <option value="Outbound Email">Outbound Email</option>
+                            <option value="Inbound Call">Inbound Call</option>
+                            <option value="Outbound Call">Outbound Call</option>
+                        </select>
+                    </div>
+                    <div class="data-item">
+                        <label for="note_type">Email/Note Type</label>
+                        <select id="note_type">
+                            <option value="Schedule">Schedule</option>
+                            <option value="Claims">Claims</option>
+                            <option value="Two-Pot Claims">Two-Pot Claims</option>
+                            <option value="General Enquiry">General Enquiry</option>
+                            <option value="Leads">Leads</option>
+                        </select>
+                    </div>
+                    <!-- Note Selection element removed as requested -->
+                </div>
+                
+                <div class="data-item full-width" style="margin-top: 10px;">
+                    <label>Note Content</label>
+                    <textarea style="width: 100%; min-height: 80px; border: 1px solid #ccc; border-radius: 4px; padding: 10px; box-sizing: border-box;" placeholder="Type note content here..."></textarea>
+                </div>
+                
+                <div class="data-item full-width" style="margin-top: 10px;">
+                    <label>Attachments</label>
+                    <div style="border: 1px dashed #ccc; padding: 10px; border-radius: 4px; background-color: #fff; display: flex; align-items: center; justify-content: space-between;">
+                        There is nothing attached. <input type="file" multiple style="margin-left: 10px;">
+                    </div>
+                </div>
+                
+                <button class="edit-button" style="margin-top: 15px; background-color: var(--primary-green);">Post Note</button>
+            </div>
+
+            <h2 style="margin-top: 40px;">Note History</h2>
+            <p style="color: #555;">(All notes, new to old, will display below. Clickable to view full details/attachments.)</p>
+            
+            <!-- Example Note 1 and Example Note 2 removed as requested -->
+        </div>
+        
+        <!-- NEW TAB 4: DOC FOLDERS CONTENT -->
+        <div id="tab4" class="tab-content">
+            <h2>Client Document Folders</h2>
+            <div class="folder-list-container">
+                <p style="color: #777; margin-bottom: 20px;">These folders represent the structure for document storage (e.g., SharePoint/Code). Document viewing and download functionality will be developed later.</p>
+                <ul class="folder-list">
+                    <li>Agendas</li>
+                    <li>Benefit Statements</li>
+                    <li>Claims</li>
+                    <li>Commission</li>
+                    <li>Consulting Appointment Letter</li>
+                    <li>Conversion Options</li>
+                    <li>FICA Documents</li>
+                    <li>Forms</li>
+                    <li>HR Manual</li>
+                    <li>Implementation</li>
+                    <li>Investments</li>
+                    <li>Logo</li>
+                    <li>Medicals</li>
+                    <li>Member Guide</li>
+                    <li>Minutes</li>
+                    <li>Newsletters</li>
+                    <li>Presentations</li>
+                    <li>Rebroke</li>
+                    <li>Record of Advice</li>
+                    <li>Resolutions</li>
+                    <li>Revisions</li>
+                    <li>Rules and Amendments</li>
+                    <li>Section 14 Documents</li>
+                    <li>Service Level Agreements</li>
+                    <li>Third Party Contact</li>
+                    <li>Transfer Details</li>
+                    <li>Two-Pot</li>
+                    <li>Welcome Letters</li>
+                    <li>Year Planner</li>
+                </ul>
+            </div>
+        </div>
+
+
+        <div id="tab5" class="tab-content">
+            <h1>FICA AND DUE DILIGENCE DATA</h1>
+
+            <h2>STEP 1 & 2 - Company Info & Contact Details</h2>
+            <div class="data-grid">
+                <div class="data-item"><label>Company Type</label><p>{{ client.company_type|default:'N/A' }}</p></div>
+                <div class="data-item"><label>Registration Number</label><p>{{ client.company_registration_number|default:'N/A' }}</p></div>
+                <div class="data-item"><label>Registration Docs</label><p>{{ client.reg_docs_file|default:'N/A' }}</p></div>
+                <div class="data-item"><label>Contact Number 1</label><p>{{ client.contact_number1|default:'N/A' }}</p></div>
+                <div class="data-item"><label>Contact Email 1</label><p>{{ client.contact_email1|default:'N/A' }}</p></div>
+                <div class="data-item"><label>Proof of Address</label><p>{{ client.proof_address_file|default:'N/A' }}</p></div>
+            </div>
+
+            <div class="data-grid full-width" style="grid-template-columns: 1fr 1fr; border-top: 1px solid var(--bg-light-green); padding-top: 20px;">
+                <div class="data-item">
+                    <label>Physical Address</label>
+                    {% if physical_addr %}
+                        <p>{{ physical_addr.line1 }}</p>
+                        <p>{{ physical_addr.line2 }}</p>
+                        <p>{{ physical_addr.suburb }}</p>
+                        <p>{{ physical_addr.city }}, {{ physical_addr.province }}</p>
+                        <p>Code: {{ physical_addr.postal_code }}</p>
+                    {% else %}<p>Not Recorded</p>{% endif %}
+                </div>
+                <div class="data-item">
+                    <label>Postal Address</label>
+                    {# We assume if postal_addr is missing, it is 'Same as Physical Address' based on form logic #}
+                    {% if postal_addr %}
+                        <p>{{ postal_addr.line1 }}</p>
+                        <p>{{ postal_addr.line2 }}</p>
+                        <p>{{ postal_addr.suburb }}</p>
+                        <p>{{ postal_addr.city }}, {{ postal_addr.province }}</p>
+                        <p>Code: {{ postal_addr.postal_code }}</p>
+                    {% else %}<p>Same as Physical Address</p>{% endif %}
+                </div>
+            </div>
+
+            <h2>STEP 4 - Responsible Person(s)</h2>
+            {% for person in fica_resp_person %}
+            <div class="data-grid" style="border: 1px dashed var(--bg-light-green); padding: 15px; margin-bottom: 15px; border-radius: 8px;">
+                <div class="data-item"><label>Name / Designation</label><p>{{ person.name }} {{ person.surname }} ({{ person.designation }})</p></div>
+                <div class="data-item"><label>ID Number</label><p>{{ person.id_number|default:'N/A' }}</p></div>
+                <div class="data-item"><label>Contact / Email</label><p>{{ person.contact_number }} / {{ person.email_address }}</p></div>
+                <div class="data-item"><label>Address</label><p>{{ person.resp_line1 }}, {{ person.resp_city }}, {{ person.resp_province }}</p></div>
+                <div class="data-item full-width"><label>Circular / Signed Doc Uploads</label>
+                    <p>Circular: {{ person.circular_upload_file|default:'N/A' }}</p>
+                    <p>Signed Doc: {{ person.doc_signed_upload_file|default:'N/A' }}</p>
+                </div>
+            </div>
+            {% empty %}
+                <p>No Responsible Persons recorded.</p>
+            {% endfor %}
+
+            <h2>STEP 5 - Directors ({{ fica_directors|length }})</h2>
+            {% for director in fica_directors %}
+            <div class="pep-section-display">
+                <h4 class="sub-header">Director: {{ director.name }} {{ director.surname }} ({{ director.designation }})</h4>
+                <div class="data-grid">
+                    <div class="data-item"><label>ID / Contact</label><p>{{ director.id_number|default:'N/A' }} / {{ director.contact_number|default:'N/A' }}</p></div>
+                    <div class="data-item"><label>Email</label><p>{{ director.email_address|default:'N/A' }}</p></div>
+                    <div class="data-item"><label>Physical Address</label><p>{{ director.phys_line1|default:'N/A' }}</p></div>
+                    <div class="data-item"><label>Proof Address File</label><p>{{ director.proof_addr_file|default:'N/A' }}</p></div>
+                    <div class="data-item"><label>ID Copy File</label><p>{{ director.id_copy_file|default:'N/A' }}</p></div>
+                </div>
+                <h4 style="margin-top: 15px;">PEP/PIP Status</h4>
+                <p>
+                    <strong>PEP?</strong> {{ director.is_pep|yesno:"Yes,No" }} (Reason: {{ director.pep_reason|default:'N/A' }})<br>
+                    <strong>PIP?</strong> {{ director.is_pip|yesno:"Yes,No" }} (Reason: {{ director.pip_reason|default:'N/A' }})<br>
+                    <strong>PPO?</strong> {{ director.is_ppo|yesno:"Yes,No" }} (Reason: {{ director.ppo_reason|default:'N/A' }})<br>
+                    <strong>KCA?</strong> {{ director.is_kca|yesno:"Yes,No" }} (Reason: {{ director.kca_reason|default:'N/A' }})
+                </p>
+            </div>
+            {% empty %}
+                <p>No Directors recorded.</p>
+            {% endfor %}
+
+            <h2>STEP 6 - Beneficial Owners ({{ fica_owners|length }})</h2>
+            {% for owner in fica_owners %}
+            <div class="pep-section-display">
+                <h4 class="sub-header">Owner: {{ owner.name }} {{ owner.surname }} ({{ owner.designation }})</h4>
+                    <div class="data-grid">
+                    <div class="data-item"><label>ID / Contact</label><p>{{ owner.id_number|default:'N/A' }} / {{ owner.contact_number|default:'N/A' }}</p></div>
+                    <div class="data-item"><label>Email</label><p>{{ owner.email_address|default:'N/A' }}</p></div>
+                    <div class="data-item"><label>Physical Address</label><p>{{ owner.phys_line1|default:'N/A' }}</p></div>
+                    <div class="data-item"><label>Proof Address File</label><p>{{ owner.proof_addr_file|default:'N/A' }}</p></div>
+                    <div class="data-item"><label>ID Copy File</label><p>{{ owner.id_copy_file|default:'N/A' }}</p></div>
+                </div>
+                <h4 style="margin-top: 15px;">PEP/PIP Status</h4>
+                <p>
+                    <strong>PEP?</strong> {{ owner.is_pep|yesno:"Yes,No" }} (Reason: {{ owner.pep_reason|default:'N/A' }})<br>
+                    <strong>PIP?</strong> {{ owner.is_pip|yesno:"Yes,No" }} (Reason: {{ owner.pip_reason|default:'N/A' }})<br>
+                    <strong>PPO?</strong> {{ owner.is_ppo|yesno:"Yes,No" }} (Reason: {{ owner.ppo_reason|default:'N/A' }})<br>
+                    <strong>KCA?</strong> {{ owner.is_kca|yesno:"Yes,No" }} (Reason: {{ owner.kca_reason|default:'N/A' }})
+                </p>
+            </div>
+            {% empty %}
+                <p>No Beneficial Owners recorded.</p>
+            {% endfor %}
+
+            <!--<h2>STEP 7 - BENEFICIAL OWNERSHIP FORM</h2>
+            <div class="data-grid">
+                <div class="data-item"><label>Nature of Relationship</label><p>{{ client.nature_of_relationship|default:'N/A' }}</p></div>
+                <div class="data-item"><label>Purpose of Relationship</label><p>{{ client.purpose_of_relationship|default:'N/A' }}</p></div>
+                <div class="data-item"><label>Source of Funds</label><p>{{ client.source_of_funds|default:'N/A' }}</p></div>
+                <div class="data-item"><label>Due Diligence Form Name</label><p>{{ client.due_diligence_form_name|default:'N/A' }}</p></div>
+                <div class="data-item"><label>Declaration Name / Delegation</label><p>{{ client.declaration_name|default:'N/A' }} / {{ client.declaration_delegation|default:'N/A' }}</p></div>
+                <div class="data-item"><label>Declaration Date</label><p>{{ declaration_date_formatted|default:'N/A' }}</p></div>
+                <div class="data-item full-width"><label>Signed Form Upload</label>
+                    <span class="file-status {% if client.signed_form_upload %}uploaded{% else %}missing{% endif %}">File: {{ client.signed_form_upload|default:'N/A' }}</span>
+                </div>
+            </div>-->
+
+                <div class="full-width" id="download_3rd_party" style="margin-top: 20px; border-top: 1px dashed var(--border-light); padding-top: 20px;">
+                    <a href="#" class="add-link">Upload document</a>
+                    <p style="font-size: 0.9rem; color: var(--text-muted); margin: 5px 0 15px 0;">(Signed document must be uploaded.)</p>
+                </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        function openTab(evt, tabName) {
+            // Hide all tab contents
+            let tabContent = document.getElementsByClassName("tab-content");
+            for (let i = 0; i < tabContent.length; i++) {
+                tabContent[i].style.display = "none";
+            }
+            // Remove 'active' class from all buttons
+            let tabButtons = document.getElementsByClassName("tab-button");
+            for (let i = 0; i < tabButtons.length; i++) {
+                tabButtons[i].classList.remove("active");
+            }
+            // Show the current tab and mark the button as active
+            document.getElementById(tabName).style.display = "block";
+            evt.currentTarget.classList.add("active");
+        }
+        
+        // Initialization: Ensure the first tab is visible on load
+        document.addEventListener('DOMContentLoaded', function() {
+            // Find the currently active button (tab1 is marked active in HTML)
+            const defaultTabButton = document.querySelector('.tab-button.active');
+            
+            if (defaultTabButton) {
+                // Manually trigger the tab display logic for the default tab
+                const onClickAttr = defaultTabButton.getAttribute('onclick');
+                const tabNameMatch = onClickAttr ? onClickAttr.match(/'([^']+)'/) : null;
+                const tabName = tabNameMatch ? tabNameMatch[1] : null;
+
+                if (tabName) {
+                    document.getElementById(tabName).style.display = "block";
+                }
+            }
+            
+            // Fallback for extreme cases (if 'active' class was missing entirely)
+            if (!document.querySelector('.tab-content.active')) {
+                 document.getElementById('tab1').style.display = "block";
+                 document.querySelector('.tab-button:first-child').classList.add("active");
+            }
+            
+            // Placeholder interaction for the Post Note button
+            document.querySelector('#tab3 .edit-button')?.addEventListener('click', function() {
+                console.log("Note Post simulated. Functionality will be implemented server-side.");
+            });
+        });
+    </script>
+</body>
+</html>

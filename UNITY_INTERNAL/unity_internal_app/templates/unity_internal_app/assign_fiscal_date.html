@@ -1,0 +1,268 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }}</title>
+    <style>
+        /* --- 1. Main Layout (Fixed Screen) --- */
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
+            margin: 0;
+            padding: 0;
+            color: #333;
+            height: 100vh; /* Full viewport height */
+            width: 100vw;
+            overflow: hidden; /* PREVENTS Body Scrolling */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-sizing: border-box;
+        }
+
+        /* --- 2. The Card Container --- */
+        .container { 
+            width: 95%; /* Requested 95% Width */
+            height: 90vh; /* Fixed height relative to screen */
+            background-color: #fff; 
+            border-radius: 8px; 
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15); 
+            padding: 30px; 
+            box-sizing: border-box;
+            
+            /* Internal Scrolling */
+            overflow-y: auto; 
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Scrollbar Styling for Webkit (Chrome/Safari) to look cleaner */
+        .container::-webkit-scrollbar { width: 8px; }
+        .container::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 8px; }
+        .container::-webkit-scrollbar-thumb { background: #81c784; border-radius: 8px; }
+        .container::-webkit-scrollbar-thumb:hover { background: #66bb6a; }
+
+        /* --- 3. Typography & Headers --- */
+        h2 { 
+            color: #1b5e20; 
+            border-bottom: 2px solid #aed581; 
+            padding-bottom: 15px; 
+            margin-top: 0; 
+            font-size: 1.8rem;
+        }
+        h3 {
+            color: #2e7d32;
+            margin-top: 25px;
+            font-size: 1.2rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* --- 4. Read-Only Details Grid (Professional Look) --- */
+        .detail-block { 
+            background: #f1f8e9; 
+            border: 1px solid #c5e1a5; 
+            border-radius: 8px; 
+            padding: 20px;
+            
+            /* Grid System */
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .detail-item strong { 
+            color: #1b5e20; 
+            font-size: 0.85em;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+            opacity: 0.8;
+        }
+        
+        .detail-item span {
+            font-size: 1.1em;
+            font-weight: 500;
+            color: #333;
+        }
+
+        hr { 
+            border: 0; 
+            border-top: 1px solid #e0e0e0; 
+            margin: 30px 0; 
+        }
+
+        /* --- 5. Form Styles --- */
+        .form-group { margin-bottom: 20px; }
+        
+        label { 
+            display: block; 
+            margin-bottom: 8px; 
+            font-weight: 600; 
+            color: #2e7d32; 
+        }
+
+        input[type="date"], textarea, select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 1em;
+            background-color: #fafafa;
+            transition: all 0.3s ease;
+        }
+
+        input[type="date"]:focus, textarea:focus, select:focus {
+            border-color: #4CAF50;
+            background-color: #fff;
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+        }
+
+        textarea { resize: vertical; min-height: 100px; }
+
+        small { display: block; margin-top: 5px; font-size: 0.85em; }
+
+        /* --- 6. Buttons & Links --- */
+        .button-row {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .submit-button {
+            padding: 12px 30px;
+            background-color: #2e7d32;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .submit-button:hover { background-color: #1b5e20; transform: translateY(-1px); }
+
+        .back-link {
+            text-decoration: none;
+            color: #555;
+            padding: 10px 20px;
+            border-radius: 6px;
+            background-color: #e0e0e0;
+            font-weight: 600;
+            transition: background 0.3s;
+        }
+        .back-link:hover { background-color: #d5d5d5; color: #333; }
+
+        .top-nav { margin-bottom: 20px; }
+        .top-nav a { text-decoration: none; color: #666; font-size: 0.9em; }
+        .top-nav a:hover { color: #2e7d32; text-decoration: underline; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    
+    <div class="top-nav">
+        <a href="{% url 'unity_information' company_code=company_code %}">← Back to Information</a>
+    </div>
+
+    <h2>🗓️ {{ page_title }}</h2>
+
+    <h3>Credit Line Details</h3>
+    <div class="detail-block">
+        <div class="detail-item">
+            <strong>Member Group Code</strong>
+            <span>{{ note.member_group_code }}</span>
+        </div>
+        <div class="detail-item">
+            <strong>Member Group Name</strong>
+            <span>{{ note.member_group_name }}</span>
+        </div>
+        <div class="detail-item">
+            <strong>Bill Date (CCDates)</strong>
+            <span>{{ note.ccdates_month|date:"Y-m-d" }}</span>
+        </div>
+        <div class="detail-item">
+            <strong>Schedule Amount</strong>
+            <span>R {{ note.schedule_amount|floatformat:2 }}</span>
+        </div>
+        <div class="detail-item">
+            <strong>Import Comment</strong>
+            <span>{{ note.comment|default:"N/A" }}</span>
+        </div>
+        <div class="detail-item">
+            <strong>Imported On</strong>
+            <span>{{ note.processed_date|date:"Y-m-d H:i" }}</span>
+        </div>
+    </div>
+
+    <hr>
+    
+    <h3>Assignment Form</h3>
+    <form method="post">
+        {% csrf_token %}
+        
+        {# --- TARGET BILL ID (MANUAL DISPLAY BLOCK) --- #}
+        {% if context_type != 'info' %}
+            <div class="form-group">
+                <label for="{{ form.target_bill_id.id_for_label }}">{{ form.target_bill_id.label }}</label>
+                {{ form.target_bill_id }}
+                {% if form.target_bill_id.errors %}
+                    <small style="color: #d32f2f;">{{ form.target_bill_id.errors }}</small>
+                {% endif %}
+                {% if form.target_bill_id.help_text %}
+                    <small style="color: #666;">{{ form.target_bill_id.help_text }}</small>
+                {% endif %}
+            </div>
+        {% endif %}
+        
+        {# --- FISCAL DATE & REVIEW NOTE LOOP (AUTOMATED DISPLAY) --- #}
+        {% for field in form.visible_fields %}
+            
+            {# 1. EXCLUSION: Skip target_bill_id as it is rendered above #}
+            {% if field.name == 'target_bill_id' %}
+                {% comment %} Skipped {% endcomment %}
+            
+            {# 2. EXCLUSION: Skip fiscal_date in summary context #}
+            {% elif field.name == 'fiscal_date' and context_type == 'summary' %}
+                {% comment %} Skipped {% endcomment %}
+            
+            {% else %}
+                <div class="form-group">
+                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                    {{ field }}
+                    {% if field.errors %}
+                        <small style="color: #d32f2f;">{{ field.errors }}</small>
+                    {% endif %}
+                </div>
+            {% endif %}
+        {% endfor %}
+
+        {% for field in form.hidden_fields %}
+            {{ field }}
+        {% endfor %}
+
+        <div class="button-row">
+            <button type="submit" class="submit-button">Save Assignment</button>
+            <a href="{% url 'dashboard' %}" class="back-link">
+                Cancel
+            </a>
+        </div>
+    </form>
+</div>
+
+</body>
+</html>

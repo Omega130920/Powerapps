@@ -1,0 +1,511 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Action Task: {{ task.subject }}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* --- BASE STYLES (Unity Internal) --- */
+        body {
+            font-family: sans-serif;
+            background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+            display: flex; flex-direction: column; align-items: center;
+            min-height: 100vh; padding: 30px 20px; margin: 0; box-sizing: border-box;
+        }
+        .task-container {
+            width: 100%; max-width: 1400px;
+            background: #ffffff; border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); padding: 25px;
+        }
+        .main-grid { display: flex; flex-wrap: wrap; gap: 20px; }
+        .left-column { flex: 2; min-width: 500px; }
+        .right-column { flex: 1; min-width: 350px; }
+
+        /* --- Cards & Headers --- */
+        .custom-card { border: 1px solid #ddd; border-radius: 6px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); background: #fff; overflow: hidden; }
+        .card-header-primary { background-color: #007bff; color: white; padding: 12px 15px; font-weight: bold; display: flex; align-items: center; gap: 10px; }
+        .card-header-dark { background-color: #343a40; color: white; padding: 12px 15px; font-weight: bold; display: flex; align-items: center; gap: 10px; }
+        .card-body-content { padding: 15px; }
+        
+        /* --- Status & Header --- */
+        .task-header h1 { font-size: 22px; margin: 0 0 10px 0; color: #1e88e5; border-bottom: 2px solid #81c784; padding-bottom: 5px;}
+        .status-badge { display: inline-block; background-color: #ffc107; color: #212529; padding: 3px 10px; border-radius: 50px; font-weight: bold; font-size: 12px; }
+
+        /* --- Forms --- */
+        .form-label { font-weight: bold; display: block; margin-bottom: 4px; font-size: 12px; color: #555; }
+        .form-control { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; margin-bottom: 8px; font-size: 13px; }
+        
+        /* --- Collapsible --- */
+        .collapse-toggle {
+            display: flex; justify-content: space-between; align-items: center;
+            width: 100%; padding: 12px; background: #f8f9fa; border: none;
+            cursor: pointer; border-bottom: 3px solid #007bff; font-weight: bold; font-size: 14px;
+        }
+        .collapse-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
+        .collapse-content.show { max-height: 3000px; padding: 15px; }
+        .toggle-icon { transition: transform 0.3s ease; }
+        .collapse-toggle[aria-expanded="true"] .toggle-icon { transform: rotate(180deg); }
+
+        /* --- Audit Log --- */
+        .notes-history-container { background-color: #f8f9fa; padding: 10px; max-height: 500px; overflow-y: auto; border: 1px solid #eee; border-radius: 4px; }
+        .note-item { border-left: 4px solid #1e88e5; padding: 8px 12px; background: #fff; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); font-size: 13px; }
+
+        /* --- Buttons --- */
+        .custom-btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; transition: 0.2s; font-size: 13px; }
+        .btn-update { background-color: #1e88e5; color: white; width: 100%; }
+        .btn-restore { background-color: #d32f2f; color: white; width: 100%; font-size: 16px; margin-bottom: 15px; }
+        .btn-success { background-color: #28a745; color: white; width: 100%; }
+        .btn-primary { background-color: #007bff; color: white; }
+
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div class="task-container">
+    
+    <div class="task-header">
+        <h1><i class="fas fa-tasks"></i> Action Task: {{ task.subject }}</h1>
+        <div style="margin-top: 5px;">
+            <span class="status-badge">{{ task.status }}</span>
+            <small style="margin-left: 15px;">Assigned to: <strong>{{ task.delegated_to }}</strong></small>
+        </div>
+    </div>
+
+    {% if messages %}
+        <div style="margin: 15px 0;">
+        {% for message in messages %}
+            <div style="padding: 10px; background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; border-radius: 4px; margin-bottom: 5px;">{{ message }}</div>
+        {% endfor %}
+        </div>
+    {% endif %}
+
+    {# --- RESTORE BUTTON --- #}
+    {% if task.status == 'Recycled' %}
+    <form method="POST">
+        {% csrf_token %}
+        <input type="hidden" name="action_type" value="restore_to_inbox">
+        <button type="submit" class="custom-btn btn-restore"><i class="fas fa-undo"></i> RESTORE TO MAIN INBOX QUEUE</button>
+    </form>
+    {% endif %}
+
+    {# --- METADATA SECTION --- #}
+    <div class="custom-card">
+        <div class="card-header-dark" style="background-color: #1e88e5;">
+            <i class="fas fa-database"></i> Task Metadata & Enquiry Details
+        </div>
+        <div class="card-body-content">
+            <form method="POST">
+                {% csrf_token %}
+                <input type="hidden" name="action_type" value="update_metadata">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; align-items: end;">
+                    <div>
+                        <label class="form-label">Member Group Code:</label>
+                        <input type="text" name="mip_number" value="{{ task.member_group_code|default:'' }}" class="form-control" placeholder="Code">
+                    </div>
+                    <div>
+                        <label class="form-label">ID / Passport Number:</label>
+                        <input type="text" name="id_passport" value="{{ task.id_passport|default:'' }}" class="form-control" placeholder="ID/Passport">
+                    </div>
+                    <div>
+                        <label class="form-label">Enquiry Category:</label>
+                        <select id="email_category" name="email_category" class="form-control">
+                            <option value="">-- Select Category --</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Enquiry Type:</label>
+                        <select id="email_type" name="email_type" class="form-control">
+                            <option value="" data-category="none">-- Select Type --</option>
+                            <option value="1.1 Schedule Query" data-category="1">1.1 Schedule Query</option>
+                            <option value="1.2 Member Data Query" data-category="1">1.2 Member Data Query</option>
+                            <option value="1.3 Payment Query" data-category="1">1.3 Payment Query</option>
+                            <option value="1.4 Arrears Query" data-category="1">1.4 Arrears Query</option>
+                            <option value="1.5 Online client RFW training Reconciliation" data-category="1">1.5 Online client RFW training Reconciliation</option>
+                            <option value="1.6 Online Employer Amendment Data Query" data-category="1">1.6 Online Employer Amendment Data Query</option>
+                            <option value="1.7 Employer Data Referral for Overpayment" data-category="1">1.7 Employer Data Referral for Overpayment</option>
+                            <option value="1.8 Employer Data Referral for Duplicate records and Merge queries" data-category="1">1.8 Employer Data Referral for Duplicate records and Merge queries</option>
+                            <option value="1.9 Member reinstatement" data-category="1">1.9 Member reinstatement</option>
+                            <option value="1.10 Member record Merge" data-category="1">1.10 Member record Merge</option>
+                            <option value="2.1 Claim Form Query Active Withdrawal" data-category="2">2.1 Claim Form Query Active Withdrawal</option>
+                            <option value="2.2 Claim Form Receipt" data-category="2">2.2 Claim Form Receipt</option>
+                            <option value="2.3 Claim Form submission Active" data-category="2">2.3 Claim Form submission Active</option>
+                            <option value="2.4 Claim outstanding details" data-category="2">2.4 Claim outstanding details</option>
+                            <option value="2.5 Claim Paid Confirmation" data-category="2">2.5 Claim Paid Confirmation</option>
+                            <option value="2.6 Forward Claim payment letter and tax documents" data-category="2">2.6 Forward Claim payment letter and tax documents</option>
+                            <option value="2.7 Claim Preservation Query" data-category="2">2.7 Claim Preservation Query</option>
+                            <option value="2.8 Claim ROT query" data-category="2">2.8 Claim ROT query</option>
+                            <option value="2.9 Claim Sec 14 query" data-category="2">2.9 Claim Sec 14 query</option>
+                            <option value="2.10 Claim Paid Up Query" data-category="2">2.10 Claim Paid Up Query</option>
+                            <option value="2.11 Emergency Two Pot Claim query" data-category="2">2.11 Emergency Two Pot Claim query</option>
+                            <option value="2.12 Retirement Claim query" data-category="2">2.12 Retirement Claim query</option>
+                            <option value="2.13 Retirement Claim preservation Query" data-category="2">2.13 Retirement Claim preservation Query</option>
+                            <option value="2.14 Retirement Claim Ill Health" data-category="2">2.14 Retirement Claim Ill Health</option>
+                            <option value="2.15 Claim Paid Up Submission" data-category="2">2.15 Claim Paid Up Submission</option>
+                            <option value="2.16 Paid Up claim finalised (paid)" data-category="2">2.16 Paid Up claim finalised (paid)</option>
+                            <option value="3.1 LPI Section 13A Letter" data-category="3">3.1 LPI Section 13A Letter</option>
+                            <option value="3.2 Section 13A Client Query" data-category="3">3.2 Section 13A Client Query</option>
+                            <option value="3.3 Section 13A Termination" data-category="3">3.3 Section 13A Termination</option>
+                            <option value="3.4 Section 13A Council Action " data-category="3">3.4 Section 13A Council Action </option>
+                            <option value="3.5 Section 13A Member Communication " data-category="3">3.5 Section 13A Member Communication </option>
+                            <option value="3.6 Section 13A CBC Action" data-category="3">3.6 Section 13A CBC Action</option>
+                            <option value="4.1 New Business Quote request" data-category="4">4.1 New Business Quote request</option>
+                            <option value="4.2 New Business COA and Accepted Quote submission" data-category="4">4.2 New Business COA and Accepted Quote submission</option>
+                            <option value="4.3 Welcome Email" data-category="4">4.3 Welcome Email</option>
+                            <option value="4.4 Starter Pack Email" data-category="4">4.4 Starter Pack Email</option>
+                            <option value="4.5 Starter Pack Meeting" data-category="4">4.5 Starter Pack Meeting</option>
+                            <option value="4.6 Implementation confirmation" data-category="4">4.6 Implementation confirmation</option>
+                            <option value="4.7 Employer Training" data-category="4">4.7 Employer Training</option>
+                            <option value="5.1 Amendment Documentation" data-category="5">5.1 Amendment Documentation</option>
+                            <option value="5.2 Amendment to Acceptances" data-category="5">5.2 Amendment to Acceptances</option>
+                            <option value="5.3 Outstanding Amendment Documents" data-category="5">5.3 Outstanding Amendment Documents</option>
+                            <option value="5.4 Amendment Handover" data-category="5">5.4 Amendment Handover</option>
+                            <option value="5.5 Amendment Rule to client broker" data-category="5">5.5 Amendment Rule to client broker</option>
+                            <option value="5.6 Amendment COP to client broker" data-category="5">5.6 Amendment COP to client broker</option>
+                            <option value="5.7 Amendment RFW (Broker/Employer/3rd Party)" data-category="5">5.7 Amendment RFW (Broker/Employer/3rd Party)</option>
+                            <option value="6.1 Termination Query" data-category="6">6.1 Termination Query</option>
+                            <option value="6.2 Termination Documentation Notice Letter" data-category="6">6.2 Termination Documentation Notice Letter</option>
+                            <option value="6.3 Termination Banking Details for refund" data-category="6">6.3 Termination Banking Details for refund</option>
+                            <option value="6.4 Termination Checklist" data-category="6">6.4 Termination Checklist</option>
+                            <option value="6.5 Termination Withdrawal Forms" data-category="6">6.5 Termination Withdrawal Forms</option>
+                            <option value="6.6 Council confirmation of termination" data-category="6">6.6 Council confirmation of termination</option>
+                            <option value="6.7 Member Termination Communication" data-category="6">6.7 Member Termination Communication</option>
+                            <option value="6.8 Section 14 Compulsory Form" data-category="6">6.8 Section 14 Compulsory Form</option>
+                            <option value="6.9 Section 14 Checklist" data-category="6">6.9 Section 14 Checklist</option>
+                            <option value="6.10 Termination Fee Recovery" data-category="6">6.10 Termination Fee Recovery</option>
+                            <option value="7.1 Section 14 Query" data-category="7">7.1 Section 14 Query</option>
+                            <option value="7.2 Section 14 Documentation" data-category="7">7.2 Section 14 Documentation</option>
+                            <option value="7.3 Section 14 Outstanding requirements" data-category="7">7.3 Section 14 Outstanding requirements</option>
+                            <option value="7.4 Section 14 Fund Query" data-category="7">7.4 Section 14 Fund Query</option>
+                            <option value="7.5 Section 14 Bank POP" data-category="7">7.5 Section 14 Bank POP</option>
+                            <option value="7.6 Section 14 Closure" data-category="7">7.6 Section 14 Closure</option>
+                            <option value="7.7 Section 14 Compulsory Form" data-category="7">7.7 Section 14 Compulsory Form</option>
+                            <option value="7.8 Section 14 Checklist" data-category="7">7.8 Section 14 Checklist</option>
+                            <option value="7.9 Section 14 Member and Employer communication" data-category="7">7.9 Section 14 Member and Employer communication</option>
+                            <option value="8.1 Termination Query" data-category="8">8.1 Termination Query</option>
+                            <option value="8.2 Termination Documentation Notice Letter" data-category="8">8.2 Termination Documentation Notice Letter</option>
+                            <option value="8.3 Termination Banking Details for refund" data-category="8">8.3 Termination Banking Details for refund</option>
+                            <option value="8.4 Termination Checklist" data-category="8">8.4 Termination Checklist</option>
+                            <option value="8.5 Termination Withdrawal Forms" data-category="8">8.5 Termination Withdrawal Forms</option>
+                            <option value="8.6 Council confirmation of termination" data-category="8">8.6 Council confirmation of termination</option>
+                            <option value="8.7 Member Termination Communication (Retrenchment)" data-category="8">8.7 Member Termination Communication (Retrenchment)</option>
+                            <option value="8.8 Section 27 Compulsory Form" data-category="8">8.8 Section 27 Compulsory Form</option>
+                            <option value="8.9 Termination Member and Employer communication" data-category="8">8.9 Termination Member and Employer communication</option>
+                            <option value="9.1 Complaint Detail Request" data-category="9">9.1 Complaint Detail Request</option>
+                            <option value="9.2 Complaint determination PFA" data-category="9">9.2 Complaint determination PFA</option>
+                            <option value="9.3 Member Complaint receipt and referral" data-category="9">9.3 Member Complaint receipt and referral</option>
+                            <option value="9.4 Employer Complaint receipt and referral" data-category="9">9.4 Employer Complaint receipt and referral</option>
+                            <option value="9.5 Complaint Claim Payment" data-category="9">9.5 Complaint Claim Payment</option>
+                            <option value="10.1 Employer Information Bulk Bank details" data-category="10">10.1 Employer Information Bulk Bank details</option>
+                            <option value="10.2 Employer Information Bulk Contact Details" data-category="10">10.2 Employer Information Bulk Contact Details</option>
+                            <option value="10.3 Employer information Bulk Tax Detail changes" data-category="10">10.3 Employer information Bulk Tax Detail changes</option>
+                            <option value="10.4 Training Employer Two Pot System changes" data-category="10">10.4 Training Employer Two Pot System changes</option>
+                            <option value="10.5 Training Broker Two Pot Changes to Online" data-category="10">10.5 Training Broker Two Pot Changes to Online</option>
+                            <option value="10.6 Claim forms process query" data-category="10">10.6 Claim forms process query</option>
+                            <option value="10.7 Two Pot Process Claim Paid reports " data-category="10">10.7 Two Pot Process Claim Paid reports </option>
+                            <option value="10.8 Two Pot Member Claim Query" data-category="10">10.8 Two Pot Member Claim Query</option>
+                            <option value="10.9  Two Pot Employer Query Reports for Qualifying Members" data-category="10">10.9  Two Pot Employer Query Reports for Qualifying Members</option>
+                            <option value="10.11 Two Pot Communication Employer Member Broker" data-category="10">10.11 Two Pot Communication Employer Member Broker</option>
+                            <option value="11.1 Council Report Back " data-category="11">11.1 Council Report Back </option>
+                            <option value="11.2 Broker Reports" data-category="11">11.2 Broker Reports</option>
+                            <option value="11.3 Employer Reports" data-category="11">11.3 Employer Reports</option>
+                            <option value="11.4 Sanlam Reports " data-category="11">11.4 Sanlam Reports </option>
+                            <option value="11.5 Member Benefit Statement Monthly Reports" data-category="11">11.5 Member Benefit Statement Monthly Reports</option>
+                            <option value="11.6 Termination Report Back - Liquidations" data-category="11">11.6 Termination Report Back - Liquidations</option>
+                            <option value="11.7 Termination Report Back Clean Up Projects" data-category="11">11.7 Termination Report Back Clean Up Projects</option>
+                            <option value="11.8 Termination Report Back Dormant/Zero Members 2019 - 2024" data-category="11">11.8 Termination Report Back Dormant/Zero Members 2019 - 2024</option>
+                            <option value="12.1 Broker Investigation Letter" data-category="12">12.1 Broker Investigation Letter</option>
+                            <option value="12.2 Broker Data and report Back Investigation Letter" data-category="12">12.2 Broker Data and report Back Investigation Letter</option>
+                            <option value="12.3 Broker Client Reports for Claims Experience (Risk)" data-category="12">12.3 Broker Client Reports for Claims Experience (Risk)</option>
+                            <option value="12.4 Broker Reports for Member Data, Underwriting and Claims Unresolved" data-category="12">12.4 Broker Reports for Member Data, Underwriting and Claims Unresolved</option>
+                            <option value="13.1 Underwriting Queries" data-category="13">13.1 Underwriting Queries</option>
+                            <option value="13.2 Death Claims Query" data-category="13">13.2 Death Claims Query</option>
+                            <option value="13.3 Funeral Claim Queries and notifications" data-category="13">13.3 Funeral Claim Queries and notifications</option>
+                            <option value="13.4 Funeral Claim Outstanding Documents" data-category="13">13.4 Funeral Claim Outstanding Documents</option>
+                            <option value="13.5 Death Claim Outstanding Documents" data-category="13">13.5 Death Claim Outstanding Documents</option>
+                            <option value="13.6 Death Claim Beneficiary Fund Queries" data-category="13">13.6 Death Claim Beneficiary Fund Queries</option>
+                            <option value="13.7 Death Claim Distribution Approval to PE and Broker" data-category="13">13.7 Death Claim Distribution Approval to PE and Broker</option>
+                            <option value="13.8 AGRI Paid Up Funeral Claims" data-category="13">13.8 AGRI Paid Up Funeral Claims</option>
+                            <option value="13.9 AGRI Paid Up Certificate Requests SGR" data-category="13">13.9 AGRI Paid Up Certificate Requests SGR</option>
+                            <option value="13.10 Repatriation Assistance to PE Family Broker" data-category="13">13.10 Repatriation Assistance to PE Family Broker</option>
+                            <option value="13.11 Funeral Claim Submission" data-category="13">13.11 Funeral Claim Submission</option>
+                            <option value="13.12 Disability Query" data-category="13">13.12 Disability Query</option>
+                            <option value="13.13 Disability Application Submission" data-category="13">13.13 Disability Application Submission</option>
+                            <option value="13.14 Disability Outstanding Reports" data-category="13">13.14 Disability Outstanding Reports</option>
+                            <option value="13.15 Disability Approval" data-category="13">13.15 Disability Approval</option>
+                            <option value="13.16 Disability Declined" data-category="13">13.16 Disability Declined</option>
+                            <option value="14.1 Bulk SMS to Members for documents, tax numbers" data-category="14">14.1 Bulk SMS to Members for documents, tax numbers</option>
+                            <option value="14.2 Investment Reports for Brokers" data-category="14">14.2 Investment Reports for Brokers</option>
+                            <option value="14.3 Joint Forum Client Reports for PE and CBC" data-category="14">14.3 Joint Forum Client Reports for PE and CBC</option>
+                            <option value="14.4 Divorce Orders - submission flagging" data-category="14">14.4 Divorce Orders - submission flagging</option>
+                            <option value="14.5 Amendment to Member Guides - benefit changes" data-category="14">14.5 Amendment to Member Guides - benefit changes</option>
+                            <option value="14.7 Maintenance Orders - submission flagging " data-category="14">14.7 Maintenance Orders - submission flagging </option>
+                            <option value="14.8 Divorce order claim forms non member spouse" data-category="14">14.8 Divorce order claim forms non member spouse</option>
+                            <option value="14.9 Annual Rate Revision Data Preparation" data-category="14">14.9 Annual Rate Revision Data Preparation</option>
+                            <option value="14.10 Annual Rate Revision Amendments (AGR/Council etc)" data-category="14">14.10 Annual Rate Revision Amendments (AGR/Council etc)</option>
+                            <option value="14.11 Annual Rate Revision Distribution - PE Broker" data-category="14">14.11 Annual Rate Revision Distribution - PE Broker</option>
+                            <option value="14.12 Global List Monthly Checks and Amendments" data-category="14">14.12 Global List Monthly Checks and Amendments</option>
+                            <option value="14.13 0101 Account Monthly Checks and Action" data-category="14">14.13 0101 Account Monthly Checks and Action</option>
+                            <option value="14.14 Benefit Statement Query (member/employer)" data-category="14">14.14 Benefit Statement Query (member/employer)</option>
+                            <option value="14.15 Bulk Benefit Statements (employer/member) ad-hoc" data-category="14">14.15 Bulk Benefit Statements (employer/member) ad-hoc</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Communication Method:</label>
+                        <select name="email_method" class="form-control">
+                            <option value="Email" {% if task.method == 'Email' %}selected{% endif %}>Email</option>
+                            <option value="Call" {% if task.method == 'Call' %}selected{% endif %}>Call</option>
+                            <option value="In Person" {% if task.method == 'In Person' %}selected{% endif %}>In Person</option>
+                        </select>
+                    </div>
+                    <div>
+                        <button type="submit" class="custom-btn btn-update"><i class="fas fa-save"></i> Update Info</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="main-grid">
+        
+        <div class="left-column">
+            <div class="custom-card">
+                <div class="card-header-primary">
+                    <i class="fas fa-envelope-open"></i> Original Message Detail
+                </div>
+                <div class="card-body-content">
+                    <div style="border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px;">
+                        <small>From: <strong>{{ task.sender_email|default:task.sender }}</strong></small><br>
+                        <small>Received: {{ task.received_timestamp|date:"Y-m-d H:i" }}</small>
+                    </div>
+                    
+                    {# --- DIRECT EMAIL RENDERING (Fixes iframe issue) --- #}
+                    <div style="background: #f9f9f9; border: 1px solid #ddd; padding: 15px; max-height: 550px; overflow-y: auto; border-radius: 4px;">
+                        {% if task.email_body_html %}
+                            {{ task.email_body_html|safe }}
+                        {% else %}
+                            <pre style="white-space: pre-wrap; font-family: sans-serif; font-size: 13px;">{{ task.snippet|default:"No content available." }}</pre>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            {% if task.status != 'Recycled' %}
+            <div class="custom-card">
+                <button class="collapse-toggle" type="button" data-target="#collapseEmail">
+                    <span><i class="fas fa-paper-plane"></i> Send Response Email</span>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </button>
+                <div class="collapse-content" id="collapseEmail">
+                    <form method="POST" action="{% url 'send_task_email' email_id=task.email_id %}" id="email_response_form" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <input type="hidden" name="action_type" value="send_email">
+                        
+                        {# --- CRITICAL FIX: HIDDEN INPUT FOR BODY --- #}
+                        <input type="hidden" name="email_body_reply" id="email_body_reply_hidden">
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div>
+                                <label class="form-label">Recipient:</label>
+                                <input type="email" name="recipient_email" value="{{ task.sender_email }}" class="form-control" required>
+                            </div>
+                            <div>
+                                <label class="form-label">Action Log Type:</label>
+                                <select name="action_notes_email" class="form-control">
+                                    <option value="Feedback to Member">Feedback to Member</option>
+                                    <option value="Feedback to Employer">Feedback to Employer</option>
+                                    <option value="Enquiry to Sanlam">Enquiry to Sanlam</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        {# --- AUTO-NUMBERING SUBJECT LINE --- #}
+                        <div>
+                            <label class="form-label">Subject:</label>
+                            <input type="text" id="email_subject_reply" name="email_subject_reply" 
+                                   value="RE: {{ task.subject|slice:'0:40' }}..." class="form-control" required>
+                            <small style="color: #777; font-size: 11px;">
+                                **Reference:** <span id="display_unique_ref">{{ task.member_group_code|default:"NO_REF" }}</span>
+                            </small>
+                        </div>
+                        
+                        <label class="form-label">Email Body:</label>
+                        <div id="email_editor" style="min-height: 200px; border: 1px solid #ccc; padding: 10px; border-radius: 4px;" contenteditable="true">
+                            <p>Dear Client,</p><br><p>[Your message here]</p>
+                        </div>
+                        
+                        <button type="submit" class="custom-btn btn-primary" style="width: 100%; margin-top: 15px;">
+                            <i class="fas fa-send"></i> Send Email & Log Action
+                        </button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="right-column">
+            <div class="custom-card">
+                <div class="card-header-dark">
+                    <i class="fas fa-history"></i> Task Audit Log
+                </div>
+                <div class="card-body-content">
+                    <div class="notes-history-container">
+                        {% for action in action_history %}
+                        <div class="note-item">
+                            <small><strong>{{ action.action_user }}</strong> | {{ action.action_type }}</small>
+                            <p style="margin: 5px 0;">{{ action.note_content|truncatewords:50 }}</p>
+                            <small style="color: #999;">{{ action.action_timestamp|date:"Y-m-d H:i:s" }}</small>
+                        </div>
+                        {% empty %}
+                        <p style="text-align: center; color: #999;">No actions recorded.</p>
+                        {% endfor %}
+                    </div>
+
+                    <button class="collapse-toggle" style="border-bottom-color: #28a745; margin-top: 15px;" data-target="#collapseNote">
+                        <span><i class="fas fa-plus-circle"></i> Add Note</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <div class="collapse-content" id="collapseNote">
+                        <form method="POST">
+                            {% csrf_token %}
+                            <input type="hidden" name="action_type" value="add_note">
+                            <label class="form-label">Note Content:</label>
+                            <textarea name="internal_note" class="form-control" required></textarea>
+                            <button type="submit" class="custom-btn btn-success">Save Note</button>
+                        </form>
+                    </div>
+
+                    {% if task.status != 'Recycled' %}
+                    <button class="collapse-toggle" style="border-bottom-color: #2e7d32; margin-top: 15px;" data-target="#collapseFinal">
+                        <span><i class="fas fa-check-circle"></i> Finalize Task</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <div class="collapse-content" id="collapseFinal">
+                        <form method="POST">
+                            {% csrf_token %}
+                            <input type="hidden" name="action_type" value="complete">
+                            <label class="form-label">Resolution Summary:</label>
+                            <textarea name="completion_notes" class="form-control" placeholder="Briefly explain the outcome..."></textarea>
+                            <button type="submit" class="custom-btn btn-success" style="background:#2e7d32;">Complete Task</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <a href="{% url 'tasks' %}" class="custom-btn" style="width: 100%; border: 1px solid #333; color: #333;">
+                <i class="fas fa-arrow-left"></i> Back to Task List
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+    const CATEGORY_MAP = [
+        { value: '1', label: '1. Reconciliation' },
+        { value: '2', label: '2. Claim' },
+        { value: '3', label: '3. Section 13A' },
+        { value: '4', label: '4. New Business' },
+        { value: '5', label: '5. Amendments' },
+        { value: '6', label: '6. Section 28' },
+        { value: '7', label: '7. Section 14' },
+        { value: '8', label: '8. Section 27' },
+        { value: '9', label: '9. Complaints' },
+        { value: '10', label: '10. Two Pot' },
+        { value: '11', label: '11. Report Back' },
+        { value: '12', label: '12. Broker Investigations' },
+        { value: '13', label: '13. General' },
+        { value: '14', label: '14. Other' }
+    ];
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const catSelect = document.getElementById('email_category');
+        const typeSelect = document.getElementById('email_type');
+        const typeOptions = typeSelect.querySelectorAll('option');
+        const subjectInput = document.getElementById('email_subject_reply');
+        
+        // Database values
+        const currentCategory = "{{ task.category }}";
+        const currentType = "{{ task.type }}";
+        const uniqueRef = "{{ task.member_group_code|default:'' }}";
+
+        // Populate Categories
+        CATEGORY_MAP.forEach(cat => {
+            let opt = document.createElement('option');
+            opt.value = cat.value;
+            opt.textContent = cat.label;
+            if (cat.value === currentCategory) opt.selected = true;
+            catSelect.appendChild(opt);
+        });
+
+        // Combined Filter and Auto-Pickup Logic
+        function updateEnquirySelection(isInitialLoad = false) {
+            const selectedVal = catSelect.value;
+            
+            typeOptions.forEach(opt => {
+                const optCat = opt.getAttribute('data-category');
+                
+                // Determine visibility
+                if (optCat === selectedVal || optCat === 'none') {
+                    opt.classList.remove('hidden');
+                    opt.disabled = false;
+                    
+                    // AUTO-PICKUP: If loading the page, select the matching type from DB
+                    if (isInitialLoad && opt.value === currentType) {
+                        opt.selected = true;
+                    }
+                } else {
+                    opt.classList.add('hidden');
+                    opt.disabled = true;
+                }
+            });
+
+            // Reset type if user manually changes category to something new
+            if (!isInitialLoad && selectedVal !== currentCategory) {
+                typeSelect.value = "";
+            }
+        }
+
+        catSelect.addEventListener('change', () => updateEnquirySelection(false));
+        
+        // Run on load with auto-pickup enabled
+        updateEnquirySelection(true); 
+
+        // Auto-numbering reference for subject
+        if (subjectInput && uniqueRef && !subjectInput.value.includes(uniqueRef)) {
+            subjectInput.value = `[${uniqueRef}] ${subjectInput.value}`;
+        }
+
+        // Collapsible Logic
+        document.querySelectorAll('.collapse-toggle').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const target = document.querySelector(this.getAttribute('data-target'));
+                target.classList.toggle('show');
+                this.setAttribute('aria-expanded', target.classList.contains('show'));
+            });
+        });
+
+        // --- CRITICAL FIX: SYNC CONTENTEDITABLE TO HIDDEN INPUT ---
+        const emailForm = document.getElementById('email_response_form');
+        const emailEditor = document.getElementById('email_editor');
+        const hiddenBodyInput = document.getElementById('email_body_reply_hidden');
+
+        if (emailForm && emailEditor && hiddenBodyInput) {
+            emailForm.addEventListener('submit', function(e) {
+                const content = emailEditor.innerHTML.trim();
+                
+                if (content === "" || content === "<p><br></p>" || content === "<p>Dear Client,</p><br><p>[Your message here]</p>") {
+                    alert("Email body cannot be empty. Please enter your response message.");
+                    e.preventDefault();
+                    return false;
+                }
+
+                hiddenBodyInput.value = content;
+            });
+        }
+    });
+</script>
+</body>
+</html>

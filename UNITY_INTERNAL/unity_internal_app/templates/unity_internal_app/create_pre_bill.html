@@ -1,0 +1,139 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Create New Pre-Bill</title>
+<style>
+/* ... (Your original CSS is here) ... */
+body {
+    font-family: sans-serif;
+    background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
+    margin: 20px;
+    color: #333;
+}
+.container {
+    max-width: 700px;
+    margin: 2em auto;
+    padding: 30px;
+    background-color: #f0fff0;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+h2 { color: #1b5e20; border-bottom: 2px solid #aed581; padding-bottom: 10px; margin-bottom: 20px; }
+.form-group {
+    margin-bottom: 15px;
+}
+label {
+    display: block;
+    font-weight: bold;
+    color: #1b5e20;
+    margin-bottom: 5px;
+}
+input[type="text"], input[type="number"], input[type="date"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #aed581;
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-size: 1em;
+}
+.submit-button, .return-button {
+    padding: 10px 20px;
+    background-color: #43a047;
+    border: none;
+    border-radius: 5px;
+    color: white;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    text-decoration: none;
+    display: inline-block;
+}
+.return-button {
+    background-color: #81c784;
+    margin-right: 10px;
+}
+.submit-button:hover, .return-button:hover {
+    background-color: #388e3c;
+}
+.button-row {
+    margin-top: 20px;
+    display: flex;
+    justify-content: flex-start;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h2>➕ Create New Pre-Bill for {{ company_name }} ({{ company_code }})</h2>
+    
+    {% if messages %}
+        {% for message in messages %}
+            <p style="color: red;">{{ message }}</p>
+        {% endfor %}
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        
+        {# Hidden fields for C_Company_Code and D_Company_Name #}
+        {{ form.C_Company_Code }}
+        {{ form.D_Company_Name }}
+        
+        <div class="form-group">
+            <label>Company Code (Read-only)</label>
+            <input type="text" value="{{ form.C_Company_Code.value }}" readonly>
+        </div>
+
+        {% for field in form %}
+            
+            {% if field.name == 'A_CCDatesMonth' %}
+                <div class="form-group">
+                    {{ field.label_tag }}
+                    {{ field }}
+                    <small class="form-text text-muted">**CRITICAL**: This date determines which reconciled transactions are included in the calculated debt for this bill.</small>
+                    {% if field.errors %}
+                        <small style="color: red;">{{ field.errors }}</small>
+                    {% endif %}
+                </div>
+
+            {% elif field.name == 'H_Schedule_Amount' %}
+                <div class="form-group">
+                    {{ field.label_tag }}
+                    {{ field }}
+                    <small class="form-text text-muted">
+                        Pre-filled with calculated debt based on the **Bill Date** above. **Can be edited.**
+                        (Calculated Debt: R{{ calculated_debt_for_prefill|floatformat:2 }})
+                    </small>
+                    {% if field.errors %}
+                        <small style="color: red;">{{ field.errors }}</small>
+                    {% endif %}
+                </div>
+            
+            {% elif field.name != 'C_Company_Code' and field.name != 'D_Company_Name' %}
+                <div class="form-group">
+                    {{ field.label_tag }}
+                    {{ field }}
+                    {% if field.errors %}
+                        <small style="color: red;">{{ field.errors }}</small>
+                    {% endif %}
+                </div>
+            {% endif %}
+        {% endfor %}
+
+        <div class="button-row">
+            <a href="{% url 'unity_information' company_code=company_code %}" class="return-button">
+                ← Cancel and Back
+            </a>
+            <button type="submit" class="submit-button">Save Pre-Bill Record</button>
+        </div>
+    </form>
+
+</div>
+
+</body>
+</html>

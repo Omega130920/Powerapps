@@ -1,0 +1,186 @@
+{% load static %}
+
+{% block title %}Recycle Bin | TSRF Recon{% endblock %}
+
+{% block content %}
+<style>
+    body {
+        font-family: sans-serif;
+        background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+        min-height: 100vh;
+        padding: 20px;
+        box-sizing: border-box;
+    }
+
+    .log-container {
+        width: 100%;
+        max-width: 1300px;
+        margin: 40px auto;
+        padding: 30px;
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    .log-header {
+        border-bottom: 2px solid #aed581;
+        padding-bottom: 15px;
+        margin-bottom: 25px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .log-header h1 { margin: 0; color: #d32f2f; }
+
+    .task-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    .task-table th {
+        background-color: #f8f9fa;
+        border-bottom: 2px solid #aed581;
+        padding: 12px 15px;
+        text-align: left;
+        color: #333;
+        text-transform: uppercase;
+        font-size: 13px;
+    }
+
+    .task-table td { padding: 12px 15px; border-bottom: 1px solid #eee; font-size: 14px; }
+    .task-table tr.data-row:hover { background-color: #fff5f5; cursor: pointer; }
+
+    #search_input { padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; width: 250px; }
+
+    .btn-delete-selected {
+        padding: 8px 15px; background-color: #d32f2f; color: white; border: none; 
+        border-radius: 4px; cursor: pointer; font-size: 14px; transition: background 0.3s;
+    }
+
+    .btn-delete-selected:disabled { background-color: #ef9a9a; cursor: not-allowed; }
+
+    /* Updated Style for the View/Action button */
+    .btn-action {
+        background-color: #e3f2fd; 
+        color: #0d47a1; 
+        padding: 6px 12px; 
+        border-radius: 4px; 
+        text-decoration: none; 
+        font-weight: bold; 
+        font-size: 12px;
+        border: 1px solid #bbdefb;
+    }
+    .btn-action:hover { background-color: #0d47a1; color: white; }
+
+    .return-button {
+        padding: 10px 20px; background-color: #757575; border-radius: 5px; 
+        text-decoration: none; color: white; font-weight: 500; margin-right: 10px;
+    }
+</style>
+
+<div class="log-container">
+    <div class="log-header">
+        <h1>🗑️ Internal Recycle Bin</h1>
+        <div style="display: flex; gap: 15px; align-items: center;">
+            <input type="text" id="search_input" placeholder="🔍 Search archived items...">
+            <form method="POST" action="{% url 'outlook_delete_permanent' %}" id="delete_form">
+                {% csrf_token %}
+                <button type="submit" id="delete_btn" class="btn-delete-selected" disabled>
+                    🗑️ Delete Selected
+                </button>
+            </form>
+        </div>
+    </div>
+    
+    {% if recycled_tasks %}
+    <table class="task-table" id="bin_table">
+        <thead>
+            <tr>
+                <th style="width: 40px;"><input type="checkbox" id="select_all"></th>
+                <th style="width: 35%;">Subject / Email ID</th>
+                <th>Company Code</th>
+                <th>Classification</th>
+                <th style="text-align: center;">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="table_body">
+            {% for task in recycled_tasks %}
+            <tr class="data-row" onclick="window.location.href='{% url 'outlook_delegated_action' delegation_id=task.db_id %}';">
+                <td onclick="event.stopPropagation();">
+                    <input type="checkbox" name="email_ids" value="{{ task.email_id }}" form="delete_form" class="delete-checkbox">
+                </td>
+                
+                <td>
+                    <strong>{{ task.subject|default:"(No Subject)" }}</strong><br>
+                    <small style="color: #888;">ID: {{ task.email_id|truncatechars:20 }} | Received: {{ task.received_at|date:"d M Y H:i" }}</small>
+                </td>
+
+                <td>{{ task.company_code|default:"N/A" }}</td>
+                <td>{{ task.email_category|default:"Non-work related" }}</td>
+
+                <td style="text-align: center;" onclick="event.stopPropagation();">
+                    {# MODIFIED: Now links to the action page for review/restoration #}
+                    <a href="{% url 'outlook_delegated_action' delegation_id=task.db_id %}" class="btn-action">
+                        👁️ View & Action
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="text-align: center; padding: 50px;">
+        <p style="font-size: 1.2em; color: #666;">🎉 The Recycle Bin is currently empty.</p>
+    </div>
+    {% endif %}
+
+    <div style="margin-top: 20px;">
+        <a href="{% url 'dashboard' %}" class="return-button">Dashboard</a>
+        <a href="{% url 'outlook_dashboard' %}" class="return-button" style="background-color: #81c784;">Outlook Inbox</a>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const selectAll = document.getElementById('select_all');
+        const checkboxes = document.querySelectorAll('.delete-checkbox');
+        const deleteBtn = document.getElementById('delete_btn');
+        const searchInput = document.getElementById('search_input');
+        const rows = document.querySelectorAll('.data-row');
+
+        // Search Logic
+        if (searchInput) {
+            searchInput.addEventListener('keyup', function() {
+                const query = searchInput.value.toLowerCase();
+                rows.forEach(row => {
+                    const text = row.innerText.toLowerCase();
+                    row.style.display = text.includes(query) ? '' : 'none';
+                });
+            });
+        }
+
+        // Multi-select Logic
+        if(selectAll) {
+            selectAll.addEventListener('change', function() {
+                checkboxes.forEach(cb => {
+                    if (cb.closest('tr').style.display !== 'none') {
+                        cb.checked = selectAll.checked;
+                    }
+                });
+                toggleDeleteBtn();
+            });
+        }
+
+        checkboxes.forEach(cb => {
+            cb.addEventListener('change', toggleDeleteBtn);
+        });
+
+        function toggleDeleteBtn() {
+            const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+            deleteBtn.disabled = checkedCount === 0;
+            if (checkedCount > 0) {
+                deleteBtn.innerHTML = `🗑️ Delete Selected (${checkedCount})`;
+            } else {
+                deleteBtn.innerHTML = `🗑️ Delete Selected`;
+            }
+        }
+    });
+</script>
+{% endblock %}

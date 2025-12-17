@@ -1,0 +1,209 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Billing History for {{ company_name }}</title>
+<style>
+/* ... (Your original CSS is here) ... */
+body{
+font-family: sans-serif;
+background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
+margin: 20px;
+color: #333;
+line-height: 1.6;
+}
+h1{
+color: #1b5e20;
+text-align: center;
+margin-bottom: 30px;
+font-size: 2.5em;
+}
+h2 { /* Styling for the h2 inside the container */
+    color: #1b5e20;
+    margin-bottom: 15px;
+    font-size: 1.5em;
+}
+p { /* Styling for the paragraph below h2 */
+    margin-bottom: 20px;
+}
+.container{
+max-width: 95%;
+margin: 2em auto;
+padding: 1em;
+}
+.return-button{
+display: inline-block;
+padding: 10px 20px;
+margin-bottom: 20px;
+background-color: #81c784;
+border: 1px solid #81c784;
+border-radius: 5px;
+text-decoration: none;
+color: white;
+cursor: pointer;
+transition: background-color 0.3s ease;
+}
+.return-button:hover{
+background-color: #66bb6a;
+}
+table{
+width: 100%;
+border-collapse: collapse;
+box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+border-radius: 5px;
+overflow: hidden;
+background-color: #f0fff0;
+border: 1px solid #c3e6cb;
+margin-bottom: 20px;
+font-size: 0.9em;
+}
+thead th{
+background-color: #43a047;
+color: white;
+padding: 12px;
+text-align: left;
+font-weight: bold;
+border-bottom: 2px solid #388e3c;
+white-space: nowrap;
+border-right: 1px solid #388e3c;
+}
+thead th:last-child{
+border-right: none;
+}
+tbody td{
+padding: 10px 12px;
+border-bottom: 1px solid #aed581;
+border-right: 1px solid #aed581;
+}
+tbody td:last-child{
+border-right: none;
+}
+tbody tr:nth-child(even){
+background-color: #e6ffe6;
+}
+/* Add a pointer cursor to indicate the row is clickable */
+tbody tr{
+cursor: auto; 
+}
+tbody tr:hover{
+background-color: #ccffcc;
+}
+.controls-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: #e6ffe6;
+    border: 1px solid #c3e6cb;
+    border-radius: 5px;
+}
+.search-input {
+    width: 100%;
+    padding: 10px;
+    box-sizing: border-box;
+    border: 1px solid #aed581;
+    border-radius: 4px;
+    font-size: 1em;
+}
+.filters-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    min-width: 150px;
+}
+.filter-group label {
+    font-weight: bold;
+    color: #1b5e20;
+    font-size: 0.85em;
+    margin-bottom: 5px;
+}
+.filter-group select {
+    padding: 8px;
+    border: 1px solid #aed581;
+    border-radius: 4px;
+    background-color: white;
+}
+.action-button { /* Custom style for the View Pre-Bill Summary button */
+    padding: 6px 10px;
+    background-color: #3f51b5; /* A distinct color for the action */
+    border: 1px solid #3f51b5;
+    border-radius: 4px;
+    text-decoration: none;
+    color: white;
+    transition: background-color 0.3s ease;
+    font-size: 0.9em;
+    white-space: nowrap;
+    display: inline-block;
+}
+.action-button:hover {
+    background-color: #303f9f;
+}
+.info-message {
+    padding: 15px;
+    background-color: #f0f8ff;
+    border: 1px solid #bce8f1;
+    color: #31708f;
+    border-radius: 4px;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Billing History for {{ company_name }} ({{ company_code }})</h2>
+    <p>Viewing all historical billing records from the **UnityBill** data source.</p>
+    
+    <a href="{% url 'unity_information' company_code=company_code %}" class="return-button">
+        ← Back to Company Information
+    </a>
+
+    {% if billing_records %}
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Bill Date (ID)</th>
+                        <th>Active Members</th>
+                        <th>Schedule Amount</th>
+                        <th>**Pre-Bill Action**</th>
+                        <th>Fund Code</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in billing_records %}
+                    <tr>
+                        <td>{{ record.A_CCDatesMonth|date:"Y-m-d" }}</td> 
+                        <td>{{ record.E_Active_Members }}</td>
+                        <td>R {{ record.H_Schedule_Amount|default:"0.00" }}</td>
+                        
+                        <td>
+                            {# FIX: Use bill_id=record.id for unique lookup #}
+                            <a href="{% url 'pre_bill_reconciliation_summary' company_code=record.C_Company_Code bill_id=record.id %}" class="action-button">
+                                View Pre-Bill Summary
+                            </a>
+                        </td>
+
+                        <td>{{ record.B_Fund_Code }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="info-message">
+            No billing records found for this Company Code.
+        </div>
+    {% endif %}
+
+</div>
+
+</body>
+</html>

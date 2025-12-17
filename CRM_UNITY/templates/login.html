@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <style>
+/* -------------------------------------- */
+/* NEON FONT & SVG ANIMATION STYLES */
+/* -------------------------------------- */
+
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@900&display=swap');
+
+.svg-header {
+    margin-bottom: 20px;
+    display: flex; 
+    justify-content: center;
+}
+
+.svg-header svg {
+    width: 90%; 
+    max-width: 300px;
+    height: auto;
+    overflow: visible;
+}
+
+.text-fill {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 36px;
+    font-weight: 900; 
+    fill: #333; 
+    stroke: none;
+    user-select: none;
+}
+
+.text-outline {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 36px;
+    font-weight: 900;
+    fill: none; 
+    stroke: #66bb6a; 
+    stroke-width: 2px;
+    stroke-dasharray: 1200; 
+    stroke-dashoffset: 1200; 
+    animation: draw-line 3s ease-in-out infinite;
+}
+
+@keyframes draw-line {
+    0% {
+        stroke-dashoffset: 1200; 
+    }
+    50% {
+        stroke-dashoffset: 0; 
+    }
+    100% {
+        stroke-dashoffset: -1200; 
+    }
+}
+
+/* -------------------------------------- */
+/* ANIMATED BACKGROUND STYLES (MODIFIED) */
+/* -------------------------------------- */
+.animated-background {
+    position: fixed; /* Fixes it to the viewport */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(to bottom, #d1e2c4, #d1e2c4); /* Your original background */
+    overflow: hidden; /* Important to clip dots when they move out */
+    z-index: -1; /* Ensures it's behind other content */
+}
+
+.circle {
+    position: absolute;
+    background-color: rgba(255, 255, 255, 0.4); /* Default translucent white */
+    border-radius: 50%;
+    opacity: 0; /* Hidden initially */
+    /* Animation time increased to 25s for slower, wider movement */
+    animation: move-circle 25s linear infinite; 
+}
+
+/* Specific colors, sizes, and delays for all 20 circles (expanded) */
+/* Group 1 (1-10) - uses existing colors and new delays */
+.circle:nth-child(1) { width: 40px; height: 40px; background-color: rgba(255, 192, 203, 0.5); animation-delay: 0s; } /* Pink */
+.circle:nth-child(2) { width: 60px; height: 60px; background-color: rgba(255, 255, 0, 0.5); animation-delay: 1.2s; } /* Yellow */
+.circle:nth-child(3) { width: 30px; height: 30px; background-color: rgba(0, 255, 255, 0.5); animation-delay: 2.4s; } /* Cyan */
+.circle:nth-child(4) { width: 50px; height: 50px; background-color: rgba(128, 0, 128, 0.5); animation-delay: 3.6s; } /* Purple */
+.circle:nth-child(5) { width: 70px; height: 70px; background-color: rgba(0, 128, 0, 0.5); animation-delay: 4.8s; } /* Green */
+.circle:nth-child(6) { width: 45px; height: 45px; background-color: rgba(255, 165, 0, 0.5); animation-delay: 6s; } /* Orange */
+.circle:nth-child(7) { width: 55px; height: 55px; background-color: rgba(70, 130, 180, 0.5); animation-delay: 7.2s; } /* SteelBlue */
+.circle:nth-child(8) { width: 65px; height: 65px; background-color: rgba(255, 0, 0, 0.5); animation-delay: 8.4s; } /* Red */
+.circle:nth-child(9) { width: 35px; height: 35px; background-color: rgba(0, 0, 255, 0.5); animation-delay: 9.6s; } /* Blue */
+.circle:nth-child(10) { width: 80px; height: 80px; background-color: rgba(255, 20, 147, 0.5); animation-delay: 10.8s; } /* DeepPink */
+
+/* Group 2 (11-20) - new colors/sizes to vary the look */
+.circle:nth-child(11) { width: 25px; height: 25px; background-color: rgba(200, 200, 200, 0.6); animation-delay: 12s; } /* Light Grey */
+.circle:nth-child(12) { width: 75px; height: 75px; background-color: rgba(135, 206, 250, 0.5); animation-delay: 13.2s; } /* Light Sky Blue */
+.circle:nth-child(13) { width: 50px; height: 50px; background-color: rgba(255, 99, 71, 0.5); animation-delay: 14.4s; } /* Tomato */
+.circle:nth-child(14) { width: 30px; height: 30px; background-color: rgba(173, 255, 47, 0.6); animation-delay: 15.6s; } /* Green Yellow */
+.circle:nth-child(15) { width: 60px; height: 60px; background-color: rgba(218, 112, 214, 0.5); animation-delay: 16.8s; } /* Orchid */
+.circle:nth-child(16) { width: 40px; height: 40px; background-color: rgba(0, 0, 0, 0.4); animation-delay: 18s; } /* Black (Semi-transparent) */
+.circle:nth-child(17) { width: 55px; height: 55px; background-color: rgba(184, 134, 11, 0.5); animation-delay: 19.2s; } /* Dark Goldenrod */
+.circle:nth-child(18) { width: 70px; height: 70px; background-color: rgba(152, 251, 152, 0.5); animation-delay: 20.4s; } /* Pale Green */
+.circle:nth-child(19) { width: 35px; height: 35px; background-color: rgba(255, 228, 196, 0.6); animation-delay: 21.6s; } /* Bisque */
+.circle:nth-child(20) { width: 45px; height: 45px; background-color: rgba(100, 149, 237, 0.5); animation-delay: 22.8s; } /* Cornflower Blue */
+
+
+/* Keyframes for movement (Modified for full-page coverage) */
+@keyframes move-circle {
+    0% {
+        /* Start from top-left, off-screen */
+        transform: translate(-10vw, -10vh) scale(0.5);
+        opacity: 0;
+    }
+    10% {
+        transform: translate(10vw, 90vh) scale(1.2);
+        opacity: 0.8;
+    }
+    20% {
+        transform: translate(20vw, 10vh) scale(0.7);
+        opacity: 0.6;
+    }
+    30% {
+        transform: translate(30vw, 80vh) scale(1.0);
+        opacity: 0.9;
+    }
+    40% {
+        transform: translate(40vw, 20vh) scale(0.8);
+        opacity: 0.7;
+    }
+    50% {
+        /* Center point, but wide */
+        transform: translate(50vw, 70vh) scale(1.1);
+        opacity: 0.95;
+    }
+    60% {
+        transform: translate(60vw, 30vh) scale(0.6);
+        opacity: 0.5;
+    }
+    70% {
+        transform: translate(70vw, 90vh) scale(1.0);
+        opacity: 0.8;
+    }
+    80% {
+        transform: translate(80vw, 20vh) scale(0.7);
+        opacity: 0.6;
+    }
+    90% {
+        transform: translate(90vw, 80vh) scale(1.1);
+        opacity: 0.9;
+    }
+    100% {
+        /* End at bottom-right, off-screen */
+        transform: translate(110vw, -10vh) scale(0.5);
+        opacity: 0;
+    }
+}
+
+
+/* -------------------------------------- */
+/* EXISTING STYLES */
+/* -------------------------------------- */
+body {
+    font-family: sans-serif;
+    /* Background now handled by .animated-background */
+    margin: 0;
+    color: #333;
+    line-height: 1.6;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    /* Ensure body content is above the animated background */
+    position: relative; 
+    z-index: 0; 
+}
+.login-container {
+    background: #f0fff0;
+    padding: 2em;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    border: 1px solid #c3e6cb;
+    text-align: center;
+}
+.errorlist {
+    color: red;
+    list-style-type: none;
+    padding: 0;
+    margin-bottom: 1em;
+    text-align: left;
+}
+.form-row {
+    margin-bottom: 1em;
+}
+label {
+    display: block;
+    margin-bottom: 0.5em;
+    font-weight: bold;
+    text-align: left;
+}
+input {
+    width: 100%;
+    padding: 0.5em;
+    border: 1px solid #aed581;
+    border-radius: 4px;
+    box-sizing: border-box;
+}
+button {
+    width: 100%;
+    padding: 0.75em;
+    background-color: #81c784;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+button:hover {
+    background-color: #66bb6a;
+}
+    </style>
+</head>
+<body>
+<div class="animated-background">
+    <div class="circle"></div>
+    <div class="circle"></div>
+    <div class="circle"></div>
+    <div class="circle"></div>
+    <div class="circle"></div>
+    <div class="circle"></div>
+    <div class="circle"></div>
+    <div class="circle"></div>
+    <div class="circle"></div>
+    <div class="circle"></div>
+    <div class="circle"></div>
+    <div class="circle"></div>
+    <div class="circle"></div>
+    <div class="circle"></div>
+    <div class="circle"></div>
+    <div class="circle"></div>
+    <div class="circle"></div>
+    <div class="circle"></div>
+    <div class="circle"></div>
+    <div class="circle"></div>
+</div>
+
+<div class="login-container">
+<h2>CRM UNITY Login</h2>
+<form method="post">
+{% csrf_token %}
+{{ form.as_p }}
+<button type="submit">Login</button>
+</form>
+</div>
+</body>
+</html>

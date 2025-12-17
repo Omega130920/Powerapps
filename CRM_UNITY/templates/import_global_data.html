@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Import Master Data</title>
+    <style>
+        /* Base Styles */
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            color: #333;
+            line-height: 1.6;
+            background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .main-card {
+            max-width: 800px; /* Wider for more professional look */
+            width: 100%;
+            padding: 30px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #1e88e5;
+            border-bottom: 2px solid #81c784;
+            padding-bottom: 10px;
+            margin-bottom: 25px;
+            font-size: 28px;
+        }
+        /* Message Styles (using class names from delegate_action.html for coloring) */
+        .message-box {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+            font-weight: bold;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        /* Form/Input Styles */
+        .form-group {
+            margin-bottom: 15px;
+        }
+        .form-control {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        /* Button Styles */
+        .btn-primary {
+            width: 100%;
+            padding: 12px;
+            background-color: #81c784; /* Primary Green */
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s ease;
+        }
+        .btn-primary:hover {
+            background-color: #66bb6a; /* Darker Green */
+        }
+        .return-button {
+            display: block;
+            margin: 20px auto 0;
+            padding: 10px 20px;
+            background-color: #1e88e5;
+            color: white;
+            border-radius: 5px;
+            text-decoration: none;
+            text-align: center;
+            width: fit-content;
+        }
+        /* File Drop Zone Styles */
+        #drop-zone {
+            border: 3px dashed #81c784;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+        #drop-zone:hover {
+            background-color: #f0fff0;
+            border-color: #66bb6a;
+        }
+        .icon {
+            display: block;
+            margin: 0 auto 10px;
+            width: 50px;
+            height: 50px;
+            color: #81c784;
+        }
+        #file-name {
+            font-weight: bold;
+            color: #1e88e5;
+        }
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .checkbox-group input {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body> 
+
+    <div class="main-card">
+        <h1>⬆️ Import Master Data (XLSX)</h1>
+        
+        {% if error_message %}
+            <div class="message-box error" role="alert">
+                <strong>Error:</strong> {{ error_message }}
+            </div>
+        {% elif success_message %}
+            <div class="message-box success" role="alert">
+                <strong>Success:</strong> {{ success_message }}
+            </div>
+        {% endif %}
+
+        <form action="{% url 'import_global_data' %}" method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <p style="font-size: 14px; margin-bottom: 20px;">
+                **Instructions:** Upload the Master Excel file (.xlsx) to update or create records across all 10 related tables. The update/create operation is based on the **'Member_Group_Code'** (mip\_number) column, which must be present.
+            </p>
+
+            <div id="drop-zone">
+                <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.888-7.903A5 5 0 1115.903 5.9M12 18V3m-7 8l7-7 7 7" />
+                </svg>
+                <input type="file" name="master_file" id="master_file" accept=".xlsx, .xls" class="form-control" style="display: none;" required>
+                
+                <p style="margin-top: 10px; font-size: 16px; color: #333;">
+                    <span id="file-name">Click to select the **Master Excel file** (.xlsx)</span> or drag and drop it here.
+                </p>
+                <p style="font-size: 12px; color: #777; margin-top: 5px;">
+                    Ensure the file has sheets that match the table names (e.g., 'cbc', 'cfa', 'global_fund_contact_list').
+                </p>
+            </div>
+
+            <div class="checkbox-group" style="margin-top: 20px;">
+                <input type="checkbox" name="header_row" id="header_row" checked>
+                <label for="header_row" style="font-size: 14px; color: #555;">File contains a header row (will be skipped)</label>
+            </div>
+
+            <button type="submit" class="btn-primary">
+                💾 Process and Update Database
+            </button>
+        </form>
+    </div>
+
+    <a href="{% url 'dashboard' %}" class="return-button">Return to Dashboard</a>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('master_file');
+        const fileNameSpan = document.getElementById('file-name');
+        
+        const defaultText = 'Click to select the **Master Excel file** (.xlsx)';
+        
+        function updateFileName(file) {
+            if (file) {
+                fileNameSpan.innerHTML = `Selected: <strong>${file.name}</strong>`;
+            } else {
+                fileNameSpan.innerHTML = defaultText;
+            }
+        }
+
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            updateFileName(e.target.files[0]);
+        });
+
+        // Basic Drag and Drop handlers
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '#1e88e5'; // Blue border on hover
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.style.borderColor = '#81c784'; // Revert to green
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.borderColor = '#81c784'; 
+
+            const files = e.dataTransfer.files;
+            if (files.length) {
+                fileInput.files = files;
+                updateFileName(files[0]);
+            }
+        });
+    </script>
+</body>
+</html>

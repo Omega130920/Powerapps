@@ -1,0 +1,138 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }}</title>
+    <style>
+        body { font-family: sans-serif; background: linear-gradient(to bottom, #d1e2c4, #d1e2c4); margin: 20px; color: #333; }
+        .container { max-width: 95%; margin: 2em auto; padding: 1em; }
+        h2 { color: #1b5e20; border-bottom: 2px solid #81c784; padding-bottom: 10px; margin-bottom: 20px; }
+        
+        /* Table Styles */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            border-radius: 5px;
+            overflow: hidden;
+            background-color: #f0fff0;
+            border: 1px solid #c3e6cb;
+            font-size: 0.9em;
+        }
+        thead th {
+            background-color: #43a047;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+            border-bottom: 2px solid #388e3c;
+            white-space: nowrap;
+        }
+        tbody td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #aed581;
+        }
+        tbody tr:nth-child(even) {
+            background-color: #e6ffe6;
+        }
+        .action-button {
+            padding: 5px 10px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            text-decoration: none;
+            font-size: 0.9em;
+        }
+        .action-button:hover {
+            background-color: #1e88e5;
+        }
+        .return-button {
+            display: inline-block;
+            margin-bottom: 15px;
+            text-decoration: none;
+            color: #1b5e20;
+            font-weight: bold;
+        }
+
+        /* --- TOGGLE LOGIC STYLES --- */
+        /* Default state: Hide rows with class 'fiscal-assigned' */
+        tr.fiscal-assigned { display: none; }
+        
+        /* When table has class 'show-hidden', display them */
+        table.show-hidden tr.fiscal-assigned { display: table-row; }
+        
+        /* Style for assigned rows when visible to distinguish them */
+        table.show-hidden tr.fiscal-assigned td { background-color: #e0e0e0; color: #777; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <a href="{% url 'dashboard' %}" class="return-button">&larr; Back to Dashboard</a>
+        
+        <label style="background: white; padding: 8px 15px; border-radius: 5px; border: 1px solid #aed581; font-weight: bold; cursor: pointer;">
+            <input type="checkbox" id="showAllToggle" onchange="toggleTableRows('creditNoteTable', this)"> 
+            Show All (Include Assigned)
+        </label>
+    </div>
+
+    <h2>📋 {{ page_title }}</h2>
+    <p>These records were imported from the full Bill Details template.</p>
+
+    <table id="creditNoteTable">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Member Group Code</th>
+                <th>Bill Date (CCDates)</th>
+                <th>Schedule Amount</th>
+                <th>Comment</th>
+                <th>Import Date</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for note in credit_notes %}
+            <tr class="{% if note.fiscal_date %}fiscal-assigned{% endif %}">
+                <td>{{ note.id }}</td>
+                <td>{{ note.member_group_code }}</td>
+                <td>{{ note.ccdates_month|date:"Y-m-d" }}</td>
+                <td>R {{ note.schedule_amount|default:"0.00"|floatformat:2 }}</td>
+                <td>{{ note.comment|truncatechars:80 }}</td>
+                <td>{{ note.processed_date|date:"Y-m-d H:i" }}</td>
+                <td>
+                    {% if note.fiscal_date %}
+                        <span style="color: green; font-weight: bold;">Assigned: {{ note.fiscal_date|date:"Y-m-d" }}</span>
+                        <a href="{% url 'assign_fiscal_date' note_id=note.id %}" style="font-size: 0.8em; margin-left: 5px;">(Edit)</a>
+                    {% else %}
+                        <a href="{% url 'assign_fiscal_date' note_id=note.id %}" class="action-button">Assign Fiscal Date</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="7">No credit note records found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+    function toggleTableRows(tableId, checkbox) {
+        const table = document.getElementById(tableId);
+        if (checkbox.checked) {
+            table.classList.add('show-hidden');
+        } else {
+            table.classList.remove('show-hidden');
+        }
+    }
+</script>
+
+</body>
+</html>

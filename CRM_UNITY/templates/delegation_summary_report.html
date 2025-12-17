@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CRM Delegation Summary Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        .summary-table { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
+        .summary-table th, .summary-table td { padding: 0.75rem 1rem; border: 1px solid #e5e7eb; }
+        .summary-table th { background-color: #f9fafb; text-align: left; font-weight: 600; color: #1f2937; }
+        .header-row th { background-color: #10b981; color: white; text-align: center; }
+        .total-row th, .total-row td { background-color: #d1fae5; font-weight: 700; }
+        .export-btn { 
+            @apply inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 ease-in-out;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+
+    <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-2xl overflow-hidden">
+        <div class="p-6 bg-indigo-700 rounded-t-xl flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-white">Delegation Dashboard Report</h1>
+                <p class="text-indigo-300 mt-1 text-sm">Summary counts grouped by Work Status and Enquiry Category.</p>
+            </div>
+            <!-- Export Button Added Here -->
+            <a href="{% url 'delegation_report' %}" class="button-block">Reports</a>
+                Export to Excel (Detailed)
+            </a>
+        </div>
+
+        <div class="p-6">
+            
+            <a href="{% url 'dashboard' %}" class="btn text-indigo-600 hover:text-indigo-800 mb-6 inline-block">← Return to Home Screen</a>
+
+            <table class="summary-table">
+                <thead>
+                    <tr class="header-row">
+                        <th colspan="2" class="text-lg">Work Related or Not Work Related</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <th>Work Related</th>
+                        <td class="text-right">{{ work_related_data.Yes|default:0 }}</td>
+                    </tr>
+                    <tr>
+                        <th>Not Work Related</th>
+                        <td class="text-right">{{ work_related_data.No|default:0 }}</td>
+                    </tr>
+                    <tr class="total-row">
+                        <th>Total</th>
+                        <td class="text-right">{{ work_related_data.Yes|default:0|add:work_related_data.No|default:0 }}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <table class="summary-table">
+                <thead>
+                    <tr class="header-row">
+                        <th class="text-lg">Enquiry Category</th>
+                        <th class="text-lg text-center">Count of Enquiry</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {# Loop over the pre-processed list from the view, which includes 0 counts #}
+                    {% for item in category_summary %}
+                    <tr>
+                        <th>{{ item.EnquiryCategory }}</th>
+                        <td class="text-right">{{ item.count }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="2" class="text-center text-gray-500">No data found in the report table.</td>
+                    </tr>
+                    {% endfor %}
+                    
+                    <tr class="total-row">
+                        <th>Total</th>
+                        <td class="text-right">{{ total_enquiries }}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+        </div>
+    </div>
+</body>
+</html>

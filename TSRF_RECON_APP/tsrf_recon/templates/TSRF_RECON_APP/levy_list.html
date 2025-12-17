@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Levy Records</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
+            margin: 20px;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        h1 {
+            color: #1b5e20;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 100%;
+            display: flex;
+            flex-direction: column;
+            border-radius: 8px;
+        }
+        
+        /* Unified controls container for back button, search, and filters */
+        .controls-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            gap: 15px;
+        }
+        
+        .filters-and-search {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .return-button {
+            display: inline-block; padding: 10px 20px;
+            background-color: #81c784; border: 1px solid #81c784; border-radius: 5px;
+            text-decoration: none; color: white; cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        .return-button:hover { background-color: #66bb6a; }
+        
+        /* ----------------------------------------------------------------- */
+        /* --- Filter and Search Bar Styling (FIXED: Option text color) --- */
+        /* ----------------------------------------------------------------- */
+
+        /* Style for the select dropdowns to mimic the button look */
+        .filters-and-search select {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            border: 1px solid #409145ff;
+            background: linear-gradient(to bottom, #81c784, #66bb6a);
+            color: white; /* KEPT: Makes the text/placeholder on the green button white */
+            font-size: 1em;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease-in-out;
+            min-width: 160px;
+            text-align: center;
+            text-align-last: center;
+            background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%23ffffff%22%20d%3D%22M287%2C114.7L159.2%2C242.5c-3.1%2C3.1-7.2%2C4.7-11.4%2C4.7s-8.3-1.6-11.4-4.7L5.4%2C114.7c-6.1-6.1-6.1-16.1%2C0-22.2l22.2-22.2c6.1-6.1%2C16.1-6.1%2C22.2%2C0l90.2%2C90.2l90.2-90.2c6.1-6.1%2C16.1-6.1%2C22.2%2C0l22.2%2C22.2C293.1%2C98.6%2C293.1%2C108.6%2C287%2C114.7z%22%2F%3E%3C%2Fsvg%3E'); /* Custom white dropdown arrow */
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            background-size: 12px;
+        }
+
+        /* NEW RULE: Force options within the dropdown to be black text on white background */
+        .filters-and-search select option {
+            color: #333; 
+            background-color: white;
+        }
+        /* END NEW RULE */
+
+        .filters-and-search select:hover {
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+            transform: translateY(-1px);
+        }
+        
+        .filters-and-search select:active {
+            box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1);
+            transform: translateY(0);
+        }
+
+        /* Style for the search input */
+        .filters-and-search input[type="text"] {
+            padding: 8px 12px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            min-width: 200px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            background-color: white;
+        }
+        
+        /* Style for the Filter/Search Button (also adopting the pill shape and colors) */
+        .filters-and-search button {
+            padding: 10px 20px;
+            background: linear-gradient(to bottom, #43a047, #388e3c);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .filters-and-search button:hover {
+            background-color: #738a74ff;
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15);
+            transform: translateY(-1px);
+        }
+         .filters-and-search button:active {
+            box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1);
+            transform: translateY(0);
+        }
+        
+        /* Clear Filters button - adapting to the new style */
+        .controls-container .return-button[style*="background-color: #f44336"] {
+            padding: 10px 20px !important;
+            border-radius: 25px !important;
+            background: linear-gradient(to bottom, #ef5350, #d32f2f) !important;
+            color: white !important;
+            font-weight: bold !important;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
+            transition: all 0.2s ease-in-out !important;
+        }
+
+        .controls-container .return-button[style*="background-color: #f44336"]:hover {
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.15) !important;
+            transform: translateY(-1px) !important;
+            background: linear-gradient(to bottom, #e53935, #c62828) !important;
+        }
+         .controls-container .return-button[style*="background-color: #f44336"]:active {
+            box-shadow: 0 2px 3px rgba(0, 0, 0, 0.1) !important;
+            transform: translateY(0) !important;
+        }
+
+
+        /* Reset search-form styles as the filters-and-search is now the main element */
+        .search-form {
+            display: none; 
+        }
+
+        /* ----------------------------------------------------------------- */
+        /* --- Table Styling --- */
+        /* ----------------------------------------------------------------- */
+        table {
+            width: 100%; border-collapse: collapse; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            border-radius: 5px; overflow: hidden; background-color: #f0fff0;
+            border: 1px solid #c3e6cb; margin-bottom: 20px; font-size: 0.9em;
+        }
+        thead th {
+            background-color: #43a047; color: white; padding: 12px; text-align: left;
+            font-weight: bold; border-bottom: 2px solid #388e3c; white-space: nowrap;
+            border-right: 1px solid #388e3c;
+        }
+        thead th:last-child { border-right: none; }
+        tbody td {
+            padding: 10px 12px; border-bottom: 1px solid #aed581; border-right: 1px solid #aed581;
+            white-space: nowrap;
+        }
+        tbody td:last-child { border-right: none; }
+        tbody tr:nth-child(even) { background-color: #e6ffe6; }
+        tbody tr { cursor: pointer; }
+        tbody tr:hover { background-color: #ccffcc; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>TSRF RECON Records</h1>
+
+        <div class="controls-container">
+            <a href="{% url 'dashboard' %}" class="return-button">Back to Dashboard</a>
+
+            <form method="get" class="filters-and-search">
+                <input type="hidden" name="search_query" value="{{ search_query }}">
+
+                <select name="mip_status_filter" onchange="this.form.submit()">
+                    <option value="">MIP Status</option>
+                    {% for status in mip_statuses %}
+                        <option value="{{ status }}" {% if status == current_filters.mip_status_filter %}selected{% endif %}>
+                            {{ status }}
+                        </option>
+                    {% endfor %}
+                </select>
+                
+                <select name="fica_filter" onchange="this.form.submit()">
+                    <option value="">FICA Status</option>
+                    {% for status in fica_statuses %}
+                        <option value="{{ status }}" {% if status == current_filters.fica_filter %}selected{% endif %}>
+                            {{ status }}
+                        </option>
+                    {% endfor %}
+                </select>
+
+                <select name="billing_period_filter" onchange="this.form.submit()">
+                    <option value="">Billing Period</option>
+                    {% for period in billing_periods %}
+                        <option value="{{ period }}" {% if period == current_filters.billing_period_filter %}selected{% endif %}>
+                            {{ period }}
+                        </option>
+                    {% endfor %}
+                </select>
+                
+                <select name="cbr_status_filter" onchange="this.form.submit()">
+                    <option value="">CBR Status</option>
+                    {% for status in cbr_statuses %}
+                        <option value="{{ status }}" {% if status == current_filters.cbr_status_filter %}selected{% endif %}>
+                            {{ status }}
+                        </option>
+                    {% endfor %}
+                </select>
+
+                <input type="text" name="search_query" placeholder="Search by Levy Number or Name..." value="{{ search_query }}">
+                <button type="submit">Filter/Search</button>
+
+                {% if search_query or current_filters.mip_status_filter or current_filters.fica_filter or current_filters.billing_period_filter or current_filters.cbr_status_filter %}
+                    <a href="{% url 'levy_list' %}" class="return-button" style="padding: 8px 12px; background-color: #f44336; margin-left: -5px;">Clear Filters</a>
+                {% endif %}
+            </form>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Levy Number</th>
+                    <th>Levy Name</th>
+                    <th>MIP Status</th>
+                    <th>Status Date</th> 
+                    <th>FICA</th>
+                    <th>Billing Period</th>
+                    <th>CBR Status</th>
+                    <th>Overs/Unders</th>
+                    <th>Due Amount</th>
+                </tr>
+            </thead>
+            <tbody id="levy-table-body">
+                {% for record in levy_records %}<tr data-levy-number="{{ record.levy_number }}" onclick="window.location.href = '{% url 'levy_information' record.levy_number %}';">
+                    <td>{{ record.levy_number }}</td>
+                    <td>{{ record.levy_name }}</td>
+                    <td>{{ record.mip_status }}</td>
+                    
+                    <td>{% if record.mip_status == 'Active' %}
+                            {{ record.commencement_date|default:'N/A'|date:"Y-m-d" }}
+                        {% elif record.mip_status == 'Inactive' or record.mip_status == '' %}
+                            {{ record.termination_date|default:'N/A'|date:"Y-m-d" }}
+                        {% else %}
+                            -
+                        {% endif %}</td>
+                    
+                    <td>{{ record.fica }}</td>
+
+                    <td>{{ record.latest_billing_period|default:'-' }}</td>
+                    <td>{{ record.latest_cbr_status|default:'-' }}</td>
+                    <td style="text-align: right;">{{ record.latest_overs_unders|default:'0.00'|floatformat:2 }}</td>
+                    <td style="text-align: right;">{{ record.latest_due_amount|default:'0.00'|floatformat:2 }}</td>
+                </tr>
+                {% empty %}<tr>
+                    <td colspan="9">No records found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Note: The click handler logic is now integrated directly into the <tr> tag
+            // using the Django URL tag. This simplified block is kept just for reference/future JS needs.
+        });
+    </script>
+</body>
+</html>

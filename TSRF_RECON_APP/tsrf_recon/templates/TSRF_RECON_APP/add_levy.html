@@ -1,0 +1,288 @@
+{% block title %}<a href="{% url 'dashboard' %}" class="dashboard-button">Return to List</a>{% endblock %} 
+
+{% block content %} 
+    <style> 
+        /* -------------------------------------- */ 
+        /* Base Styles */ 
+        /* -------------------------------------- */ 
+        body { 
+            font-family: sans-serif; 
+            background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);  
+            color: #333; 
+            padding-top: 20px; 
+        } 
+        .dashboard-button {
+            padding: 8px 16px; /* Reduced padding */
+            background-color: #81c784;
+            border: 1px solid #81c784;
+            border-radius: 5px;
+            text-decoration: none;
+            color: white;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+            font-size: 13px; /* Smaller font size for button */
+        }
+
+        .dashboard-button:hover {
+            background-color: #66bb6a;
+        }
+        
+        .page-header { 
+            max-width: 900px; 
+            margin: 0 auto 20px auto; 
+            padding: 0 15px; 
+        } 
+        
+        .member-add-form-container { 
+            max-width: 900px; 
+            margin: 0 auto 50px auto; 
+            padding: 20px; 
+            background-color: #f8f8f8;  
+            border-radius: 8px; 
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); 
+        } 
+
+        /* -------------------------------------- */ 
+        /* Collapsible Sections (Details/Summary) */ 
+        /* -------------------------------------- */ 
+
+        details { 
+            border: 1px solid #aed581; 
+            border-radius: 6px; 
+            margin-bottom: 10px; 
+            background-color: #ffffff; 
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05); 
+        } 
+
+        summary { 
+            padding: 15px 20px; 
+            font-weight: bold; 
+            background-color: #e6f1df; 
+            border-radius: 6px 6px 0 0; 
+            cursor: pointer; 
+            outline: none; 
+            list-style: none; 
+            color: #1b5e20; 
+            font-size: 16px; 
+            position: relative; 
+        } 
+        
+        summary::after { 
+            content: '▼'; 
+            position: absolute; 
+            right: 20px; 
+            transition: transform 0.2s; 
+        } 
+
+        details[open] summary::after { 
+            transform: rotate(180deg); 
+        } 
+
+        .form-section-card { 
+            padding: 15px 20px 20px 20px; 
+            background-color: #ffffff; 
+        } 
+
+        .section-title { 
+            color: #1b5e20; 
+            margin-top: 0; 
+            margin-bottom: 10px; 
+            display: inline; 
+        } 
+
+        /* -------------------------------------- */ 
+        /* Form Elements (.as_p styling replacement) */ 
+        /* -------------------------------------- */ 
+        form p { 
+            margin-bottom: 15px; 
+            /* Use a grid for better layout inside sections */
+            display: grid; 
+            grid-template-columns: 1fr 2fr; /* Label (1 part) | Input (2 parts) */
+            gap: 10px;
+            align-items: center;
+        } 
+        
+        form label { 
+            display: block; 
+            font-weight: bold; 
+            margin-bottom: 0; 
+            color: #555; 
+        } 
+        
+        .errorlist {
+            list-style: none;
+            padding: 0;
+            color: #d32f2f; 
+            font-size: 13px;
+            font-weight: bold;
+            grid-column: 2 / 3; /* Make errors span the input column */
+            margin-top: -10px; /* Pull it up closer to the field */
+        }
+
+        input[type="text"],  
+        input[type="email"],  
+        input[type="number"],  
+        input[type="date"],  
+        textarea,  
+        select { 
+            width: 100%; 
+            padding: 10px; 
+            border: 1px solid #ccc; 
+            border-radius: 4px; 
+            box-sizing: border-box;  
+            font-size: 14px; 
+            background-color: #fff; 
+        } 
+        /* -------------------------------------- */ 
+        /* Buttons */ 
+        /* -------------------------------------- */ 
+        .save-button, .cancel-button { 
+            display: inline-block; 
+            padding: 10px 20px;
+            margin-top: 15px; 
+            margin-right: 10px; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            text-decoration: none; 
+            font-weight: bold; 
+            text-align: center; 
+            transition: background-color 0.2s; 
+        } 
+
+        .main-buttons { 
+            text-align: right; 
+            padding-top: 20px; 
+            max-width: 900px;
+            margin: 0 auto;
+        } 
+        .main-buttons .save-button { 
+            background-color: #1b5e20; 
+            color: white;
+        } 
+        .main-buttons .save-button:hover { 
+            background-color: #003300;  
+        } 
+        .main-buttons .cancel-button { 
+            background-color: #ccc; 
+            color: #333; 
+        } 
+        .main-buttons .cancel-button:hover {
+            background-color: #b3b3b3;
+        }
+
+    </style> 
+    
+    <div class="page-header">
+        <h2 class="mb-4">Add New Levy Record</h2> 
+    </div>
+
+    <div class="member-add-form-container">
+        {% if messages %} 
+            {% for message in messages %} 
+                <div class="alert alert-{{ message.tags }}"> 
+                    {{ message }}
+                </div> 
+            {% endfor %} 
+        {% endif %} 
+
+        <form method="post" action="{% url 'add_levy' %}"> 
+            {% csrf_token %} 
+            
+            {# ------------------------------------------------------------- #}
+            {# SECTION 1: CORE LEVY DETAILS (Always Open) #}
+            {# ------------------------------------------------------------- #}
+            <details open>
+                <summary>
+                    <span class="section-title">1. Core Identification and Status</span>
+                </summary>
+                <div class="form-section-card">
+                    <p>
+                        {{ form.levy_number.label_tag }}
+                        {{ form.levy_number }}
+                        {{ form.levy_number.errors }}
+                    </p>
+                    <p>
+                        {{ form.levy_name.label_tag }}
+                        {{ form.levy_name }}
+                        {{ form.levy_name.errors }}
+                    </p>
+                    <p>
+                        {{ form.registration_number.label_tag }}
+                        {{ form.registration_number }}
+                        {{ form.registration_number.errors }}
+                    </p>
+                    <p>
+                        {{ form.mip_status.label_tag }}
+                        {{ form.mip_status }}
+                        {{ form.mip_status.errors }}
+                    </p>
+                </div>
+            </details>
+
+            {# ------------------------------------------------------------- #}
+            {# SECTION 2: KEY DATES AND RESPONSIBLE PERSON #}
+            {# ------------------------------------------------------------- #}
+            <details>
+                <summary>
+                    <span class="section-title">2. Dates and Key Personnel</span>
+                </summary>
+                <div class="form-section-card">
+                    <p>
+                        {{ form.commencement_date.label_tag }}
+                        {{ form.commencement_date }}
+                        {{ form.commencement_date.errors }}
+                    </p>
+                    <p>
+                        {{ form.termination_date.label_tag }}
+                        {{ form.termination_date }}
+                        {{ form.termination_date.errors }}
+                    </p>
+                    <p>
+                        {{ form.responsible_person.label_tag }}
+                        {{ form.responsible_person }}
+                        {{ form.responsible_person.errors }}
+                    </p>
+                </div>
+            </details>
+
+            {# ------------------------------------------------------------- #}
+            {# SECTION 3: CONTACT DETAILS #}
+            {# ------------------------------------------------------------- #}
+            <details>
+                <summary>
+                    <span class="section-title">3. Contact Information</span>
+                </summary>
+                <div class="form-section-card">
+                    <p>
+                        {{ form.notice_email.label_tag }}
+                        {{ form.notice_email }}
+                        {{ form.notice_email.errors }}
+                    </p>
+                    <p>
+                        {{ form.telephone.label_tag }}
+                        {{ form.telephone }}
+                        {{ form.telephone.errors }}
+                    </p>
+                    <p>
+                        {{ form.physical_address.label_tag }}
+                        {{ form.physical_address }}
+                        {{ form.physical_address.errors }}
+                    </p>
+                    <p>
+                        {{ form.postal_address.label_tag }}
+                        {{ form.postal_address }}
+                        {{ form.postal_address.errors }}
+                    </p>
+                </div>
+            </details>
+            
+            {# --- MAIN ACTION BUTTONS --- #}
+            <div class="main-buttons">
+                <button type="submit" class="save-button">Save & Add Levy</button>
+                <a href="{% url 'levy_list' %}" class="cancel-button">Cancel</a>
+            </div>
+            
+        </form> 
+    </div> 
+{% endblock %}

@@ -1,0 +1,169 @@
+
+{% load static %}
+
+{% block title %}Managed Outlook Inbox{% endblock %}
+
+{% block content %}
+<style>
+    /* -------------------------------------------------------------------------
+    * CUSTOM TASK LOG STYLES
+    * ------------------------------------------------------------------------- */
+    body {
+        font-family: sans-serif;
+        background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        min-height: 100vh;
+        padding: 20px;
+        box-sizing: border-box;
+    }
+    .log-container {
+        max-width: 1400px; 
+        width: 100%;
+        margin: 40px auto;
+        padding: 20px;
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .log-header {
+        border-bottom: 2px solid #aed581;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .log-header h1 {
+        margin: 0;
+        color: #43a047;
+    }
+    .log-controls {
+        display: flex;
+        gap: 15px;
+    }
+    .task-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+    .task-table th, .task-table td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #eee;
+        text-align: left;
+        font-size: 14px;
+        word-wrap: break-word;
+    }
+    .task-table th {
+        background-color: #43a047;
+        color: white;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .task-table tr:nth-child(even) { background-color: #f9fbe7; }
+    .task-table tr:hover {
+        background-color: #e8f5e9;
+    }
+    .status-new { color: #1e88e5; font-weight: bold; }
+    .status-delegated { color: #2e7d32; font-weight: bold; }
+    
+    .log-notes {
+        font-style: italic;
+        color: #555;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    
+    .return-button {
+        padding: 10px 20px;
+        background-color: #81c784;
+        border: 1px solid #81c784;
+        border-radius: 5px;
+        text-decoration: none;
+        color: white;
+        transition: background-color 0.3s ease;
+        margin-right: 10px;
+    }
+    .return-button:hover { background-color: #66bb6a; }
+
+    .btn-delegate-link {
+        background-color: #f7931e;
+        color: white;
+        border: none;
+        padding: 8px 12px;
+        text-decoration: none;
+        font-size: 14px;
+        border-radius: 4px;
+        transition: background-color .3s ease;
+    }
+    .btn-delegate-link:hover { background-color: #d87d16; }
+</style>
+
+<div class="Dashboard" style="margin-top: 25px; align-self: flex-start; margin-left: 5%;">
+    <a href="{% url 'dashboard' %}" class="return-button">Back to Dashboard</a>
+    <a href="{% url 'outlook_delegated_box' %}" class="return-button">Delegated Tasks</a>
+</div>
+
+<div class="log-container">
+    <div class="log-header">
+        <h1><i class="bi bi-envelope-paper"></i> Live Inbox (Delegator View)</h1>
+        <div class="log-controls">
+            <a href="{% url 'send_email' %}?email={{ target_email }}" class="btn-delegate-link" style="background-color: #43a047;">
+                <i class="bi bi-send"></i> Send New Email
+            </a>
+        </div>
+    </div>
+    
+    <p class="text-muted">Managed Account: <strong>{{ target_email }}</strong></p>
+
+    {% if messages %}
+    <table class="task-table">
+        <thead>
+            <tr>
+                <th style="width: 15%;">Status</th>
+                <th style="width: 15%;">Received</th>
+                <th style="width: 25%;">Subject</th>
+                <th style="width: 20%;">From</th>
+                <th style="width: 25%;">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for message in messages %}
+            <tr>
+                <td>
+                    {% if message.delegation_status == 'Delegated' %}
+                        <b class="status-delegated">Assigned: {{ message.assigned_to }}</b>
+                    {% else %}
+                        <b class="status-new">{{ message.delegation_status }}</b>
+                    {% endif %}
+                </td>
+                <td>{{ message.receivedDateTime|date:"Y-m-d H:i" }}</td>
+                <td>
+                    <b>{{ message.subject|default:"(No Subject)" }}</b>
+                </td>
+                <td>
+                    {{ message.from.emailAddress.name }} 
+                    <div class="log-notes text-muted">{{ message.from.emailAddress.address }}</div>
+                </td>
+                <td>
+                    {% if "New" in message.delegation_status or not message.assigned_to or message.assigned_to == "Unassigned" %}
+                        <a href="{% url 'outlook_delegate_to' message.id %}" class="btn-delegate-link">
+                            Delegate Task
+                        </a>
+                    {% else %}
+                        <span class="text-success small"><i class="bi bi-check-all"></i> Already Assigned</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>🎉 Your Inbox is currently clean!</p>
+    {% endif %}
+</div>
+{% endblock %}

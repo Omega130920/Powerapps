@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unity Management Listings</title>
+<style>
+    body{
+        font-family: sans-serif;
+        background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
+        margin: 10px;
+        color: #333;
+        line-height: 1.6;
+    }
+    h1{
+        color: #1b5e20;
+        text-align: center;
+        margin-bottom: 0px;
+        font-size: 2.5em;
+    }
+    .container{
+        max-width: 95%;
+        margin: 2em auto;
+        padding: 1em;
+    }
+    .return-button{
+        display: inline-block;
+        padding: 10px 20px;
+        margin-bottom: 20px;
+        background-color: #81c784;
+        border: 1px solid #81c784;
+        border-radius: 5px;
+        text-decoration: none;
+        color: white;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+    }
+    .return-button:hover{
+        background-color: #66bb6a;
+    }
+    table{
+        width: 100%;
+        border-collapse: collapse;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        border-radius: 5px;
+        overflow: hidden;
+        background-color: #f0fff0;
+        border: 1px solid #c3e6cb;
+        margin-bottom: 20px;
+        font-size: 0.9em;
+    }
+    thead th{
+        background-color: #43a047;
+        color: white;
+        padding: 12px;
+        text-align: left;
+        font-weight: bold;
+        border-bottom: 2px solid #388e3c;
+        white-space: nowrap;
+        border-right: 1px solid #388e3c;
+    }
+    thead th:last-child{
+        border-right: none;
+    }
+    tbody td{
+        padding: 10px 12px;
+        border-bottom: 1px solid #aed581;
+        border-right: 1px solid #aed581;
+    }
+    tbody td:last-child{
+        border-right: none;
+    }
+    tbody tr:nth-child(even){
+        background-color: #e6ffe6;
+    }
+    tbody tr{
+        cursor: pointer;
+    }
+    tbody tr:hover{
+        background-color: #ccffcc;
+    }
+    .controls-container {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        margin-bottom: 20px;
+        padding: 15px;
+        background-color: #e6ffe6;
+        border: 1px solid #c3e6cb;
+        border-radius: 5px;
+    }
+    .search-input {
+        width: 90%;
+        padding: 10px;
+        box-sizing: border-box;
+        border: 1px solid #aed581;
+        border-radius: 4px;
+        font-size: 1em;
+    }
+    .filters-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .filter-group {
+        display: flex;
+        flex-direction: column;
+        min-width: 150px;
+    }
+    .filter-group label {
+        font-weight: bold;
+        color: #1b5e20;
+        font-size: 0.85em;
+        margin-bottom: 5px;
+    }
+    .filter-group select {
+        padding: 8px;
+        border: 1px solid #aed581;
+        border-radius: 4px;
+        background-color: white;
+    }
+</style>
+</head>
+<body>
+<div class="container">
+    <h1>Unity Listings</h1>
+    <a href="{% url 'dashboard' %}" class="return-button">Back to Dashboard</a>
+
+    <div class="controls-container">
+        <input type="text" id="wildcard-search" class="search-input" placeholder="Search by Company Code or Name..." onkeyup="applyFilters()">
+
+        <div class="filters-row">
+            <div class="filter-group">
+                <label for="filter-source">Source</label>
+                <select id="filter-source" onchange="applyFilters()">
+                    <option value="">All Sources</option>
+                    {% for item in distinct_source %}
+                        <option value="{{ item|lower }}">{{ item }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="filter-agent">Agent</label>
+                <select id="filter-agent" onchange="applyFilters()">
+                    <option value="">All Agents</option>
+                    {% for item in distinct_agent %}
+                        <option value="{{ item|default:'N/A'|lower }}">{{ item|default:"N/A" }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="filter-company-status">Company Status</label>
+                <select id="filter-company-status" onchange="applyFilters()">
+                    <option value="">All Statuses</option>
+                    {% for item in distinct_company_status %}
+                        <option value="{{ item|lower }}">{{ item }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="filter-payment-method">Payment Method</label>
+                <select id="filter-payment-method" onchange="applyFilters()">
+                    <option value="">All Methods</option>
+                    {% for item in distinct_payment %}
+                        <option value="{{ item|default:'N/A'|lower }}">{{ item|default:"N/A" }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div class="filter-group">
+                <label for="filter-billing-method">Billing Method</label>
+                <select id="filter-billing-method" onchange="applyFilters()">
+                    <option value="">All Billing</option>
+                    {% for item in distinct_billing %}
+                        <option value="{{ item|default:'N/A'|lower }}">{{ item|default:"N/A" }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="filter-current-fiscal">Current Fiscal</label>
+                <select id="filter-current-fiscal" onchange="applyFilters()">
+                    <option value="">All Fiscals</option>
+                    {% for item in distinct_fiscal %}
+                        <option value="{{ item|default:'N/A'|lower }}">{{ item|default:"N/A" }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="filter-current-status">Current Status</label>
+                <select id="filter-current-status" onchange="applyFilters()">
+                    <option value="">All Statuses</option>
+                    {% for item in distinct_current_status %}
+                        <option value="{{ item|default:'N/A'|lower }}">{{ item|default:"N/A" }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="filter-group">
+                <label for="filter-arrears">Arrears</label>
+                <select id="filter-arrears" onchange="applyFilters()">
+                    <option value="">All Arrears</option>
+                    <option value="yes">Has Arrears (J > 0)</option>
+                    <option value="no">No Arrears (J = 0)</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Company Code</th>
+                <th>Company Name</th>
+                <!--<th>Source</th>-->
+                <th>Agent</th>
+                <th>Company Status</th> 
+                <th>Payment Method</th>
+                <th>Billing Method</th>
+                <th>Current Fiscal</th>
+                <th>Current Status</th>
+                <th>Arrears</th>
+            </tr>
+        </thead>
+        <tbody id="unity-table-body">
+            {% for record in unity_records %}
+            <tr data-company-code="{{ record.A_Company_Code }}"
+                data-source="{{ record.Source|lower }}"
+                data-agent="{{ record.c_agent|default:'N/A'|lower }}"
+                data-company-status="{{ record.D_Company_Status|lower }}"
+                data-payment-method="{{ record.e_payment_method|default:'N/A'|lower }}"
+                data-billing-method="{{ record.f_billing_method|default:'N/A'|lower }}"
+                data-current-fiscal="{{ record.g_current_fiscal|default:'N/A'|lower }}"
+                data-current-status="{{ record.h_current_status|default:'N/A'|lower }}"
+                data-arrears-value="{{ record.j_arrears|default:0 }}"> 
+                
+                <td>{{ record.A_Company_Code }}</td>
+                <td>{{ record.B_Company_Name }}</td>
+                <!--<td>{{ record.Source }}</td>-->
+                <td>{{ record.c_agent|default:"N/A" }}</td>
+                <td>{{ record.D_Company_Status }}</td> 
+                <td>{{ record.e_payment_method|default:"N/A" }}</td>
+                <td>{{ record.f_billing_method|default:"N/A" }}</td>
+                <td>{{ record.g_current_fiscal|default:"N/A" }}</td>
+                <td>{{ record.h_current_status|default:"N/A" }}</td>
+                <td>{{ record.j_arrears|default:"N/A" }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="10">No records found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const tableBody = document.getElementById('unity-table-body');
+        tableBody.addEventListener('click', function(event) {
+            const row = event.target.closest('tr');
+            // Ensure we are clicking a row with data, not an empty message row
+            if (row && row.hasAttribute('data-company-code')) {
+                const companyCode = row.getAttribute('data-company-code');
+                window.location.href = `{% url 'unity_information' '123' %}`.replace('123', companyCode);
+            }
+        });
+    });
+
+    function applyFilters() {
+        const searchTerm = document.getElementById('wildcard-search').value.toLowerCase().trim();
+        
+        // Keys here match the part after "data-" in your HTML
+        const filters = {
+            'source': document.getElementById('filter-source').value,
+            'agent': document.getElementById('filter-agent').value,
+            'company-status': document.getElementById('filter-company-status').value,
+            'payment-method': document.getElementById('filter-payment-method').value,
+            'billing-method': document.getElementById('filter-billing-method').value,
+            'current-fiscal': document.getElementById('filter-current-fiscal').value,
+            'current-status': document.getElementById('filter-current-status').value,
+            'arrears': document.getElementById('filter-arrears').value,
+        };
+
+        const rows = document.getElementById('unity-table-body').querySelectorAll('tr');
+        
+        rows.forEach(row => {
+            // Skip the "No records found" row
+            if (row.cells.length === 1) return;
+
+            let isMatch = true;
+
+            // --- Wildcard Search ---
+            if (searchTerm) {
+                const companyCode = row.cells[0] ? row.cells[0].textContent.toLowerCase() : '';
+                const companyName = row.cells[1] ? row.cells[1].textContent.toLowerCase() : '';
+                if (!companyCode.includes(searchTerm) && !companyName.includes(searchTerm)) {
+                    isMatch = false;
+                }
+            }
+
+            // --- Column Filters ---
+            if (isMatch) {
+                for (const key in filters) {
+                    const filterValue = filters[key];
+                    
+                    if (filterValue) {
+                        // Special case for Arrears filter
+                        if (key === 'arrears') {
+                            const rawArrears = row.getAttribute('data-arrears-value');
+                            const arrearsAmount = parseFloat(rawArrears);
+                            
+                            if (filterValue === 'yes') {
+                                if (isNaN(arrearsAmount) || arrearsAmount <= 0) isMatch = false;
+                            } else if (filterValue === 'no') {
+                                if (isNaN(arrearsAmount) || arrearsAmount > 0) isMatch = false;
+                            }
+                        } else {
+                            // Standard filters: We assume attribute is "data-" + key
+                            // Using getAttribute is safer than dataset for hyphenated names
+                            const attributeName = 'data-' + key;
+                            const rawValue = row.getAttribute(attributeName);
+                            const rowValue = rawValue ? rawValue.trim() : '';
+
+                            if (rowValue !== filterValue) {
+                                isMatch = false;
+                            }
+                        }
+                    }
+                    if (!isMatch) break;
+                }
+            }
+
+            // --- Apply Visibility ---
+            row.style.display = isMatch ? '' : 'none';
+        });
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,201 @@
+{% load static %}
+{% block title %}Delegate Task{% endblock %}
+{% block content %}
+<style>
+/* -------------------------------------- */
+/* BASE STYLES & DELEGATE FORM STYLES */
+/* -------------------------------------- */
+body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; background-color: #d1e2c4; }
+.delegate-container { max-width: 900px; margin: 40px auto; padding: 30px; background-color: #fff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,.15); border: 1px solid #c3e6cb; }
+.delegate-container h1 { margin-bottom: 20px; color: #43a047; font-size: 28px; border-bottom: 2px solid #e0f2f1; padding-bottom: 15px; }
+
+/* --- PROFESSIONAL EMAIL CARD STYLES --- */
+.email-thread-card {
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+    border: 1px solid #eee;
+    border-left: 5px solid #1976d2; /* Blue accent */
+}
+.card-header-main {
+    padding: 15px 20px;
+    background-color: #fafafa;
+    border-bottom: 1px solid #eee;
+}
+.card-header-main h3 { margin: 0 0 5px 0; color: #1976d2; font-size: 1.1em; }
+.card-body-content {
+    padding: 20px;
+    line-height: 1.7;
+    max-height: 450px; 
+    overflow-y: auto;
+    background: #fff;
+    font-size: 14px;
+}
+
+/* --- FORM STYLES --- */
+.form-group { margin-bottom: 20px; }
+.form-group label { display: block; margin-bottom: 5px; font-weight: 700; color: #333; font-size: 14px; }
+.form-group input[type=text], .form-group select, .form-group textarea { width: 100%; padding: 8px 10px; border: 1px solid #aed581; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
+.form-group input[type=text]:focus, .form-group select:focus, .form-group textarea:focus { border-color: #66bb6a; box-shadow: 0 0 0 .1rem rgba(102,187,106,.5); outline: none; }
+
+.button-container { display: flex; justify-content: space-between; align-items: center; margin-top: 25px; }
+.btn-cancel { padding: 12px 20px; background-color: #757575; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 18px; transition: background-color .3s ease; text-decoration: none; display: inline-block; }
+.btn-cancel:hover { background-color: #616161; }
+
+.btn-delegate { 
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 12px 25px; 
+    background-color: #81c784; 
+    color: white; 
+    border: none; 
+    border-radius: 4px; 
+    cursor: pointer; 
+    font-size: 18px; 
+    transition: all 0.3s ease; 
+    font-weight: bold; 
+}
+.btn-delegate:hover { background-color: #66bb6a; }
+
+.attachment-list { margin-top: 10px; padding: 10px; background-color: #f0fff0; border-top: 1px solid #eee; }
+.attachment-link { display: inline-block; margin-right: 15px; color: #1e88e5; text-decoration: underline; font-size: 13px; }
+.form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+</style>
+
+<div class="delegate-container">
+    <h1>Delegate Outlook Task</h1>
+    
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}" style="padding:10px; margin-bottom:15px; border-radius:4px; background-color:#fff3cd; color:#856404; border:1px solid #ffeeba;">
+            {{ message }}
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <form method="post" action="{% url 'outlook_delegate_to' email_id=email_id %}">
+        {% csrf_token %}
+        
+        <div class="form-group">
+            <label for="email_subject_display">Email Subject:</label>
+            <input type="text" id="email_subject_display" name="email_subject_display" value="{{ email_subject }}" readonly>
+        </div>
+        
+        <div class="email-thread-card">
+            <div class="card-header-main">
+                <h3>Original Communication Content</h3>
+                <div style="font-size: 13px; color: #666;">
+                    <strong>Subject:</strong> {{ email_subject }}
+                </div>
+            </div>
+            <div class="card-body-content">
+                {{ email_content|safe }}
+            </div>
+            
+            {% if attachments %}
+            <div class="attachment-list">
+                <strong>Attachments Detected:</strong><br>
+                {% for att in attachments %}
+                <span class="attachment-link">
+                    📄 {{ att.name }} ({{ att.size|filesizeformat }})
+                </span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="form-group">
+            <label for="work_related">Is this task Work Related?*</label>
+            <select id="work_related" name="work_related" required>
+                <option value="Yes">Yes (Assign to Agent)</option>
+                <option value="No">No (Archive/Recycle)</option>
+            </select>
+        </div>
+
+        <div id="classification_fields_wrapper">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="company_code">Company Code (Reference):</label>
+                    <input type="text" id="company_code" name="company_code" placeholder="Enter Company Code">
+                </div>
+                
+                <div class="form-group">
+                    <label for="email_category">Classification:</label>
+                    <select id="email_category" name="email_category">
+                        <option value="">-- Select --</option>
+                        <option value="Schedule">Schedule</option>
+                        <option value="Claim">Claim</option>
+                        <option value="Query">Query</option>
+                        <option value="Bank">Bank</option>
+                        <option value="Info Only">Info Only</option>
+                        <option value="LPI">LPI</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="comm_type">Communication Type:</label>
+                    <select id="comm_type" name="comm_type">
+                        <option value="Email" selected>Outlook Inbox</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group" id="delegation_fields" style="margin-top: 15px;">
+                <label for="agent_name">Delegate To Agent:*</label>
+                <select id="agent_name" name="agent_name">
+                    <option value="">-- Select Agent --</option>
+                    {% for user in available_users %}
+                        <option value="{{ user.pk }}">{{ user.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <input type="hidden" name="email_id" value="{{ email_id }}">
+
+        <div class="button-container">
+            <a href="{% url 'outlook_dashboard' %}" class="btn-cancel">Cancel</a>
+            <button type="submit" id="submit_button" class="btn-delegate">
+                <span id="btn-icon">👤</span> 
+                <span id="btn-text">Assign Task</span>
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    const workRelatedSelect = document.getElementById('work_related');
+    const classificationWrapper = document.getElementById('classification_fields_wrapper');
+    const submitButton = document.getElementById('submit_button');
+    const btnIcon = document.getElementById('btn-icon');
+    const btnText = document.getElementById('btn-text');
+    const agentSelect = document.getElementById('agent_name');
+
+    function toggleFormSections(){
+        if(workRelatedSelect.value === 'No'){
+            // Archive State
+            classificationWrapper.style.display = 'none';
+            submitButton.style.backgroundColor = '#d32f2f'; // Red
+            btnIcon.textContent = '🗑️'; // Recycle Bin Icon
+            btnText.textContent = 'Archive to Recycle Bin';
+            agentSelect.removeAttribute('required');
+        } else {
+            // Assign State
+            classificationWrapper.style.display = 'block';
+            submitButton.style.backgroundColor = '#81c784'; // Green
+            btnIcon.textContent = '👤'; // Agent Icon
+            btnText.textContent = 'Assign Task';
+            agentSelect.setAttribute('required', 'required');
+        }
+    }
+
+    workRelatedSelect.addEventListener('change', toggleFormSections);
+    // Initialize correct state on load
+    toggleFormSections();
+});
+</script>
+{% endblock %}

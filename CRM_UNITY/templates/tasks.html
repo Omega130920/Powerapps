@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Delegated Tasks Log</title>
+<style>
+/* ... (Keep all existing CSS styles here, they are fine) ... */
+body {
+    font-family: sans-serif;
+    background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+    box-sizing: border-box;
+}
+.log-container {
+    max-width: 1500px; /* Widened slightly for extra column */
+    margin: 40px auto;
+    padding: 20px;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.log-header {
+    border-bottom: 2px solid #aed581;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.log-header h1 {
+    margin: 0;
+    color: #43a047; /* Green title color */
+}
+#search_input {
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    width: 300px;
+    font-size: 14px;
+    transition: border-color 0.3s;
+}
+#search_input:focus {
+    border-color: #66bb6a;
+    outline: none;
+}
+.log-controls {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+.task-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+.task-table th, .task-table td {
+    padding: 12px 15px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+    font-size: 14px;
+    word-wrap: break-word;
+}
+.task-table th {
+    background-color: #1e88e5; 
+    color: white;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.task-table tr:nth-child(even) { background-color: #e3f2fd; } 
+.task-table tr.clickable-row:hover { 
+    background-color: #bbdefb;
+    cursor: pointer; 
+}
+.status-not-actioned { color: #1e88e5; font-weight: bold; }
+.status-delegated { color: #2e7d32; font-weight: bold; } 
+.status-recycled { color: #f4511e; font-weight: bold; }
+
+.return-button {
+    padding: 10px 20px;
+    background-color: #81c784;
+    border: 1px solid #81c784;
+    border-radius: 5px;
+    text-decoration: none;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    text-align: center;
+}
+
+.return-button:hover {
+    background-color: #66bb6a;
+}
+</style>
+</head>
+<body>
+
+    <div class="Dashboard" style="margin-top: 25px;">
+        <a href="{% url 'dashboard' %}" class="return-button">Back to Home Screen</a>
+        <a href="{% url 'fetch_emails' %}" class="return-button">Go to Live Inbox</a>
+    </div>
+
+<div class="log-container">
+    <div class="log-header">
+        <h1>📨 Delegated Tasks Log (Assigned By You)</h1>
+        <div class="log-controls">
+            <input type="text" id="search_input" placeholder="🔍 Search all columns..." autofocus>
+            <p>Total Tasks: <strong>{{ delegated_tasks|length }}</strong></p>
+        </div>
+    </div>
+
+    {% if delegated_tasks %}
+    <table class="task-table" id="main_table">
+        <thead>
+            <tr>
+                <th style="width: 20%;">Subject</th>
+                <th style="width: 8%;">Member Code</th>
+                
+                <th style="width: 10%;">Date Received</th>
+                
+                <th style="width: 10%;">Delegated Date</th>
+                
+                <th style="width: 10%;">Enquiry Category</th>
+                <th style="width: 12%;">Enquiry Type</th>
+                <th style="width: 10%;">Assigned To</th>
+                <th style="width: 8%;">Status</th> 
+            </tr>
+        </thead>
+        <tbody id="table_body">
+            {% for task in delegated_tasks %}
+            
+            <tr class="clickable-row" 
+                onclick="window.location.href='{% url 'delegate_action' email_id=task.email_id %}';"> 
+                
+                <td title="{{ task.subject }}">
+                    {{ task.subject }}
+                </td>
+                
+                <td>{{ task.member_group_code|default:"N/A" }}</td>
+                
+                <td>
+                    {{ task.arrival_timestamp|date:"d M Y H:i" }}
+                </td>
+
+                <td>
+                    {{ task.delegation_timestamp|date:"d M Y" }}
+                </td>
+
+                <td>{{ task.category|default:"N/A" }}</td>
+                
+                <td title="{{ task.enquiry_type|default:'N/A' }}">
+                    {{ task.enquiry_type|default:"N/A" }}
+                </td>
+                
+                <td>{{ task.delegated_to }}</td>
+
+                <td title="{{ task.status }}">
+                    {% if task.status == 'Completed' %}
+                        <span class="status-delegated" style="color: #2e7d32; font-weight: bold;">Completed</span>
+                    {% else %}
+                        <span class="status-delegated" style="color: #1e88e5; font-weight: bold;">Delegated</span>
+                    {% endif %}
+                </td>
+            </tr>
+            
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>🎉 You have not delegated any tasks yet.</p>
+    {% endif %}
+
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('search_input');
+    const tableBody = document.getElementById('table_body');
+    
+    if (!searchInput || !tableBody) {
+        return;
+    }
+
+    // --- Live Search Logic ---
+    const rows = tableBody.getElementsByTagName('tr');
+
+    function liveSearch() {
+        const filter = searchInput.value.toLowerCase();
+        
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const cells = row.getElementsByTagName('td');
+            let found = false;
+
+            for (let j = 0; j < cells.length; j++) {
+                const cellText = cells[j].innerText || cells[j].textContent;
+                
+                if (cellText.toLowerCase().indexOf(filter) > -1) {
+                    found = true;
+                    break; 
+                }
+            }
+
+            if (found) {
+                row.style.display = ""; 
+            } else {
+                row.style.display = "none";
+            }
+        }
+    }
+
+    searchInput.addEventListener('input', liveSearch);
+});
+</script>
+
+</body>
+</html>

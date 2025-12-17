@@ -1,0 +1,216 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bank Lines List</title>
+<style>
+/* Add the consistent green-themed styling here (simplified for brevity) */
+body{font-family:sans-serif;background:linear-gradient(to bottom, #d1e2c4, #d1e2c4);margin:20px;color:#333;line-height:1.6;}
+.container{max-width:98%;margin:2em auto;padding:1em;background-color:#f0fff0;border-radius:8px;box-shadow:0 4px 8px rgba(0,0,0,0.1);}
+h2{color:#1b5e20;border-bottom:2px solid #aed581;padding-bottom:10px;margin-bottom:20px;}
+table{width:100%;border-collapse:collapse;margin-top:15px;box-shadow:0 2px 5px rgba(0, 0, 0, 0.1); font-size: 13px;}
+thead th{background-color:#43a047;color:white;padding:10px;text-align:left;font-weight:bold; white-space: nowrap;}
+tbody td{padding:8px 10px;border-bottom:1px solid #aed581;}
+tbody tr:nth-child(even){background-color:#e6ffe6;}
+/* STANDARD ACTION BUTTON */
+.action-button{padding:6px 10px;background-color:#3f51b5;border:1px solid #3f51b5;border-radius:4px;text-decoration:none;color:white;transition:background-color 0.3s ease;font-size:0.9em;}
+.action-button:hover{background-color:#303f9f;}
+/* NEW: VIEW ONLY BUTTON STYLE */
+.action-button.view-btn{background-color:#78909c;border-color:#78909c;}
+.action-button.view-btn:hover{background-color:#607d8b;}
+/* Corrected/Neutralized Status Styling for Allocated/Assigned */
+.status-assigned{color:#007bff;font-weight:bold;}
+.status-unreconciled{color:#F44336;}
+/* --- IMPROVED DATE FILTER CONTAINER STYLES --- */
+.filter-container{display:flex;gap:1em;align-items:center;padding:0.5em 1em;background-color:#f0fff0;border-radius:6px;border:1px solid #aed581;min-width:450px;font-size:0.9em;}
+.filter-container label{font-weight:bold;color:#1b5e20;white-space:nowrap;}
+.date-input{padding:0.4em 0.5em;border:1px solid #ccc;border-radius:4px;width:110px;font-size:1em;color:#333;transition:border-color 0.3s;}
+.date-input:focus{outline:none;border-color:#43a047;}
+.clear-btn{background-color:#f44336;border:none;color:white;padding:0.4em 0.8em;border-radius:4px;cursor:pointer;font-weight:bold;transition:background-color 0.3s;white-space:nowrap;font-size:0.9em;}
+.clear-btn:hover{background-color:#d32f2f;}
+/* --- LAYOUT FIX: Use flex to align filters and button nicely --- */
+.header-controls{display:flex;flex-direction:column;gap:0.5em;align-items:flex-end;}
+.header-main{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:15px;}
+.header-controls > label{margin-top:0.5em;}
+/* Style to visually separate the input groups within the filter container */
+.date-group{display:flex;align-items:center;gap:0.5em;}
+</style>
+</head>
+<body>
+
+<div class="container">
+<div class="header-main">
+<a href="{% url 'dashboard' %}" class="action-button" style="background-color: #81c784; border-color: #81c784;">&larr; Back to Dashboard</a>
+<div class="header-controls">
+{# --- DATE RANGE FILTER --- #}
+<div class="filter-container">
+<div class="date-group">
+<label for="startDate">From:</label>
+<input type="date" id="startDate" class="date-input" onchange="applyFilters()">
+</div>
+<div class="date-group">
+<label for="endDate">To:</label>
+<input type="date" id="endDate" class="date-input" onchange="applyFilters()">
+</div>
+<button type="button" class="clear-btn" onclick="clearDateRange()">Clear Range</button>
+</div>
+
+{# --- STATUS TOGGLE: Show Assigned/Allocated --- #}
+<label style="background: white; padding: 0.5em 1em; border-radius: 5px; border: 1px solid #aed581; font-weight: bold; cursor: pointer; font-size: 0.9em;">
+<input type="checkbox" id="showAssignedToggle" onchange="applyFilters()">
+Show Assigned / Allocated
+</label>
+</div>
+</div>
+
+<h2>Bank Lines List (Imported Transactions)</h2>
+<p>Displays **Unidentified** records by default. Check the toggle to include **Assigned** and **Allocated** records.</p>
+
+{% if bank_records %}
+<div class="table-responsive">
+<table id="bankLinesTable">
+<thead>
+<tr>
+<th>ID</th>
+<th>Member Group Code</th>
+<th>Company Name</th>
+<th>Deposit Date</th>
+<th>Available Balance</th> 
+<th>Description</th>
+<th>Review Note</th>
+<th>Agent</th>
+<th>Status</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+{% for record in bank_records %}
+{% if record.recon_status != 'Reconciled' %}
+<tr data-status="{% if record.allocated_code %}assigned_or_allocated{% else %}unidentified{% endif %}">
+<td>{{ record.id }}</td>
+<td>{{ record.allocated_code|default:"-" }}</td>
+<td style="font-size: 11px;">{{ record.company_name|default:"-"|truncatechars:25 }}</td>
+<td data-date="{{ record.transaction_date|date:'Y-m-d' }}">{{ record.transaction_date|date:"Y-m-d" }}</td>
+<td>R {{ record.remaining_balance|floatformat:2 }}</td>
+<td title="{{ record.transaction_description }}">{{ record.transaction_description|truncatechars:30 }}</td>
+<td style="font-style: italic; color: #555; font-size: 11px;" title="{{ record.review_note }}">
+{{ record.review_note|default:"-"|truncatechars:20 }}
+</td>
+<td>{{ record.agent|default:"-" }}</td>
+<td>
+{% if record.recon_status %}
+<span class="status-assigned">{{ record.recon_status }}</span>
+{% else %}
+<span class="status-unreconciled">Unidentified</span>
+{% endif %}
+</td>
+<td>
+{# FIX: Use record.id (ReconnedBank PK) as the argument for both actions #}
+{% if record.allocated_code %}
+<a href="{% url 'display_bankline_review' record.id %}" class="action-button view-btn">
+View
+</a>
+{% else %}
+<a href="{% url 'bankline_recon' record_id=record.id %}" class="action-button">
+Assign
+</a>
+{% endif %}
+</td>
+</tr>
+{% endif %}
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% else %}
+<div class="info-message" style="text-align:center; padding:20px; color:#666;">
+No bank records found. Please import data first.
+</div>
+{% endif %}
+
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Note: The toggle starts UNCHECKED, so only 'unidentified' rows will be shown initially.
+    applyFilters(); 
+});
+
+function applyFilters() {
+    const startDateInput = document.getElementById('startDate').value;
+    const endDateInput = document.getElementById('endDate').value;
+    // New toggle ID for filtering assigned/allocated
+    const showAssignedToggle = document.getElementById('showAssignedToggle').checked;
+    const table = document.getElementById('bankLinesTable');
+    // Check if table exists before proceeding
+    if (!table) return; 
+
+    const rows = table.querySelectorAll('tbody tr');
+    
+    const startDate = startDateInput ? new Date(startDateInput) : null;
+    const endDate = endDateInput ? new Date(endDateInput) : null;
+
+    rows.forEach(row => {
+        const dateCell = row.cells[3]; 
+        const rowDateStr = dateCell.getAttribute('data-date');
+        // Get status tag
+        const rowStatus = row.getAttribute('data-status'); // 'assigned_or_allocated' or 'unidentified'
+        
+        let showRow = true;
+
+        // --- 1. Date Filtering (Kept as provided) ---
+        if (rowDateStr) {
+            const rowDate = new Date(rowDateStr);
+
+            if (startDate && rowDate < startDate) {
+                showRow = false;
+            }
+            if (endDate) {
+                const inclusiveEndDate = new Date(endDate.getTime() + 86400000); // Add 1 day
+                if (rowDate >= inclusiveEndDate) {
+                    showRow = false;
+                }
+            }
+        } else {
+            showRow = false;
+        }
+
+        // --- 2. Status Filtering ---
+        
+        // If the record is NOT 'unidentified' (i.e., it's assigned/allocated)
+        if (rowStatus === 'assigned_or_allocated') {
+            // AND the toggle is UNCHECKED (default state: only show unidentified)
+            if (!showAssignedToggle) {
+                showRow = false; // HIDE assigned/allocated records
+            }
+        }
+        
+        // --- 3. Apply Visibility & Styling ---
+        
+        // Apply row visibility
+        row.style.display = showRow ? 'table-row' : 'none';
+        
+        // Apply colors based on status
+        if (showRow) {
+            let baseColor = (row.rowIndex % 2 === 0) ? '#e6ffe6' : 'white';
+            
+            if (rowStatus === 'unidentified') {
+                row.style.backgroundColor = '#fff3cd'; // Yellow for Unidentified
+            } else {
+                // This covers all other assigned/allocated statuses
+                row.style.backgroundColor = baseColor; 
+            }
+        }
+    });
+}
+
+function clearDateRange() {
+    document.getElementById('startDate').value = '';
+    document.getElementById('endDate').value = '';
+    applyFilters(); // Re-run combined filter
+}
+</script>
+</body>
+</html>

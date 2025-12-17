@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Inbox - Unified Task Log</title>
+<style>
+    body {
+        font-family: sans-serif;
+        background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        min-height: 100vh;
+        padding: 20px;
+        box-sizing: border-box;
+    }
+    .log-container {
+        width: 100%;
+        max-width: 1400px; 
+        margin: 40px auto;
+        padding: 20px;
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .log-header {
+        border-bottom: 2px solid #aed581;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .log-header h1 {
+        margin: 0;
+        color: #43a047;
+    }
+    #search_input {
+        padding: 8px 12px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        width: 300px;
+        font-size: 14px;
+        transition: border-color 0.3s;
+    }
+    #search_input:focus {
+        border-color: #66bb6a;
+        outline: none;
+    }
+    .log-controls {
+        display: flex;
+        gap: 20px;
+        align-items: center;
+    }
+    .task-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+    .task-table th, .task-table td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #eee;
+        text-align: left;
+        font-size: 14px;
+        word-wrap: break-word;
+    }
+    .task-table th {
+        background-color: #43a047;
+        color: white;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .task-table tr:nth-child(even) { background-color: #f9fbe7; }
+    
+    .task-table tr.clickable-row:hover {
+        background-color: #e8f5e9;
+        cursor: pointer;
+    }
+    .status-not-actioned { color: #1e88e5; font-weight: bold; }
+    
+    .log-notes {
+        font-style: italic;
+        color: #555;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        margin-top: 4px;
+    }
+
+    .delegate-btn {
+        background-color: #f7931e;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 13px;
+        font-weight: bold;
+        border-radius: 4px;
+        transition: background 0.3s;
+    }
+    .delegate-btn:hover {
+        background-color: #d67d1a;
+    }
+
+    .return-button {
+        padding: 10px 20px;
+        background-color: #81c784;
+        border-radius: 5px;
+        text-decoration: none;
+        color: white;
+        margin-right: 10px;
+        display: inline-block;
+        font-weight: 500;
+    }
+</style>
+</head>
+<body>
+
+    <div class="Dashboard" style="margin-top: 25px;">
+        <a href="{% url 'dashboard' %}" class="return-button">Back to Dashboard</a>
+        <a href="{% url 'tasks' %}" class="return-button">Delegated Tasks Log</a>
+    </div>
+
+<div class="log-container">
+    <div class="log-header">
+        <h1>📨 Live Inbox (Graph API)</h1>
+        <div class="log-controls">
+            <input type="text" id="search_input" placeholder="🔍 Search subject or sender..." autofocus>
+            <p>Total Pending: <strong>{{ email_list|length }}</strong></p>
+        </div>
+    </div>
+    
+    {% if email_list %}
+    <table class="task-table" id="main_table">
+        <thead>
+            <tr>
+                <th style="width: 45%;">Subject / Snippet</th>
+                <th style="width: 25%;">From</th>
+                <th style="width: 15%;">Status</th>
+                <th style="width: 15%;">Action</th> 
+            </tr>
+        </thead>
+        <tbody id="table_body">
+            {% for email in email_list %}
+            <tr onclick="window.location.href='{% url 'delegate_email' email_id=email.email_id %}';" class="clickable-row">
+                <td title="{{ email.subject }}">
+                    <b>{{ email.subject }}</b>
+                    <div class="log-notes">{{ email.snippet|default:"No preview available." }}</div>
+                </td>
+                <td>{{ email.sender }}</td>
+                <td class="status-not-actioned">PENDING</td>
+                <td>
+                    <a href="{% url 'delegate_email' email_id=email.email_id %}" class="delegate-btn">
+                        DELEGATE
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="text-align: center; padding: 40px;">
+        <p style="font-size: 1.2em;">🎉 Your Inbox is currently clean! All emails are processed.</p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('search_input');
+    const tableBody = document.getElementById('table_body');
+    
+    if (searchInput && tableBody) {
+        const rows = tableBody.getElementsByTagName('tr');
+        searchInput.addEventListener('input', function() {
+            const filter = searchInput.value.toLowerCase();
+            Array.from(rows).forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(filter) ? "" : "none";
+            });
+        });
+    }
+});
+</script>
+
+</body>
+</html>

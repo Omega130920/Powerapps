@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global List</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
+            margin: 20px;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        h1 {
+            color: #1b5e20;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        .container {
+            width: 95%;
+            max-width: 98%;
+            height: 90vh;
+            display: flex;
+            flex-direction: column;
+            border-radius: 8px;
+            margin: auto;
+        }
+
+        .controls-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            background: rgba(255, 255, 255, 0.3);
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        .return-button {
+            padding: 10px 20px;
+            background-color: #81c784;
+            border: 1px solid #81c784;
+            border-radius: 5px;
+            text-decoration: none;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .return-button:hover {
+            background-color: #66bb6a;
+        }
+
+        .search-form {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .search-form input[type="text"],
+        .search-form select {
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            min-width: 200px;
+            outline: none;
+        }
+
+        .search-form input[type="text"]:focus {
+            border-color: #43a047;
+            box-shadow: 0 0 5px rgba(67, 160, 71, 0.3);
+        }
+
+        .search-form button {
+            padding: 10px 15px;
+            background-color: #43a047;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+
+        .search-form button:hover {
+            background-color: #388e3c;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            border-radius: 5px;
+            overflow: hidden;
+            background-color: #f0fff0;
+            border: 1px solid #c3e6cb;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+        }
+
+        thead th {
+            background-color: #43a047;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+            border-bottom: 2px solid #388e3c;
+            white-space: nowrap;
+            border-right: 1px solid #388e3c;
+        }
+
+        thead th:last-child {
+            border-right: none;
+        }
+
+        tbody td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #aed581;
+            border-right: 1px solid #aed581;
+        }
+
+        tbody td:last-child {
+            border-right: none;
+        }
+
+        tbody tr:nth-child(even) {
+            background-color: #e6ffe6;
+        }
+
+        tbody tr[data-member-code] {
+            cursor: pointer;
+        }
+
+        tbody tr[data-member-code]:hover {
+            background-color: #ccffcc;
+        }
+
+        .no-results-row td {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-style: italic;
+            background-color: #fff !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Global List</h1>
+        
+        <div class="controls-container">
+            <a href="{% url 'dashboard' %}" class="return-button">Back to Home Screen</a>
+            
+            <form method="get" class="search-form" id="search-form">
+                <input type="text" 
+                       name="search_query" 
+                       id="search-input" 
+                       placeholder="Start typing to search..." 
+                       value="{{ search_query|default:'' }}"
+                       onkeydown="if(event.keyCode==13){event.preventDefault();}">
+                
+                <select name="fund_status_filter" id="status-filter">
+                    <option value="all">All Fund Statuses</option>
+                    {% for status in fund_statuses %}
+                        <option value="{{ status }}" {% if status == fund_status_filter %}selected{% endif %}>{{ status }}</option>
+                    {% endfor %}
+                </select>
+                
+                <button type="submit">Apply Filter</button>
+            </form>
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Member Group Code</th>
+                    <th>Member Group Name</th>
+                    <th>Commencement Date</th>
+                    <th>Fund Status</th>
+                    <th>Postal Address</th>
+                    <th>Postal Code</th>
+                    <th>Physical Address</th>
+                    <th>Physical Code</th>
+                </tr>
+            </thead>
+            <tbody id="member-table-body">
+                {% for member in members %}
+                <tr data-member-code="{{ member.member_group_code }}">
+                    <td>{{ member.member_group_code }}</td>
+                    <td>{{ member.member_group_name }}</td>
+                    <td>{{ member.commencement_date }}</td>
+                    <td>{{ member.fund_status }}</td>
+                    <td>{{ member.business_postal_address }}</td>
+                    <td>{{ member.business_postal_address_post_code }}</td>
+                    <td>{{ member.business_physical_address2 }}</td>
+                    <td>{{ member.business_physical_address_post_code2 }}</td>
+                </tr>
+                {% empty %}
+                <tr class="no-results-row">
+                    <td colspan="8">No members found matching the criteria.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('search-input');
+            const tableBody = document.getElementById('member-table-body');
+            const rows = tableBody.querySelectorAll('tr[data-member-code]');
+            
+            // Create a "No Results" row dynamically if it doesn't exist for live filtering
+            let noResultsRow = tableBody.querySelector('.no-results-row');
+            if (!noResultsRow) {
+                noResultsRow = document.createElement('tr');
+                noResultsRow.className = 'no-results-row';
+                noResultsRow.style.display = 'none';
+                noResultsRow.innerHTML = '<td colspan="8">No matches found in current list.</td>';
+                tableBody.appendChild(noResultsRow);
+            }
+
+            // --- Robust Live Search Function ---
+            function liveSearch() {
+                const query = searchInput.value.toLowerCase().trim();
+                let visibleCount = 0;
+
+                rows.forEach(row => {
+                    // Check text content of all cells in the row
+                    const content = row.textContent.toLowerCase();
+                    if (content.includes(query)) {
+                        row.style.display = "";
+                        visibleCount++;
+                    } else {
+                        row.style.display = "none";
+                    }
+                });
+
+                // Toggle the "No Results" visibility
+                if (visibleCount === 0 && query !== "") {
+                    noResultsRow.style.display = "";
+                } else {
+                    noResultsRow.style.display = "none";
+                }
+            }
+
+            // Listen for input changes
+            if (searchInput) {
+                searchInput.addEventListener('input', liveSearch);
+                // Run once on load if server returned a query
+                if (searchInput.value) liveSearch();
+            }
+
+            // --- Unified Row Click Handler ---
+            tableBody.addEventListener('click', function(event) {
+                const row = event.target.closest('tr[data-member-code]');
+                if (row) {
+                    const memberCode = row.getAttribute('data-member-code');
+                    // Clean URL construction
+                    const baseUrl = "{% url 'member_information' member_group_code='12345' %}";
+                    window.location.href = baseUrl.replace('12345', memberCode);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

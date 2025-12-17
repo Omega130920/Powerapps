@@ -1,0 +1,219 @@
+{% load static %}
+{% load math_filters %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Review Bank Line {{ recon_record.pk }}</title>
+<style>
+/* Basic Styles */
+body{font-family:sans-serif;background:linear-gradient(to bottom,#d1e2c4,#d1e2c4);margin:20px;color:#333;line-height:1.6}
+.container{max-width:800px;margin:2em auto;padding:20px;background-color:#f0fff0;border-radius:8px;box-shadow:0 4px 8px rgba(0,0,0,.1)}
+h2{color:#1b5e20;border-bottom:2px solid #aed581;padding-bottom:10px;margin-bottom:20px}
+h3{color:#1b5e20;margin-top:30px}
+.data-table th,.data-table td{padding:10px;border-bottom:1px solid #aed581;text-align:left;font-size:.9em}
+.data-table th{width:35%;background-color:#e6ffe6;color:#1b5e20}
+.return-button,.edit-button{display:inline-block;padding:10px 20px;margin-top:20px;margin-right:10px;background-color:#81c784;border:1px solid #81c784;border-radius:5px;text-decoration:none;color:white;cursor:pointer;transition:background-color .3s ease}
+.edit-button{background-color:#3f51b5;border-color:#3f51b5}
+.edit-button:hover{background-color:#303f9f}
+.return-button:hover{background-color:#66bb6a}
+.status-badge{padding:5px 10px;border-radius:4px;color:white;font-weight:700;font-size:.8em}
+.status-reviewed{background-color:#4CAF50}
+.status-reconciled{background-color:#FFC107;color:#333}
+.status-pending{background-color:#F44336}
+/* Custom Status Colors for the New Logic */
+.status-partially-recon{background-color:#ff9800;} /* Orange for partially consumed */
+.status-fully-recon{background-color:#1b5e20;} /* Dark green for fully consumed/allocated */
+
+/* --- MODAL STYLES --- */
+.modal{display:none;position:fixed;z-index:100;left:0;top:0;width:100%;height:100%;overflow:auto;background-color:rgba(0,0,0,.4)}
+.modal-content{background-color:#fefefe;margin:10% auto;padding:20px;border:1px solid #888;width:90%;max-width:500px;border-radius:8px;box-shadow:0 5px 15px rgba(0,0,0,.3)}
+.modal-content h3{color:#3f51b5;margin-top:0}
+.modal-content label{display:block;margin-top:10px;font-weight:700;color:#1b5e20}
+.modal-content select,.modal-content input[type="date"]{width:100%;padding:8px;margin-top:5px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box}
+.modal-content select:invalid{color: #777;} /* Style for unselected option */
+.modal-footer{display:flex;justify-content:flex-end;margin-top:20px;gap:10px}
+.modal-save-button{padding:10px 20px;background-color:#4CAF50;color:white;border:none;border-radius:5px;cursor:pointer}
+.modal-save-button:hover{background-color:#43a047}
+.modal-cancel-button{padding:10px 20px;background-color:#f44336;color:white;border:none;border-radius:5px;cursor:pointer}
+.modal-cancel-button:hover{background-color:#d32f2f}
+</style>
+</head>
+<body>
+
+<div class="container">
+    {% if messages %}
+        {% for message in messages %}
+            <div style="padding: 10px; background-color: #ccffcc; border: 1px solid #aed581; margin-bottom: 15px;">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <h2>Review Bank Line: {{ recon_record.pk }}</h2>
+    
+    <table class="data-table" style="width: 100%;">
+        <tr>
+            <th>Current Company Code</th>
+            <td>{{ recon_record.company_code }}</td>
+        </tr>
+        <tr>
+            <th>Current Fiscal Date</th>
+            <td>{{ recon_record.fiscal_date|date:"Y-m-d"|default:"N/A" }}</td>
+        </tr>
+        <tr>
+            <th>Current Review Note</th>
+            <td>{{ recon_record.review_note|default:"Not Reviewed" }}</td>
+        </tr>
+        <tr>
+            <th>Current Recon Status</th>
+            <td>
+                {# Logic to colorize the status based on its value #}
+                {% if "Partially Reconciled" in recon_record.recon_status %}
+                    <span class="status-partially-recon status-badge">{{ recon_record.recon_status }}</span>
+                {% elif "Unreconciled" in recon_record.recon_status or "Assigned" in recon_record.recon_status %}
+                    <span class="status-reconciled status-badge">{{ recon_record.recon_status }}</span>
+                {% elif "Fully Reconciled" in recon_record.recon_status or "Reconciled" == recon_record.recon_status %}
+                    <span class="status-fully-recon status-badge">{{ recon_record.recon_status }}</span>
+                {% else %}
+                    <span class="status-reconciled status-badge">{{ recon_record.recon_status|default:"Unassigned" }}</span>
+                {% endif %}
+            </td>
+        </tr>
+    </table>
+    
+    <h3>Settlement Status</h3>
+    <table class="data-table" style="width: 100%;">
+        <tr>
+            {# The transaction_amount is now the assigned amount of this SEGMENT (which may be less than the original ImportBank line) #}
+            <th>Segment Amount Assigned</th>
+            <td>R {{ recon_record.transaction_amount|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            {# CRITICAL FIX: Display the amount settled from the ReconnedBank record #}
+            <th>Amount Settled / Consumed</th>
+            <td style="font-weight: bold; color: #F44336;">R {{ recon_record.amount_settled|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            {# CRITICAL FIX: Calculate and display the remaining debt #}
+            <th>Remaining Balance Available</th>
+            <td style="font-weight: bold; color: #1b5e20;">R {{ recon_record.transaction_amount|sub:recon_record.amount_settled|floatformat:2 }}</td>
+        </tr>
+    </table>
+
+    <h3>Source Transaction Details (From ImportBank)</h3>
+    <table class="data-table" style="width: 100%;">
+        <tr><th>Transaction Date</th><td>{{ bank_record.date|date:"Y-m-d" }}</td></tr>
+        <tr><th>Description</th><td>{{ bank_record.transaction_description|default:"N/A" }}</td></tr>
+    </table>
+
+    <div style="margin-top: 20px;">
+        
+        {# NAVIGATION FIX: Check the flag passed from views.py #}
+        {% if is_from_unity_info and recon_record.company_code %}
+            {# Link back to Company Info if coming from there and company_code exists #}
+            <a href="{% url 'unity_information' company_code=recon_record.company_code %}#bank-lines" class="return-button" style="margin-right: 15px;">
+                &larr; Back to {{ recon_record.company_code }} Information
+            </a>
+        {% else %}
+            {# Default link back to the general bank list for all other cases #}
+            <a href="{% url 'bank_list' %}" class="return-button" style="margin-right: 15px;">
+                &larr; Back to Bank Lines List
+            </a>
+        {% endif %}
+        
+        <button id="editBtn" class="edit-button">
+            Edit/Confirm Details
+        </button>
+    </div>
+</div>
+
+
+<div id="reviewModal" class="modal">
+    <div class="modal-content">
+        <h3>Update Review Details for Line {{ recon_record.pk }}</h3>
+        
+        <form id="reviewForm" method="POST" action="{% url 'update_bankline_details' recon_id=recon_record.pk %}">
+            {% csrf_token %}
+            
+            <label for="company_code_select">Change Company Code:</label>
+            <select id="company_code_select" name="company_code_select">
+                <option value="" {% if not recon_record.company_code %}selected{% endif %}>--- Clear Allocation ---</option>
+                {# Current code option #}
+                <option value="{{ recon_record.company_code }}" {% if recon_record.company_code %}selected{% endif %}>{{ recon_record.company_code|default:"N/A" }} (Current)</option>
+                {# Loop through available company codes #}
+                {% for code in company_codes %}
+                    {% if code != recon_record.company_code %}
+                        <option value="{{ code }}">{{ code }}</option>
+                    {% endif %}
+                {% endfor %}
+            </select>
+
+            <label for="fiscal_date">Assign Fiscal Date:</label>
+            <input type="date" id="fiscal_date" name="fiscal_date" 
+                        value="{{ recon_record.fiscal_date|date:'Y-m-d'|default:'' }}">
+            
+            <label for="review_note">Review Note:</label>
+            <select id="review_note" name="review_note" required>
+                <option value="" disabled {% if not recon_record.review_note %}selected{% endif %}>--- Select Note ---</option>
+                
+                {# SIMPLIFIED LOGIC: Loop through all review_notes passed by the view #}
+                {% for note in review_notes %}
+                    <option value="{{ note }}" {% if recon_record.review_note == note %}selected{% endif %}>
+                        {{ note }}
+                    </option>
+                {% endfor %}
+                
+            </select>
+
+            <div class="modal-footer">
+                <button type="button" class="modal-cancel-button" id="closeBtn">Cancel</button>
+                <button type="submit" class="modal-save-button">Save & Post</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const modal = document.getElementById('reviewModal');
+    const btn = document.getElementById('editBtn');
+    const closeBtn = document.getElementById('closeBtn');
+    const form = document.getElementById('reviewForm');
+    
+    // Only add click event if the button exists
+    if (btn) {
+        btn.onclick = function() {
+            modal.style.display = "block";
+        }
+    }
+
+    // Close the modal via cancel button
+    closeBtn.onclick = function() {
+        modal.style.display = "none";
+    }
+
+    // Close the modal if user clicks outside of it
+    window.onclick = function(event) {
+        if (event.target == modal) {
+            modal.style.display = "none";
+        }
+    }
+    
+    // Intercept form submission to display confirmation
+    form.onsubmit = function(e) {
+        e.preventDefault(); // Stop the default form submission
+        
+        const isConfirmed = confirm("Are you sure you want to POST these changes? Click 'OK' to proceed or 'Cancel' to stop.");
+        
+        if (isConfirmed) {
+            // If confirmed, proceed with the actual form submission
+            form.submit();
+        }
+    }
+});
+</script>
+
+</body>
+</html>

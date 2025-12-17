@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+    <style>
+        html, body {
+            height: auto;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        body {
+            font-family: sans-serif;
+            background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .table-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        
+        /* Status Color Classes */
+        .status-open { @apply bg-red-100 text-red-800; }
+        .status-in-progress { @apply bg-blue-100 text-blue-800; }
+        .status-closed { @apply bg-green-100 text-green-800; }
+        .status-overdue { @apply bg-yellow-100 text-yellow-800; }
+        .status-default { @apply bg-gray-100 text-gray-800; }
+
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.5);
+            transition: opacity 0.3s ease-in-out;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+
+    <div class="max-w-7xl mx-auto mb-4 flex justify-between items-center">
+        <a href="{% url 'dashboard' %}" class="px-4 py-2 bg-gray-500 border border-gray-500 rounded-lg no-underline text-white font-semibold transition duration-150 hover:bg-gray-600">
+            ← Back to Dashboard
+        </a>
+        
+        <button id="open-modal-btn" 
+                class="px-4 py-2 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 transition duration-150">
+            + Log New Complaint
+        </button>
+    </div>
+
+    <div class="max-w-7xl mx-auto bg-white rounded-xl shadow-2xl overflow-hidden">
+        <div class="p-6 bg-indigo-700 rounded-t-xl">
+            <h1 class="text-3xl font-bold text-white">Complaint Log</h1>
+        </div>
+
+        <div class="p-6">
+            {% if complaints %}
+                <div class="table-wrapper">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">ID</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Complainant</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden sm:table-cell">Employer</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">Nature of Complaint</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden lg:table-cell">Created By</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Created Date</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider hidden md:table-cell">Resolved Date</th>
+                                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Action</th> </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            {% for complaint in complaints %}
+                                {% with status_class="status-"|add:complaint.current_status|lower|cut:" " %}
+                                <tr class="hover:bg-gray-50 transition-colors {% if is_editing and form.instance.id == complaint.id %}bg-yellow-50{% endif %}">
+                                    <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ complaint.id }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">{{ complaint.complainant }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 hidden sm:table-cell">{{ complaint.employer|default:"N/A" }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 truncate max-w-xs hidden md:table-cell">{{ complaint.nature_of_complaint|truncatechars:50 }}</td>
+                                    <td class="px-4 py-3">
+                                        <span class="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold {{ status_class|default:'status-default' }}">
+                                            {{ complaint.current_status }}
+                                        </span>
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 hidden lg:table-cell">{{ complaint.created_by.username }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">{{ complaint.created_date|date:"Y-m-d" }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700 hidden md:table-cell">{{ complaint.resolved_date|default:"Pending"|date:"Y-m-d" }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-700">
+                                        <a href="?edit_id={{ complaint.id }}" class="text-indigo-600 hover:text-indigo-900 font-bold">Edit</a>
+                                    </td>
+                                </tr>
+                                {% endwith %}
+                            {% empty %}
+                                <tr>
+                                    <td colspan="9" class="px-4 py-10 text-center text-gray-500">
+                                        No complaints have been logged yet.
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-center text-gray-500 py-10">No complaints have been logged yet. Click "+ Log New Complaint" to begin.</p>
+            {% endif %}
+        </div>
+    </div>
+    
+    {# --- MODAL STRUCTURE --- #}
+    <div id="complaint-modal" class="hidden fixed inset-0 z-50 modal-overlay items-center justify-center p-4">
+        <div class="relative w-full max-w-4xl max-h-full mx-auto">
+            {% include 'complaint_log_form_content.html' %}
+            
+            {# Close button - Needs to redirect if we are in edit mode to clear the URL #}
+            {% if is_editing %}
+                <a href="{% url 'complaint_log' %}" class="absolute top-4 right-4 text-gray-500 hover:text-gray-900 transition duration-150 z-50">
+                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </a>
+            {% else %}
+                <button id="close-modal-btn" type="button" class="absolute top-4 right-4 text-gray-500 hover:text-gray-900 transition duration-150 z-50">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const modal = document.getElementById('complaint-modal');
+            const openBtn = document.getElementById('open-modal-btn');
+            const closeBtn = document.getElementById('close-modal-btn');
+            
+            // Check if we are in editing mode (Passed from View)
+            const isEditing = "{{ is_editing|yesno:'true,false' }}" === "true";
+            const hasErrors = document.querySelector('.text-red-800'); // Check for form error alert
+
+            function openModal() {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+
+            function closeModal() {
+                modal.classList.remove('flex');
+                modal.classList.add('hidden');
+            }
+
+            if (openBtn) openBtn.addEventListener('click', openModal);
+            if (closeBtn) closeBtn.addEventListener('click', closeModal);
+
+            // AUTO-OPEN MODAL Logic
+            if (isEditing || hasErrors) {
+                openModal();
+            }
+        });
+    </script>
+</body>
+</html>

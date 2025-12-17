@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Delegate Task</title>
+<style>
+/* -------------------------------------- */
+/* BASE STYLES */
+/* -------------------------------------- */
+body {
+    font-family: sans-serif;
+    margin: 0;
+    color: #333;
+    line-height: 1.6;
+    background-color: #d1e2c4;
+}
+
+/* -------------------------------------- */
+/* DELEGATE FORM STYLES */
+/* -------------------------------------- */
+.delegate-container {
+    max-width: 900px;
+    margin: 40px auto;
+    padding: 30px;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    border: 1px solid #c3e6cb;
+}
+.delegate-container h1 {
+    margin-bottom: 20px;
+    color: #43a047;
+    font-size: 28px;
+    border-bottom: 2px solid #e0f2f1;
+    padding-bottom: 15px;
+}
+
+/* --- ADAPTED EMAIL CARD STYLES --- */
+.email-thread-card {
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+    border: 1px solid #eee;
+    border-left: 5px solid #1976d2; 
+}
+
+.card-header-main {
+    padding: 15px 20px;
+    background-color: #fafafa;
+    border-bottom: 1px solid #eee;
+}
+
+.card-header-main h3 {
+    margin: 0 0 5px 0;
+    color: #1976d2;
+    font-size: 1.1em;
+}
+
+.card-body-content {
+    padding: 20px;
+    line-height: 1.7;
+    max-height: 400px; 
+    overflow-y: auto;
+    background: #fff;
+    font-size: 14px;
+}
+
+/* -------------------------------------- */
+/* FORM STYLES */
+/* -------------------------------------- */
+.form-group {
+    margin-bottom: 20px;
+}
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #333;
+    font-size: 14px;
+}
+.form-group input[type="text"], .form-group select, .form-group textarea { 
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #aed581;
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-size: 14px;
+}
+.btn-delegate {
+    width: 100%;
+    padding: 12px;
+    background-color: #81c784;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 18px;
+    transition: background-color 0.3s ease;
+}
+.btn-delegate:hover {
+    background-color: #66bb6a;
+}
+
+.attachment-list {
+    margin-top: 10px;
+    padding: 10px;
+    background-color: #f0fff0;
+    border-top: 1px solid #eee;
+}
+.attachment-link {
+    display: inline-block;
+    margin-right: 15px;
+    color: #1e88e5;
+    text-decoration: underline;
+    font-size: 13px;
+}
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr); 
+    gap: 15px; 
+}
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="delegate-container">
+    
+    <h1>Delegate Task for **{{ member_code }}**</h1>
+
+    <form method="post">
+        {% csrf_token %}
+
+        <div class="form-group">
+            <label for="email_subject">Email Subject:</label>
+            <input type="text" id="email_subject" name="email_subject" value="{{ email_subject }}" required>
+        </div>
+
+        <div class="email-thread-card">
+            <div class="card-header-main">
+                <h3>Original Communication</h3>
+                <div style="font-size: 13px; color: #4a5568;">
+                    <strong>Sender:</strong> {{ inbox_item.sender|default:"System" }} <br>
+                    <strong>Arrival:</strong> {{ inbox_item.received_timestamp|date:"d M Y, H:i" }}
+                </div>
+            </div>
+            <div class="card-body-content">
+                {{ email_body|safe }}
+            </div>
+
+            {% if attachments %}
+            <div class="attachment-list">
+                <strong style="font-size: 13px; color: #2e7d32;">Attachments:</strong><br>
+                {% for att in attachments %}
+                    <input type="hidden" name="delegated_attachment_id" value="{{ att.attachmentId }}">
+                    <input type="hidden" name="delegated_attachment_filename" value="{{ att.filename }}">
+                    <input type="hidden" name="delegated_attachment_size" value="{{ att.size }}">
+
+                    <a href="{% url 'download_attachment' message_id=email_id attachment_id=att.attachmentId %}" 
+                        target="_blank" class="attachment-link">
+                        📄 {{ att.filename }} ({{ att.size|filesizeformat }})
+                    </a>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="form-group">
+            <label for="work_related">Work Related:*(Mandatory)*</label>
+            <select id="work_related" name="work_related">
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+            </select>
+        </div>
+
+        <div id="metadata_fields_container">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="mip_number">Member Group Code:</label>
+                    <input type="text" id="mip_number" name="mip_number" placeholder="Enter MIP Number">
+                </div>
+
+                <div class="form-group">
+                    <label for="id_passport">ID / Passport Number:</label>
+                    <input type="text" id="id_passport" name="id_passport" placeholder="Enter ID/Passport">
+                </div>
+
+                <div class="form-group">
+                    <label for="email_category">Enquiry Type:</label>
+                    <select id="email_category" name="email_category">
+                        <option value="">-- Select --</option>
+                        <option value="1">1. Reconciliation</option>
+                        <option value="2">2. Claim</option>
+                        <option value="3">3. Section 13A</option>
+                        <option value="13">13. General</option>
+                        <option value="14">14. Other</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="email_type">Enquiry Selection:</label>
+                    <select id="email_type" name="email_type">
+                        <option value="" data-category="none">-- Select Enquiry Type First --</option> 
+                        <option value="1.1 Schedule Query" data-category="1" class="hidden">1.1 Schedule Query</option>
+                        <option value="13.1 Underwriting Queries" data-category="13" class="hidden">13.1 Underwriting Queries</option>
+                        <option value="14.15 Bulk Benefit Statements" data-category="14" class="hidden">14.15 Bulk Benefit Statements</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="email_method">Communication Type:</label>
+                    <select id="email_method" name="email_method">
+                        <option value="Email">Inbox Email</option>
+                    </select>
+                </div>
+            </div>
+        </div> 
+        
+        <div class="form-group" id="delegation_fields" style="margin-top: 20px;">
+            <label for="agent_name">Delegate To Agent:*(Mandatory)*</label>
+            <select id="agent_name" name="agent_name" required>
+                <option value="__Select Agent__">__Select Agent__</option>
+                {% for agent in available_agents %}
+                    <option value="{{ agent }}">{{ agent }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <input type="hidden" name="email_id" value="{{ email_id }}">
+        <button type="submit" id="submit_button" class="btn-delegate" style="margin-top: 20px;">Confirm Delegation</button>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const categorySelect = document.getElementById('email_category');
+    const typeSelect = document.getElementById('email_type');
+    const typeOptions = typeSelect.querySelectorAll('option');
+    const initialOption = typeSelect.querySelector('option[data-category="none"]'); 
+    
+    const workRelatedSelect = document.getElementById('work_related');
+    const metadataFields = document.getElementById('metadata_fields_container');
+    const delegationFields = document.getElementById('delegation_fields');
+    const submitButton = document.getElementById('submit_button');
+    const agentSelect = document.getElementById('agent_name');
+
+    function updateEnquirySelection() {
+        const selectedCategory = categorySelect.value;
+        typeOptions.forEach(option => {
+            if (option !== initialOption) {
+                option.classList.add('hidden');
+                option.selected = false;
+            }
+        });
+
+        if (!selectedCategory || selectedCategory === "") {
+            typeSelect.disabled = true;
+            initialOption.textContent = "-- Select Enquiry Type First --";
+        } else {
+            typeSelect.disabled = false;
+            initialOption.textContent = "-- Select --";
+            typeOptions.forEach(option => {
+                if (option.getAttribute('data-category') === selectedCategory) {
+                    option.classList.remove('hidden');
+                }
+            });
+        }
+        initialOption.selected = true;
+    }
+
+    function toggleFormSections() {
+        if (workRelatedSelect.value === 'No') {
+            // Hide everything related to delegation and categorization
+            metadataFields.style.display = 'none';
+            delegationFields.style.display = 'none';
+            submitButton.textContent = 'Confirm Move to Recycle Bin';
+            agentSelect.removeAttribute('required');
+        } else {
+            // Show all fields
+            metadataFields.style.display = 'block';
+            delegationFields.style.display = 'block';
+            submitButton.textContent = 'Confirm Delegation';
+            agentSelect.setAttribute('required', 'required');
+        }
+    }
+
+    categorySelect.addEventListener('change', updateEnquirySelection);
+    workRelatedSelect.addEventListener('change', toggleFormSections);
+
+    // Run on load
+    updateEnquirySelection();
+    toggleFormSections();
+});
+</script>
+</body>
+</html>

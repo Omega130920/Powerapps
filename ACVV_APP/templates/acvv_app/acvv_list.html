@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACVV Records</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
+            margin: 20px;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        h1 {
+            color: #1b5e20;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        .container {
+            max-width: 95%;
+            margin: 2em auto;
+            padding: 1em;
+        }
+
+        .controls-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .return-button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #81c784;
+            border: 1px solid #81c784;
+            border-radius: 5px;
+            text-decoration: none;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .return-button:hover {
+            background-color: #66bb6a;
+        }
+
+        .search-form {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .search-form input[type="text"] {
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            min-width: 250px;
+        }
+
+        .search-form button {
+            padding: 8px 12px;
+            background-color: #43a047;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .search-form button:hover {
+            background-color: #388e3c;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            border-radius: 5px;
+            overflow: hidden;
+            background-color: #f0fff0;
+            border: 1px solid #c3e6cb;
+            margin-bottom: 20px;
+            font-size: 0.9em;
+        }
+
+        thead th {
+            background-color: #43a047;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+            border-bottom: 2px solid #388e3c;
+            white-space: nowrap;
+            border-right: 1px solid #388e3c;
+        }
+
+        thead th:last-child {
+            border-right: none;
+        }
+
+        tbody td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #aed581;
+            border-right: 1px solid #aed581;
+        }
+
+        tbody td:last-child {
+            border-right: none;
+        }
+
+        tbody tr:nth-child(even) {
+            background-color: #e6ffe6;
+        }
+        
+        tbody tr {
+            cursor: pointer;
+        }
+
+        tbody tr:hover {
+            background-color: #ccffcc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ACVV Records</h1>
+
+        <div class="controls-container">
+            <a href="{% url 'dashboard' %}" class="return-button">Back to Dashboard</a>
+            
+            <form method="get" class="search-form">
+                <input type="text" name="search_query" placeholder="Search by MIP Name or Branch Code..." value="{{ search_query }}">
+                <button type="submit">Search</button>
+            </form>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>MIP Names</th>
+                    <th>Branch Code</th>
+                    <th>Member</th>
+                    <th>Status</th>
+                    <th>Contribution Amount</th>
+                    <th>Notes</th>
+                    <th>Schedule Date Received</th>
+                    <th>Deb Order Date Confirm</th>
+                    <th>Bank info Upload</th>
+                    <th>Email Address</th>
+                    <th>Tel</th>
+                </tr>
+            </thead>
+            <tbody id="acvv-table-body">
+                {% for record in acvv_records %}
+                <tr data-mip-names="{{ record.mip_names }}">
+                    <td>{{ record.mip_names }}</td>
+                    <td>{{ record.branch_code }}</td>
+                    <td>{{ record.member }}</td>
+                    <td>{{ record.status }}</td>
+                    <td>{{ record.contribution_amount }}</td>
+                    <td>{{ record.notes }}</td>
+                    <td>{{ record.schedule_date_received }}</td>
+                    <td>{{ record.deb_order_date_confirm }}</td>
+                    <td>{{ record.bank_info_upload }}</td>
+                    <td>{{ record.mg_email_address }}</td>
+                    <td>{{ record.tel }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="11">No records found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const tableBody = document.getElementById('acvv-table-body');
+            
+            tableBody.addEventListener('click', function(event) {
+                const row = event.target.closest('tr');
+                if (row && row.dataset.mipNames) {
+                    const mipNames = row.dataset.mipNames;
+                    const url = `{% url 'acvv_information' 'placeholder_code' %}`;
+                    window.location.href = url.replace('placeholder_code', mipNames);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

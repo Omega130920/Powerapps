@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add New Lead</title>
+    
+    <style>
+        :root {
+            --primary-green: rgb(119, 206, 97);
+            --accent-green: rgb(105, 187, 85);
+            --bg-light-green: #d1e2c4;
+            --text-default: #333;
+            --action-blue: #0070c0;
+            --cancel-red: #e53935;
+        }
+
+        body { 
+            font-family: sans-serif;
+            line-height: 1.6;
+            background: linear-gradient(to bottom, var(--bg-light-green), rgb(143, 207, 127));
+            color: var(--text-default);
+            padding: 20px;
+        }
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+            padding: 30px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: var(--accent-green);
+            border-bottom: 3px solid var(--bg-light-green);
+            padding-bottom: 15px;
+            margin-top: 0;
+            font-size: 1.8em;
+        }
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+        .full-width { grid-column: 1 / -1; }
+        
+        label {
+            font-weight: 700;
+            color: #555;
+            margin-bottom: 5px;
+            font-size: 0.95rem;
+        }
+        input[type="text"], input[type="email"], input[type="date"], textarea, select {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 1rem;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+        input:focus, textarea:focus, select:focus {
+            border-color: var(--primary-green);
+            outline: none;
+        }
+        
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        .button-group {
+            margin-top: 30px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 15px;
+            grid-column: 1 / -1;
+        }
+
+        .submit-button, .cancel-button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .submit-button {
+            background-color: var(--action-blue);
+            color: white;
+        }
+        .submit-button:hover { background-color: #005a9c; }
+
+        .cancel-button {
+            background-color: #f0f0f0;
+            color: var(--text-default);
+        }
+        .cancel-button:hover { background-color: #e0e0e0; }
+
+        .error-message {
+            background-color: #ffebee;
+            color: var(--cancel-red);
+            padding: 15px;
+            border: 1px solid var(--cancel-red);
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 600;
+            grid-column: 1 / -1;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+        <h1>Add New Lead</h1>
+        
+        {% if error_message %}
+            <div class="error-message">{{ error_message }}</div>
+        {% endif %}
+
+        <!-- action="." sends data back to the same view function for POST processing -->
+        <form method="POST" action="{% url 'add_new_lead' %}"> 
+            <!-- NOTE: {% csrf_token %} is commented out since the view is decorated with @csrf_exempt for isolated environment testing. -->
+            <!-- {% csrf_token %} -->
+            
+            <div class="form-grid">
+                
+                <!-- Lead Source and Date -->
+                <div class="form-group">
+                    <label for="lead_received_from">Lead Received From (Source) *</label>
+                    <input type="text" id="lead_received_from" name="lead_received_from" required placeholder="e.g., Website Form, Referral, LinkedIn">
+                </div>
+                
+                <div class="form-group">
+                    <label for="date_received">Date Received *</label>
+                    <input type="date" id="date_received" name="date_received" value="{{ current_date }}" required>
+                </div>
+
+                <!-- Contact Information -->
+                <div class="form-group">
+                    <label for="company_name">Company Name *</label>
+                    <input type="text" id="company_name" name="company_name" required placeholder="Full company name">
+                </div>
+
+                <div class="form-group">
+                    <label for="contact_person">Contact Person *</label>
+                    <input type="text" id="contact_person" name="contact_person" required placeholder="Key contact name">
+                </div>
+
+                <div class="form-group">
+                    <label for="contact_number">Contact Number</label>
+                    <input type="text" id="contact_number" name="contact_number" placeholder="e.g., 081 123 4567">
+                </div>
+
+                <div class="form-group">
+                    <label for="contact_email">Contact Email</label>
+                    <input type="email" id="contact_email" name="contact_email" placeholder="e.g., name@company.com">
+                </div>
+
+                <!-- Product and Assignment -->
+                <div class="form-group">
+                    <label for="product_required">Product / Service Required *</label>
+                    <select id="product_required" name="product_required" required>
+                        {% for product in product_options %}
+                        <option value="{{ product }}">{{ product }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="assigned_to">Assign To</label>
+                    <select id="assigned_to" name="assigned_to">
+                        {% for consultant in consultant_options %}
+                        <option value="{{ consultant }}">{{ consultant }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <!-- Notes (Full Width) -->
+                <div class="form-group full-width">
+                    <label for="internal_notes">Internal Notes</label>
+                    <textarea id="internal_notes" name="internal_notes" placeholder="Any initial notes, context, or next steps..."></textarea>
+                </div>
+
+                <!-- Buttons -->
+                <div class="button-group">
+                    <button type="button" class="cancel-button" onclick="window.location.href='{% url 'lead_list' %}'">Cancel</button>
+                    <button type="submit" class="submit-button">Save Lead</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</body>
+</html>

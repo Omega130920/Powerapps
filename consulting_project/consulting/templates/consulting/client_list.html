@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client List</title>
+    
+    <style>
+        /* --- Root Colors (Reused from Client List) --- */
+        :root {
+            --primary-green: rgb(119, 206, 97);
+            --accent-green: rgb(105, 187, 85);
+            --bg-light-green: #e9f5e0; 
+            --page-bg: linear-gradient(to bottom, #d1e2c4);
+            --text-default: #333;
+            --export-blue: #0070c0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            /* Applying the requested gradient background */
+            background: var(--page-bg);
+            margin: 0;
+            padding: 0;
+        }
+
+        /* --- Header Bar (Primary Green) --- */
+        .header-bar {
+            background-color: var(--primary-green);
+            padding: 15px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header-bar .search-box {
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #777;
+            font-size: 1rem;
+            width: 250px;
+            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        .header-bar .export-button {
+            background-color: var(--export-blue); /* Retained blue for contrast/Export button */
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .header-bar .export-button:hover {
+            background-color: #005a9c;
+        }
+        .header-controls {
+             display: flex;
+             gap: 15px;
+             align-items: center;
+        }
+
+
+        /* --- Main Content Area --- */
+        .content-area {
+            padding: 25px;
+            overflow-x: auto;
+        }
+
+        /* --- Client Table --- */
+        .client-table {
+            width: 100%;
+            min-width: 1200px;
+            border-collapse: collapse;
+            background-color: #fff;
+            border-radius: 8px;
+            overflow: hidden; /* Ensures box-shadow is crisp */
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .client-table th, .client-table td {
+            border: 1px solid #ddd; /* Lighter border color for softer look */
+            padding: 12px 15px; /* Increased horizontal padding */
+            text-align: left;
+            font-size: 0.95rem;
+            color: var(--text-default);
+        }
+
+        /* Table Header Row (Dark Green Accent) */
+        .client-table thead .header-row {
+            background-color: var(--accent-green);
+            color: white;
+            font-weight: 700;
+            text-align: center;
+        }
+        .client-table thead .header-row th {
+            border-color: #72a566; /* Slightly darker border for separation */
+        }
+
+        /* Filter Row (Light Green Accent) */
+        .client-table thead .filter-row {
+            background-color: var(--bg-light-green); 
+        }
+        
+        .client-table .filter-row th {
+            padding: 8px 15px;
+        }
+
+        /* Filter Inputs */
+        .filter-input {
+            width: 100%;
+            box-sizing: border-box;
+            max-width: none; /* Let the column width define max-width */
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        
+        /* Table Body Rows */
+        .client-table tbody tr:nth-child(even) {
+            background-color: #f7fff5; /* Very light green stripe */
+        }
+        .client-table tbody tr:hover {
+            background-color: #d1e2c4; /* Soft hover using the lightest gradient color */
+            cursor: pointer;
+        }
+
+        .client-table td:last-child {
+            text-align: center;
+        }
+        .client-table .select-tick {
+            width: 18px;
+            height: 18px;
+            cursor: default;
+            accent-color: var(--primary-green); /* Green checkbox */
+        }
+        
+        /* FICA Status Colors */
+        .fica-status.complete { color: var(--primary-green); font-weight: 700; }
+        .fica-status.partial { color: #f39c12; font-weight: 600; } /* Yellow/Orange for partial retained */
+        .fica-status.none { color: #c0392b; font-weight: 600; } /* Red for none retained */
+
+    </style>
+</head>
+<body>
+
+    <div class="header-bar">
+        <a href="{% url 'consulting_home' %}" class="back-link">&larr; Back to Home</a>
+        <div class="header-controls">
+             <input type="text" class="search-box" id="globalSearchInput" placeholder="Search by Code or Name..."> 
+            <button class="export-button">Export</button>
+        </div>
+    </div>
+
+    <div class="content-area">
+        <table class="client-table" id="clientTable">
+            <thead>
+                <tr class="header-row">
+                    <th>SCHEME CODE</th>
+                    <th>CLIENT REF NO 2</th>
+                    <th>CLIENT NAME</th>
+                    <th>CONSULTANT</th>
+                    <th>ADMINISTRATOR</th>
+                    <th>UMBRELLA FUND OPTION</th>
+                    <th>FICA & DD % COMPLETED</th>
+                    <th>BULK EMAIL</th>
+                </tr>
+                <tr class="filter-row" id="filterRow">
+                    <th><input type="text" class="filter-input" placeholder="Search code..." data-column="0"></th>
+                    <th><input type="text" class="filter-input" placeholder="Search ref..." data-column="1"></th>
+                    <th><input type="text" class="filter-input" placeholder="Search name..." data-column="2"></th>
+                    <th>
+                        <select class="filter-input" data-column="3">
+                            <option value="">All</option>
+                            <option value="AWIE DE SWARDT">AWIE DE SWARDT</option>
+                            <option value="MARIDA BOTHA">MARIDA BOTHA</option>
+                            <option value="Stephan de Waal">STEPHAN DE WAAL</option>
+                            <option value="MERRIL FENNESSY">MERRIL FENNESSY</option>
+                        </select>
+                    </th>
+                    <th>
+                        <select class="filter-input" data-column="4">
+                            <option value="">All</option>
+                            <option value="Sanlam">SANLAM</option>
+                            <option value="Old Mutual">OLD MUTUAL</option>
+                            <option value="Momentum">MOMENTUM</option>
+                            <option value="Liberty Life">LIBERTY LIFE</option>
+                        </select>
+                    </th>
+                    <th>
+                        <select class="filter-input" data-column="5">
+                            <option value="">All</option>
+                            <option value="SUF Standard">SUF Standard</option>
+                            <option value="SUF Comprehensive">SUF Comprehensive</option>
+                            <option value="Sanlam Unity">Sanlam Unity</option>
+                            <option value="SUF Exception">SUF Exception</option>
+                        </select>
+                    </th>
+                    <th>
+                        <select class="filter-input" data-column="6">
+                            <option value="">All</option>
+                            <option value="100%">100%</option>
+                            <option value="75%">75%</option>
+                            <option value="50%">50%</option>
+                            <option value="25%">25%</option>
+                            <option value="0%">0%</option>
+                        </select>
+                    </th>
+                    <th></th> 
+                </tr>
+            </thead>
+            <tbody id="clientTableBody">
+                {% for client in clients %}
+                
+                <tr data-href="{% url 'client_info' client_code=client.future_client_number %}">
+                    <td>{{ client.future_client_number }}</td>
+                    <td>{{ client.id }}</td>
+                    <td>{{ client.client_name|upper }}</td>
+                    <td>{{ client.consultant|upper }}</td>
+                    <td>{{ client.administrator|upper|default:"N/A" }}</td>
+                    <td>{{ client.umbrella_fund|default:"N/A" }}</td>
+                    <td>
+                        {% with fica_val=client.fica_dd_completed|floatformat:0 %}
+                            {% if fica_val >= 100 %}
+                                <span class="fica-status complete">100%</span>
+                            {% elif fica_val > 0 %}
+                                <span class="fica-status partial">{{ fica_val }}%</span>
+                            {% else %}
+                                <span class="fica-status none">0%</span>
+                            {% endif %}
+                        {% endwith %}
+                    </td>
+                    <td><input type="checkbox" class="select-tick" {% if client.bulk_email_status %}checked{% endif %} onclick="event.stopPropagation();"></td>
+                </tr>
+                
+                {% empty %}
+                <tr data-href="#">
+                    <td colspan="8" style="text-align: center; padding: 40px; color: #888;">
+                        No clients found in the database.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+    // Wait for the document to be fully loaded
+    document.addEventListener('DOMContentLoaded', function () {
+        
+        // --- SECTION 1: FILTERING LOGIC (Combined Global and Column Filtering) ---
+        
+        const globalSearch = document.getElementById('globalSearchInput'); 
+        const filterInputs = document.querySelectorAll('#filterRow .filter-input');
+        const tableBody = document.getElementById('clientTableBody');
+        const tableRows = tableBody.getElementsByTagName('tr');
+
+        function filterTable() {
+            // Ensure globalSearch is found before proceeding
+            if (!globalSearch) return; 
+
+            const globalSearchValue = globalSearch.value.toLowerCase();
+            const columnFilters = Array.from(filterInputs).map(input => ({
+                value: input.value.toLowerCase(),
+                column: parseInt(input.dataset.column) 
+            }));
+
+            for (let i = 0; i < tableRows.length; i++) {
+                const row = tableRows[i];
+                const cells = row.getElementsByTagName('td');
+                // Skip the 'no clients found' row
+                if (cells.length < 8) continue; 
+                
+                let rowVisible = true; 
+
+                // 1. Global Search Filter (Checks SCHEME CODE (0) and CLIENT NAME (2))
+                if (globalSearchValue && cells.length >= 3) {
+                    const schemeCode = cells[0].textContent.toLowerCase();
+                    const clientName = cells[2].textContent.toLowerCase();
+                    if (!schemeCode.includes(globalSearchValue) && !clientName.includes(globalSearchValue)) {
+                        rowVisible = false;
+                    }
+                }
+
+                // 2. Column Filters (Applies only if row passed Global Filter, or if Global Filter is empty)
+                if (rowVisible) {
+                    for (const filter of columnFilters) {
+                        if (filter.value && cells.length > filter.column) {
+                            
+                            // FIX: Convert the cell's text content to lowercase for comparison.
+                            const cellValue = cells[filter.column].textContent.toLowerCase().trim();
+                            
+                            // If the filter is for a select dropdown, we check for an exact match 
+                            // unless the selected value is the default "all" or empty.
+                            // For the text input filters (columns 0, 1, 2), we use 'includes' (wildcard search).
+                            if (filter.column <= 2 || filter.column >= 6) { 
+                                // Text/FICA search: check if cell includes filter value
+                                if (!cellValue.includes(filter.value)) {
+                                    rowVisible = false;
+                                    break; 
+                                }
+                            } else {
+                                // Dropdown filters (columns 3, 4, 5): check for exact match against the whole cell content
+                                if (filter.value !== "" && cellValue !== filter.value) {
+                                     rowVisible = false;
+                                     break;
+                                }
+                            }
+                        }
+                    }
+                }
+                row.style.display = rowVisible ? '' : 'none';
+            }
+        }
+
+        // Attach event listeners after DOMContentLoaded
+        if (globalSearch) {
+            globalSearch.addEventListener('input', filterTable);
+        }
+        filterInputs.forEach(input => {
+            input.addEventListener('input', filterTable);
+            input.addEventListener('change', filterTable);
+        });
+
+        // --- SECTION 2: CLICKABLE ROW LOGIC (Remains unchanged) ---
+        
+        document.querySelectorAll('#clientTableBody tr').forEach(row => {
+            row.addEventListener('click', function(event) {
+                // Prevent navigation if a clickable element inside (like the checkbox) was clicked
+                if (event.target.tagName.toLowerCase() === 'input' && event.target.type === 'checkbox') {
+                    return;
+                }
+                // Get the URL from the 'data-href' attribute
+                const href = row.dataset.href; 
+                if (href && href !== '#') {
+                    // Redirect the browser to that URL
+                    window.location.href = href; 
+                }
+            });
+        });
+    });
+</script>
+
+</body>
+</html>

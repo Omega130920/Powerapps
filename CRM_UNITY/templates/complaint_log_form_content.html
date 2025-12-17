@@ -1,0 +1,72 @@
+<div class="max-w-4xl mx-auto bg-white p-8 rounded-xl shadow-2xl border-2 border-indigo-200">
+    <h2 class="text-2xl font-bold text-indigo-700 mb-6 border-b pb-3">
+        {% if is_editing %}
+            Edit Complaint #{{ form.instance.id }}
+        {% else %}
+            Log New Complaint
+        {% endif %}
+    </h2>
+    
+    {# IMPORTANT: action="" means 'post to the current URL'. This preserves ?edit_id=X #}
+    <form method="post" action="" class="space-y-6">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-50 font-semibold" role="alert">
+                {{ form.non_field_errors }}
+            </div>
+        {% endif %}
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="flex flex-col">
+                <label class="mb-1 text-sm font-medium text-gray-700">{{ form.complainant.label }}<span class="text-red-500">*</span></label>
+                {{ form.complainant }}
+                {% if form.complainant.errors %}<small class="text-red-500 font-semibold mt-1">{{ form.complainant.errors }}</small>{% endif %}
+            </div>
+            <div class="flex flex-col">
+                <label class="mb-1 text-sm font-medium text-gray-700">{{ form.employer.label }}</label>
+                {{ form.employer }}
+                {% if form.employer.errors %}<small class="text-red-500 font-semibold mt-1">{{ form.employer.errors }}</small>{% endif %}
+            </div>
+        </div>
+
+        <div class="flex flex-col">
+            <label class="mb-1 text-sm font-medium text-gray-700">{{ form.nature_of_complaint.label }}<span class="text-red-500">*</span></label>
+            {{ form.nature_of_complaint }}
+            {% if form.nature_of_complaint.errors %}<small class="text-red-500 font-semibold mt-1">{{ form.nature_of_complaint.errors }}</small>{% endif %}
+        </div>
+
+        <div class="flex flex-col">
+            <label class="mb-1 text-sm font-medium text-gray-700">{{ form.resolution.label }}</label>
+            {{ form.resolution }}
+            {% if form.resolution.errors %}<small class="text-red-500 font-semibold mt-1">{{ form.resolution.errors }}</small>{% endif %}
+        </div>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="flex flex-col">
+                <label class="mb-1 text-sm font-medium text-gray-700">{{ form.created_date.label }}</label>
+                {{ form.created_date }}
+            </div>
+            <div class="flex flex-col">
+                <label class="mb-1 text-sm font-medium text-gray-700">{{ form.resolved_date.label }}</label>
+                {{ form.resolved_date }}
+            </div>
+            <div class="flex flex-col">
+                <label class="mb-1 text-sm font-medium text-gray-700">{{ form.current_status.label }}</label>
+                {{ form.current_status }}
+            </div>
+        </div>
+
+        <div class="flex gap-4">
+            <button type="submit" class="flex-1 py-3 px-4 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 transition duration-150">
+                {% if is_editing %} Update Complaint {% else %} Log Complaint {% endif %}
+            </button>
+            
+            {% if is_editing %}
+                <a href="{% url 'complaint_log' %}" class="flex-1 py-3 px-4 bg-gray-500 text-center text-white font-semibold rounded-lg shadow-md hover:bg-gray-600 transition duration-150">
+                    Cancel Edit
+                </a>
+            {% endif %}
+        </div>
+    </form>
+</div>

@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Levy Information for {{ levy_record.levy_name }}</title>
+    <style>
+    /* --- MAIN LAYOUT & CORE STYLES --- */
+    html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden; 
+    }
+    
+    body {
+        font-family: sans-serif;
+        font-size: 14px;
+        background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
+        color: #333;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    :root {
+        --color-primary: #1b5e20;
+        --color-secondary: #43a047;
+        --color-background-note: #e6ffe6;
+        --color-background-card: #f0fff0;
+        --color-border-light: #c3e6cb;
+        --color-text-dark: #333;
+    }
+
+    .container {
+        width: 95%;
+        max-width: 98%;
+        height: 90vh;
+        display: flex;
+        flex-direction: column;
+        background-color: var(--color-background-card);
+        padding: 1.5em;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    .dashboard-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+    }
+
+    .dashboard-button {
+        padding: 8px 16px;
+        background-color: #81c784;
+        border: 1px solid #81c784;
+        border-radius: 5px;
+        text-decoration: none;
+        color: white;
+        font-weight: bold;
+        transition: background-color 0.3s ease;
+        font-size: 13px;
+        cursor: pointer;
+        display: inline-block;
+    }
+
+    .dashboard-button:hover { background-color: #66bb6a; }
+    
+    h1 {
+        color: var(--color-primary);
+        text-align: center;
+        flex-grow: 1;
+        font-size: 22px;
+    }
+
+    .profile-layout {
+        display: flex;
+        gap: 15px;
+        flex: 1;
+        min-height: 0;
+    }
+    
+    /* --- VERTICAL NAVIGATION --- */
+    .tab-nav {
+        list-style-type: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        width: 200px;
+        border-right: 2px solid #aed581;
+        overflow-y: auto;
+    }
+    
+    .tab-nav li {
+        padding: 12px 15px;
+        cursor: pointer;
+        background-color: #81c784; 
+        border: 1px solid #81c784;
+        border-right: none;
+        color: white;
+        margin-bottom: 4px;
+        border-radius: 5px 0 0 5px;
+        white-space: nowrap;
+        text-align: right;
+        transition: all 0.2s ease;
+        font-size: 13px;
+    }
+
+    .tab-nav li.active {
+        background-color: var(--color-background-card);
+        color: var(--color-primary);
+        border-top: 2px solid var(--color-secondary);
+        border-bottom: 2px solid var(--color-secondary);
+        border-left: 2px solid var(--color-secondary);
+        font-weight: bold;
+        transform: translateX(2px);
+        z-index: 1;
+    }
+
+    .tab-content {
+        flex: 1;
+        background-color: var(--color-background-card);
+        padding: 20px;
+        border: 1px solid #aed581;
+        border-radius: 0 8px 8px 8px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        overflow-y: auto;
+        min-height: 0;
+    }
+    
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    /* --- DATA TABLES --- */
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 20px;}
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #aed581; font-size: 13px; }
+    th { background-color: var(--color-background-note); color: var(--color-primary); font-weight: bold; }
+    tr:nth-child(even) { background-color: #f9f9f9; }
+    tr.bank-line-row:hover { background-color: #dcedc8; cursor: pointer; }
+    .bank-line-table-container { max-height: 65vh; overflow-y: auto; border: 1px solid #eee; }
+
+    /* --- OVERVIEW CARDS --- */
+    .overview-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-top: 10px;
+    }
+    .card {
+        background-color: #fff;
+        padding: 20px;
+        border-radius: 8px;
+        border: 1px solid var(--color-border-light);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    .card h3 { color: var(--color-primary); margin-top: 0; border-bottom: 2px solid var(--color-secondary); padding-bottom: 8px; }
+
+    /* --- NOTES STYLING --- */
+    .note { background-color: #e8f5e9; border-left: 4px solid var(--color-secondary); padding: 12px; margin-bottom: 10px; border-radius: 4px; }
+    .note-header { display: flex; justify-content: space-between; font-size: 11px; color: #666; margin-bottom: 5px; }
+
+    /* --- EMAIL LOG (UNITY STYLE) --- */
+    .email-row {
+        background-color: #fff;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        padding: 15px;
+        margin-bottom: 15px;
+        border-left: 5px solid #0288d1;
+        display: flex;
+        align-items: flex-start;
+        gap: 15px;
+        transition: transform 0.2s;
+    }
+    .email-row:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .status-pill { padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; text-transform: uppercase; }
+    .status-new { background-color: #bbdefb; color: #1565c0; }
+    .status-com { background-color: #c8e6c9; color: #2e7d32; }
+
+    /* --- MODAL --- */
+    .modal-overlay {
+        display: none;
+        position: fixed;
+        z-index: 2000;
+        left: 0; top: 0; width: 100%; height: 100%;
+        background-color: rgba(0,0,0,0.6);
+        justify-content: center; align-items: center;
+    }
+    .modal-content {
+        background-color: #fff; padding: 25px; border-radius: 12px;
+        width: 85%; max-width: 1000px; max-height: 85vh; overflow-y: auto;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    }
+    .email-body-content { padding: 20px; background: #fdfdfd; border: 1px solid #eee; border-radius: 8px; line-height: 1.6; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="dashboard-header">
+            <div style="display: flex; gap: 10px;">
+                <a href="{% url 'levy_list' %}" class="dashboard-button">Return to List</a>
+                <a href="{% url 'org_table_view' %}" class="dashboard-button">Return to Org Table</a>
+            </div>
+            <h1>Levy #{{ levy_record.levy_number }} - {{ levy_record.levy_name }}</h1>
+            <div style="width: 200px;"></div>
+        </div>
+
+        <div class="profile-layout">
+            <ul class="tab-nav">
+                <li class="active" data-tab-target="#overview">Overview</li> 
+                <li data-tab-target="#general-info">General Info</li>
+                <li data-tab-target="#levy-directors">Levy Directors</li>
+                <li data-tab-target="#bank-line-data">Bank Lines ({{ bank_lines|length }})</li> 
+                <li data-tab-target="#pdf-documents">PDF Documents</li>
+                <li data-tab-target="#org-notes-tab">Org Notes ({{ org_notes|length }})</li>
+                <li data-tab-target="#email-log-tab">Email History ({{ email_logs|length }})</li>
+            </ul>
+
+            <div class="tab-content">
+                
+                <div id="overview" class="tab-pane active">
+                    <div class="overview-grid">
+                        <div class="card">
+                            <h3>Status & Compliance</h3>
+                            <table class="data-table">
+                                <tr><th>MIP Status</th><td>{{ levy_record.mip_status }}</td></tr>
+                                <tr><th>FICA Compliance</th><td>{{ levy_record.fica }}</td></tr>
+                                <tr><th>Commencement</th><td>{{ levy_record.commencement_date|date:"Y-m-d" }}</td></tr>
+                            </table>
+                        </div>
+                        <div class="card">
+                            <h3>Financial Summary</h3>
+                            <table class="data-table">
+                                <tr><th>Total Due</th><td>R {{ org_summary.due_amount|floatformat:2|default:"0.00" }}</td></tr>
+                                <tr><th>Current Fiscal</th><td>{{ org_summary.billing_period|default:"N/A" }}</td></tr>
+                                <tr><th>Overs/Unders</th><td>R {{ org_summary.overs_unders|floatformat:2|default:"0.00" }}</td></tr>
+                            </table>
+                        </div>
+                        <div class="card" style="grid-column: span 2;">
+                            <h3>Latest Client Note</h3>
+                            <form method="post" action="{% url 'levy_information' levy_record.levy_number %}">
+                                {% csrf_token %}
+                                <textarea name="notes_text" style="width:100%; height: 60px; border-radius:5px; border:1px solid #ccc; padding:10px;" placeholder="Add a quick note here..."></textarea>
+                                <div style="text-align: right; margin-top: 10px;">
+                                    <button type="submit" class="dashboard-button">Add Note</button>
+                                </div>
+                            </form>
+                            <hr>
+                            <div style="max-height: 150px; overflow-y: auto;">
+                                {% for note in notes|slice:":3" %}
+                                <div class="note">
+                                    <div class="note-header"><span>{{ note.user }}</span><span>{{ note.date }}</span></div>
+                                    <p style="margin:0;">{{ note.notes_text }}</p>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="general-info" class="tab-pane">
+                    <h3>Levy Profile Details</h3>
+                    <table>
+                        <tr><th>Responsible Person</th><td>{{ levy_record.responsible_person }}</td></tr>
+                        <tr><th>Registration No.</th><td>{{ levy_record.registration_number }}</td></tr>
+                        <tr><th>Notice Email</th><td>{{ levy_record.notice_email }}</td></tr>
+                        <tr><th>Telephone</th><td>{{ levy_record.telephone }}</td></tr>
+                        <tr><th>Physical Address</th><td>{{ levy_record.physical_address }}</td></tr>
+                        <tr><th>Postal Address</th><td>{{ levy_record.postal_address }}</td></tr>
+                        <tr><th>User Access 1</th><td>{{ levy_record.levy_user }} ({{ levy_record.user_login }})</td></tr>
+                        <tr><th>User Access 2</th><td>{{ levy_record.levy_user_2 }} ({{ levy_record.user_login_2 }})</td></tr>
+                    </table>
+                </div>
+
+                <div id="levy-directors" class="tab-pane">
+                    <h3>Directors Information</h3>
+                    {% for i in "1234" %}
+                        {% with name_key="director_name_"|add:i email_key="director_mail_"|add:i cell_key="director_cell_"|add:i addr_key="director_address_"|add:i %}
+                        {% if levy_record|dictsort:name_key %}
+                        <div class="card" style="margin-bottom:15px;">
+                            <h4 style="margin:0 0 10px 0; color:var(--color-primary)">Director {{ i }}</h4>
+                            <table style="margin:0;">
+                                <tr><th style="width:20%">Name</th><td>{{ levy_record|dictsort:name_key }}</td></tr>
+                                <tr><th>Email</th><td>{{ levy_record|dictsort:email_key }}</td></tr>
+                                <tr><th>Cell</th><td>{{ levy_record|dictsort:cell_key }}</td></tr>
+                                <tr><th>Address</th><td>{{ levy_record|dictsort:addr_key }}</td></tr>
+                            </table>
+                        </div>
+                        {% endif %}
+                        {% endwith %}
+                    {% endfor %}
+                </div>
+
+                <div id="bank-line-data" class="tab-pane">
+                    <h3>Bank Line History</h3>
+                    <div class="bank-line-table-container">
+                        <table>
+                            <thead>
+                                <tr><th>Date</th><th>Amount</th><th>Type</th><th>Reference</th><th>Fiscal</th><th>Import Date</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for line in bank_lines %}
+                                <tr class="bank-line-row" onclick="window.location.href = '{% url 'bankline_edits' line.Levy_number %}?line_id={{ line.id }}';">
+                                    <td>{{ line.Date|date:"Y-m-d" }}</td>
+                                    <td>R {{ line.Amount|floatformat:2 }}</td>
+                                    <td>{{ line.Type }}</td>
+                                    <td>{{ line.Reference_Description }}</td>
+                                    <td>{{ line.Fisical|default:"-" }}</td>
+                                    <td>{{ line.Import_date|date:"Y-m-d" }}</td>
+                                </tr>
+                                {% empty %}
+                                <tr><td colspan="6" style="text-align:center;">No bank lines found.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="pdf-documents" class="tab-pane">
+                    <div class="overview-grid">
+                        <div class="card">
+                            <h3>Upload Document</h3>
+                            <form method="post" enctype="multipart/form-data">
+                                {% csrf_token %}
+                                <input type="hidden" name="upload_document" value="1">
+                                <div style="margin-bottom:10px;">
+                                    <label>Doc Type:</label>
+                                    <select name="title" required style="width:100%; padding:8px;">
+                                        <option value="Fica_1">ID Document</option>
+                                        <option value="Fica_2">Proof of Address</option>
+                                        <option value="Fica_3">Bank Statement</option>
+                                    </select>
+                                </div>
+                                <div style="margin-bottom:15px;">
+                                    {{ pdf_upload_form.document_file }}
+                                </div>
+                                <button type="submit" class="dashboard-button" style="width:100%">Upload PDF</button>
+                            </form>
+                        </div>
+                        <div class="card">
+                            <h3>Existing Files</h3>
+                            <div style="max-height: 300px; overflow-y: auto;">
+                                <table>
+                                    <thead><tr><th>Title</th><th>Date</th><th>Action</th></tr></thead>
+                                    <tbody>
+                                        {% for doc in documents %}
+                                        <tr>
+                                            <td>{{ doc.title }}</td>
+                                            <td>{{ doc.uploaded_at|date:"Y-m-d" }}</td>
+                                            <td><a href="?download_id={{ doc.id }}">Download</a></td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="org-notes-tab" class="tab-pane">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h3>Organizational Notes History</h3>
+                        <a href="{% url 'org_table_info' levy_record.levy_number %}" class="dashboard-button">Add New Org Note</a>
+                    </div>
+                    <div class="bank-line-table-container">
+                        {% for note in org_notes %}
+                        <div class="note">
+                            <div class="note-header">
+                                <span>Fiscal: {{ note.Fiscal_date|date:"Y-m-d" }}</span>
+                                <span>{{ note.User }} @ {{ note.Date|date:"Y-m-d H:i" }}</span>
+                            </div>
+                            <p>{{ note.Notes }}</p>
+                        </div>
+                        {% empty %}
+                        <p class="empty-message">No organizational notes found.</p>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div id="email-log-tab" class="tab-pane">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #aed581; padding-bottom: 10px;">
+                        <div>
+                            <h2 style="margin: 0; font-size: 1.5em; color: #1565c0;">Communication History</h2>
+                            <p style="font-size: 0.9em; color: #555; margin: 5px 0 0 0;">Tracking delegated emails and sent messages.</p>
+                        </div>
+                        <button type="button" class="dashboard-button" style="background-color: #ff9800; border-color: #f57c00;" onclick="toggleEmailForm()">📧 Compose New Email</button>
+                    </div>
+
+                    <div id="email-composition-container" style="display: none; margin-bottom: 20px;">
+                        <form method="post" action="{% url 'outlook_compose' %}" id="email_master_form" style="background-color: #fffaf5; border: 2px dashed #ff9800; border-radius: 8px; padding: 20px;">
+                            {% csrf_token %}
+                            <input type="hidden" name="company_code" value="{{ levy_record.levy_number }}">
+                            <input type="hidden" name="email_body_html_content" id="email_body_html_content">
+                            
+                            <div style="margin-bottom: 10px;">
+                                <label style="font-weight: bold;">To Recipient:</label>
+                                <input type="email" name="to_email" value="{{ levy_record.notice_email }}" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" required>
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <label style="font-weight: bold;">Subject:</label>
+                                <input type="text" name="subject" value="[MIP: {{ levy_record.levy_number }}] Levy Query" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                            </div>
+                            <div style="margin-bottom: 15px;">
+                                <label style="font-weight: bold;">Email Body:</label>
+                                <div id="member_email_body_editor" contenteditable="true" style="min-height: 200px; border: 1px solid #ccc; padding: 10px; border-radius: 4px; background-color: white; overflow-y: auto;">
+                                    <p>Dear Sir/Madam,</p>
+                                    <p>Regarding Levy Number {{ levy_record.levy_number }} ({{ levy_record.levy_name }}),</p>
+                                    <p><br></p>
+                                    <p>Kind regards,</p>
+                                    <p>{{ request.user.get_full_name|default:request.user.username }}</p>
+                                </div>
+                            </div>
+                            <div style="text-align: right;">
+                                <button type="button" class="dashboard-button" style="background-color:#999;" onclick="toggleEmailForm()">Cancel</button>
+                                <button type="submit" class="dashboard-button" style="background-color:#f7931e;">Send via Microsoft Graph</button>
+                            </div>
+                        </form>
+                    </div>
+
+                    {% if email_logs %}
+                        {% for log in email_logs %}
+                        <div class="email-row" style="border-left-color: {% if log.email_category == 'Outgoing' %}#4CAF50{% else %}#0288d1{% endif %};">
+                            <div style="flex: 0 0 40px; text-align: center; font-size: 24px;">
+                                {% if log.email_category == 'Outgoing' %}📤{% else %}📩{% endif %}
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="display: flex; justify-content: space-between;">
+                                    <span style="font-weight: bold; color: #1565c0; font-size: 1.1em;">{{ log.email_id|truncatechars:65 }}</span>
+                                    <span style="color: #777; font-size: 0.9em;">{{ log.received_at|date:"Y-m-d H:i" }}</span>
+                                </div>
+                                <div style="font-size: 0.9em; color: #555; margin-top: 5px;">
+                                    <span class="status-pill {% if log.status == 'NEW' %}status-new{% elif log.status == 'COM' %}status-com{% else %}status-default{% endif %}">{{ log.status }}</span>
+                                    <span style="margin-left: 10px;">Cat: <strong>{{ log.email_category|default:"Delegated" }}</strong></span>
+                                    <span style="margin-left: 10px;">Assigned: {{ log.assigned_user|default:"System" }}</span>
+                                </div>
+                                <div style="margin-top: 10px;">
+                                    <button type="button" class="dashboard-button" style="padding: 5px 10px; font-size: 11px; background-color: #0288d1;"
+                                        onclick="viewEmailThread(this)"
+                                        data-subject="{{ log.email_id }}"
+                                        data-sender="{{ log.assigned_user|default:'System' }}"
+                                        data-recipient="{{ levy_record.notice_email }}"
+                                        data-date="{{ log.received_at|date:'Y-m-d H:i' }}"
+                                        data-body-id="hidden-body-{{ forloop.counter }}">
+                                        👁️ View Message Thread
+                                    </button>
+                                </div>
+                                <div id="hidden-body-{{ forloop.counter }}" style="display:none;">
+                                    {% if log.notes %}
+                                        {{ log.notes|safe|linebreaksbr }}
+                                    {% else %}
+                                        <p style="font-style: italic; color: #888;">No email body content found in the database.</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <div style="text-align:center; padding: 50px; background:#f9f9f9; border-radius:8px; border:1px dashed #ccc;">
+                            <p style="color:#888;">No email communication has been logged for this levy.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="emailViewModal" class="modal-overlay">
+        <div class="modal-content">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #aed581; padding-bottom: 12px; margin-bottom: 15px;">
+                <h3 style="margin: 0; color:var(--color-primary)">Email Message Details</h3>
+                <button type="button" onclick="closeEmailModal()" style="background:none; border:none; font-size:1.8em; cursor:pointer; color:#999;">&times;</button>
+            </div>
+            <table style="margin-bottom: 20px; background: #fefefe;">
+                <tr><td style="font-weight:bold; width: 120px; border:none;">Subject:</td><td id="modal_subject" style="border:none;"></td></tr>
+                <tr><td style="font-weight:bold; border:none;">Date:</td><td id="modal_date" style="border:none;"></td></tr>
+                <tr><td style="font-weight:bold; border:none;">From:</td><td id="modal_sender" style="border:none;"></td></tr>
+                <tr><td style="font-weight:bold; border:none;">To:</td><td id="modal_recipient" style="border:none;"></td></tr>
+            </table>
+            <div style="font-weight:bold; margin-bottom:5px; color:#555;">Message Content:</div>
+            <div id="modal_body" class="email-body-content"></div>
+            <div style="text-align: right; margin-top: 25px;">
+                <button type="button" class="dashboard-button" onclick="closeEmailModal()" style="background-color:#555;">Close Viewer</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* --- TAB NAVIGATION LOGIC --- */
+        document.addEventListener('DOMContentLoaded', function() {
+            const tabs = document.querySelectorAll('.tab-nav li');
+            const panes = document.querySelectorAll('.tab-pane');
+
+            const switchTab = (targetId) => {
+                const targetPane = document.querySelector(targetId);
+                const targetTab = document.querySelector(`[data-tab-target="${targetId}"]`);
+                
+                if (targetPane && targetTab) {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    panes.forEach(p => p.classList.remove('active'));
+                    targetTab.classList.add('active');
+                    targetPane.classList.add('active');
+                }
+            };
+
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const targetId = tab.dataset.tabTarget;
+                    switchTab(targetId);
+                    history.pushState(null, null, targetId);
+                });
+            });
+
+            // Handle URL Hash on load
+            if(window.location.hash) {
+                switchTab(window.location.hash);
+            }
+        });
+
+        /* --- EMAIL COMPOSER LOGIC --- */
+        function toggleEmailForm() {
+            const form = document.getElementById('email-composition-container');
+            form.style.display = form.style.display === 'none' ? 'block' : 'none';
+            if(form.style.display === 'block') {
+                form.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+
+        // Sync HTML Editor content to hidden input before form submission
+        const emailMasterForm = document.getElementById('email_master_form');
+        if(emailMasterForm) {
+            emailMasterForm.addEventListener('submit', function() {
+                const editor = document.getElementById('member_email_body_editor');
+                const htmlInput = document.getElementById('email_body_html_content');
+                htmlInput.value = editor.innerHTML;
+            });
+        }
+
+        /* --- MODAL LOGIC --- */
+        function viewEmailThread(btn) {
+            document.getElementById('modal_subject').innerText = btn.dataset.subject;
+            document.getElementById('modal_date').innerText = btn.dataset.date;
+            document.getElementById('modal_sender').innerText = btn.dataset.sender;
+            document.getElementById('modal_recipient').innerText = btn.dataset.recipient;
+            
+            const sourceBody = document.getElementById(btn.dataset.bodyId);
+            document.getElementById('modal_body').innerHTML = sourceBody.innerHTML;
+            
+            document.getElementById('emailViewModal').style.display = 'flex';
+        }
+
+        function closeEmailModal() {
+            document.getElementById('emailViewModal').style.display = 'none';
+        }
+
+        // Close modal if user clicks outside of it
+        window.onclick = function(event) {
+            const modal = document.getElementById('emailViewModal');
+            if (event.target == modal) closeEmailModal();
+        }
+    </script>
+</body>
+</html>

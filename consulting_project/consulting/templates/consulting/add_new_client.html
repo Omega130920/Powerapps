@@ -1,0 +1,1062 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add New Client</title>
+    <style>
+        /* --- Root Colors based on professional style guide --- */
+        :root {
+            --primary-green: #4CAF50;
+            --accent-green: #388E3C;
+            --bg-light-green: #e8f5e9;
+            --action-green: #66BB6A;
+            --text-default: #333;
+            --text-muted: #666;
+            --border-light: #ddd;
+            --card-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            --header-border: 1px solid #c8e6c9;
+        }
+
+        /* --- General Styles --- */
+        body { 
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            background: linear-gradient(to bottom, var(--bg-light-green), #dcedc8);
+            color: var(--text-default);
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 30px;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: var(--card-shadow);
+        }
+        h1 {
+            color: var(--accent-green);
+            border-bottom: 3px solid var(--primary-green);
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+            font-size: 2.2rem;
+            font-weight: 700;
+        }
+        h2 {
+            color: var(--primary-green);
+            border-bottom: var(--header-border);
+            padding-bottom: 10px;
+            font-size: 1.5rem;
+            margin-top: 40px;
+            margin-bottom: 25px;
+        }
+        h3 {
+            color: var(--text-default);
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            margin-bottom: 20px;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+            padding: 5px 0;
+        }
+        .back-link:hover {
+            color: var(--primary-green);
+        }
+
+        /* --- Tab Navigation --- */
+        .tab-nav {
+            display: flex;
+            border-bottom: 2px solid var(--border-light);
+            margin-bottom: 25px;
+            flex-wrap: wrap; 
+            gap: 5px;
+        }
+        .tab-button {
+            padding: 12px 20px;
+            cursor: pointer;
+            background-color: #f0f4f0;
+            border: 1px solid var(--border-light);
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            font-weight: 600;
+            color: var(--text-muted);
+            transition: all 0.2s;
+        }
+        .tab-button.active {
+            background-color: #fff;
+            border-color: var(--border-light) var(--border-light) #fff;
+            color: var(--accent-green);
+            margin-bottom: -2px;
+            border-bottom: 2px solid #fff;
+        }
+
+        /* --- Form Structure --- */
+        .tab-content { display: none; grid-column: 1 / -1; }
+        .tab-content.active { display: block; }
+        .client-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; }
+        .form-group { display: flex; flex-direction: column; }
+        .form-group label { 
+            font-weight: 600; 
+            margin-bottom: 8px; 
+            color: var(--text-default); 
+            font-size: 0.95rem;
+        }
+        .form-group input, .form-group select, .form-group textarea {
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 1rem;
+            background-color: #fcfcfc;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            border-color: var(--primary-green);
+            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.2);
+            background-color: #fff;
+        }
+        .full-width { grid-column: 1 / -1; }
+        .form-group-file input[type="file"] {
+            padding: 8px;
+            background-color: #f7fff5;
+            border: 1px dashed var(--primary-green);
+        }
+        
+        /* Radio & Checkbox Styles */
+        .form-group-radio .radio-options {
+            display: flex;
+            gap: 20px;
+            margin-top: 5px;
+        }
+        .form-group-radio label {
+            font-weight: normal;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+        .form-group-radio input[type="radio"], .form-group input[type="checkbox"] {
+            accent-color: var(--primary-green);
+            margin-right: 5px;
+            width: 1.1em;
+            height: 1.1em;
+        }
+
+        /* --- Tab 2: Contacts Layout --- */
+        .contact-card-container {
+            border: 1px solid var(--border-light);
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 20px;
+            background-color: #fcfdfc;
+        }
+        .contact-card-container h3 {
+            color: var(--accent-green);
+            border-bottom: 1px solid var(--bg-light-green);
+            padding-bottom: 10px;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+
+        /* --- Tab 3: FICA/DD Specific Styles --- */
+        .fica-step-nav { 
+            display: flex; 
+            gap: 15px; 
+            flex-wrap: wrap; 
+            margin-bottom: 30px; 
+            background-color: #f7fff5;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+        }
+        .fica-step-nav label {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            transition: color 0.2s;
+        }
+        .fica-step-nav label:hover {
+            color: var(--accent-green);
+        }
+        
+        /* Address Grids */
+        .address-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+        .address-column h3 { font-size: 1.2rem; color: var(--accent-green); margin-top: 0; padding-bottom: 8px; border-bottom: 1px solid var(--primary-green); }
+        .address-column .form-group { margin-bottom: 15px; }
+        .add-link { color: var(--action-green); text-decoration: none; font-size: 0.9rem; font-weight: 500; cursor: pointer; transition: color 0.2s; }
+        .add-link:hover { text-decoration: underline; color: var(--accent-green); }
+        
+        /* Tables for Responsible Person, Director, Owner (Modified to look like grid) */
+        .responsible-person-table, .director-table, .beneficial-owner-table, .transaction-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            border: none;
+        }
+        .responsible-person-table td, .director-table td, .beneficial-owner-table td, .transaction-table td {
+            padding: 15px;
+            border: none;
+            vertical-align: top;
+            background-color: transparent;
+        }
+        /* Keep separators for the Step 6 table body */
+        .transaction-table tbody tr {
+            border-bottom: 1px solid var(--border-light);
+        }
+        .transaction-table tbody tr:last-child {
+            border-bottom: none;
+        }
+
+        /* PEP/PIP Section */
+        .pep-section { 
+            border: 1px solid var(--header-border); 
+            padding: 20px; 
+            margin-bottom: 25px; 
+            border-radius: 8px; 
+            background-color: #fcfdfc; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        }
+        .pep-section h4 {color: var(--accent-green); font-size: 1.1rem; margin-top: 0; margin-bottom: 15px; font-weight: 600;}
+        .pep-question { 
+            font-weight: 600; 
+            margin-top: 15px; 
+            margin-bottom: 8px; 
+            display: block; 
+            color: var(--text-muted);
+        }
+        .pep-reason textarea { 
+            height: 80px; 
+            width: 100%; 
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        /* Declaration Section */
+        .declaration-section {
+            border-top: 2px solid var(--primary-green);
+            padding-top: 30px;
+            margin-top: 40px;
+        }
+        .declaration-section h3 {
+            font-size: 1.5rem;
+            color: var(--accent-green);
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .declaration-fields {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        .signature-line {
+            display: block;
+            border-bottom: 2px dashed var(--primary-green);
+            height: 30px;
+            margin-top: 5px;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        /* --- Button Styles --- */
+        .form-actions { 
+            grid-column: 1 / -1; 
+            text-align: right; 
+            margin-top: 40px; 
+            border-top: 1px solid var(--border-light); 
+            padding-top: 25px; 
+        }
+        .save-button, .add-contact-btn, #add_responsible_person, #add_director, #add_owner { 
+            background-color: var(--action-green); 
+            color: white; 
+            padding: 12px 25px; 
+            border: none; 
+            border-radius: 6px; 
+            font-size: 1rem; 
+            font-weight: 600; 
+            cursor: pointer; 
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        .save-button:hover, .add-contact-btn:hover, #add_responsible_person:hover, #add_director:hover, #add_owner:hover {
+            background-color: var(--accent-green);
+            transform: translateY(-1px);
+        }
+        .add-contact-btn, #add_responsible_person, #add_director, #add_owner {
+            padding: 8px 18px;
+            font-size: 0.9rem;
+            margin-top: 10px;
+        }
+        .form-group-file label {
+            font-size: 0.9rem;
+            font-weight: 500;
+            color: var(--text-muted);
+        }
+
+        /* Initial display states for FICA steps */
+        #fica_step_1_2, #fica_step_3, #fica_step_4, #fica_step_5, #fica_step_6, #fica_step_7 {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+        <a href="{% url 'consulting_home' %}" class="back-link">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            Back to Dashboard
+        </a>
+        <h1>Add New Client</h1>
+
+        <div class="tab-nav">
+            <button class="tab-button active" onclick="openTab(event, 'tab1')">Client Details</button>
+            <button class="tab-button" onclick="openTab(event, 'tab2')">Contact Persons</button>
+            <button class="tab-button" onclick="openTab(event, 'tab5')">FICA & Due Diligence</button>
+        </div>
+
+        <form class="client-form" method="POST" action="{% url 'add_client' %}" enctype="multipart/form-data">
+            {% csrf_token %}
+
+            <div id="tab1" class="tab-content active">
+                <div class="client-form">
+                    <h2 class="full-width">General Information</h2>
+                    <div class="form-group">
+                        <label for="client_number">Scheme Code</label>
+                        <input type="text" id="client_number" name="client_number" value="{{ client_number }}" readonly>
+                    </div>
+                    <div class="form-group">
+                        <label for="client_number">Futura Client Number</label>
+                        <input type="text" id="client_number" name="client_number" value="{{ client_number }}" readonly>
+                    </div>
+                    <div class="form-group"><label for="client_name">Client Name</label><input type="text" id="client_name" name="client_name" placeholder="e.g., Sample Co. (Pty) Ltd"></div>
+                    <div class="form-group"><label for="consultant">Consultant</label><select id="consultant" name="consultant"><option value="">Select...</option>                            <option value="AWIE DE SWARDT">AWIE DE SWARDT</option>
+                            <option value="MARIDA BOTHA">MARIDA BOTHA</option>
+                            <option value="Stephan de Waal">STEPHAN DE WAAL</option>
+                            <option value="MERRIL FENNESSY">MERRIL FENNESSY</option></select></div>
+                    <div class="form-group"><label for="industry">Industry</label><select id="industry" name="industry"><option value="">Select...</option><option value="Agricultural">Agricultural</option><option value="Logistics">Logistics</option><option value="Retail">Retail</option><option value="Construction">Construction</option><option value="Manufacturing">Manufacturing</option><option value="Hospitality">Hospitality</option><option value="Retirement Homes">Retirement Homes</option><option value="NGO">NGO</option><option value="Schools">Schools</option></select></div>
+                    <div class="form-group"><label for="status">Status</label><select id="status" name="status"><option value="">Select...</option><option value="Active">Active</option><option value="Section 14">Section 14</option><option value="Section 2B">Section 2B</option><option value="Change in consultants">Change in consultants</option></select></div>
+                    <div class="form-group"><label for="date">Start Date</label><input type="text" id="date" name="date" placeholder="DD/MM/YYYY"></div>
+                    <div class="form-group"><label for="date">Start Date</label><input type="text" id="date" name="date" placeholder=""></div>
+                    <div class="form-group"><label for="years">Years (Y)</label><input type="text" id="years" name="years"></div>
+                    <div class="form-group"><label for="employees">Employees</label><input type="number" id="employees" name="employees" placeholder="e.g., 33"></div>
+
+                    <h2 class="full-width">Product & Agreement Details</h2>
+                    <div class="form-group"><label for="product">Product</label><select id="product" name="product"><option value="">Select...</option><option value="Individual Client">Individual Client</option><option value="Fund">Fund</option><option value="Consulting">Consulting</option><option value="H/Scheme">H/Scheme</option><option value="Health Care">Health Care</option></select></div>
+                    <div class="form-group"><label for="third_party_contract">Third Party Contract</label><select id="third_party_contract" name="third_party_contract"><option value="yes">Yes</option><option value="no" selected>No</option></select></div>
+                    <div class="form-group"><label for="third_party_contact">Third Party Agreement Contact</label><select id="third_party_contact" name="third_party_contact"><option value="">Select...</option><option value="PMG">PMG</option><option value="AdviceWorx">AdviceWorx</option><option value="Octofin">Octofin</option><option value="Services">Services</option></select></div>
+                    <div class="form-group"><label for="administrator">Administrator</label><select id="administrator" name="administrator"><option value="">Select...</option><option value="Sanlam">Sanlam</option><option value="Momentum">Momentum</option><option value="Old Mutual">Old Mutual</option><option value="Liberty Life">Liberty Life</option></select></div>
+                    <div class="form-group"><label for="umbrella_fund">Umbrella Fund Option</label><select id="umbrella_fund" name="umbrella_fund"><option value="">Select...</option><option value="SUF Standard">SUF Standard</option><option value="SUF Comprehensive">SUF Comprehensive</option><option value="Sanlam Unity">Sanlam Unity</option><option value="SUF Exception">SUF Exception</option></select></div>
+                    <div class="form-group"><label for="insurer">Insurer</label><select id="insurer" name="insurer"><option value="">Select...</option><option value="Sanlam">Sanlam</option><option value="Momentum">Momentum</option><option value="Old Mutual">Old Mutual</option><option value="Liberty Life">Liberty Life</option><option value="Hollard">Hollard</option><option value="TSA">TSA</option></select></div>
+                    <div class="form-group"><label for="assets">Assets</label><input type="text" id="assets" name="assets" placeholder="Enter asset info..."></div>
+                    
+                    <div class="form-group full-width">
+                        <h3 style="margin-top: 10px; margin-bottom: 15px;">Required Documentation</h3>
+                        <div class="client-form" style="gap: 20px;">
+                            <div class="form-group-radio"><label>Consulting appointment letter</label><div class="radio-options"><label><input type="radio" name="consulting_letter" value="yes"> Yes</label><label><input type="radio" name="consulting_letter" value="no" checked> No</label></div></div>
+                            <div class="form-group-file"><label for="consulting_letter_file">Attach Consulting Appointment Letter</label><input type="file" id="consulting_letter_file" name="consulting_letter_file"></div>
+                            <div class="form-group-radio"><label>Service Level Agreement</label><div class="radio-options"><label><input type="radio" name="sla" value="yes"> Yes</label><label><input type="radio" name="sla" value="no" checked> No</label></div></div>
+                            <div class="form-group-file"><label for="sla_file">Attach SLA</label><input type="file" id="sla_file" name="sla_file"></div>
+                            <div class="form-group-radio"><label>Third Party Contract (Doc)</label><div class="radio-options"><label><input type="radio" name="third_party_doc" value="yes"> Yes</label><label><input type="radio" name="third_party_doc" value="no" checked> No</label></div></div>
+                            <div class="form-group-file"><label for="third_party_doc_file">Attach 3rd Party Contract</label><input type="file" id="third_party_doc_file" name="third_party_doc_file"></div>
+                        </div>
+                    </div>
+                </div>
+            </div> 
+            
+            <div id="tab2" class="tab-content full-width">
+                <h2>Contact Persons</h2>
+                
+                <div id="contacts-container">
+                    <div class="contact-card-container">
+                        <h3>Contact Person #1 Details</h3>
+                        <div class="client-form" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+                            <div class="form-group"><label for="contact-name-0">Name</label><input type="text" name="contact-name-0" id="contact-name-0" placeholder="First Name"></div>
+                            <div class="form-group"><label for="contact-surname-0">Surname</label><input type="text" name="contact-surname-0" id="contact-surname-0" placeholder="Last Name"></div>
+                            <div class="form-group"><label for="contact-job_title-0">Job Title</label><input type="text" name="contact-job_title-0" id="contact-job_title-0" placeholder="e.g., HR Manager"></div>
+                            <div class="form-group"><label for="contact-email-0">Email</label><input type="email" name="contact-email-0" id="contact-email-0" placeholder="email@company.com"></div>
+                            <div class="form-group"><label for="contact-cell-0">Cell no</label><input type="text" name="contact-cell-0" id="contact-cell-0" placeholder="e.g., 082 123 4567"></div>
+                            <div class="form-group"><label for="contact-landline-0">Landline</label><input type="text" name="contact-landline-0" id="contact-landline-0"></div>
+                            <div class="form-group"><label for="contact-birthday-0">Birthday</label><input type="text" name="contact-birthday-0" id="contact-birthday-0" placeholder="DD/MM/YYYY"></div>
+                            <div class="form-group"><label for="contact-interests-0">Interests</label><input type="text" name="contact-interests-0" id="contact-interests-0" placeholder="e.g., Golf, Hiking"></div>
+                            
+                            <div class="form-group full-width">
+                                <h4 style="margin-top: 5px; margin-bottom: 15px; grid-column: 1 / -1; font-size: 1rem; color: var(--primary-green); border-bottom: 1px dotted var(--border-light); padding-bottom: 5px;">Physical Address</h4>
+                            </div>
+                            <div class="form-group"><label for="contact-phys_line1-0">Physical Address Line 1</label><input type="text" name="contact-phys_line1-0" id="contact-phys_line1-0"></div>
+                            <div class="form-group"><label for="contact-phys_line2-0">Physical Address Line 2</label><input type="text" name="contact-phys_line2-0" id="contact-phys-line2-0"></div>
+                            <div class="form-group"><label for="contact-phys_city-0">City/Town</label><input type="text" name="contact-phys_city-0" id="contact-phys_city-0"></div>
+                            <div class="form-group"><label for="contact-phys_province-0">Province</label><input type="text" name="contact-phys_province-0" id="contact-phys_province-0"></div>
+                            
+                            <div class="form-group full-width">
+                                <h4 style="margin-top: 5px; margin-bottom: 15px; grid-column: 1 / -1; font-size: 1rem; color: var(--primary-green); border-bottom: 1px dotted var(--border-light); padding-bottom: 5px;">Postal Address</h4>
+                            </div>
+                            <div class="form-group"><label for="contact-postal_line1-0">Postal Address Line 1</label><input type="text" name="contact-postal_line1-0" id="contact-postal_line1-0"></div>
+                            <div class="form-group"><label for="contact-postal_line2-0">Postal Address Line 2</label><input type="text" name="contact-postal_line2-0" id="contact-postal-line2-0"></div>
+                            <div class="form-group"><label for="contact-postal_city-0">City/Town</label><input type="text" name="contact-postal_city-0" id="contact-postal_city-0"></div>
+                            <div class="form-group"><label for="contact-postal_province-0">Province</label><input type="text" name="contact-postal_province-0" id="contact-postal_province-0"></div>
+                            <div class="form-group full-width"><label for="contact-notes-0">Notes</label><textarea name="contact-notes-0" id="contact-notes-0" rows="2" placeholder="Internal notes about the contact..."></textarea></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <button type="button" class="add-contact-btn" id="add-contact-btn">+ Add Another Contact Person</button>
+            </div> 
+            
+            <div id="tab5" class="tab-content full-width">
+                
+                <h2>FICA AND DUE DILIGENCE</h2>
+
+                <div class="fica-step-nav full-width">
+                    <label><input type="radio" name="fica_step" value="step1" checked> STEP 1 - COMPANY INFO</label>
+                    <label><input type="radio" name="fica_step" value="step3"> STEP 2 - ONLINE SUBMISSIONS</label>
+                    <label><input type="radio" name="fica_step" value="step4"> STEP 3 - RESPONSIBLE PERSON</label>
+                    <label><input type="radio" name="fica_step" value="step5"> STEP 4 - DETAILS OF DIRECTORS</label>
+                    <label><input type="radio" name="fica_step" value="step6"> STEP 5 - BENEFICIAL OWNERSHIP</label>
+                    <label><input type="radio" name="fica_step" value="step7"> STEP 6 - BENEFICIAL OWNERSHIP FORM</label>
+                </div>
+                
+                <div id="fica_step_1_2" style="display: none;" class="client-form">
+                    <h2 style="margin-top: 0;">STEP 1 - COMPANY INFO</h2>
+                    <div class="fica-step-nav full-width" style="margin-bottom: 30px;">
+                        <label><input type="radio" name="company_type" value="sole_proprietor"> Sole Proprietor</label>
+                        <label><input type="radio" name="company_type" value="pty_ltd"> (PTY) LTD</label>
+                        <label><input type="radio" name="company_type" value="trust"> Trust</label>
+                        <label><input type="radio" name="company_type" value="closed"> Closed</label>
+                        <label><input type="radio" name="company_type" value="partnership"> Partnership</label>
+                        <label><input type="radio" name="company_type" value="public_company"> Public Company</label>
+                    </div>
+                    <div class="form-group full-width"><label for="reg_number">COMPANY REGISTRATION NUMBER</label><input type="text" id="reg_number" name="reg_number"></div>
+                    <div class="form-group-file full-width"><label for="reg_docs">ATTACH COMPANY REGISTRATION DOCUMENTS / TRUST DOCUMENTS / ID NUMBER IF SOLE PROPRIETOR</label><input type="file" id="reg_docs" name="reg_docs"></div>
+                    
+                    <h2 class="full-width">STEP 2 - CONTACT & ADDRESS DETAILS</h2>
+                    <div class="form-group"><label for="contact1">COMPANY CONTACT NUMBER 1</label><input type="text" id="contact1" name="contact1"><a href="#" class="add-link">+ LIST ANOTHER NUMBER</a></div>
+                    <div class="form-group"><label for="email1">COMPANY CONTACT EMAIL 1</label><input type="email" id="email1" name="email1"><a href="#" class="add-link">+ LIST ANOTHER EMAIL</a></div>
+
+                    <div class="address-grid full-width">
+                        <div class="address-column">
+                            <h3 style="border-bottom: 1px dashed var(--accent-green);">PHYSICAL STREET ADDRESS</h3>
+                            <label style="font-weight: normal; margin-bottom: 15px;"><input type="checkbox" id="same_as_physical" name="same_as_physical" checked> Postal the same as physical address?</label>
+                            <div class="form-group"><label for="physical_line1">STREET ADDRESS LINE 1</label><input type="text" id="physical_line1" name="physical_line1"></div><div class="form-group"><label for="physical_line2">STREET ADDRESS LINE 2</label><input type="text" id="physical_line2" name="physical_line2"></div>
+                            <div class="form-group"><label for="physical_province">PROVINCE</label><input type="text" id="physical_province" name="physical_province"></div><div class="form-group"><label for="physical_city">CITY</label><input type="text" id="physical_city" name="physical_city"></div>
+                            <div class="form-group"><label for="physical_suburb">SUBURB</label><input type="text" id="physical_suburb" name="physical_suburb"></div><div class="form-group"><label for="physical_code">POSTAL CODE</label><input type="text" id="physical_code" name="physical_code"></div>
+                        </div>
+                        <div class="address-column" id="postal_address_column" style="display: none;">
+                            <h3 style="border-bottom: 1px dashed var(--accent-green);">POSTAL ADDRESS (Optional)</h3>
+                            <p style="font-size: 0.9rem; color: var(--text-muted); margin-top: 0; margin-bottom: 25px;">If Not same as Street then Edit</p>
+                            <div class="form-group"><label for="postal_line1">POSTAL ADDRESS LINE 1</label><input type="text" id="postal_line1" name="postal_line1" disabled></div><div class="form-group"><label for="postal_line2">POSTAL ADDRESS LINE 2</label><input type="text" id="postal_line2" name="postal_line2" disabled></div>
+                            <div class="form-group"><label for="postal_province">PROVINCE</label><input type="text" id="postal_province" name="postal_province" disabled></div><div class="form-group"><label for="postal_city">CITY</label><input type="text" id="postal_city" name="postal_city" disabled></div>
+                            <div class="form-group"><label for="postal_suburb">SUBURB</label><input type="text" id="postal_suburb" name="postal_suburb" disabled></div><div class="form-group"><label for="postal_code">POSTAL CODE</label><input type="text" id="postal_code" name="postal_code" disabled></div>
+                        </div>
+                    </div>
+                    <div class="form-group-file full-width" style="margin-top: 20px;"><label for="proof_address">ATTACH PROOF OF PHYSICAL STREET ADDRESS OF COMPANY</label><input type="file" id="proof_address" name="proof_address"></div>
+                    <div class="form-group full-width"><label for="benefit_note">Benefit Statement Note (Special delivery instructions)</label><textarea id="benefit_note" name="benefit_note" placeholder="Special delivery instructions for benefit statement" rows="4"></textarea></div>
+                </div>
+
+                <div id="fica_step_3" style="margin-top: 40px; display: none;" class="client-form">
+                    <h2 style="margin-top: 0;">STEP 3 - ONLINE SUBMISSION CONTACT PERSON</h2>
+                    <p class="full-width" style="margin-bottom: 20px;">Are the returns being submitted internally or outsourced?</p>
+                    <div class="radio-options full-width" id="submission_type_radios" style="margin-bottom: 20px;"><label><input type="radio" name="submission_type" value="internal" checked> Internal</label><label><input type="radio" name="submission_type" value="outsourced"> Outsourced</label></div>
+                    
+                    <div id="internal_fields" class="submission-container full-width">
+                        <div class="form-group"><label for="internal_name">Name of Internal User</label><input type="text" id="internal_name" name="internal_name"></div>
+                        <div class="form-group"><label for="outsourced_company_name">Name of Outsource Company</label><input type="text" id="outsourced_company_name" name="outsourced_company_name" disabled></div>
+                        <div class="form-group"><label for="internal_surname">Surname of Internal User</label><input type="text" id="internal_surname" name="internal_surname"></div>
+                        <div class="form-group"><label for="outsourced_contact_number">Contact number of outsource company</label><input type="text" id="outsourced_contact_number" name="outsourced_contact_number" disabled></div>
+                        <div class="form-group"><label for="internal_email">E-mail address of Internal User</label><input type="email" id="internal_email" name="internal_email"></div>
+                        <div class="full-width" id="download_3rd_party" style="margin-top: 20px; border-top: 1px dashed var(--border-light); padding-top: 20px;">
+                            <a href="#" class="add-link">Upload document</a>
+                            <p style="font-size: 0.9rem; color: var(--text-muted); margin: 5px 0 15px 0;">(Signed document must be uploaded.)</p>
+                            <button type="button" class="add-contact-btn" id="add_responsible_user_3" style="margin-right: 15px;">+ Add Additional Users</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="fica_step_4" style="margin-top: 40px; display: none;">
+                    <h2 style="margin-top: 0;">STEP 4 - RESPONSIBLE PERSON</h2>
+                    <p class="full-width" style="font-size: 0.95rem; margin-bottom: 20px; color: var(--text-muted);">In terms of Section 13A (9) (a) of the Act. The fund is compelled to request all participating employers to identify the "Responsible Persons" that will be personally liable in the event of non-compliance with Section 13A.</p>
+                    <div id="responsible_person_container">
+                        <div class="responsible-person-block client-form" style="border: 1px solid var(--border-light); border-radius: 8px; overflow: hidden; margin-bottom: 25px; padding: 15px 30px;">
+                            <h3 class="full-width" style="margin-top: 0; margin-bottom: 20px; font-size: 1.2rem; color: var(--accent-green);">Responsible Person #1 Personal Details</h3>
+                            
+                            <div class="form-group"><label for="resp_name">Name</label><input type="text" id="resp_name" name="resp_name"></div>
+                            <div class="form-group"><label for="resp_designation">Designation</label><input type="text" id="resp_designation" name="resp_designation"></div>
+                            <div class="form-group"><label for="resp_contact">Contact Number</label><input type="text" id="resp_contact" name="resp_contact"></div>
+                            
+                            <div class="form-group"><label for="resp_surname">Surname</label><input type="text" id="resp_surname" name="resp_surname"></div>
+                            <div class="form-group"><label for="resp_id">ID number</label><input type="text" id="resp_id" name="resp_id"></div>
+                            <div class="form-group"><label for="resp_email">E-mail Address</label><input type="email" id="resp_email" name="resp_email"></div>
+                            
+                            <div class="full-width" style="border-top: 1px solid var(--border-light); margin-top: 15px; padding-top: 15px;">
+                                <h4 style="font-size: 1rem; color: var(--accent-green); margin-bottom: 15px;">Responsible Person Physical Home Address</h4>
+                                <div class="client-form" style="gap: 15px; grid-template-columns: 1fr 1fr;">
+                                    <div class="form-group"><label for="resp_line1">STREET ADDRESS LINE 1</label><input type="text" id="resp_line1" name="resp_line1"></div>
+                                    <div class="form-group"><label for="resp_line2">STREET ADDRESS LINE 2</label><input type="text" id="resp_line2" name="resp_line2"></div>
+                                    <div class="form-group"><label for="resp_province">PROVINCE</label><input type="text" id="resp_province" name="resp_province"></div>
+                                    <div class="form-group"><label for="resp_city">CITY</label><input type="text" id="resp_city" name="resp_city"></div>
+                                    <div class="form-group"><label for="resp_suburb">SUBURB</label><input type="text" id="resp_suburb" name="resp_suburb"></div>
+                                    <div class="form-group"><label for="resp_code">POSTAL CODE</label><input type="text" id="resp_code" name="resp_code"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="full-width" style="display: flex; gap: 40px; margin-top: 20px; border: 1px solid var(--border-light); padding: 15px; border-radius: 6px; background-color: #fcfcfc;">
+                            <div style="flex: 1;">
+                                <p style="margin-bottom: 5px;"><a href="#" class="add-link">Download Circular</a></p>
+                                <div class="form-group-file" style="justify-content: flex-start;"><label for="circular_upload">UPLOAD SIGNED CIRCULAR DOCUMENT</label><input type="file" id="circular_upload" name="circular_upload"></div>
+                            </div>
+                            <div style="flex: 1;">
+                                <p style="margin-bottom: 5px;"><a href="#" class="add-link">Download Document to be Signed</a></p>
+                                <div class="form-group-file" style="justify-content: flex-start;"><label for="doc_signed_upload">UPLOAD SIGNED DOCUMENT HERE</label><input type="file" id="doc_signed_upload" name="doc_signed_upload"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="add-contact-btn" id="add_responsible_person">+ Add Another Responsible Person</button>
+                </div> 
+                
+                <div id="fica_step_5" style="margin-top: 40px; display: none;">
+                    <h2 style="margin-top: 0;">STEP 4 - DETAILS OF DIRECTORS</h2>
+                    <p class="full-width" style="font-size: 0.95rem; margin-bottom: 20px; color: var(--text-muted);">In order to meet money laundering regulations, we need specific identification information and documents to be provided for **ALL Directors**.</p>
+                    <div id="director_container">
+                        <div class="director-block client-form" style="border: 1px solid var(--border-light); border-radius: 8px; margin-bottom: 25px; padding: 0;">
+                            <h3 style="font-size: 1.2rem; color: var(--accent-green); padding: 15px 30px; border-bottom: 1px solid var(--border-light); margin: 0; background-color: var(--bg-light-green);" class="full-width">Director #1 Personal Details</h3>
+                            
+                            <div class="client-form" style="padding: 15px 30px 0 30px;">
+                                <div class="form-group"><label for="dir_name_0">Name(s)</label><input type="text" id="dir_name_0" name="dir_name_0"></div>
+                                <div class="form-group"><label for="dir_contact_0">Contact Number</label><input type="text" id="dir_contact_0" name="dir_contact_0"></div>
+                                
+                                <div class="form-group"><label for="dir_surname_0">Surname</label><input type="text" id="dir_surname_0" name="dir_surname_0"></div>
+                                <div class="form-group"><label for="dir_email_0">E-mail address</label><input type="email" id="dir_email_0" name="dir_email_0"></div>
+                                
+                                <div class="form-group"><label for="dir_id_0">ID number</label><input type="text" id="dir_id_0" name="dir_id_0"></div>
+                                <div class="form-group"><label for="dir_designation_0">Designation</label><input type="text" id="dir_designation_0" name="dir_designation_0"></div>
+                            </div>
+                            
+                            <div class="full-width" style="padding: 0 30px; border-top: 1px solid var(--border-light); margin-top: 15px; padding-top: 15px;">
+                                <h4 style="font-size: 1rem; color: var(--accent-green); margin-bottom: 15px;">Physical Address</h4>
+                                <div class="client-form" style="gap: 15px; grid-template-columns: 1fr 1fr;">
+                                    <div class="form-group"><label for="dir_phys_line1_0">STREET ADDRESS LINE 1</label><input type="text" id="dir_phys_line1_0" name="dir_phys_line1_0"></div>
+                                    <div class="form-group"><label for="dir_phys_line2_0">STREET ADDRESS LINE 2</label><input type="text" id="dir_phys_line2_0" name="dir_phys_line2_0"></div>
+                                    <div class="form-group"><label for="dir_phys_province_0">PROVINCE</label><input type="text" id="dir_phys_province_0" name="dir_phys_province_0"></div>
+                                    <div class="form-group"><label for="dir_phys_city_0">CITY</label><input type="text" id="dir_phys_city_0" name="dir_phys_city_0"></div>
+                                    <div class="form-group"><label for="dir_phys_suburb_0">SUBURB</label><input type="text" id="dir_phys_suburb_0" name="dir_phys_suburb_0"></div>
+                                    <div class="form-group"><label for="dir_phys_code_0">POSTAL CODE</label><input type="text" id="dir_phys_code_0" name="dir_phys_code_0"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="full-width" style="padding: 15px 30px 0 30px; border-top: 1px solid var(--border-light); margin-top: 15px; padding-top: 15px;">
+                                <label for="dir_postal_check_0" style="font-weight: 600; display: block; margin-bottom: 10px; color: var(--text-default);">
+                                    <input type="checkbox" id="dir_postal_check_0" name="dir_postal_check_0" checked data-index="0" class="dir-postal-checkbox" style="width: auto; margin-right: 5px; vertical-align: middle;"> Postal Address Same as Physical?
+                                </label>
+                                
+                                <div id="dir_postal_addr_0" class="client-form" style="display:none; gap: 15px; grid-template-columns: 1fr 1fr; border: 1px dashed var(--border-light); padding: 15px; margin-bottom: 15px; background-color: #fcfcfc;">
+                                    <h4 class="full-width" style="font-size: 1rem; color: var(--accent-green); margin: 0 0 10px 0;">Postal Address (Different)</h4>
+                                    <div class="form-group"><label for="dir_postal_line1_0">LINE 1</label><input type="text" id="dir_postal_line1_0" name="dir_postal_line1_0" disabled></div>
+                                    <div class="form-group"><label for="dir_postal_line2_0">LINE 2</label><input type="text" id="dir_postal_line2_0" name="dir_postal_line2_0" disabled></div>
+                                    <div class="form-group"><label for="dir_postal_province_0">PROVINCE</label><input type="text" id="dir_postal_province_0" name="dir_postal_province_0" disabled></div>
+                                    <div class="form-group"><label for="dir_postal_city_0">CITY</label><input type="text" id="dir_postal_city_0" name="dir_postal_city_0" disabled></div>
+                                    <div class="form-group"><label for="dir_postal_suburb_0">SUBURB</label><input type="text" id="dir_postal_suburb_0" name="dir_postal_suburb_0" disabled></div>
+                                    <div class="form-group"><label for="dir_postal_code_0">POSTAL CODE</label><input type="text" id="dir_postal_code_0" name="dir_postal_code_0" disabled></div>
+                                </div>
+                            </div>
+
+                            <div class="full-width" style="display: flex; gap: 30px; margin-top: 15px; padding: 15px 30px; background-color: #fcfcfc; border-top: 1px solid var(--border-light);">
+                                <div class="form-group-file" style="flex: 1;"><label for="dir_proof_addr_0">ATTACH PROOF OF PHYSICAL STREET ADDRESS (NOT COMPANY ADDRESS)</label><input type="file" id="dir_proof_addr_0" name="dir_proof_addr_0"></div>
+                                <div class="form-group-file" style="flex: 1;"><label for="dir_id_copy_0">ATTACH CLEAR COPY OF ID</label><input type="file" id="dir_id_copy_0" name="dir_id_copy_0"></div>
+                            </div>
+                            
+                            <h3 style="font-size: 1.2rem; color: var(--accent-green); padding: 15px 30px; border-top: 1px solid var(--border-light); margin: 0; background-color: var(--bg-light-green);" class="full-width">Director #1 Politically Exposed Status (PEP/PIP/KCA)</h3>
+                            <div style="padding: 15px 30px;">
+                                <div class="pep-section"><h4 style="font-size: 1.1rem; margin-top: 0;">5.2.1 Politically Exposed Person (PEP)</h4><p style="font-size: 0.9rem; margin-bottom: 15px;">Heads of state, Cabinet members, Members of parliament or local/provincial government, Senior management of organs of state, Judicial officers, etc.</p><label class="pep-question" for="pep_q_0">Question: Is this individual or entities identified in this form, as verified under FICA, considered a PEP?</label><div class="radio-options"><label><input type="radio" name="pep_q_0" value="Yes"> Yes</label><label><input type="radio" name="pep_q_0" value="No" checked> No</label></div><label class="pep-question" for="pep_reason_0">Details/Reason:</label><textarea id="pep_reason_0" name="pep_reason_0" class="pep-reason"></textarea></div>
+                                <div class="pep-section"><h4 style="font-size: 1.1rem; margin-top: 0;">5.2.2 A Prominent Influential Person (PIP)</h4><p style="font-size: 0.9rem; margin-bottom: 15px;">Provincial premiers, Members of foreign royal families, Government ministers or senior politicians, Leaders of political parties, High-ranking military or police officials.</p><label class="pep-question" for="pip_q_0">Question: Is this individual or entities identified in this form, as verified under FICA, regarded as a PIP?</label><div class="radio-options"><label><input type="radio" name="pip_q_0" value="Yes"> Yes</label><label><input type="radio" name="pip_q_0" value="No" checked> No</label></div><label class="pep-question" for="pip_reason_0">Details/Reason:</label><textarea id="pip_reason_0" name="pip_reason_0" class="pep-reason"></textarea></div>
+                                <div class="pep-section"><h4 style="font-size: 1.1rem; margin-top: 0;">Prominent Public Official (PPO) in a foreign country</h4><label class="pep-question" for="ppo_q_0">Is this individual or entities identified in this form, as verified under FICA, considered a prominent public official (PPO) in a foreign country?</label><div class="radio-options"><label><input type="radio" name="ppo_q_0" value="Yes"> Yes</label><label><input type="radio" name="ppo_q_0" value="No" checked> No</label></div><label class="pep-question" for="ppo_reason_0">Details/Reason:</label><textarea id="ppo_reason_0" name="ppo_reason_0" class="pep-reason"></textarea></div>
+                                <div class="pep-section"><h4 style="font-size: 1.1rem; margin-top: 0;">5.2.3 Known Close Associates</h4><p style="font-size: 0.9rem; margin-bottom: 15px; font-weight: bold;">Family members are individuals related to a PEP or PIP by blood (consanguinity) or through marriage or similar partnerships.</p><label class="pep-question" for="kca_q_0">Question: Is this individual or entities identified in this form, as verified under FICA, regarded as a known close associate or family member?</label><div class="radio-options"><label><input type="radio" name="kca_q_0" value="Yes"> Yes</label><label><input type="radio" name="kca_q_0" value="No" checked> No</label></div><label class="pep-question" for="kca_reason_0">Details/Reason:</label><textarea id="kca_reason_0" name="kca_reason_0" class="pep-reason"></textarea></div>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="add-contact-btn" id="add_director">+ Add Another Director</button>
+                </div> 
+                
+                <div id="fica_step_6" style="margin-top: 40px; display: none;">
+                    <h2 style="margin-top: 0;">STEP 5 - DETAILS OF BENEFICIAL OWNERS</h2>
+                    <p class="full-width" style="font-size: 0.95rem; margin-bottom: 20px; color: var(--text-muted);">
+                        An individual/natural person who, directly or indirectly, ultimately owns 5% and more of a company or exercises effective control of a company is considered a beneficial owner.
+                    </p>
+                    <div id="owner_container">
+                        <div class="owner-block client-form" style="border: 1px solid var(--border-light); border-radius: 8px; margin-bottom: 25px; padding: 0;">
+                            <h3 style="font-size: 1.2rem; color: var(--accent-green); padding: 15px 30px; border-bottom: 1px solid var(--border-light); margin: 0; background-color: var(--bg-light-green);" class="full-width">Beneficial Owner #1 Personal Details</h3>
+                            
+                            <div class="client-form" style="padding: 15px 30px 0 30px;">
+                                <div class="form-group"><label for="owner_name_0">Name(s)</label><input type="text" id="owner_name_0" name="owner_name_0"></div>
+                                <div class="form-group"><label for="owner_cell_0">Cell number</label><input type="text" id="owner_cell_0" name="owner_cell_0"></div>
+                                
+                                <div class="form-group"><label for="owner_surname_0">Surname</label><input type="text" id="owner_surname_0" name="owner_surname_0"></div>
+                                <div class="form-group"><label for="owner_email_0">E-mail address</label><input type="email" id="owner_email_0" name="owner_email_0"></div>
+                                
+                                <div class="form-group"><label for="owner_id_0">ID number</label><input type="text" id="owner_id_0" name="owner_id_0"></div>
+                                <div class="form-group"><label for="owner_designation_0">Designation</label><input type="text" id="owner_designation_0" name="owner_designation_0"></div>
+                            </div>
+                            
+                            <div class="full-width" style="padding: 0 30px; border-top: 1px solid var(--border-light); margin-top: 15px; padding-top: 15px;">
+                                <h4 style="font-size: 1rem; color: var(--accent-green); margin-bottom: 15px;">Physical Address</h4>
+                                <div class="client-form" style="gap: 15px; grid-template-columns: 1fr 1fr;">
+                                    <div class="form-group"><label for="owner_phys_line1_0">STREET ADDRESS LINE 1</label><input type="text" id="owner_phys_line1_0" name="owner_phys_line1_0"></div>
+                                    <div class="form-group"><label for="owner_phys_line2_0">STREET ADDRESS LINE 2</label><input type="text" id="owner_phys_line2_0" name="owner_phys_line2_0"></div>
+                                    <div class="form-group"><label for="owner_phys_province_0">PROVINCE</label><input type="text" id="owner_phys_province_0" name="owner_phys_province_0"></div>
+                                    <div class="form-group"><label for="owner_phys_city_0">CITY</label><input type="text" id="owner_phys_city_0" name="owner_phys_city_0"></div>
+                                    <div class="form-group"><label for="owner_phys_suburb_0">SUBURB</label><input type="text" id="owner_phys_suburb_0" name="owner_phys_suburb_0"></div>
+                                    <div class="form-group"><label for="owner_phys_code_0">POSTAL CODE</label><input type="text" id="owner_phys_code_0" name="owner_phys_code_0"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="full-width" style="padding: 15px 30px 0 30px; border-top: 1px solid var(--border-light); margin-top: 15px; padding-top: 15px;">
+                                <label for="owner_postal_check_0" style="font-weight: 600; display: block; margin-bottom: 10px; color: var(--text-default);">
+                                    <input type="checkbox" id="owner_postal_check_0" name="owner_postal_check_0" checked data-index="0" class="owner-postal-checkbox" style="width: auto; margin-right: 5px; vertical-align: middle;"> Postal Address Same as Physical?
+                                </label>
+                                
+                                <div id="owner_postal_addr_0" class="client-form" style="display:none; gap: 15px; grid-template-columns: 1fr 1fr; border: 1px dashed var(--border-light); padding: 15px; margin-bottom: 15px; background-color: #fcfcfc;">
+                                    <h4 class="full-width" style="font-size: 1rem; color: var(--accent-green); margin: 0 0 10px 0;">Postal Address (Different)</h4>
+                                    <div class="form-group"><label for="owner_postal_line1_0">LINE 1</label><input type="text" id="owner_postal_line1_0" name="owner_postal_line1_0" disabled></div>
+                                    <div class="form-group"><label for="owner_postal_line2_0">LINE 2</label><input type="text" id="owner_postal_line2_0" name="owner_postal_line2_0" disabled></div>
+                                    <div class="form-group"><label for="owner_postal_province_0">PROVINCE</label><input type="text" id="owner_postal_province_0" name="owner_postal_province_0" disabled></div>
+                                    <div class="form-group"><label for="owner_postal_city_0">CITY</label><input type="text" id="owner_postal_city_0" name="owner_postal_city_0" disabled></div>
+                                    <div class="form-group"><label for="owner_postal_suburb_0">SUBURB</label><input type="text" id="owner_postal_suburb_0" name="owner_postal_suburb_0" disabled></div>
+                                    <div class="form-group"><label for="owner_postal_code_0">POSTAL CODE</label><input type="text" id="owner_postal_code_0" name="owner_postal_code_0" disabled></div>
+                                </div>
+                            </div>
+
+                            <div class="full-width" style="display: flex; gap: 30px; margin-top: 15px; padding: 15px 30px; background-color: #fcfcfc; border-top: 1px solid var(--border-light);">
+                                <div class="form-group-file" style="flex: 1;"><label for="owner_proof_addr_0">ATTACH PROOF OF PHYSICAL STREET ADDRESS (NOT COMPANY ADDRESS)</label><input type="file" id="owner_proof_addr_0" name="owner_proof_addr_0"></div>
+                                <div class="form-group-file" style="flex: 1;"><label for="owner_id_copy_0">ATTACH CLEAR COPY OF ID</label><input type="file" id="owner_id_copy_0" name="owner_id_copy_0"></div>
+                            </div>
+
+                            <h3 style="font-size: 1.2rem; color: var(--accent-green); padding: 15px 30px; border-top: 1px solid var(--border-light); margin: 0; background-color: var(--bg-light-green);" class="full-width">Beneficial Owner #1 Politically Exposed Status (PEP/PIP/KCA)</h3>
+                            <div style="padding: 15px 30px;">
+                                <div class="pep-section"><h4 style="font-size: 1.1rem; margin-top: 0;">6.2.1 Politically Exposed Person (PEP)</h4><p style="font-size: 0.9rem; margin-bottom: 15px;">Heads of state, Cabinet members, Members of parliament or local/provincial government, Senior management of organs of state, Judicial officers, etc.</p><label class="pep-question" for="owner_pep_q_0">Question: Is this individual or entities identified in this form, as verified under FICA, considered a PEP?</label><div class="radio-options"><label><input type="radio" name="owner_pep_q_0" value="Yes"> Yes</label><label><input type="radio" name="owner_pep_q_0" value="No" checked> No</label></div><label class="pep-question" for="owner_pep_reason_0">Details/Reason:</label><textarea id="owner_pep_reason_0" name="owner_pep_reason_0" class="pep-reason"></textarea></div>
+                                <div class="pep-section"><h4 style="font-size: 1.1rem; margin-top: 0;">6.2.2 A Prominent Influential Person (PIP)</h4><p style="font-size: 0.9rem; margin-bottom: 15px;">Provincial premiers, Members of foreign royal families, Government ministers or senior politicians, Leaders of political parties, High-ranking military or police officials.</p><label class="pep-question" for="owner_pip_q_0">Question: Is this individual or entities identified in this form, as verified under FICA, regarded as a PIP?</label><div class="radio-options"><label><input type="radio" name="owner_pip_q_0" value="Yes"> Yes</label><label><input type="radio" name="owner_pip_q_0" value="No" checked> No</label></div><label class="pep-question" for="owner_pip_reason_0">Details/Reason:</label><textarea id="owner_pip_reason_0" name="owner_pip_reason_0" class="pep-reason"></textarea></div>
+                                <div class="pep-section"><h4 style="font-size: 1.1rem; margin-top: 0;">Prominent Public Official (PPO) in a foreign country</h4><label class="pep-question" for="owner_ppo_q_0">Is this individual or entities identified in this form, as verified under FICA, considered a prominent public official (PPO) in a foreign country?</label><div class="radio-options"><label><input type="radio" name="owner_ppo_q_0" value="Yes"> Yes</label><label><input type="radio" name="owner_ppo_q_0" value="No" checked> No</label></div><label class="pep-question" for="owner_ppo_reason_0">Details/Reason:</label><textarea id="owner_ppo_reason_0" name="owner_ppo_reason_0" class="pep-reason"></textarea></div>
+                                <div class="pep-section"><h4 style="font-size: 1.1rem; margin-top: 0;">6.2.3 Known Close Associates</h4><p style="font-size: 0.9rem; margin-bottom: 15px; font-weight: bold;">Family members are individuals related to a PEP or PIP by blood (consanguinity) or through marriage or similar partnerships.</p><label class="pep-question" for="owner_kca_q_0">Question: Is this individual or entities identified in this form, as verified under FICA, regarded as a known close associate or family member?</label><div class="radio-options"><label><input type="radio" name="owner_kca_q_0" value="Yes"> Yes</label><label><input type="radio" name="owner_kca_q_0" value="No" checked> No</label></div><label class="pep-question" for="owner_kca_reason_0">Details/Reason:</label><textarea id="owner_kca_reason_0" name="owner_kca_reason_0" class="pep-reason"></textarea></div>
+                            </div>
+                        </div>
+                    </div>
+                    <button type="button" class="add-contact-btn" id="add_owner">+ Add Another Beneficial Owner</button>
+                </div> 
+                
+                <div id="fica_step_7" style="margin-top: 40px; display: none;">
+                    <h2 style="margin-top: 0;">STEP 6 - BENEFICIAL OWNERSHIP FORM</h2>
+
+                    <div style="border: 1px solid var(--border-light); border-radius: 8px; overflow: hidden; margin-bottom: 30px;">
+                        <table class="transaction-table full-width">
+                            <thead>
+                                <tr style="background-color: var(--bg-light-green);">
+                                    <th style="width: 33%; padding: 15px; color: var(--accent-green); font-size: 1rem;">Field</th>
+                                    <th style="width: 67%; padding: 15px; color: var(--accent-green); font-size: 1rem;">Answer </th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><label for="nat_rel">Nature of Relationship</label></td>
+                                    <td>
+                                        <select id="nat_rel" name="nat_rel" style="width: 100%;">
+                                            <option value="Employer / Pension Fund" selected>Employer / Pension Fund</option>
+                                            <option value="Other">Other</option>
+                                        </select>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><label for="purp_rel">Purpose of Relationship</label></td>
+                                    <td>
+                                        <select id="purp_rel" name="purp_rel" style="width: 100%;">
+                                            <option value="Employee Pension Fund" selected>Employee Pension Fund</option>
+                                            <option value="Other">Other</option>
+                                        </select>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><label for="source_funds">Source of Funds</label></td>
+                                    <td>
+                                        <select id="source_funds" name="source_funds" style="width: 100%;">
+                                            <option value="Payroll" selected>Payroll</option>
+                                            <option value="Other">Other</option>
+                                        </select>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="full-width" id="download_3rd_party" style="margin-top: 20px; border-top: 1px dashed var(--border-light); padding-top: 20px;">
+                        <a href="#" class="add-link">Upload document</a>
+                        <p style="font-size: 0.9rem; color: var(--text-muted); margin: 5px 0 15px 0;">(Must only display if outsourced is selected. Signed document must be uploaded.)</p>
+                    </div>
+
+
+                    </div>
+                </div> 
+            </div> 
+            
+            <div class="form-actions full-width">
+                <button type="submit" class="save-button">Save New Client</button>
+            </div>
+
+        </form>
+
+    </div>
+
+    <script>
+        // --- Core Tab Switching ---
+        function openTab(evt, tabName) {
+            let tabContent = document.getElementsByClassName("tab-content");
+            for (let i = 0; i < tabContent.length; i++) {
+                tabContent[i].style.display = "none";
+            }
+            let tabButtons = document.getElementsByClassName("tab-button");
+            for (let i = 0; i < tabButtons.length; i++) {
+                // Use classList for reliable class switching
+                tabButtons[i].classList.remove("active");
+            }
+            document.getElementById(tabName).style.display = "block";
+            evt.currentTarget.classList.add("active");
+            
+            // If FICA tab is clicked, ensure the internal FICA steps are initialized
+            if (tabName === 'tab5') {
+                // Manually trigger the step 1 radio button change to show the content
+                const step1Radio = document.querySelector('input[name="fica_step"][value="step1"]');
+                if (step1Radio) {
+                     // Check the radio button
+                    step1Radio.checked = true;
+                    // Trigger the change handler manually
+                    step1Radio.dispatchEvent(new Event('change'));
+                }
+            }
+        }
+        
+        // --- Core FICA Step Logic (To toggle visibility of steps) ---
+        function initializeFicaStepToggling() {
+            const stepContainers = {
+                'step1': document.getElementById('fica_step_1_2'),
+                'step3': document.getElementById('fica_step_3'),
+                'step4': document.getElementById('fica_step_4'),
+                'step5': document.getElementById('fica_step_5'),
+                'step6': document.getElementById('fica_step_6'),
+                'step7': document.getElementById('fica_step_7'),
+            };
+
+            const ficaStepRadios = document.querySelectorAll('input[name="fica_step"]');
+
+            function toggleFicaSteps() {
+                const checkedRadio = document.querySelector('input[name="fica_step"]:checked');
+                const activeStep = checkedRadio ? checkedRadio.value : 'step1'; 
+                
+                for (const step in stepContainers) {
+                    if (stepContainers[step]) {
+                        stepContainers[step].style.display = (step === activeStep) ? 'block' : 'none';
+                    }
+                }
+            }
+
+            ficaStepRadios.forEach(radio => radio.addEventListener('change', toggleFicaSteps));
+            
+            // Initial run only checks the default radio button, the outer tab handles visibility
+            // We ensure step1 is checked by default in HTML, so we run the toggle function.
+            toggleFicaSteps();
+        }
+
+        // Handler to toggle Director/Owner postal address inputs
+        function handlePostalToggle(event, type) {
+            const checkbox = event.target;
+            const index = checkbox.getAttribute('data-index');
+            const prefix = type === 'director' ? 'dir' : 'owner';
+            const postalDiv = document.getElementById(`${prefix}_postal_addr_${index}`);
+            
+            if (postalDiv) {
+                const isChecked = checkbox.checked;
+                postalDiv.style.display = isChecked ? 'none' : 'grid'; 
+
+                const postalInputs = postalDiv.querySelectorAll('input');
+                
+                postalInputs.forEach(input => {
+                    input.disabled = isChecked;
+                    if (isChecked) {
+                        input.value = ''; 
+                    }
+                });
+            }
+        }
+        
+        /**
+         * Generates the simplified contact person card structure, now including addresses.
+         */
+        function createContactBlock(index) {
+            return `
+                <div class="contact-card-container">
+                    <h3>Contact Person #${index + 1} Details</h3>
+                    <div class="client-form" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+                        <div class="form-group"><label for="contact-name-${index}">Name</label><input type="text" name="contact-name-${index}" id="contact-name-${index}" placeholder="First Name"></div>
+                        <div class="form-group"><label for="contact-surname-${index}">Surname</label><input type="text" name="contact-surname-${index}" id="contact-surname-${index}" placeholder="Last Name"></div>
+                        <div class="form-group"><label for="contact-job_title-${index}">Job Title</label><input type="text" name="contact-job_title-${index}" id="contact-job_title-${index}" placeholder="e.g., HR Manager"></div>
+                        <div class="form-group"><label for="contact-email-${index}">Email</label><input type="email" name="contact-email-${index}" id="contact-email-${index}" placeholder="email@company.com"></div>
+                        <div class="form-group"><label for="contact-cell-${index}">Cell no</label><input type="text" name="contact-cell-${index}" id="contact-cell-${index}" placeholder="e.g., 082 123 4567"></div>
+                        <div class="form-group"><label for="contact-landline-${index}">Landline</label><input type="text" name="contact-landline-${index}" id="contact-landline-${index}"></div>
+                        <div class="form-group"><label for="contact-birthday-${index}">Birthday</label><input type="text" name="contact-birthday-${index}" id="contact-birthday-${index}" placeholder="DD/MM/YYYY"></div>
+                        <div class="form-group"><label for="contact-interests-${index}">Interests</label><input type="text" name="contact-interests-${index}" id="contact-interests-${index}" placeholder="e.g., Golf, Hiking"></div>
+                        
+                        <div class="form-group full-width">
+                            <h4 style="margin-top: 5px; margin-bottom: 15px; grid-column: 1 / -1; font-size: 1rem; color: var(--primary-green); border-bottom: 1px dotted var(--border-light); padding-bottom: 5px;">Physical Address</h4>
+                        </div>
+                        <div class="form-group"><label for="contact-phys_line1-${index}">Physical Address Line 1</label><input type="text" name="contact-phys_line1-${index}" id="contact-phys_line1-${index}"></div>
+                        <div class="form-group"><label for="contact-phys_line2-${index}">Physical Address Line 2</label><input type="text" name="contact-phys_line2-${index}" id="contact-phys_line2-${index}"></div>
+                        <div class="form-group"><label for="contact-phys_city-${index}">City/Town</label><input type="text" name="contact-phys_city-${index}" id="contact-phys_city-${index}"></div>
+                        <div class="form-group"><label for="contact-phys_province-${index}">Province</label><input type="text" name="contact-phys_province-${index}" id="contact-phys_province-${index}"></div>
+                        
+                        <div class="form-group full-width">
+                            <h4 style="margin-top: 5px; margin-bottom: 15px; grid-column: 1 / -1; font-size: 1rem; color: var(--primary-green); border-bottom: 1px dotted var(--border-light); padding-bottom: 5px;">Postal Address</h4>
+                        </div>
+                        <div class="form-group"><label for="contact-postal_line1-${index}">Postal Address Line 1</label><input type="text" name="contact-postal_line1-${index}" id="contact-postal_line1-${index}"></div>
+                        <div class="form-group"><label for="contact-postal_line2-${index}">Postal Address Line 2</label><input type="text" name="contact-postal_line2-${index}" id="contact-postal_line2-${index}"></div>
+                        <div class="form-group"><label for="contact-postal_city-${index}">City/Town</label><input type="text" name="contact-postal_city-${index}" id="contact-postal_city-${index}"></div>
+                        <div class="form-group"><label for="contact-postal_province-${index}">Province</label><input type="text" name="contact-postal_province-${index}" id="contact-postal_province-${index}"></div>
+                        <div class="form-group full-width"><label for="contact-notes-${index}">Notes</label><textarea name="contact-notes-${index}" id="contact-notes-${index}" rows="2" placeholder="Internal notes about the contact..."></textarea></div>
+                    </div>
+                </div>
+            `;
+        }
+
+
+        function createDirectorBlock(index) {
+            // UPDATED TO GRID LAYOUT
+            return `<hr style="margin-top: 20px; border-color: #eee;"><div class="director-block client-form" style="border: 1px solid var(--border-light); border-radius: 8px; margin-bottom: 25px; padding: 0;"><h3 style="font-size: 1.2rem; color: var(--accent-green); padding: 15px 30px; border-bottom: 1px solid var(--border-light); margin: 0; background-color: var(--bg-light-green);" class="full-width">Director #${index + 1} Personal Details</h3><div class="client-form" style="padding: 15px 30px 0 30px;"><div class="form-group"><label for="dir_name_${index}">Name(s)</label><input type="text" id="dir_name_${index}" name="dir_name_${index}"></div><div class="form-group"><label for="dir_contact_${index}">Contact Number</label><input type="text" id="dir_contact_${index}" name="dir_contact_${index}"></div><div class="form-group"><label for="dir_surname_${index}">Surname</label><input type="text" id="dir_surname_${index}" name="dir_surname_${index}"></div><div class="form-group"><label for="dir_email_${index}">E-mail address</label><input type="email" id="dir_email_${index}" name="dir_email_${index}"></div><div class="form-group"><label for="dir_id_${index}">ID number</label><input type="text" id="dir_id_${index}" name="dir_id_${index}"></div><div class="form-group"><label for="dir_designation_${index}">Designation</label><input type="text" id="dir_designation_${index}" name="dir_designation_${index}"></div></div><div class="full-width" style="padding: 0 30px; border-top: 1px solid var(--border-light); margin-top: 15px; padding-top: 15px;"><h4 style="font-size: 1rem; color: var(--accent-green); margin-bottom: 15px;">Physical Address</h4><div class="client-form" style="gap: 15px; grid-template-columns: 1fr 1fr;"><div class="form-group"><label for="dir_phys_line1_${index}">STREET ADDRESS LINE 1</label><input type="text" id="dir_phys_line1_${index}" name="dir_phys_line1_${index}"></div><div class="form-group"><label for="dir_phys_line2_${index}">STREET ADDRESS LINE 2</label><input type="text" id="dir_phys_line2_${index}" name="dir_phys_line2_${index}"></div><div class="form-group"><label for="dir_phys_province_${index}">PROVINCE</label><input type="text" id="dir_phys_province_${index}" name="dir_phys_province_${index}"></div><div class="form-group"><label for="dir_phys_city_${index}">CITY</label><input type="text" id="dir_phys_city_${index}" name="dir_phys_city_${index}"></div><div class="form-group"><label for="dir_phys_suburb_${index}">SUBURB</label><input type="text" id="dir_phys_suburb_${index}" name="dir_phys_suburb_${index}"></div><div class="form-group"><label for="dir_phys_code_${index}">POSTAL CODE</label><input type="text" id="dir_phys_code_${index}" name="dir_phys_code_${index}"></div></div></div><div class="full-width" style="padding: 15px 30px 0 30px; border-top: 1px solid var(--border-light); margin-top: 15px; padding-top: 15px;"><label for="dir_postal_check_${index}" style="font-weight: 600; display: block; margin-bottom: 10px; color: var(--text-default);"><input type="checkbox" id="dir_postal_check_${index}" name="dir_postal_check_${index}" checked data-index="${index}" class="dir-postal-checkbox" style="width: auto; margin-right: 5px; vertical-align: middle;"> Postal Address Same as Physical?</label><div id="dir_postal_addr_${index}" class="client-form" style="display:none; gap: 15px; grid-template-columns: 1fr 1fr; border: 1px dashed var(--border-light); padding: 15px; margin-bottom: 15px; background-color: #fcfcfc;"><h4 class="full-width" style="font-size: 1rem; color: var(--accent-green); margin: 0 0 10px 0;">Postal Address (Different)</h4><div class="form-group"><label for="dir_postal_line1_${index}">LINE 1</label><input type="text" id="dir_postal_line1_${index}" name="dir_postal_line1_${index}" disabled></div><div class="form-group"><label for="dir_postal_line2_${index}">LINE 2</label><input type="text" id="dir_postal_line2_${index}" name="dir_postal_line2_${index}" disabled></div><div class="form-group"><label for="dir_postal_province_${index}">PROVINCE</label><input type="text" id="dir_postal_province_${index}" name="dir_postal_province_${index}" disabled></div><div class="form-group"><label for="dir_postal_city_${index}">CITY</label><input type="text" id="dir_postal_city_${index}" name="dir_postal_city_${index}" disabled></div><div class="form-group"><label for="dir_postal_suburb_${index}">SUBURB</label><input type="text" id="dir_postal_suburb_${index}" name="dir_postal_suburb_${index}" disabled></div><div class="form-group"><label for="dir_postal_code_${index}">POSTAL CODE</label><input type="text" id="dir_postal_code_${index}" name="dir_postal_code_${index}" disabled></div></div></div><div class="full-width" style="display: flex; gap: 30px; margin-top: 15px; padding: 15px 30px; background-color: #fcfcfc; border-top: 1px solid var(--border-light);"><div class="form-group-file" style="flex: 1;"><label for="dir_proof_addr_${index}">ATTACH PROOF OF PHYSICAL STREET ADDRESS (NOT COMPANY ADDRESS)</label><input type="file" id="dir_proof_addr_${index}" name="dir_proof_addr_${index}"></div><div class="form-group-file" style="flex: 1;"><label for="dir_id_copy_${index}">ATTACH CLEAR COPY OF ID</label><input type="file" id="dir_id_copy_${index}" name="dir_id_copy_${index}"></div></div><h3 style="font-size: 1.2rem; color: var(--accent-green); padding: 15px 30px; border-top: 1px solid var(--border-light); margin: 0; background-color: var(--bg-light-green);" class="full-width">Director #${index + 1} Politically Exposed Status (PEP/PIP/KCA)</h3><div style="padding: 15px 30px;"><div class="pep-section"><h4 style="font-size: 1.1rem; margin-top: 0;">5.2.1 Politically Exposed Person (PEP)</h4><p style="font-size: 0.9rem; margin-bottom: 15px;">Heads of state, Cabinet members, Members of parliament or local/provincial government, Senior management of organs of state, Judicial officers, etc.</p><label class="pep-question" for="pep_q_${index}">Question: Is this individual or entities identified in this form, as verified under FICA, considered a PEP?</label><div class="radio-options"><label><input type="radio" name="pep_q_${index}" value="Yes"> Yes</label><label><input type="radio" name="pep_q_${index}" value="No" checked> No</label></div><label class="pep-question" for="pep_reason_${index}">Details/Reason:</label><textarea id="pep_reason_${index}" name="pep_reason_${index}" class="pep-reason"></textarea></div><div class="pep-section"><h4 style="font-size: 1.1rem; margin-top: 0;">5.2.2 A Prominent Influential Person (PIP)</h4><p style="font-size: 0.9rem; margin-bottom: 15px;">Provincial premiers, Members of foreign royal families, Government ministers or senior politicians, Leaders of political parties, High-ranking military or police officials.</p><label class="pep-question" for="pip_q_${index}">Question: Is this individual or entities identified in this form, as verified under FICA, regarded as a PIP?</label><div class="radio-options"><label><input type="radio" name="pip_q_${index}" value="Yes"> Yes</label><label><input type="radio" name="pip_q_${index}" value="No" checked> No</label></div><label class="pep-question" for="pip_reason_${index}">Details/Reason:</label><textarea id="pip_reason_${index}" name="pip_reason_${index}" class="pep-reason"></textarea></div><div class="pep-section"><h4 style="font-size: 1.1rem; margin-top: 0;">Prominent Public Official (PPO) in a foreign country</h4><label class="pep-question" for="ppo_q_${index}">Is this individual or entities identified in this form, as verified under FICA, considered a prominent public official (PPO) in a foreign country?</label><div class="radio-options"><label><input type="radio" name="ppo_q_${index}" value="Yes"> Yes</label><label><input type="radio" name="ppo_q_${index}" value="No" checked> No</label></div><label class="pep-question" for="ppo_reason_${index}">Details/Reason:</label><textarea id="ppo_reason_${index}" name="ppo_reason_${index}" class="pep-reason"></textarea></div><div class="pep-section"><h4 style="font-size: 1.1rem; margin-top: 0;">5.2.3 Known Close Associates</h4><p style="font-size: 0.9rem; margin-bottom: 15px; font-weight: bold;">Family members are individuals related to a PEP or PIP by blood (consanguinity) or through marriage or similar partnerships.</p><label class="pep-question" for="kca_q_${index}">Question: Is this individual or entities identified in this form, as verified under FICA, regarded as a known close associate or family member?</label><div class="radio-options"><label><input type="radio" name="kca_q_${index}" value="Yes"> Yes</label><label><input type="radio" name="kca_q_${index}" value="No" checked> No</label></div><label class="pep-question" for="kca_reason_${index}">Details/Reason:</label><textarea id="kca_reason_${index}" name="kca_reason_${index}" class="pep-reason"></textarea></div></div></div>`;
+        }
+        
+        function createOwnerBlock(index) {
+            // UPDATED TO GRID LAYOUT
+            return `<hr style="margin-top: 20px; border-color: #eee;"><div class="owner-block client-form" style="border: 1px solid var(--border-light); border-radius: 8px; margin-bottom: 25px; padding: 0;"><h3 style="font-size: 1.2rem; color: var(--accent-green); padding: 15px 30px; border-bottom: 1px solid var(--border-light); margin: 0; background-color: var(--bg-light-green);" class="full-width">Beneficial Owner #${index + 1} Personal Details</h3><div class="client-form" style="padding: 15px 30px 0 30px;"><div class="form-group"><label for="owner_name_${index}">Name(s)</label><input type="text" id="owner_name_${index}" name="owner_name_${index}"></div><div class="form-group"><label for="owner_cell_${index}">Cell number</label><input type="text" id="owner_cell_${index}" name="owner_cell_${index}"></div><div class="form-group"><label for="owner_surname_${index}">Surname</label><input type="text" id="owner_surname_${index}" name="owner_surname_${index}"></div><div class="form-group"><label for="owner_email_${index}">E-mail address</label><input type="email" id="owner_email_${index}" name="owner_email_${index}"></div><div class="form-group"><label for="owner_id_${index}">ID number</label><input type="text" id="owner_id_${index}" name="owner_id_${index}"></div><div class="form-group"><label for="owner_designation_${index}">Designation</label><input type="text" id="owner_designation_${index}" name="owner_designation_${index}"></div></div><div class="full-width" style="padding: 0 30px; border-top: 1px solid var(--border-light); margin-top: 15px; padding-top: 15px;"><h4 style="font-size: 1rem; color: var(--accent-green); margin-bottom: 15px;">Physical Address</h4><div class="client-form" style="gap: 15px; grid-template-columns: 1fr 1fr;"><div class="form-group"><label for="owner_phys_line1_${index}">STREET ADDRESS LINE 1</label><input type="text" id="owner_phys_line1_${index}" name="owner_phys_line1_${index}"></div><div class="form-group"><label for="owner_phys_line2_${index}">STREET ADDRESS LINE 2</label><input type="text" id="owner_phys_line2_${index}" name="owner_phys_line2_${index}"></div><div class="form-group"><label for="owner_phys_province_${index}">PROVINCE</label><input type="text" id="owner_phys_province_${index}" name="owner_phys_province_${index}"></div><div class="form-group"><label for="owner_phys_city_${index}">CITY</label><input type="text" id="owner_phys_city_${index}" name="owner_phys_city_${index}"></div><div class="form-group"><label for="owner_phys_suburb_${index}">SUBURB</label><input type="text" id="owner_phys_suburb_${index}" name="owner_phys_suburb_${index}"></div><div class="form-group"><label for="owner_phys_code_${index}">POSTAL CODE</label><input type="text" id="owner_phys_code_${index}" name="owner_phys_code_${index}"></div></div></div><div class="full-width" style="padding: 15px 30px 0 30px; border-top: 1px solid var(--border-light); margin-top: 15px; padding-top: 15px;"><label for="owner_postal_check_${index}" style="font-weight: 600; display: block; margin-bottom: 10px; color: var(--text-default);"><input type="checkbox" id="owner_postal_check_${index}" name="owner_postal_check_${index}" checked data-index="${index}" class="owner-postal-checkbox" style="width: auto; margin-right: 5px; vertical-align: middle;"> Postal Address Same as Physical?</label><div id="owner_postal_addr_${index}" class="client-form" style="display:none; gap: 15px; grid-template-columns: 1fr 1fr; border: 1px dashed var(--border-light); padding: 15px; margin-bottom: 15px; background-color: #fcfcfc;"><h4 class="full-width" style="font-size: 1rem; color: var(--accent-green); margin: 0 0 10px 0;">Postal Address (Different)</h4><div class="form-group"><label for="owner_postal_line1_${index}">LINE 1</label><input type="text" id="owner_postal_line1_${index}" name="owner_postal_line1_${index}" disabled></div><div class="form-group"><label for="owner_postal_line2_${index}">LINE 2</label><input type="text" id="owner_postal_line2_${index}" name="owner_postal_line2_${index}" disabled></div><div class="form-group"><label for="owner_postal_province_${index}">PROVINCE</label><input type="text" id="owner_postal_province_${index}" name="owner_postal_province_${index}" disabled></div><div class="form-group"><label for="owner_postal_city_${index}">CITY</label><input type="text" id="owner_postal_city_${index}" name="owner_postal_city_${index}" disabled></div><div class="form-group"><label for="owner_postal_suburb_${index}">SUBURB</label><input type="text" id="owner_postal_suburb_${index}" name="owner_postal_suburb_${index}" disabled></div><div class="form-group"><label for="owner_postal_code_${index}">POSTAL CODE</label><input type="text" id="owner_postal_code_${index}" name="owner_postal_code_${index}" disabled></div></div></div><div class="full-width" style="display: flex; gap: 30px; margin-top: 15px; padding: 15px 30px; background-color: #fcfcfc; border-top: 1px solid var(--border-light);"><div class="form-group-file" style="flex: 1;"><label for="owner_proof_addr_${index}">ATTACH PROOF OF PHYSICAL STREET ADDRESS (NOT COMPANY ADDRESS)</label><input type="file" id="owner_proof_addr_${index}" name="owner_proof_addr_${index}"></div><div class="form-group-file" style="flex: 1;"><label for="owner_id_copy_${index}">ATTACH CLEAR COPY OF ID</label><input type="file" id="owner_id_copy_${index}" name="owner_id_copy_${index}"></div></div><h3 style="font-size: 1.2rem; color: var(--accent-green); padding: 15px 30px; border-top: 1px solid var(--border-light); margin: 0; background-color: var(--bg-light-green);" class="full-width">Beneficial Owner #${index + 1} Politically Exposed Status (PEP/PIP/KCA)</h3><div style="padding: 15px 30px;"><div class="pep-section"><h4 style="font-size: 1.1rem; margin-top: 0;">6.2.1 Politically Exposed Person (PEP)</h4><p style="font-size: 0.9rem; margin-bottom: 15px;">Heads of state, Cabinet members, Members of parliament or local/provincial government, Senior management of organs of state, Judicial officers, etc.</p><label class="pep-question" for="owner_pep_q_${index}">Question: Is this individual or entities identified in this form, as verified under FICA, considered a PEP?</label><div class="radio-options"><label><input type="radio" name="owner_pep_q_${index}" value="Yes"> Yes</label><label><input type="radio" name="owner_pep_q_${index}" value="No" checked> No</label></div><label class="pep-question" for="owner_pep_reason_${index}">Details/Reason:</label><textarea id="owner_pep_reason_${index}" name="owner_pep_reason_${index}" class="pep-reason"></textarea></div><div class="pep-section"><h4 style="font-size: 1.1rem; margin-top: 0;">6.2.2 A Prominent Influential Person (PIP)</h4><p style="font-size: 0.9rem; margin-bottom: 15px;">Provincial premiers, Members of foreign royal families, Government ministers or senior politicians, Leaders of political parties, High-ranking military or police officials.</p><label class="pep-question" for="owner_pip_q_${index}">Question: Is this individual or entities identified in this form, as verified under FICA, regarded as a PIP?</label><div class="radio-options"><label><input type="radio" name="owner_pip_q_${index}" value="Yes"> Yes</label><label><input type="radio" name="owner_pip_q_${index}" value="No" checked> No</label></div><label class="pep-question" for="owner_pip_reason_${index}">Details/Reason:</label><textarea id="owner_pip_reason_${index}" name="owner_pip_reason_${index}" class="pep-reason"></textarea></div><div class="pep-section"><h4 style="font-size: 1.1rem; margin-top: 0;">Prominent Public Official (PPO) in a foreign country</h4><label class="pep-question" for="owner_ppo_q_${index}">Is this individual or entities identified in this form, as verified under FICA, considered a prominent public official (PPO) in a foreign country?</label><div class="radio-options"><label><input type="radio" name="owner_ppo_q_${index}" value="Yes"> Yes</label><label><input type="radio" name="owner_ppo_q_${index}" value="No" checked> No</label></div><label class="pep-question" for="owner_ppo_reason_${index}">Details/Reason:</label><textarea id="owner_ppo_reason_${index}" name="owner_ppo_reason_${index}" class="pep-reason"></textarea></div><div class="pep-section"><h4 style="font-size: 1.1rem; margin-top: 0;">6.2.3 Known Close Associates</h4><p style="font-size: 0.9rem; margin-bottom: 15px; font-weight: bold;">Family members are individuals related to a PEP or PIP by blood (consanguinity) or through marriage or similar partnerships.</p><label class="pep-question" for="owner_kca_q_${index}">Question: Is this individual or entities identified in this form, as verified under FICA, regarded as a known close associate or family member?</label><div class="radio-options"><label><input type="radio" name="owner_kca_q_${index}" value="Yes"> Yes</label><label><input type="radio" name="owner_kca_q_${index}" value="No" checked> No</label></div><label class="pep-question" for="owner_kca_reason_${index}">Details/Reason:</label><textarea id="owner_kca_reason_${index}" name="owner_kca_reason_${index}" class="pep-reason"></textarea></div></div></div>`;
+        }
+        
+        // --- Core Document Load Handler ---
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set the default active tab
+            document.querySelector('.tab-button').click(); 
+            
+            // Initialize FICA step visibility logic
+            initializeFicaStepToggling();
+            
+            // --- Auto-fill from URL Parameters (Conversion Logic) ---
+            const urlParams = new URLSearchParams(window.location.search);
+            
+            function preFillField(id, paramName) {
+                const value = urlParams.get(paramName);
+                if (value) {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        if (element.tagName === 'SELECT') {
+                            const option = element.querySelector(`option[value="${value}"]`);
+                            if (option) {
+                                element.value = value;
+                            } else {
+                                console.warn(`Value "${value}" not found in options for select field "${id}"`);
+                            }
+                        } else {
+                            element.value = value;
+                        }
+                    }
+                }
+            }
+
+            // --- Pre-fill General Info (Tab 1) ---
+            preFillField('client_name', 'client_name');
+            preFillField('consultant', 'consultant');
+            preFillField('product', 'product');
+            preFillField('status', 'status');
+            preFillField('date', 'date');
+
+            // --- Pre-fill Contact Info (Tab 2 - First Row) ---
+            preFillField('contact-name-0', 'contact_person'); 
+            preFillField('contact-cell-0', 'contact_number'); 
+            preFillField('contact-email-0', 'contact_email'); 
+
+            
+            // --- FICA Step 2 Company Postal Address Toggle ---
+            const sameAsPhysicalCheckbox = document.getElementById('same_as_physical');
+            const postalAddressColumn = document.getElementById('postal_address_column');
+            const postalInputs = postalAddressColumn ? postalAddressColumn.querySelectorAll('input') : [];
+
+            function toggleCompanyPostalAddress() {
+                const isDisabled = sameAsPhysicalCheckbox.checked;
+                postalInputs.forEach(input => { 
+                    input.disabled = isDisabled; 
+                    if (isDisabled) input.value = ''; // Clear if disabled
+                });
+                postalAddressColumn.style.display = isDisabled ? 'none' : 'block';
+            }
+
+            if (sameAsPhysicalCheckbox) {
+                // Initial state
+                toggleCompanyPostalAddress();
+                // Event listener
+                sameAsPhysicalCheckbox.addEventListener('change', toggleCompanyPostalAddress);
+            }
+
+            // --- Contact Row Adder Logic (Tab 2) ---
+            let contactRowCount = 1;
+            const addContactBtn = document.getElementById('add-contact-btn');
+            const contactsContainer = document.getElementById('contacts-container');
+
+            if (addContactBtn && contactsContainer) {
+                addContactBtn.addEventListener('click', function() {
+                    const newContactHtml = createContactBlock(contactRowCount);
+                    contactsContainer.insertAdjacentHTML('beforeend', newContactHtml);
+                    contactRowCount++;
+                });
+            }
+
+            // --- FICA Submission Type Logic (Step 3) ---
+            const submissionRadios = document.querySelectorAll('input[name="submission_type"]');
+            const outsourcedCompanyNameInput = document.getElementById('outsourced_company_name');
+            const outsourcedContactNumberInput = document.getElementById('outsourced_contact_number');
+            const downloadLinkDiv = document.getElementById('download_3rd_party');
+
+            function toggleSubmissionFields() {
+                const checkedRadio = document.querySelector('input[name="submission_type"]:checked');
+                const isOutsourced = checkedRadio ? checkedRadio.value === 'outsourced' : false;
+                
+                // Toggle outsourced fields
+                if (outsourcedCompanyNameInput) outsourcedCompanyNameInput.disabled = !isOutsourced;
+                if (outsourcedContactNumberInput) outsourcedContactNumberInput.disabled = !isOutsourced;
+                if (downloadLinkDiv) downloadLinkDiv.style.display = isOutsourced ? 'block' : 'none';
+                
+                // Clear outsourced fields if switching to internal
+                if (!isOutsourced && outsourcedCompanyNameInput) {
+                    outsourcedCompanyNameInput.value = '';
+                    outsourcedContactNumberInput.value = '';
+                }
+            }
+
+            submissionRadios.forEach(radio => { radio.addEventListener('change', toggleSubmissionFields); });
+            toggleSubmissionFields(); // Initial call
+            
+            // --- FICA Director Logic (Step 5) ---
+            let directorCount = 1;
+            const directorContainer = document.getElementById('director_container');
+            const addDirectorBtn = document.getElementById('add_director');
+
+            // Initial Director (index 0) postal address setup
+            const initialDirCheckbox = document.getElementById('dir_postal_check_0');
+            if (initialDirCheckbox) {
+                // Ensure initial state is set
+                const initialEvent = { target: initialDirCheckbox };
+                handlePostalToggle(initialEvent, 'director'); 
+                // Attach event listener
+                initialDirCheckbox.addEventListener('change', (e) => handlePostalToggle(e, 'director'));
+            }
+
+            if (addDirectorBtn && directorContainer) {
+                addDirectorBtn.addEventListener('click', function() {
+                    const newDirectorHtml = createDirectorBlock(directorCount);
+                    // Create a temporary div to parse the HTML and then append its content
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = newDirectorHtml;
+                    while (tempDiv.firstChild) {
+                        directorContainer.appendChild(tempDiv.firstChild);
+                    }
+
+                    // Attach event listener to the new checkbox
+                    const newCheckbox = document.getElementById(`dir_postal_check_${directorCount}`);
+                    if (newCheckbox) {
+                        const newEvent = { target: newCheckbox };
+                        handlePostalToggle(newEvent, 'director'); // Initialize state
+                        newCheckbox.addEventListener('change', (e) => handlePostalToggle(e, 'director'));
+                    }
+                    directorCount++;
+                });
+            }
+            
+            // --- FICA Beneficial Owner Logic (Step 6) ---
+            let ownerCount = 1;
+            const ownerContainer = document.getElementById('owner_container');
+            const addOwnerBtn = document.getElementById('add_owner');
+
+            // Initial Owner (index 0) postal address setup
+            const initialOwnerCheckbox = document.getElementById('owner_postal_check_0');
+            if (initialOwnerCheckbox) {
+                const initialEvent = { target: initialOwnerCheckbox };
+                handlePostalToggle(initialEvent, 'owner');
+                initialOwnerCheckbox.addEventListener('change', (e) => handlePostalToggle(e, 'owner'));
+            }
+
+            if (addOwnerBtn && ownerContainer) {
+                addOwnerBtn.addEventListener('click', function() {
+                    const newOwnerHtml = createOwnerBlock(ownerCount);
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = newOwnerHtml;
+                    while (tempDiv.firstChild) {
+                        ownerContainer.appendChild(tempDiv.firstChild);
+                    }
+
+                    const newCheckbox = document.getElementById(`owner_postal_check_${ownerCount}`);
+                    if (newCheckbox) {
+                        const newEvent = { target: newCheckbox };
+                        handlePostalToggle(newEvent, 'owner');
+                        newCheckbox.addEventListener('change', (e) => handlePostalToggle(e, 'owner'));
+                    }
+                    ownerCount++;
+                });
+            }
+
+            // --- FICA Responsible Person Logic (Step 4) - Simplified add logic since template is complex ---
+            const responsiblePersonContainer = document.getElementById('responsible_person_container');
+            const addResponsiblePersonBtn = document.getElementById('add_responsible_person');
+            let responsiblePersonCount = 1; // Start counting after the initial static person (index 0)
+
+            if (addResponsiblePersonBtn && responsiblePersonContainer) {
+                addResponsiblePersonBtn.addEventListener('click', function() {
+                    const newPersonHtml = `
+                        <hr style="margin-top: 20px; border-color: #eee;">
+                        <div class="responsible-person-block client-form" style="border: 1px solid var(--border-light); border-radius: 8px; overflow: hidden; margin-bottom: 25px; padding: 15px 30px;">
+                            <h3 class="full-width" style="margin-top: 0; margin-bottom: 20px; font-size: 1.2rem; color: var(--accent-green);">Responsible Person #${responsiblePersonCount + 1} Personal Details</h3>
+                            
+                            <div class="form-group"><label for="resp_name_${responsiblePersonCount}">Name</label><input type="text" id="resp_name_${responsiblePersonCount}" name="resp_name_${responsiblePersonCount}"></div>
+                            <div class="form-group"><label for="resp_designation_${responsiblePersonCount}">Designation</label><input type="text" id="resp_designation_${responsiblePersonCount}" name="resp_designation_${responsiblePersonCount}"></div>
+                            <div class="form-group"><label for="resp_contact_${responsiblePersonCount}">Contact Number</label><input type="text" id="resp_contact_${responsiblePersonCount}" name="resp_contact_${responsiblePersonCount}"></div>
+                            
+                            <div class="form-group"><label for="resp_surname_${responsiblePersonCount}">Surname</label><input type="text" id="resp_surname_${responsiblePersonCount}" name="resp_surname_${responsiblePersonCount}"></div>
+                            <div class="form-group"><label for="resp_id_${responsiblePersonCount}">ID number</label><input type="text" id="resp_id_${responsiblePersonCount}" name="resp_id_${responsiblePersonCount}"></div>
+                            <div class="form-group"><label for="resp_email_${responsiblePersonCount}">E-mail Address</label><input type="email" id="resp_email_${responsiblePersonCount}" name="resp_email_${responsiblePersonCount}"></div>
+                            
+                            <div class="full-width" style="border-top: 1px solid var(--border-light); margin-top: 15px; padding-top: 15px;">
+                                <h4 style="font-size: 1rem; color: var(--accent-green); margin-bottom: 15px;">Responsible Person Physical Home Address</h4>
+                                <div class="client-form" style="gap: 15px; grid-template-columns: 1fr 1fr;">
+                                    <div class="form-group"><label for="resp_line1_${responsiblePersonCount}">STREET ADDRESS LINE 1</label><input type="text" id="resp_line1_${responsiblePersonCount}" name="resp_line1_${responsiblePersonCount}"></div>
+                                    <div class="form-group"><label for="resp_line2_${responsiblePersonCount}">STREET ADDRESS LINE 2</label><input type="text" id="resp_line2_${responsiblePersonCount}" name="resp_line2_${responsiblePersonCount}"></div>
+                                    <div class="form-group"><label for="resp_province_${responsiblePersonCount}">PROVINCE</label><input type="text" id="resp_province_${responsiblePersonCount}" name="resp_province_${responsiblePersonCount}"></div>
+                                    <div class="form-group"><label for="resp_city_${responsiblePersonCount}">CITY</label><input type="text" id="resp_city_${responsiblePersonCount}" name="resp_city_${responsiblePersonCount}"></div>
+                                    <div class="form-group"><label for="resp_suburb_${responsiblePersonCount}">SUBURB</label><input type="text" id="resp_suburb_${responsiblePersonCount}" name="resp_suburb_${responsiblePersonCount}"></div>
+                                    <div class="form-group"><label for="resp_code_${responsiblePersonCount}">POSTAL CODE</label><input type="text" id="resp_code_${responsiblePersonCount}" name="resp_code_${responsiblePersonCount}"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="full-width" style="display: flex; gap: 40px; margin-top: 20px; border: 1px solid var(--border-light); padding: 15px; border-radius: 6px; background-color: #fcfcfc;">
+                            <div style="flex: 1;">
+                                <p style="margin-bottom: 5px;"><a href="#" class="add-link">Download circular</a></p>
+                                <div class="form-group-file" style="justify-content: flex-start;"><label for="circular_upload_${responsiblePersonCount}">UPLOAD SIGNED CIRCULAR DOCUMENT</label><input type="file" id="circular_upload_${responsiblePersonCount}" name="circular_upload_${responsiblePersonCount}"></div>
+                            </div>
+                            <div style="flex: 1;">
+                                <p style="margin-bottom: 5px;"><a href="#" class="add-link">Download document to be signed</a></p>
+                                <div class="form-group-file" style="justify-content: flex-start;"><label for="doc_signed_upload_${responsiblePersonCount}">UPLOAD SIGNED DOCUMENT HERE</label><input type="file" id="doc_signed_upload_${responsiblePersonCount}" name="doc_signed_upload_${responsiblePersonCount}"></div>
+                            </div>
+                        </div>
+                    `;
+                    responsiblePersonContainer.insertAdjacentHTML('beforeend', newPersonHtml);
+                    responsiblePersonCount++;
+                });
+            }
+        });
+
+    </script>
+</body>
+</html>

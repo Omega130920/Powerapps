@@ -1,0 +1,453 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Member Group Registration</title>
+    <style>
+        
+        /* Define consistent color palette */
+        :root {
+            --color-primary: #1b5e20; /* Dark Green (Main Action/Header) */
+            --color-secondary: #4caf50; /* Medium Green (Hover/Accents) */
+            --color-light: #e6f1df; /* Light Green (Summary Background) */
+            --color-background: #f0fff0; /* Very Light Green/Creamy Background */
+            --color-border: #aed581; /* Light Green Border */
+            --color-text: #333;
+            --color-gray: #757575;
+            --color-dark-gray: #616161;
+        }
+
+        /* -------------------------------------- */ 
+        /* Base Styles */ 
+        /* -------------------------------------- */ 
+        body { 
+            font-family: 'Inter', sans-serif; 
+            /* Subtle background gradient for depth */
+            background: linear-gradient(to bottom, var(--color-background), #d1e2c4); 
+            color: var(--color-text); 
+            padding: 40px 15px; /* Increased padding */
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        } 
+
+        .page-header { 
+            width: 100%;
+            max-width: 900px; 
+            margin-bottom: 30px; 
+        } 
+
+        .page-header h2 {
+            color: var(--color-primary);
+            font-size: 1.8em;
+            text-align: center;
+            border-bottom: 3px solid var(--color-border);
+            padding-bottom: 10px;
+        }
+        
+        .member-add-form-container { 
+            width: 100%;
+            max-width: 900px; 
+            margin-bottom: 50px; 
+            padding: 30px; 
+            background-color: #ffffff; /* Use white inside the container */ 
+            border-radius: 12px; 
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1); 
+        } 
+
+        /* -------------------------------------- */ 
+        /* Collapsible Sections (Details/Summary) */ 
+        /* -------------------------------------- */ 
+        details { 
+            border: 1px solid var(--color-border); 
+            border-radius: 8px; /* Slightly more rounded */
+            margin-bottom: 15px; /* Increased margin */
+            background-color: #ffffff; 
+            transition: box-shadow 0.2s;
+        } 
+        details[open] {
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+        }
+
+        summary { 
+            padding: 15px 25px; 
+            font-weight: 700; 
+            background-color: var(--color-light); 
+            border-radius: 8px 8px 0 0; 
+            cursor: pointer; 
+            outline: none; 
+            list-style: none; 
+            color: var(--color-primary); 
+            font-size: 1.1em;
+            position: relative; 
+            border-bottom: 1px solid var(--color-border);
+        } 
+        details:not([open]) summary {
+            border-radius: 8px; /* Rounded corners when closed */
+            border-bottom: none;
+        }
+
+        summary::after { 
+            content: '▼'; 
+            position: absolute; 
+            right: 25px; 
+            transition: transform 0.2s; 
+            color: var(--color-primary);
+            font-size: 0.8em;
+        } 
+
+        details[open] summary::after { 
+            transform: rotate(180deg); 
+        } 
+
+        .form-section-card { 
+            padding: 20px 25px; 
+            background-color: #fcfcfc; /* Slight off-white background for contrast */
+            border-radius: 0 0 8px 8px;
+        } 
+
+        .section-title { 
+            color: var(--color-primary); 
+        } 
+
+        /* -------------------------------------- */ 
+        /* Form Elements (.as_p styling) */ 
+        /* -------------------------------------- */ 
+        form p { 
+            margin-bottom: 20px; 
+            display: grid; 
+            grid-template-columns: 1fr 2fr; 
+            gap: 15px; /* Increased gap */
+            align-items: start; /* Align to the top of the grid cell */
+            padding: 5px 0;
+            border-bottom: 1px dotted #eee;
+        } 
+        form p:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+        
+        form label { 
+            font-weight: 600; /* Medium bold */
+            color: #555; 
+            padding-top: 5px;
+        } 
+        
+        /* Style the error list */
+        .errorlist {
+            list-style: none;
+            padding: 0;
+            color: #d32f2f; 
+            font-size: 0.9em;
+            font-weight: 600;
+            grid-column: 2 / 3; 
+            margin-top: -10px;
+            margin-bottom: 5px;
+        }
+
+
+        input[type="text"],  
+        input[type="email"],  
+        input[type="number"],  
+        input[type="date"],  
+        textarea,  
+        .form-select,  
+        select { 
+            width: 100%; 
+            padding: 10px 12px; 
+            /* Use a slightly lighter border color for fields */
+            border: 1px solid var(--color-border); 
+            border-radius: 6px; 
+            box-sizing: border-box;  
+            font-size: 1em; 
+            background-color: #fff; 
+            transition: border-color 0.2s, box-shadow 0.2s;
+            /* Added subtle inset shadow for depth, mimicking the desired style */
+            box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05); 
+        } 
+
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--color-secondary); /* Use medium green on focus */
+            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.2); /* Soft green focus ring */
+            outline: none;
+        }
+        
+        /* --- UPDATED DROPDOWN STYLING --- */
+        .form-select {
+            height: 40px; 
+            appearance: none; 
+            
+            /* Clean black arrow SVG - using a smaller, sharper V shape */
+            background-image: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2010%206%22%3E%3Cpath%20fill%3D%22%23333%22%20d%3D%22M5%206L0%200h10z%22%2F%3E%3C/svg%3E');
+            
+            background-repeat: no-repeat;
+            background-position: right 12px center; 
+            background-size: 10px; /* Small, sharp arrow */
+            padding-right: 30px; 
+            font-weight: 500; /* Default fields usually aren't bold */
+            
+            /* Match the subtle green border around the dropdown */
+            border: 1px solid var(--color-border); 
+        }
+        /* --- END UPDATED DROPDOWN STYLING --- */
+
+        /* -------------------------------------- */ 
+        /* Buttons */ 
+        /* -------------------------------------- */ 
+        .save-button, .cancel-button { 
+            display: inline-block; 
+            padding: 12px 25px; /* Bigger buttons */
+            margin-top: 15px; 
+            margin-left: 10px; 
+            border: none; 
+            border-radius: 25px; /* Pill-shaped buttons */
+            cursor: pointer; 
+            text-decoration: none; 
+            font-weight: 700; 
+            text-align: center; 
+            transition: all 0.2s; 
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        } 
+
+        .main-buttons { 
+            width: 100%;
+            max-width: 900px;
+            text-align: right; 
+            padding-top: 25px; 
+            margin: 0 auto;
+        } 
+
+        .main-buttons .save-button { 
+            background-color: var(--color-primary); 
+            color: white;
+            box-shadow: 0 4px 10px rgba(27, 94, 32, 0.3);
+        } 
+        .main-buttons .save-button:hover { 
+            background-color: var(--color-secondary); 
+            box-shadow: 0 6px 12px rgba(27, 94, 32, 0.4); 
+            transform: translateY(-2px);
+        } 
+        .main-buttons .cancel-button { 
+            background-color: var(--color-gray); 
+            color: white; 
+        } 
+        .main-buttons .cancel-button:hover {
+            background-color: var(--color-dark-gray);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Message Alerts */
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-left: 5px solid;
+            border-radius: 4px;
+            font-weight: 500;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        }
+        .alert-success {
+            color: #0c6a2c;
+            background-color: #d4edda;
+            border-color: var(--color-primary);
+        }
+        .alert-error {
+            color: #8f0d1a;
+            background-color: #f8d7da;
+            border-color: #d32f2f;
+        }
+    </style>
+</head>
+<body>
+    <div class="page-header">
+        <h2 class="mb-4">New Member Group Registration</h2> 
+    </div>
+
+    <div class="member-add-form-container">
+        {% if messages %} 
+            {% for message in messages %} 
+                <div class="alert alert-{{ message.tags }}"> 
+                    {{ message }} 
+                </div> 
+            {% endfor %} 
+        {% endif %} 
+
+        <form method="post" action="{% url 'add_member' %}"> 
+            {% csrf_token %} 
+            
+            {# ------------------------------------------------------------- #}
+            {# SECTION 1: CORE COMPANY INFORMATION (Always Open) #}
+            {# ------------------------------------------------------------- #}
+            <details open>
+                <summary>
+                    <span class="section-title">1. Core Company Details (Required)</span>
+                </summary>
+                <div class="form-section-card">
+                    
+                    {# A_COMPANY_CODE #}
+                    <p>
+                        {{ form.a_company_code.label_tag }}
+                        <span>
+                            {{ form.a_company_code }}
+                            {{ form.a_company_code.errors }}
+                        </span>
+                    </p>
+                    
+                    {# B_COMPANY_NAME #}
+                    <p>
+                        {{ form.b_company_name.label_tag }}
+                        <span>
+                            {{ form.b_company_name }}
+                            {{ form.b_company_name.errors }}
+                        </span>
+                    </p>
+                    
+                    {# CONTACT_EMAIL #}
+                    <p>
+                        {{ form.contact_email.label_tag }}
+                        <span>
+                            {{ form.contact_email }}
+                            {{ form.contact_email.errors }}
+                        </span>
+                    </p>
+                </div>
+            </details>
+
+            {# ------------------------------------------------------------- #}
+            {# SECTION 2: STATUS AND AGENT DETAILS (Collapsible) #}
+            {# ------------------------------------------------------------- #}
+            <details>
+                <summary>
+                    <span class="section-title">2. Status and Agent Information</span>
+                </summary>
+                <div class="form-section-card">
+                    
+                    {# C_AGENT (Manual Select for specific options) #}
+                    <p>
+                        <label for="{{ form.c_agent.id_for_label }}">Agent:</label>
+                        <span>
+                            <select id="{{ form.c_agent.id_for_label }}" name="{{ form.c_agent.html_name }}" class="form-select">
+                                <option value="" selected>-- Select Agent --</option>
+                                <option value="karen">karen</option>
+                                <option value="Mymoena">Mymoena</option>
+                                <option value="merril">merril</option>
+                                <option value="gail">gail</option>
+                                <option value="Gail Le Roux">Gail Le Roux</option>
+                            </select>
+                            {{ form.c_agent.errors }}
+                        </span>
+                    </p>
+                    
+                    {# D_COMPANY_STATUS (Manual Select for specific options) #}
+                    <p>
+                        <label for="{{ form.d_company_status.id_for_label }}">Company Status:</label>
+                        <span>
+                            <select id="{{ form.d_company_status.id_for_label }}" name="{{ form.d_company_status.html_name }}" class="form-select">
+                                <option value="" selected>-- Select Status --</option>
+                                <option value="Active">Active</option>
+                                <option value="External">External</option>
+                                <option value="Section 14">Section 14</option>
+                                <option value="Section 27">Section 27</option>
+                                <option value="Section 28">Section 28</option>
+                                <option value="Section 28 Approved">Section 28 Approved</option>
+                                <option value="Terminated">Terminated</option>
+                            </select>
+                            {{ form.d_company_status.errors }}
+                        </span>
+                    </p>
+                    
+                    {# H_CURRENT_STATUS (Manual Select for specific options) #}
+                    <p>
+                        <label for="{{ form.h_current_status.id_for_label }}">Current Status:</label>
+                        <span>
+                            <select id="{{ form.h_current_status.id_for_label }}" name="{{ form.h_current_status.html_name }}" class="form-select">
+                                <option value="" selected>-- Select Status --</option>
+                                <option value="Pre-Bill">Pre-Bill</option>
+                                <option value="Schedule">Schedule</option>
+                                <option value="Reconciled">Reconciled</option>
+                            </select>
+                            {{ form.h_current_status.errors }}
+                        </span>
+                    </p>
+                    
+                    {# G_CURRENT_FISCAL #}
+                    <p>
+                        {{ form.g_current_fiscal.label_tag }}
+                        <span>
+                            {{ form.g_current_fiscal }}
+                            {{ form.g_current_fiscal.errors }}
+                        </span>
+                    </p>
+                </div>
+            </details>
+
+            {# ------------------------------------------------------------- #}
+            {# SECTION 3: BILLING AND RECONCILIATION DETAILS (Collapsible) #}
+            {# ------------------------------------------------------------- #}
+            <details>
+                <summary>
+                    <span class="section-title">3. Billing and Financials</span>
+                </summary>
+                <div class="form-section-card">
+                    
+                    {# E_PAYMENT_METHOD (Manual Select for specific options) #}
+                    <p>
+                        <label for="{{ form.e_payment_method.id_for_label }}">Payment Method:</label>
+                        <span>
+                            <select id="{{ form.e_payment_method.id_for_label }}" name="{{ form.e_payment_method.html_name }}" class="form-select">
+                                <option value="" selected>-- Select Method --</option>
+                                <option value="EFT">EFT</option>
+                                <option value="Cash">Cash</option>
+                                <option value="Debit Order">Debit Order</option>
+                            </select>
+                            {{ form.e_payment_method.errors }}
+                        </span>
+                    </p>
+                    
+                    {# F_BILLING_METHOD (Manual Select for specific options) #}
+                    <p>
+                        <label for="{{ form.f_billing_method.id_for_label }}">Billing Method:</label>
+                        <span>
+                            <select id="{{ form.f_billing_method.id_for_label }}" name="{{ form.f_billing_method.html_name }}" class="form-select">
+                                <option value="" selected>-- Select Method --</option>
+                                <option value="Pre-Bill Send">Pre-Bill Send</option>
+                                <option value="Schedule Request">Schedule Request</option>
+                                <option value="Schedule Receive">Schedule Receive</option>
+                            </select>
+                            {{ form.f_billing_method.errors }}
+                        </span>
+                    </p>
+                    
+                    {# I_LAST_RECON #}
+                    <p>
+                        {{ form.i_last_recon.label_tag }}
+                        <span>
+                            {{ form.i_last_recon }}
+                            {{ form.i_last_recon.errors }}
+                        </span>
+                    </p>
+                    
+                    {# J_ARREARS #}
+                    <p>
+                        {{ form.j_arrears.label_tag }}
+                        <span>
+                            {{ form.j_arrears }}
+                            {{ form.j_arrears.errors }}
+                        </span>
+                    </p>
+                </div>
+            </details>
+            
+            {# --- MAIN ACTION BUTTONS ARE PLACED OUTSIDE THE CONTAINER FOR CONSISTENCY --- #}
+            <div class="main-buttons">
+                <button type="submit" class="save-button">Save & Add Member</button>
+                <a href="{% url 'dashboard' %}" class="cancel-button">Cancel</a>
+            </div>
+            
+        </form> 
+    </div> 
+</body>
+</html>

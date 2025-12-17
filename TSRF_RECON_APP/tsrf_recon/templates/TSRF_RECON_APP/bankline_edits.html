@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Bank Line Entry</title>
+    <style>
+        /* General Styles */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0fff0;
+            color: #333;
+            padding: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(to bottom, #d1e2c4, #b4c7a6); 
+        }
+        .card {
+            background-color: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+            width: 100%;
+            max-width: 650px;
+            text-align: center;
+        }
+        h1 {
+            color: #1b5e20;
+            margin-bottom: 25px;
+            font-size: 20px;
+            font-weight: 800;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 15px;
+        }
+        p {
+            font-size: 10px;
+            margin-bottom: 25px;
+            color: #555;
+        }
+        /* ID Display Styles */
+        .info-display {
+            margin-bottom: 20px;
+            padding: 10px;
+            border-radius: 8px;
+            background-color: #e6ffe6;
+        }
+        .info-label {
+            display: block;
+            font-size: 14px;
+            color: #1b5e20;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+        .line-id-display {
+            font-weight: bold;
+            color: #43a047;
+            background-color: #e6ffe6;
+            padding: 10px 20px;
+            border-radius: 5px;
+            display: inline-block;
+            margin-top: 5px;
+            font-size: 18px;
+        }
+        /* Button Styles */
+        button {
+            padding: 12px 25px;
+            background-color: #81c784;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            transition: background-color 0.3s ease, transform 0.1s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        button:hover {
+            background-color: #66bb6a;
+            transform: translateY(-1px);
+        }
+        #error-message {
+            color: #d32f2f;
+            background-color: #ffebee;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: 500;
+        }
+        /* Form/Data Grid Styles */
+        .data-form {
+            text-align: left;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+            margin-bottom: 30px;
+        }
+        .form-row {
+            display: grid;
+            /* FIX: Ensure columns are fixed width for the label and automatically adjust for the content */
+            grid-template-columns: 150px 1fr; 
+            gap: 15px 10px;
+            align-items: flex-start; /* Aligns content to the top for long fields */
+            margin-bottom: 10px;
+        }
+        .form-label {
+            font-weight: 600;
+            color: #4a4a4a;
+            padding-right: 10px;
+            /* Ensure labels align right to content */
+            text-align: right;
+        }
+        .form-control, .data-display {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            background-color: white;
+            color: #1b5e20;
+            font-weight: 500;
+        }
+        .data-display {
+            border: 1px solid #e0e0e0;
+            background-color: #f0f0f0;
+        }
+        /* Style for read-only notes to ensure multi-line display */
+        .data-display-notes-inline {
+            /* Keep the same styling as .data-display */
+            border: 1px solid #e0e0e0;
+            background-color: #f0f0f0;
+            padding: 8px 10px;
+            border-radius: 4px;
+            color: #333;
+            white-space: pre-wrap; /* Crucial for multi-line notes */
+            word-wrap: break-word;
+            min-height: 40px; /* Adjust height for visibility */
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+
+        {% if bank_line_entry %}
+        <form method="POST" class="data-form">
+            {% csrf_token %}
+            <h2 style="color: #43a047; font-size: 1.0rem; margin-bottom: 20px; text-align: center; border-bottom: 1px solid #e0e0e0; padding-bottom: 10px;">Bank Line #{{ bank_line_entry.id }} Details</h2>
+
+            {# FIXED DETAIL ROWS #}
+            <div class="form-row">
+                <label class="form-label">Transaction Date:</label>
+                <div class="data-display">{{ bank_line_entry.Date|date:"Y-m-d" }}</div>
+            </div>
+
+            <div class="form-row">
+                <label class="form-label">Amount:</label>
+                <div class="data-display">R {{ bank_line_entry.Amount|floatformat:2 }}</div>
+            </div>
+            
+            <div class="form-row">
+                <label class="form-label">Import Date:</label>
+                <div class="data-display">{{ bank_line_entry.Import_date|date:"Y-m-d" }}</div>
+            </div>
+            
+            {# 🛑 Levy Number is now editable 🛑 #}
+            <div class="form-row">
+                <label for="id_levy_number" class="form-label">Levy Number (DB):</label>
+                <input type="text" id="id_levy_number" name="levy_number" class="form-control" 
+                        value="{{ bank_line_entry.Levy_number|default:'' }}" required>
+            </div>
+            
+            <div class="form-row">
+                <label class="form-label">Reference Description:</label>
+                <div class="data-display-notes-inline">{{ bank_line_entry.Reference_Description|default:'' }}</div>
+            </div>
+
+            <div class="form-row">
+                <label class="form-label">Other Reference:</label>
+                <div class="data-display-notes-inline">{{ bank_line_entry.Other_Reference|default:'' }}</div>
+            </div>
+
+            {# 🛑 Allocation Notes (Column 6) 🛑 #}
+            <div class="form-row">
+                <label class="form-label">Allocation Notes (Column 6):</label>
+                <div class="data-display-notes-inline">
+                    {{ bank_line_entry.Column_6|default:'(No notes recorded during allocation)' }}
+                </div>
+            </div>
+
+
+            <h3 style="color: #1b5e20; font-size: 1.0rem; margin: 25px 0 15px; border-top: 1px solid #e0e0e0; padding-top: 15px;">Editable Details</h3>
+
+            <div class="form-row">
+                <label for="id_fisical_year" class="form-label">Fiscal Year:</label>
+                <input type="date" id="id_fisical_year" name="fisical_year" class="form-control" 
+                        value="{{ bank_line_entry.Fisical|default:'' }}">
+            </div>
+
+            <div class="form-row">
+                <label for="id_type" class="form-label">Type:</label>
+                <select id="id_type" name="type" class="form-control">
+                    {% with current_type=bank_line_entry.Type|default:'' %}
+                    <option value="" {% if current_type == '' %}selected{% endif %}>--- Select Type ---</option>
+                    <option value="LPI" {% if current_type == 'LPI' %}selected{% endif %}>LPI</option>
+                    <option value="UKN" {% if current_type == 'UKN' %}selected{% endif %}>UKN</option>
+                    <option value="Contr&LPI" {% if current_type == 'Contr&LPI' %}selected{% endif %}>Contr&LPI</option>
+                    <option value="Unidentified" {% if current_type == 'Unidentified' %}selected{% endif %}>Unidentified</option>
+                    <option value="Risk/SMP" {% if current_type == 'Risk/SMP' %}selected{% endif %}>Risk/SMP</option>
+                    <option value="SMP" {% if current_type == 'SMP' %}selected{% endif %}>SMP</option>
+                    <option value="Refund" {% if current_type == 'Refund' %}selected{% endif %}>Refund</option>
+                    <option value="Contribution" {% if current_type == 'Contribution' %}selected{% endif %}>Contribution</option>
+                    {% endwith %}
+                </select>
+            </div>
+
+            <div class="form-row">
+                <label for="id_note_selection" class="form-label">Note Selection (Column 5):</label>
+                <select id="id_note_selection" name="note_selection" class="form-control">
+                    {% with current_note=bank_line_entry.Column_5|default:'' %}
+                    <option value="" {% if current_note == '' %}selected{% endif %}>--- Select an Option ---</option>
+                    <option value="AOD CONRIBUTIONS" {% if current_note == 'AOD CONRIBUTIONS' %}selected{% endif %}>AOD CONRIBUTIONS</option>
+                    <option value="AOD LPI" {% if current_note == 'AOD LPI' %}selected{% endif %}>AOD LPI</option>
+                    <option value="DEPSOSIT FOR CURRENT FISCAL - PREVIOUS FISCAL NOT RECONCILED" {% if current_note == 'DEPSOSIT FOR CURRENT FISCAL - PREVIOUS FISCAL NOT RECONCILED' %}selected{% endif %}>DEPSOSIT FOR CURRENT FISCAL - PREVIOUS FISCAL NOT RECONCILED</option>
+                    <option value="DIFFERENCE TO FINALISED BILL AND PAYMENT" {% if current_note == 'DIFFERENCE TO FINALISED BILL AND PAYMENT' %}selected{% endif %}>DIFFERENCE TO FINALISED BILL AND PAYMENT</option>
+                    <option value="EMPLOYER TO FINALISE" {% if current_note == 'EMPLOYER TO FINALISE' %}selected{% endif %}>EMPLOYER TO FINALISE</option>
+                    <option value="EMPLOYER TO FINALISE & FW POP" {% if current_note == 'EMPLOYER TO FINALISE & FW POP' %}selected{% endif %}>EMPLOYER TO FINALISE & FW POP</option>
+                    <option value="EMPLOYER TO FW POP" {% if current_note == 'EMPLOYER TO FW POP' %}selected{% endif %}>EMPLOYER TO FW POP</option>
+                    <option value="LPI - REQUESTED POP" {% if current_note == 'LPI - REQUESTED POP' %}selected{% endif %}>LPI - REQUESTED POP</option>
+                    <option value="LPI - SHORT - PAID LATE" {% if current_note == 'LPI - SHORT - PAID LATE' %}selected{% endif %}>LPI - SHORT - PAID LATE</option>
+                    <option value="RECONSILED" {% if current_note == 'RECONSILED' %}selected{% endif %}>RECONSILED</option>
+                    <option value="REFUND PAID" {% if current_note == 'REFUND PAID' %}selected{% endif %}>REFUND PAID</option>
+                    <option value="REFUND REQUESTED" {% if current_note == 'REFUND REQUESTED' %}selected{% endif %}>REFUND REQUESTED</option>
+                    <option value="REQUESTED SUPPORTING DOCUMENTS" {% if current_note == 'REQUESTED SUPPORTING DOCUMENTS' %}selected{% endif %}>REQUESTED SUPPORTING DOCUMENTS</option>
+                    <option value="SINGLE MEMBER PAYMENT" {% if current_note == 'SINGLE MEMBER PAYMENT' %}selected{% endif %}>SINGLE MEMBER PAYMENT</option>
+                    <option value="SYSTEM ISSUE" {% if current_note == 'SYSTEM ISSUE' %}selected{% endif %}>SYSTEM ISSUE</option>
+                    {% endwith %}
+                </select>
+            </div>
+
+            <div class="form-row">
+                <label for="id_recon_status" class="form-label">Recon Status:</label>
+                <select id="id_recon_status" name="recon_status" class="form-control">
+                    <option value="Unreconciled" {% if bank_line_entry.Recon == 'Unreconciled' %}selected{% endif %}>Unreconciled</option>
+                    <option value="Reconciled" {% if bank_line_entry.Recon == 'Reconciled' %}selected{% endif %}>Reconciled</option>
+                    <option value="Review" {% if bank_line_entry.Recon == 'Review' %}selected{% endif %}>Review</option>
+                    </select>
+            </div>
+            
+            <div style="margin-top: 25px; text-align: center;">
+                <button type="submit" style="margin-right: 10px; background-color: #4CAF50;">Save Changes</button>
+                <button type="button" onclick="window.history.back()" style="background-color: #FF9800;">Cancel</button>
+            </div>
+        </form>
+        {% else %}
+        <p id="error-message" style="display: block; margin-top: 15px;">Error: Bank Line entry not found with the given ID. Please check the URL.</p>
+        {% endif %}
+
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Check the URL for a status=success parameter, which the Django view should add
+            // after a successful save and redirect.
+            const params = new URLSearchParams(window.location.search);
+            const status = params.get('status');
+            
+            // To make this work, ensure your Django view (bankline_edits_view) 
+            // redirects with this parameter after a successful save:
+            // return redirect(f"{request.path}?line_id={bank_line_entry.id}&status=success")
+
+            if (status === 'success') {
+                // Wait a moment before closing to allow any success message (if implemented) to flash briefly.
+                setTimeout(function() {
+                    // Use history.back() or window.location.href to go back to the previous page (Levy Info)
+                    window.history.back(); 
+                }, 500); // Go back after 0.5 seconds
+            }
+        });
+    </script>
+</body>
+</html>
