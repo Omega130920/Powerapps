@@ -122,11 +122,16 @@ def log_delegation_transaction(delegation_id, user, subject, recipient_email, ac
     """Creates a record in the DelegationTransactionLog."""
     try:
         delegation = EmailDelegation.objects.get(pk=delegation_id)
+        
+        # 🛑 FIX: Prevent IntegrityError by ensuring subject and recipient are never None 🛑
+        safe_subject = subject if subject else (delegation.email_category or f"Task {delegation.id} Action")
+        safe_recipient = recipient_email if recipient_email else "Internal/System"
+
         DelegationTransactionLog.objects.create(
             delegation=delegation,
             user=user,
-            subject=subject,
-            recipient_email=recipient_email,
+            subject=safe_subject,
+            recipient_email=safe_recipient,
             action_type=action_type
         )
         return True, "Transaction logged successfully."

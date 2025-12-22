@@ -139,20 +139,23 @@
     </div>
 
     <div class="button-container">
+        {% if user.username == 'omega' %}
+            <a href="{% url 'outlook_dashboard' %}" class="button-block">Delegations</a>
+            <a href="{% url 'email_list' %}" class="button-block">Email List</a>
+            <a href="{% url 'outlook_recycle_bin' %}" class="button-block">Recycle Bin</a>
+        {% endif %}
+        <a href="{% url 'outlook_delegated_box' %}" class="button-block">Dashboard</a>
         <a href="{% url 'unity_list' %}" class="button-block">Employer Recon</a>
         <a href="{% url 'add_member' %}" class="button-block">Add Member Group</a>
         <a href="{% url 'import_data' %}" class="button-block">Import Bank</a>
         <a href="{% url 'bank_list' %}" class="button-block">Bank Lines</a>
         <a href="{% url 'import_credit' %}" class="button-block">Import Credit</a>
         <a href="{% url 'credit_note_list' %}" class="button-block">Credit Notes</a>
-        <a href="{% url 'export_global_bill_history' %}" class="button-block export-btn">Section 13A Report</a>
-        <a href="{% url 'global_claims' %}" class="button-block">Global Claims</a>
+        <a href="{% url 'global_claims' %}" class="button-block">Normal Withdrawal Claims</a>
+        <a href="{% url 'global_two_pot' %}" class="button-block" >Two-Pot Claims</a>
         <a href="{% url 'admin_billing' %}" class="button-block">Admin Billing</a>
         <a href="{% url 'confirmations' %}" class="button-block">Daily Confirmations</a>
-        <a href="{% url 'outlook_dashboard' %}" class="button-block">outlook_dashboard</a>
-        <a href="{% url 'outlook_delegated_box' %}" class="button-block">outlook_delegated_box</a>
-        <a href="{% url 'send_email' %}" class="button-block">send_email</a>
-        <a href="{% url 'outlook_recycle_bin' %}" class="button-block">Recycle Bin</a>
-
+        <a href="{% url 'export_global_bill_history' %}" class="button-block export-btn">Section 13A Report</a>
+    </div>
 </body>
 </html>

@@ -1,0 +1,256 @@
+{% block title %}Master Email Archive{% endblock %}
+
+{% block content %}
+<style>
+    /* -------------------------------------------------------------------------
+    * SCALABLE TASK LOG STYLES
+    * ------------------------------------------------------------------------- */
+    body {
+        font-family: sans-serif;
+        background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        min-height: 100vh;
+        padding: 10px; 
+        box-sizing: border-box;
+    }
+
+    .log-container {
+        width: 98%; 
+        margin: 20px auto;
+        padding: 20px;
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        box-sizing: border-box;
+    }
+
+    .log-header {
+        border-bottom: 2px solid #aed581;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .log-header h1 {
+        margin: 0;
+        color: #43a047;
+    }
+
+    .task-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+
+    .task-table th, .task-table td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #eee;
+        text-align: left;
+        font-size: 14px;
+        word-wrap: break-word;
+    }
+
+    .task-table th {
+        background-color: #43a047;
+        color: white;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .task-table tr:nth-child(even) { background-color: #f9fbe7; }
+    .task-table tr:hover { background-color: #e8f5e9; cursor: pointer; }
+    
+    .status-tag { font-weight: bold; font-size: 13px; }
+    
+    .badge-type {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: bold;
+        text-transform: uppercase;
+        display: inline-block;
+    }
+
+    .type-original { background-color: #e3f2fd; color: #1565c0; } 
+    .type-reply { background-color: #e8f5e9; color: #2e7d32; }
+
+    .return-button {
+        padding: 10px 20px;
+        background-color: #81c784;
+        border: 1px solid #81c784;
+        border-radius: 5px;
+        text-decoration: none;
+        color: white;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        text-align: center;
+        display: inline-block;
+    }
+
+    .form-input, .filter-select {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 14px;
+        box-sizing: border-box;
+        background: white;
+    }
+
+    .filter-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 15px;
+        align-items: end;
+    }
+
+    .pagination {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        margin-top: 20px;
+    }
+
+    .page-link {
+        padding: 8px 12px;
+        background: #fff;
+        border: 1px solid #43a047;
+        color: #43a047;
+        text-decoration: none;
+        border-radius: 4px;
+    }
+
+    .page-link.active {
+        background: #43a047;
+        color: #fff;
+    }
+
+    .Dashboard {
+        width: 98%;
+        margin-top: 25px;
+        text-align: left;
+    }
+</style>
+
+<div class="Dashboard">
+    <a href="{% url 'dashboard' %}" class="return-button">Back to home screen</a>
+</div>
+
+<div class="log-container">
+    <div class="log-header">
+        <h1><i class="fas fa-history"></i> Master Email & Action Archive</h1>
+    </div>
+
+    <div class="filter-section" style="margin-bottom: 20px; background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
+        <form method="GET" action="{% url 'email_list' %}" id="filterForm" class="filter-grid">
+            <div>
+                <label style="font-weight: bold; display: block; margin-bottom: 5px; color: #555;">Search Text</label>
+                <input type="text" id="emailSearch" name="search" placeholder="Search..." class="form-input" value="{{ request.GET.search }}">
+            </div>
+            <div>
+                <label style="font-weight: bold; display: block; margin-bottom: 5px; color: #555;">Category</label>
+                <select name="type" class="filter-select" onchange="this.form.submit()">
+                    <option value="all" {% if current_filter == 'all' %}selected{% endif %}>All Items</option>
+                    <option value="new" {% if current_filter == 'new' %}selected{% endif %}>New Emails</option>
+                    <option value="delegated" {% if current_filter == 'delegated' %}selected{% endif %}>Delegated Emails</option>
+                    <option value="reply" {% if current_filter == 'reply' %}selected{% endif %}>Replies / Actions</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-weight: bold; display: block; margin-bottom: 5px; color: #555;">From Date</label>
+                <input type="date" id="startDate" name="start" class="form-input" value="{{ request.GET.start }}">
+            </div>
+            <div>
+                <label style="font-weight: bold; display: block; margin-bottom: 5px; color: #555;">To Date</label>
+                <input type="date" id="endDate" name="end" class="form-input" value="{{ request.GET.end }}">
+            </div>
+            <div style="display: flex; gap: 5px; white-space: nowrap;">
+                <button type="submit" class="return-button" style="background-color: #43a047; padding: 10px;">Filter</button>
+                <a href="{% url 'email_list' %}" class="return-button" style="background-color: #607d8b; padding: 10px;">Reset</a>
+            </div>
+        </form>
+    </div>
+
+    <table id="masterEmailTable" class="task-table">
+        <thead>
+            <tr>
+                <th style="width: 8%;">Type</th>
+                <th style="width: 10%;">Status</th>
+                <th style="width: 30%;">Subject</th>
+                <th style="width: 20%;">Participant (From/To)</th>
+                <th style="width: 14%;">Date / Time</th>
+                <th style="width: 18%;">Assigned / Action By</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in page_obj %}
+            <tr class="archive-row">
+                {% if item.action_type %}
+                    {# TRANSACTION LOGS (REPLIES) #}
+                    <td><span class="badge-type type-reply">↩️ {{ item.action_type }}</span></td>
+                    <td><span class="status-tag" style="color: #607d8b;">Logged</span></td>
+                    <td><strong>{{ item.subject }}</strong></td>
+                    <td><small style="color: #555;"><b>To:</b> {{ item.recipient_email }}</small></td>
+                    <td>{{ item.timestamp|date:"Y-m-d H:i" }}</td>
+                    <td><i class="fas fa-user-edit"></i> {{ item.user.username }}</td>
+                {% else %}
+                    {# ORIGINAL DELEGATION TASKS #}
+                    <td><span class="badge-type type-original">✉️ Task</span></td>
+                    <td>
+                        {% if item.status == 'COM' %}
+                            <span class="status-tag" style="color: #43a047;">Completed</span>
+                        {% elif item.status == 'DEL' %}
+                            <span class="status-tag" style="color: #f7931e;">Delegated</span>
+                        {% else %}
+                            <span class="status-tag" style="color: #1e88e5;">New</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <strong>{{ item.subject }}</strong>
+                        <br><small style="color: #666;">Code: {{ item.company_code|default:"N/A" }} | {{ item.email_category|default:"General" }}</small>
+                    </td>
+                    <td><small style="color: #555;"><b>From:</b> {{ item.sender_address }}</small></td>
+                    <td>{{ item.received_at|date:"Y-m-d H:i" }}</td>
+                    <td>
+                        {% if item.assigned_user %}
+                            <i class="fas fa-user"></i> {{ item.assigned_user.username }}
+                        {% else %}
+                            <i class="fas fa-user-clock"></i> Pending
+                        {% endif %}
+                    </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="pagination">
+        {% if page_obj.has_previous %}
+            <a href="?page=1&type={{ current_filter }}&search={{ request.GET.search }}&start={{ request.GET.start }}&end={{ request.GET.end }}" class="page-link">&laquo; First</a>
+            <a href="?page={{ page_obj.previous_page_number }}&type={{ current_filter }}&search={{ request.GET.search }}&start={{ request.GET.start }}&end={{ request.GET.end }}" class="page-link">Previous</a>
+        {% endif %}
+
+        <span class="page-link active">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}&type={{ current_filter }}&search={{ request.GET.search }}&start={{ request.GET.start }}&end={{ request.GET.end }}" class="page-link">Next</a>
+            <a href="?page={{ page_obj.paginator.num_pages }}&type={{ current_filter }}&search={{ request.GET.search }}&start={{ request.GET.start }}&end={{ request.GET.end }}" class="page-link">Last &raquo;</a>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    document.getElementById('emailSearch').addEventListener('keyup', function() {
+        let filter = this.value.toLowerCase();
+        let rows = document.querySelectorAll('.archive-row');
+        rows.forEach(row => {
+            row.style.display = row.innerText.toLowerCase().includes(filter) ? '' : 'none';
+        });
+    });
+</script>
+{% endblock %}

@@ -2,6 +2,7 @@ import requests
 import json
 from django.conf import settings
 from .token_manager import get_current_access_token 
+from dateutil import parser
 import logging
 
 logger = logging.getLogger(__name__)
@@ -19,17 +20,13 @@ class OutlookGraphService:
     def _make_graph_request(endpoint, target_email, method='GET', data=None):
         """
         Generic internal function to handle all authenticated requests to the Graph API.
-        Handles token retrieval and basic error handling, using the target_email 
-        for delegation.
         """
-        # 1. Get the Access Token (Client Credentials flow provides app-level token)
         access_token = get_current_access_token()
         
         if not access_token:
             logger.error("ERROR: Failed to retrieve or refresh access token.")
             return {'error': 'Authentication failed: Missing or expired token.'}
 
-        # 🛑 KEY CHANGE: Use the dynamic target_email in the URL for delegation 🛑
         url = f"{GRAPH_API_URL}/users/{target_email}/{endpoint}"
         
         headers = {
@@ -45,46 +42,89 @@ class OutlookGraphService:
             else:
                 return {'error': f"Unsupported HTTP method: {method}"}
             
-            # Raise an exception for bad status codes (4xx or 5xx)
             response.raise_for_status() 
 
-            # 🛑 Handle successful 202 (Accepted) response (Needed for sendMail) 🛑
             if response.status_code == 202 and method == 'POST':
                 return {'success': True}
 
-            # Return the JSON content for success (for 200/201 responses)
             return response.json()
 
         except requests.exceptions.HTTPError as e:
-            # Catch specific HTTP errors from Graph API
             status_code = e.response.status_code
             logger.error(f"Graph API HTTP Error {status_code}: {e.response.text}")
-            
-            # Attempt to parse JSON error body if available
             error_details = e.response.json() if e.response.text else str(e)
             return {'error': f"Graph API Error: Status {status_code}", 
                     'details': error_details}
             
         except requests.exceptions.RequestException as e:
-            # Catch network or connection errors
             logger.error(f"Network/Connection Error: {e}")
             return {'error': f"Network Error: {str(e)}"}
 
+    # --- Local Sync Logic ---
+
+    @staticmethod
+    def sync_to_local_inbox(messages_data):
+        """
+        Saves or updates emails into the local unmanaged MySQL table 'unity_internal_inbox'.
+        """
+        # Local import to prevent circular dependency
+        from ..models import OutlookInbox 
+        
+        sync_count = 0
+        for msg in messages_data:
+            try:
+                # Extract values safely
+                email_id = msg.get('id')
+                subject = msg.get('subject')
+                sender_name = msg.get('from', {}).get('emailAddress', {}).get('name')
+                sender_addr = msg.get('from', {}).get('emailAddress', {}).get('address')
+                body = msg.get('body', {}).get('content')
+                received_str = msg.get('receivedDateTime')
+
+                # Update or Create in MySQL
+                OutlookInbox.objects.update_or_create(
+                    email_id=email_id,
+                    defaults={
+                        'subject': subject,
+                        'sender_name': sender_name,
+                        'sender_address': sender_addr,
+                        'body_content': body,
+                        'received_at': parser.isoparse(received_str) if received_str else None
+                    }
+                )
+                sync_count += 1
+            except Exception as e:
+                logger.error(f"Failed to sync email {msg.get('id')}: {e}")
+        
+        return sync_count
 
     # --- Public Service Functions (Delegation-Aware) ---
 
     @staticmethod
     def fetch_inbox_messages(target_email, top_count=10):
         """
-        Fetches the latest messages from the specified target mailbox's Inbox.
+        Fetches the latest messages and syncs them to the local MySQL inbox.
+        Included 'body' in select so we can archive the content.
         """
-        endpoint = f"mailFolders/inbox/messages?$top={top_count}&$select=subject,from,receivedDateTime,isRead"
-        return OutlookGraphService._make_graph_request(endpoint, target_email)
+        # We add 'body' to the select query so we have the content to save locally
+        endpoint = (
+            f"mailFolders/inbox/messages?$top={top_count}"
+            "&$select=subject,from,receivedDateTime,isRead,body"
+            "&$orderby=receivedDateTime desc"
+        )
+        
+        response = OutlookGraphService._make_graph_request(endpoint, target_email)
+        
+        if 'value' in response:
+            # Trigger the local sync
+            OutlookGraphService.sync_to_local_inbox(response['value'])
+            
+        return response
 
     @staticmethod
     def send_outlook_email(target_email, recipient_email, subject, body_content, content_type='Text'):
         """
-        Sends an email from the specified target mailbox (target_email).
+        Sends an email and logs the action.
         """
         email_data = {
             "message": {
@@ -105,12 +145,9 @@ class OutlookGraphService:
         }
         
         endpoint = "sendMail"
-        
-        # Use the helper to make the authenticated POST request, passing the target_email as the sender
         response = OutlookGraphService._make_graph_request(endpoint, target_email, method='POST', data=email_data)
         
         if 'error' in response:
             return response
         
-        # Success is guaranteed if the helper returns {'success': True}
         return {'success': True, 'message': 'Email successfully submitted to Graph API.'}

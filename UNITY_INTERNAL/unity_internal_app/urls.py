@@ -72,6 +72,7 @@ urlpatterns = [
 
     # Global Claims
     path('save-claim-global/', views.save_global_claim, name='save_global_claim'),
+    path('claims/two-pot/', views.global_two_pot_view, name='global_two_pot'),
 
     path('unallocate-surplus/<int:bill_id>/', views.unallocate_surplus, name='unallocate_surplus_from_bill'),
     path('admin-billing/', views.admin_billing_view, name='admin_billing'),
@@ -90,4 +91,6 @@ urlpatterns = [
     path('outlook/recycle-bin/', views.outlook_recycle_bin_view, name='outlook_recycle_bin'),
     path('outlook/action/<int:delegation_id>/', views.outlook_delegated_action, name='outlook_delegated_action'),
     path('outlook/delete-permanent/', views.outlook_delete_permanent, name='outlook_delete_permanent'),
+    path('view-email-thread/<str:email_id>/', views.view_email_thread, name='view_email_thread'),
+    path('emails/archive/', views.email_list_view, name='email_list'),
 ]

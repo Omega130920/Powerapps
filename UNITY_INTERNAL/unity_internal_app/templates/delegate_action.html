@@ -5,7 +5,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Action Task: {{ task.subject }}</title>
+<title>Action Task: {{ email.subject|default:"No Subject" }}</title>
 <style>
 /* ... (Keep all existing CSS styles here) ... */
 body{font-family:sans-serif;margin:0;color:#333;line-height:1.6;background:linear-gradient(to bottom,#d1e2c4,rgb(143,207,127));display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:15px 10px;box-sizing:border-box}
@@ -117,7 +117,8 @@ select option.hidden{display:none}
 </head>
 <body>
     <div class="action-container">
-        <h1>📝 Action Delegated Task: {{ task.subject }}</h1>
+        <h1>📝 Action Delegated Task: {{ email.subject|default:"(No Subject)" }}</h1>
+        
         {% if messages %}
             <ul class="messages">
                 {% for message in messages %}
@@ -126,23 +127,23 @@ select option.hidden{display:none}
             </ul>
         {% endif %}
         
-        {# HIDING RED HIGHLIGHTED SECTION 1: DELEGATED INFO HEADER #}
+        {# DELEGATED INFO HEADER - Uses 'delegation' variable #}
         <div class="task-header" style="display: none;">
             <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;">
-                <div class="task-header-item"><strong>Delegated By:</strong> {{ task.delegated_by }}</div>
-                <div class="task-header-item"><strong>Delegated Date:</strong> {{ task.received_timestamp|date:"Y-m-d H:i" }}</div>
-                <div class="task-header-item"><strong>Delegated To:</strong> {{ task.delegated_to }}</div>
+                <div class="task-header-item"><strong>Delegated By:</strong> {{ delegation.delegated_by }}</div>
+                <div class="task-header-item"><strong>Delegated Date:</strong> {{ delegation.delegated_at|date:"Y-m-d H:i" }}</div>
+                <div class="task-header-item"><strong>Delegated To:</strong> {{ delegation.assigned_user.username }}</div>
             </div>
         </div>
 
-        {% if task.is_recycled %}
+        {% if delegation.status == 'NEW' and not delegation.work_related %}
         <div class="collapsible-section" id="restore-section">
             <div class="collapsible-header" id="restore-header" onclick="toggleCollapse('restore-content')" aria-expanded="true">
                 <h2 style="color: #1a73e8; margin-top: 0;">Restore Task to Inbox</h2>
                 <span class="collapse-icon">▶</span>
             </div>
             <div class="collapsible-content expanded form-section" id="restore-content">
-                <form method="POST" action="{% url 'delegate_action' email_id=task.email_id %}">
+                <form method="POST" action="{% url 'outlook_delegated_action' delegation_id=delegation.id %}">
                     {% csrf_token %}
                     <input type="hidden" name="action_type" value="restore_to_inbox">
                     <p style="margin-top: 0; font-size: 13px;">
@@ -150,7 +151,7 @@ select option.hidden{display:none}
                     </p>
                     <div class="form-group">
                         <label for="restore_note">Restore Note: *(Optional - Logged as an internal note)*</label>
-                        <textarea id="restore_note" name="restore_note" placeholder="E.g., 'Misclassified as junk, requires data entry.'"></textarea>
+                        <textarea id="restore_note" name="note_content" placeholder="E.g., 'Misclassified as junk, requires data entry.'"></textarea>
                     </div>
                     <button type="submit" class="btn-restore-inbox">📥 Send Back to Inbox Queue</button>
                 </form>
@@ -164,20 +165,20 @@ select option.hidden{display:none}
                 <span class="collapse-icon">▶</span>
             </div>
             <div class="collapsible-content expanded form-section" id="metadata-content">
-                <form method="POST" action="{% url 'delegate_action' email_id=task.email_id %}" id="metadata_form">
+                <form method="POST" action="{% url 'outlook_delegated_action' delegation_id=delegation.id %}" id="metadata_form">
                     {% csrf_token %}
                     <input type="hidden" name="action_type" value="update_metadata">
                     <div class="metadata-grid" style="grid-template-columns: repeat(4, 1fr);">
                         <div class="form-group">
-                            <label for="mip_number">Member Group Code:</label>
+                            <label for="company_code">Member Group Code:</label>
                             <div style="display: flex; gap: 5px;">
-                                <input type="text" id="mip_number" name="mip_number" value="{{ task.mip_number|default:'' }}" placeholder="Enter Member Group Code">
-                                {% if task.mip_number %}
-                                    <a href="{% url 'unity_information' company_code=task.mip_number %}?source=delegated" 
+                                <input type="text" id="company_code" name="company_code" value="{{ delegation.company_code|default:'' }}" placeholder="Enter Member Group Code">
+                                {% if delegation.company_code %}
+                                    <a href="{% url 'unity_information' company_code=delegation.company_code %}?source=delegated" 
                                        class="view-info-btn" 
-                                       title="View Details for {{ task.mip_number }}"
+                                       title="View Details for {{ delegation.company_code }}"
                                        onclick="saveFormState(event, this.href)">
-                                        👁️ View Info
+                                       👁️ View Info
                                     </a>
                                 {% endif %}
                             </div>
@@ -186,26 +187,26 @@ select option.hidden{display:none}
                             <label for="email_category">Email Type:</label>
                             <select id="email_category" name="email_category">
                                 <option value="">-- Select Type --</option>
-                                <option value="Schedule">Schedule</option>
-                                <option value="Claim">Claim</option>
-                                <option value="Query">Query</option>
-                                <option value="Bank">Bank</option>
-                                <option value="Info Only">Info Only</option>
-                                <option value="LPI">LPI</option>
+                                <option value="Schedule" {% if delegation.email_category == 'Schedule' %}selected{% endif %}>Schedule</option>
+                                <option value="Claim" {% if delegation.email_category == 'Claim' %}selected{% endif %}>Claim</option>
+                                <option value="Query" {% if delegation.email_category == 'Query' %}selected{% endif %}>Query</option>
+                                <option value="Bank" {% if delegation.email_category == 'Bank' %}selected{% endif %}>Bank</option>
+                                <option value="Info Only" {% if delegation.email_category == 'Info Only' %}selected{% endif %}>Info Only</option>
+                                <option value="LPI" {% if delegation.email_category == 'LPI' %}selected{% endif %}>LPI</option>
                             </select>
                         </div>
                         <div class="form-group">
-                            <label for="Delegate">Email Status:</label>
-                            <select id="Delegate" name="Delegate">
-                                <option value="Delegate" {% if not task.type or task.type == 'Delegate' %}selected{% endif %}>Delegated</option>
-                                <option value="In Progress" {% if task.type == 'In Progress' %}selected{% endif %}>In Progress</option>
-                                <option value="Actioned" {% if task.type == 'Actioned' %}selected{% endif %}>Actioned</option>
+                            <label for="status">Email Status:</label>
+                            <select id="status" name="status">
+                                <option value="DEL" {% if delegation.status == 'DEL' %}selected{% endif %}>Delegated</option>
+                                <option value="NEW" {% if delegation.status == 'NEW' %}selected{% endif %}>New / In Progress</option>
+                                <option value="COM" {% if delegation.status == 'COM' %}selected{% endif %}>Actioned / Completed</option>
                             </select>
                         </div>
                         <div class="form-group">
                             <label for="email_method">Communication:</label>
                             <select id="email_method" name="email_method">
-                                <option value="Email" {% if task.method == 'Email' %}selected{% endif %}>Email</option>
+                                <option value="Email" selected>Email</option>
                             </select>
                         </div>
                         <div class="form-group" style="grid-column: 4 / 5;">
@@ -223,88 +224,41 @@ select option.hidden{display:none}
             </div>
             <div class="collapsible-content expanded email-content-box" id="email-view-content">
                 <div style="padding: 15px 15px 0 15px;">
-                    <label>Original Email Content (Sender: {{ task.sender_email }}):</label>
+                    <label>Original Email Content (Sender: {{ email.from.emailAddress.address|default:"Unknown" }}):</label>
                 </div>
-                <iframe src="{% url 'get_email_body_html' email_id=task.email_id %}" sandbox style="width: 100%; height: 300px; border: 1px solid #ccc; border-radius: 4px; margin: 0 0 10px 0;"></iframe>
+                <iframe src="{% url 'get_email_body_html' email_id=delegation.email_id %}" sandbox style="width: 100%; height: 300px; border: 1px solid #ccc; border-radius: 4px; margin: 0 0 10px 0;"></iframe>
                 <p style="margin: 0 15px 10px 15px; font-size: 13px;">*The original content is displayed in a secure iframe to prevent script execution.*</p>
-                {% if task.delegated_attachments %}
+                {% if delegation.attachments_metadata %}
                 <div class="attachment-list">
                     <strong>Attached Documents:</strong>
-                    {% for att in task.delegated_attachments %}
-                    <a href="{% url 'download_attachment' message_id=task.email_id attachment_id=att.attachmentId %}" target="_blank" class="attachment-link">
-                        📄 {{ att.filename }} ({{ att.size|filesizeformat }})
-                    </a>
-                    {% endfor %}
-                </div>
+                     </div>
                 {% endif %}
             </div>
         </div>
 
-        {# HIDING RED HIGHLIGHTED SECTION 2: TASK HISTORY & INTERNAL NOTES #}
         <div class="collapsible-section" id="notes-history-section" style="display: none;">
             <div class="collapsible-header" id="notes-history-header" onclick="toggleCollapse('notes-history-content')" aria-expanded="true">
                 <h2 style="color: #f7931e; margin-top: 0;">Task History & Internal Notes</h2>
                 <span class="collapse-icon">▶</span>
             </div>
             <div class="collapsible-content expanded notes-history-section" id="notes-history-content">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 10px 15px;">
-                    <div>
-                        <h3 style="margin-top: 0; color: #555;">Saved Notes (Internal & Communication Log)</h3>
-                        <div class="action-log-container" style="max-height: 250px; padding: 5px;">
-                            <ul class="notes-list">
-                                {# 1. Display notes from the new unmanaged UnityNotes table (unity_notes_history) #}
-                                {% for note in unity_notes_history %}
-                                <li style="border-left-color: #555; background-color: #e6ffe6;">
-                                    <strong>{{ note.user }}</strong> ({{ note.communication_type|default:"Log" }})
-                                    <br>
-                                    *Action: {{ note.action_notes|default:"N/A" }}*
-                                    <p style="margin: 3px 0 0 0; font-size: 13px;">{{ note.notes }}</p>
-                                    <span class="log-timestamp">{{ note.date|date:"Y-m-d H:i:s" }}</span>
-                                </li>
-                                {# 2. If no notes found in the new table, fallback to the old internal_notes JSON logs (related_notes/task.notes) #}
-                                {% empty %}
-                                {% for note in related_notes %}
-                                <li style="border-left-color: #f7931e;">
-                                    <strong>{{ note.user }}:</strong> {{ note.note }} (Summary Log)
-                                    <span class="log-timestamp">{{ note.timestamp|default:"N/A" }}</span>
-                                </li>
-                                {% empty %}
-                                <li>No internal notes have been saved yet.</li>
-                                {% endfor %}
-                                {% endfor %}
-                            </ul>
-                        </div>
-                    </div>-->
-                    <div>
-                        <h3 style="margin-top: 0; color: #1e88e5;">Action Audit Log (System/User Actions)</h3>
-                        <div class="action-log-container" style="max-height: 250px;">
-                            <ul class="action-log">
-                                {% if action_history %}
-                                {% for action in action_history %}
-                                <li>
-                                    <span class="log-user">{{ action.action_user }}</span>
-                                    <span class="log-type-{{ action.action_type|lower|default:'log-type-note' }}">
-                                        {% if action.action_type == 'complete' %}
-                                        ✅ Marked **Completed** {% elif action.action_type == 'update_metadata' %}
-                                        🔄 **Updated Metadata** {% elif action.action_type == 'send_email' %}
-                                        ✉️ Sent Email: "{{ action.related_subject|default:'[No Subject]' }}"
-                                        {% elif action.action_type == 'add_note' %}
-                                        💾 Added Note
-                                        {% elif action.action_type == 'restore_to_inbox' %}
-                                        📥 **Restored to Inbox** {% else %}
-                                        {{ action.action_type|default:'General Log' }}
-                                        {% endif %}
-                                    </span>
-                                    <br>
-                                    {{ action.note_content|slice:":100" }}...
-                                    <span class="log-timestamp">{{ action.action_timestamp|date:"Y-m-d H:i:s" }}</span>
-                                </li>
-                                {% endfor %}
-                                {% else %}
-                                <li>No actions recorded for this task yet.</li>
-                                {% endif %}
-                            </ul>
-                        </div>
+                <div style="padding: 10px 15px;">
+                    <h3 style="margin-top: 0; color: #1e88e5;">Action Audit Log (System/User Actions)</h3>
+                    <div class="action-log-container" style="max-height: 250px;">
+                        <ul class="action-log">
+                            {% for note in notes %}
+                            <li>
+                                <span class="log-user">{{ note.user.username }}</span>
+                                <span class="log-type-note">
+                                    {{ note.content }}
+                                </span>
+                                <br>
+                                <span class="log-timestamp">{{ note.created_at|date:"Y-m-d H:i:s" }}</span>
+                            </li>
+                            {% empty %}
+                            <li>No actions recorded for this task yet.</li>
+                            {% endfor %}
+                        </ul>
                     </div>
                 </div>
             </div>
@@ -316,51 +270,12 @@ select option.hidden{display:none}
                 <span class="collapse-icon">▶</span>
             </div>
             <div class="collapsible-content form-section" id="add-note-content">
-                <form method="POST" action="{% url 'delegate_action' email_id=task.email_id %}" id="add_note_form" style="padding: 10px 15px;">
+                <form method="POST" action="{% url 'outlook_delegated_action' delegation_id=delegation.id %}" id="add_note_form" style="padding: 10px 15px;">
                     {% csrf_token %}
-                    <input type="hidden" name="action_type" value="add_note">
-                    {# NOTE CONTENT TEXTAREA #}
                     <div class="form-group">
                         <label for="internal_note">Internal Note: *(Mandatory)*</label>
-                        <textarea id="internal_note" name="internal_note" placeholder="Add a private note about the task progress or client interaction history. This will be visible in the Notes History section." required></textarea>
+                        <textarea id="internal_note" name="note_content" placeholder="Add a private note about the task progress or client interaction history." required></textarea>
                     </div>
-                    {# NEW DROPDOWN SECTION START #}
-                    <div class="row" style="margin-top: 15px; display: flex; gap: 15px;">
-                        <div class="col-md-6" style="flex: 1;">
-                            <div class="card card-notes-select" style="background-color: #e6ffe6; padding: 15px; border-radius: 8px;">
-                                <label for="id_communication_type_note" style="font-weight: bold; display: block; margin-bottom: 5px; color: #38761d;">Communication Type:</label>
-                                <select id="id_communication_type_note" name="communication_type_note" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" required>
-                                    <option value="" disabled selected>Select Communication Type</option>
-                                    <option value="Sent Email">
-                                        Sent Outgoing Email
-                                    </option>
-                                    <option value="Outgoing Call">☎️ Outgoing Call</option>
-                                    <option value="Notes Log">📝 Notes Log</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-6" style="flex: 1;">
-                            <div class="card card-notes-select" style="background-color: #e6ffe6; padding: 15px; border-radius: 8px;">
-                                <label for="id_action_notes_note" style="font-weight: bold; display: block; margin-bottom: 5px; color: #38761d;">Action Notes:</label>
-                                <select id="id_action_notes_note" name="action_notes_note" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                                    <option value="" disabled selected>Select Action Note</option>
-                                    <option value="Feedback to Sanlam">Feedback to Sanlam</option>
-                                    <option value="Feedback to Employer">Feedback to Employer</option>
-                                    <option value="Feedback to Member">Feedback to Member</option>
-                                    <option value="Feedback to CBC">Feedback to CBC</option>
-                                    <option value="Enquiry to FO">Enquiry to FO</option>
-                                    <option value="Enquiry to Sanlam">Enquiry to Sanlam</option>
-                                    <option value="Enquiry to Employer">Enquiry to Employer</option>
-                                    <option value="Enquiry to CBC">Enquiry to CBC</option>
-                                    <option value="Sent to Employer">Sent to Employer</option>
-                                    <option value="Sent to Sanlam">Sent to Sanlam</option>
-                                    <option value="Sent to CBC">Sent to CBC</option>
-                                    <option value="Sent to FO">Sent to FO</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    {# NEW DROPDOWN SECTION END #}
                     <button type="submit" class="btn-add-note">💾 Save Internal Note</button>
                 </form>
             </div>
@@ -372,93 +287,64 @@ select option.hidden{display:none}
                 <span class="collapse-icon">▶</span>
             </div>
             <div class="collapsible-content form-section" id="send-email-content">
-                <form method="POST" action="{% url 'send_task_email' email_id=task.email_id %}" id="email_response_form" enctype="multipart/form-data" style="padding: 10px 15px;">
+                <form method="POST" action="{% url 'outlook_delegated_action' delegation_id=delegation.id %}" id="email_response_form" enctype="multipart/form-data" style="padding: 10px 15px;">
                     {% csrf_token %}
-                    <input type="hidden" name="action_type" value="send_email">
-                    <input type="hidden" name="email_body_reply" id="email_body_reply">
-                    {# NEW DROPDOWN SECTION FOR EMAIL LOGGING START #}
-                    <div class="row" style="margin-bottom: 15px; display: flex; gap: 15px;">
-                        <div class="col-md-6" style="flex: 1;">
-                            <div class="card card-notes-select" style="background-color: #fff8e1; padding: 15px; border-radius: 8px;">
-                                <label for="id_communication_type_email" style="font-weight: bold; display: block; margin-bottom: 5px; color: #cc7800;">Communication Type:</label>
-                                <select id="id_communication_type_email" name="communication_type_email" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" required>
-                                    <option value="Sent Email" selected>Sent Outgoing Email (Automatic)</option>
-                                    <option value="Incoming Call" disabled>📞 Incoming Call</option>
-                                    <option value="Outgoing Call" disabled>☎️ Outgoing Call</option>
-                                    <option value="Notes Log" disabled>📝 Notes Log</option>
-                                    <option value="Teams Meeting" disabled>📝 Teams Meeting</option>
-                                </select>
-                                <small style="display: block; color: #777; font-size: 11px; margin-top: 5px;">This type is automatically set to log the outgoing email.</small>
-                            </div>
-                        </div>
-                        <div class="col-md-6" style="flex: 1;">
-                            <div class="card card-notes-select" style="background-color: #fff8e1; padding: 15px; border-radius: 8px;">
-                                <label for="id_action_notes_email" style="font-weight: bold; display: block; margin-bottom: 5px; color: #cc7800;">Action Notes:</label>
-                                <select id="id_action_notes_email" name="action_notes_email" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                                    <option value="" disabled selected>Select Action Note (Final Destination)</option>
-                                    <option value="Feedback to Sanlam">Feedback to Sanlam</option>
-                                    <option value="Feedback to Employer">Feedback to Employer</option>
-                                    <option value="Feedback to Member">Feedback to Member</option>
-                                    <option value="Feedback to CBC">Feedback to CBC</option>
-                                    <option value="Enquiry to FO">Enquiry to FO</option>
-                                    <option value="Enquiry to Sanlam">Enquiry to Sanlam</option>
-                                    <option value="Enquiry to Employer">Enquiry to Employer</option>
-                                    <option value="Enquiry to CBC">Enquiry to CBC</option>
-                                    <option value="Sent to Employer">Sent to Employer</option>
-                                    <option value="Sent to Sanlam">Sent to Sanlam</option>
-                                    <option value="Sent to CBC">Sent to CBC</option>
-                                    <option value="Sent to FO">Sent to FO</option>
-                                </select>
-                                <small style="display: block; color: #777; font-size: 11px; margin-top: 5px;">This logs the purpose/recipient of your email response.</small>
-                            </div>
-                        </div>
-                    </div>
-                    {# NEW DROPDOWN SECTION FOR EMAIL LOGGING END #}
                     <div class="form-group">
                         <label for="recipient_email">To (Recipient's Email Address):</label>
-                        <input type="text" id="recipient_email" name="recipient_email" value="{{ task.sender_email|default:'[Sender Email Unknown]' }}" required>
+                        <input type="text" id="recipient_email" name="reply_recipient" value="{{ email.from.emailAddress.address|default:'' }}" required>
                     </div>
+                    
                     <div class="form-group">
                         <label for="email_subject_reply">Subject:</label>
-                        <input type="text" id="email_subject_reply" name="email_subject_reply" value="RE: {{ task.subject|slice:'0:40' }}..." required>
+                        <input type="text" id="email_subject_reply" name="reply_subject" value="RE: {{ email.subject|slice:'0:50' }}" required>
                         <small style="display: block; color: #777; margin-top: 5px; font-size: 11px;">
-                            **Unique Reference (MIP/Token):** <span id="display_unique_ref">{{ task.mip_number|default:"NO_REF / (Missing)" }}</span>
+                            **Unique Reference:** {{ delegation.company_code|default:"NO_REF" }}
                         </small>
                     </div>
+                    
+                    <input type="hidden" name="reply_body" id="reply_body_hidden">
+                    
                     <div class="form-group">
-                        <label for="email_body_editor">Email Body: (Supports pasted images and formatting)</label>
-                        <div id="email_body_editor" class="rich-text-editor" contenteditable="true" placeholder="Type your response here.">
+                        <label for="email_body_editor">Email Body:</label>
+                        <div id="email_body_editor" class="rich-text-editor" contenteditable="true">
                             <p>Dear Client,</p>
-                            <p>Regarding your query: "{{ task.subject|default:'[No Subject]' }}",</p>
-                            <p>[Type your reply here]</p>
+                            <p>Regarding your query: "{{ email.subject|default:'[No Subject]' }}",</p>
+                            <p><br></p>
                             <p>Kind regards,</p>
                             <p>Delegation Team</p>
                         </div>
                     </div>
+                    
                     <div class="form-group">
-                        <label for="attachments">Attach Documents:</label>
-                        <div class="file-upload-wrapper">
-                            <input type="file" id="attachments" name="attachments" multiple>
-                            <small style="display: block; color: #777; font-size: 11px;">You can select multiple files here.</small>
-                        </div>
+                        <label for="action_notes_email">Action Log Type:</label>
+                        <select id="action_notes_email" name="action_notes">
+                            <option value="EMAIL_REPLY">General Reply</option>
+                            <option value="Feedback to Sanlam">Feedback to Sanlam</option>
+                            <option value="Feedback to Employer">Feedback to Employer</option>
+                        </select>
                     </div>
+
                     <button type="submit" class="btn-send-email">✉️ Send Email Response</button>
                 </form>
             </div>
         </div>
-
+        
         <div class="collapsible-section" id="finalize-section" style="border-style: dashed;">
             <div class="collapsible-header" id="finalize-header" onclick="toggleCollapse('finalize-content')" aria-expanded="false">
                 <h2 style="color: #2e7d32; margin-top: 0;">Finalize Task</h2>
                 <span class="collapse-icon">▶</span>
             </div>
             <div class="collapsible-content form-section" id="finalize-content">
-                <form method="POST" action="{% url 'delegate_action' email_id=task.email_id %}" id="finalize_form" style="padding: 10px 15px;">
+                <form method="POST" action="{% url 'outlook_delegated_action' delegation_id=delegation.id %}" id="finalize_form" style="padding: 10px 15px;">
                     {% csrf_token %}
-                    <input type="hidden" name="action_type" value="complete">
+                    <input type="hidden" name="action_type" value="update_metadata">
+                    <input type="hidden" name="status" value="COM">
+                    <input type="hidden" name="company_code" value="{{ delegation.company_code|default:'' }}">
+                    <input type="hidden" name="email_category" value="{{ delegation.email_category|default:'' }}">
+                    
                     <div class="form-group">
                         <label for="completion_notes">Final Completion Notes / Summary:</label>
-                        <textarea id="completion_notes" name="completion_notes" placeholder="Add a final summary of the entire task resolution process here. This will be logged as the final internal note."></textarea>
+                        <textarea id="completion_notes" name="note_content" placeholder="Add a final summary of the entire task resolution process here. This will be logged as the final internal note."></textarea>
                     </div>
                     <button type="submit" class="btn-complete">✅ Mark Task as Completed</button>
                 </form>
@@ -466,7 +352,7 @@ select option.hidden{display:none}
         </div>
 
         <div style="text-align: center;">
-            <a href="{% url 'tasks' %}" class="return-button">Return to Dashboard</a>
+            <a href="{% url 'outlook_delegated_box' %}" class="return-button">Return to Dashboard</a>
         </div>
     </div>
 
@@ -479,7 +365,6 @@ select option.hidden{display:none}
                 content.classList.remove('expanded');
                 header.setAttribute('aria-expanded','false');
             }else{
-                // Collapse others before expanding the target
                 document.querySelectorAll('.collapsible-content.expanded').forEach(item=>{
                     if(item.id!==contentId){
                         item.classList.remove('expanded');
@@ -490,9 +375,14 @@ select option.hidden{display:none}
                 header.setAttribute('aria-expanded','true')
             }
         }
-    </script>
-    <script>
-        const TASK_ID = "{{ task.email_id }}";
+
+        // Rich text editor submission handler
+        document.getElementById('email_response_form').addEventListener('submit', function(e) {
+            var editorContent = document.getElementById('email_body_editor').innerHTML;
+            document.getElementById('reply_body_hidden').value = editorContent;
+        });
+
+        const TASK_ID = "{{ delegation.email_id }}";
         const SESSION_KEY = `task_form_state_${TASK_ID}`;
 
         // Elements to track for state saving
@@ -500,11 +390,11 @@ select option.hidden{display:none}
             'internal_note': document.getElementById('internal_note'),
             'completion_notes': document.getElementById('completion_notes'),
             'email_body_editor': document.getElementById('email_body_editor'),
-            'id_communication_type_note': document.getElementById('id_communication_type_note'),
-            'id_action_notes_note': document.getElementById('id_action_notes_note'),
-            'id_action_notes_email': document.getElementById('id_action_notes_email'),
             'recipient_email': document.getElementById('recipient_email'),
             'email_subject_reply': document.getElementById('email_subject_reply'),
+            'company_code': document.getElementById('company_code'),
+            'email_category': document.getElementById('email_category'),
+            'status': document.getElementById('status')
         };
 
         function saveFormState(event, url) {
@@ -580,56 +470,8 @@ select option.hidden{display:none}
 
         document.addEventListener('DOMContentLoaded',function(){
             loadFormState(); // Attempt to restore state on load
-            // Existing DOMContentLoaded logic
-            const categorySelect=document.getElementById('email_category');
-            const typeSelect=document.getElementById('Delegate'); // Corrected ID from email_type to Delegate
-            const subjectInput=document.getElementById('email_subject_reply');
-            const emailResponseForm=document.getElementById('email_response_form');
-            const emailBodyEditor=document.getElementById('email_body_editor');
-            const emailBodyHtmlInput=document.getElementById('email_body_reply');
-            // Get current values from the Django context to ensure they are pre-selected
-            const currentCategory="{{ task.category }}";
-            const currentType="{{ task.type }}";
-            const uniqueRef="{{ task.mip_number|default:'' }}";
-
-            // 1. Set values for the new independent dropdowns
-            if(currentCategory){categorySelect.value=currentCategory}
             
-            if(!currentType){
-                typeSelect.value = 'Delegate';
-            } else if (currentType) {
-                typeSelect.value = currentType;
-            }
-
-            // ----------------------------------------------------
-            // 2. Unique Reference Prepender for Email Subject
-            // ----------------------------------------------------
-            if(subjectInput&&uniqueRef){
-                const currentSubject=subjectInput.value;
-                const newSubject=`[${uniqueRef}] ${currentSubject}`;
-                subjectInput.value=newSubject
-            }
-
-            // ----------------------------------------------------
-            // 3. Rich Text Editor Handler for Email Body
-            // ----------------------------------------------------
-            if(emailResponseForm){
-                emailResponseForm.addEventListener('submit',function(event){
-                    if(emailBodyHtmlInput&&emailBodyEditor){
-                        const content = emailBodyEditor.innerHTML.trim();
-                        if (!content || emailBodyEditor.innerText.trim() === '') {
-                             alert('Email body cannot be empty.');
-                             event.preventDefault();
-                             return;
-                        }
-                        emailBodyHtmlInput.value=content
-                    }
-                })
-            }
-            
-            // ----------------------------------------------------
-            // 4. Initialize Collapsible Sections (Setting the default state)
-            // ----------------------------------------------------
+            // Initialize Collapsible Sections (Setting the default state)
             document.getElementById('metadata-content').classList.add('expanded');
             document.getElementById('metadata-header').setAttribute('aria-expanded','true');
             document.getElementById('email-view-content').classList.add('expanded');

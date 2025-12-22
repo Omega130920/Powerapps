@@ -315,9 +315,20 @@ class CreditNote(models.Model):
     # Billing/Grouping Information
     ccdates_month = models.DateField(null=True, blank=True)
     fund_code = models.CharField(max_length=50, null=True, blank=True)
-    member_group_code = models.CharField(max_length=50) # NOT NULL in SQL
+    member_group_code = models.CharField(max_length=50) # The raw string code from import
     member_group_name = models.CharField(max_length=255, null=True, blank=True)
     active_members = models.IntegerField(null=True, blank=True)
+
+    # --- NEW: Relationship to UnityMgListing ---
+    # This links the raw import to the actual Company in your master list
+    member_group = models.ForeignKey(
+        'UnityMgListing', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True,
+        db_column='member_group_id', # Matches the SQL column added manually
+        related_name='company_credits'
+    )
     
     # Scheduling/Deposit Information
     schedule_date = models.DateField(null=True, blank=True)
@@ -340,9 +351,25 @@ class CreditNote(models.Model):
     processed_date = models.DateTimeField(auto_now_add=True)
     processed_by = models.CharField(max_length=100)
     
-    # --- NEW FIELDS FOR PROCESSING ---
+    # --- PROCESSING & WORKFLOW FIELDS ---
     fiscal_date = models.DateField(null=True, blank=True)
     review_note = models.CharField(max_length=500, null=True, blank=True)
+
+    # --- NEW: Omega Authorization Workflow ---
+    authorization_status = models.CharField(
+        max_length=20, 
+        choices=[
+            ('Idle', 'Idle'), 
+            ('Pending', 'Pending'), 
+            ('Authorized', 'Authorized'), 
+            ('Rejected', 'Rejected')
+        ],
+        default='Idle'
+    )
+    requested_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    request_reason = models.TextField(null=True, blank=True)
+    authorized_by = models.CharField(max_length=100, null=True, blank=True)
+    authorized_at = models.DateTimeField(null=True, blank=True)
 
     # --- FOREIGN KEY TO UNITYBILL ---
     assigned_unity_bill = models.ForeignKey(
@@ -358,7 +385,7 @@ class CreditNote(models.Model):
         managed = False
         
     def __str__(self):
-        return f"Bill Data Import for {self.member_group_code} (R{self.schedule_amount})"
+        return f"Credit for {self.member_group_code} (Status: {self.authorization_status})"
     
 class ScheduleSurplus(models.Model):
     # Note: Using IntegerField for FKs since Django won't manage the constraints
@@ -520,7 +547,8 @@ class UnityClaim(models.Model):
     CLAIM_TYPES = [
         ('Retirement', 'Retirement'), ('Withdrawal', 'Withdrawal'), ('Death', 'Death'), 
         ('Disability', 'Disability'), ('Funeral', 'Funeral'), ('Surplus', 'Surplus'), 
-        ('Ill-Health', 'Ill-Health'),
+        ('Ill-Health', 'Ill-Health'), 
+        ('Two Pot', 'Two Pot'),  # <--- NEW
     ]
 
     EXIT_REASONS = [
@@ -533,19 +561,29 @@ class UnityClaim(models.Model):
         ('New Claim', 'New Claim'), ('Dealing With Claim', 'Dealing With Claim'), 
         ('Claim Query', 'Claim Query'), ('Claim Paid', 'Claim Paid'), 
         ('Exit Processed', 'Exit Processed'),
+        ('Default new claim', 'Default new claim'), # <--- NEW for Two Pot default
     ]
 
     CLAIM_STATUS = [
+        # Existing
         ('Claim Docs Requested', 'Claim Docs Requested'), ('Delegated', 'Delegated'), 
         ('Incomplete', 'Incomplete'), ('Paid', 'Paid'), ('Submitted', 'Submitted'), 
         ('Company in Arrears', 'Company in Arrears'), ('Payment/Schedule Due', 'Payment/Schedule Due'), 
         ('Completed', 'Completed'), ('Family Member – Sent to Sanlam', 'Family Member – Sent to Sanlam'),
+        # NEW Two Pot Statuses
+        ('2 pot forms submitted to ER', '2 pot forms submitted to ER'),
+        ('Withdraw - Not Allowed', 'Withdraw - Not Allowed'),
+        ('Withdraw – Already Claimed in Current Tax Year', 'Withdraw – Already Claimed in Current Tax Year'),
     ]
 
     PAYMENT_OPTIONS = [
+        # Existing
         ('Leave Benefit in Fund', 'Leave Benefit in Fund'), ('Transfer Full Benefit', 'Transfer Full Benefit'), 
         ('Portion Cash and Transfer Balance', 'Portion Cash and Transfer Balance'), 
         ('Pay Full Benefit', 'Pay Full Benefit'), ('No Payment Instruction', 'No Payment Instruction'),
+        # NEW Two Pot Options
+        ('Full Payment', 'Full Payment'),
+        ('Partially Taken', 'Partially Taken'),
     ]
 
     # --- Database Fields ---
@@ -556,16 +594,30 @@ class UnityClaim(models.Model):
     member_name = models.CharField(max_length=100)
     member_surname = models.CharField(max_length=100)
     
+    # NEW FIELD
+    mip_number = models.CharField(max_length=50, blank=True, null=True, verbose_name="Member Number (MIP)")
+
     claim_type = models.CharField(max_length=50, choices=CLAIM_TYPES, default='Withdrawal')
     exit_reason = models.CharField(max_length=50, choices=EXIT_REASONS, blank=True, null=True)
     claim_allocation = models.CharField(max_length=50, choices=ALLOCATION_STATUS, default='New Claim')
     claim_status = models.CharField(max_length=50, choices=CLAIM_STATUS, default='Claim Docs Requested')
     payment_option = models.CharField(max_length=50, choices=PAYMENT_OPTIONS, blank=True, null=True)
+    claim_amount = models.DecimalField(max_digits=15, decimal_places=2, blank=True, null=True, verbose_name="Claim Amount (R)")
     
     claim_created_date = models.DateField() 
     last_contribution_date = models.DateField(blank=True, null=True)
     date_submitted = models.DateField(blank=True, null=True)
     date_paid = models.DateField(blank=True, null=True)
+    linked_email_id = models.CharField(max_length=255, blank=True, null=True)
+    
+    # New fields for Pot logic
+    vested_pot_available = models.BooleanField(default=False)
+    vested_pot_paid_date = models.DateField(null=True, blank=True)
+    
+    savings_pot_available = models.BooleanField(default=False)
+    savings_pot_paid_date = models.DateField(null=True, blank=True)
+    
+    infund_preservation_cert_received_date = models.DateField(null=True, blank=True)
 
     class Meta:
         managed = False
@@ -692,3 +744,23 @@ class DelegationTransactionLog(models.Model):
         app_label = 'unity_internal'
         verbose_name = 'Delegation Transaction Log'
         ordering = ['-timestamp']
+        
+class OutlookInbox(models.Model):
+    """
+    Unmanaged model to store a local copy of every email fetched from Graph API.
+    Ensures subjects and bodies are permanently available for the Master Archive.
+    """
+    email_id = models.CharField(max_length=255, primary_key=True, db_column='email_id')
+    subject = models.CharField(max_length=512, null=True, blank=True, db_column='subject')
+    sender_name = models.CharField(max_length=255, null=True, blank=True, db_column='sender_name')
+    sender_address = models.CharField(max_length=255, null=True, blank=True, db_column='sender_address')
+    body_content = models.TextField(null=True, blank=True, db_column='body_content')
+    received_at = models.DateTimeField(null=True, blank=True, db_column='received_at')
+
+    class Meta:
+        managed = False
+        db_table = 'unity_internal_inbox'
+        verbose_name = 'Outlook Inbox Archive'
+
+    def __str__(self):
+        return f"{self.subject} (From: {self.sender_address})"

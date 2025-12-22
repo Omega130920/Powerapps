@@ -78,7 +78,7 @@ Remaining Schedule: R{{ remaining_schedule_amount|floatformat:2 }}
 </div>
 <div class="metric-card blue">
 <div class="card-body">
-<h5 class="card-title">Total Allocated Cash Lines</h5>
+<h5 class="card-title">Total Available Balance</h5>
 <p class="card-text">R {{ total_debt|floatformat:2 }}</p>
 <small>Total assigned cash available to settle bills.</small>
 </div>
@@ -90,18 +90,12 @@ Remaining Schedule: R{{ remaining_schedule_amount|floatformat:2 }}
 <small>Sum of Credit Notes applied to this bill.</small>
 </div>
 </div>
-<div class="metric-card orange">
-<div class="card-body">
-<h5 class="card-title">Surplus Allocated (Used)</h5>
-<p class="card-text">R {{ total_journal_assigned|default:"0.00"|floatformat:2 }}</p>
-<small>Surplus funds applied to this bill via Journal Entry.</small>
-</div>
-</div>
+
 <div class="metric-card primary">
 <div class="card-body">
 <h5 class="card-title">Outstanding (Debt - Remaining Schedule)</h5>
-<p class="card-text">R {{ current_outstanding|floatformat:2 }}</p>
-<small>
+<p class="card-text" id="dynamic-outstanding">R {{ current_outstanding|floatformat:2 }}</p>
+<small id="dynamic-outstanding-small">
 {% if current_outstanding > 0 %}
 **R {{ current_outstanding|floatformat:2 }}** remains **Unbilled Debt**.
 {% elif current_outstanding < 0 %}
@@ -113,6 +107,7 @@ Debt is perfectly matched to the Remaining Scheduled Amount.
 </div>
 </div>
 </div>
+
 {% if not bill_record.is_reconciled %}
 <hr>
 {% if is_proceed_enabled or total_debt == 0 and remaining_schedule_amount == 0 %}
@@ -142,7 +137,7 @@ Proceed to Recon (Unavailable)
 Select a line, enter the amount to apply (max is remaining available or remaining bill schedule), 
 and optionally check the box to create a new unassigned line from the remainder.
 </p>
-{# REMOVED OUTER FORM TAG #}
+
 <table>
 <thead>
 <tr>
@@ -156,7 +151,6 @@ and optionally check the box to create a new unassigned line from the remainder.
 </thead>
 <tbody>
 {% for line in all_lines %}
-{# WRAPPING EACH LOGIC ROW IN ITS OWN FORM #}
 <form method="POST" action="{% url 'process_cash_allocation' company_code=company_code bill_id=bill_record.id %}">
 {% csrf_token %}
 <input type="hidden" name="company_code" value="{{ company_code }}">
@@ -194,7 +188,6 @@ R {{ line.remaining_debt|floatformat:2 }}
 </tr>
 </form>
 
-{# INFORMATION ROW IS OUTSIDE THE FORM, but inside the loop #}
 <tr class="allocation-row-info">
 <td></td>
 <td colspan="5">
@@ -208,6 +201,7 @@ Description: {{ line.bank_line.transaction_description|truncatechars:100 }}
 </tbody>
 </table>
 <hr>
+
 {% if credit_notes %}
 <h3 style="color: #3f51b5;">💲 Associated Credit Notes ({{ credit_notes|length }} items)</h3>
 <p>These are records imported from the Bill Details file that can be used for reconciliation purposes.</p>
@@ -243,6 +237,7 @@ Description: {{ line.bank_line.transaction_description|truncatechars:100 }}
 </table>
 <hr>
 {% endif %}
+
 {% if available_surpluses and remaining_schedule_amount > 0 %}
 <div style="background-color: #e3f2fd; padding: 15px; border: 1px solid #90caf9; border-radius: 5px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
 <h3 style="color: #1565c0; margin-top: 0; border-bottom: 1px solid #bbdefb; padding-bottom: 10px;">
@@ -282,6 +277,7 @@ Allocating these funds will create a Journal Entry to reduce the remaining sched
 </table>
 </div>
 {% endif %}
+
 {% if applied_journals %}
 <h3 class="credit-heading" style="color: #4527a0; border-bottom: 2px solid #d1c4e9; margin-top: 30px;">
 Journal Entries (Applied Surplus)
@@ -333,47 +329,95 @@ Remove
 </div>
 {% endif %}
 </div>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const radioButtons = document.querySelectorAll('.recon-radio');
-    const amountInputs = document.querySelectorAll('.amount-input');
+    const checkboxes = document.querySelectorAll('.recon-radio');
+    const amountInputs = document.querySelectorAll('.amount-input');
+    
+    const outstandingDisplay = document.getElementById('dynamic-outstanding');
+    const outstandingSmall = document.getElementById('dynamic-outstanding-small');
+    
+    // 1. Grab base values from Django (ensuring we handle potential nulls)
+    const scheduledAmount = parseFloat("{{ scheduled_amount|default:0 }}");
+    const creditAllocated = parseFloat("{{ total_credit_notes_assigned|default:0 }}");
+    const journalAllocated = parseFloat("{{ total_journal_assigned|default:0 }}");
+    const cashAlreadyInDB = parseFloat("{{ total_cash_applied|default:0 }}");
 
-    radioButtons.forEach(radio => {
-        radio.addEventListener('change', function() {
-            const lineId = this.value; 
-            const maxAmount = this.dataset.maxAmount; 
-            
-            // 1. Clear all *other* inputs 
-            amountInputs.forEach(input => {
-                if (input.id !== 'amount-' + lineId) {
-                    input.value = '';
-                }
-            });
+    function calculateLiveOutstanding() {
+        let currentTypedCash = 0;
+        
+        // Sum values currently typed in all input boxes
+        amountInputs.forEach(input => {
+            const val = parseFloat(input.value);
+            if (!isNaN(val)) {
+                currentTypedCash += val;
+            }
+        });
 
-            // 2. Set the value of the selected input to the max available amount
-            const targetInput = document.getElementById('amount-' + lineId);
-            if (targetInput) {
-                // Ensure the amount is at least 0.01 if maxAmount is > 0
-                const val = parseFloat(maxAmount) > 0.01 ? maxAmount : '0.01';
-                targetInput.value = val;
-            }
-        });
-    });
+        // FORMULA: Bill - (Credit + Journal + Saved Cash) - Currently Typed Cash
+        let remaining = scheduledAmount - creditAllocated - journalAllocated - cashAlreadyInDB - currentTypedCash;
+        
+        if (remaining < 0) remaining = 0;
 
-    // Ensure radio is checked if user manually types an amount
-    amountInputs.forEach(input => {
-        input.addEventListener('input', function() {
-            const row = this.closest('tr');
-            if (row) {
-                const radio = row.querySelector('.recon-radio');
-                if (radio && !radio.checked) {
-                    radio.checked = true;
-                    // Trigger change to clear other fields
-                    radio.dispatchEvent(new Event('change'));
-                }
-            }
-        });
-    });
+        const formatted = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(remaining);
+        outstandingDisplay.innerText = formatted;
+        
+        if (remaining <= 0.01) {
+            outstandingDisplay.style.color = "#4CAF50"; // Green
+            outstandingSmall.innerHTML = "Debt is perfectly matched to the Remaining Scheduled Amount.";
+        } else {
+            outstandingDisplay.style.color = "white";
+            outstandingSmall.innerHTML = `**${formatted}** remains **Unbilled Debt**.`;
+        }
+    }
+
+    checkboxes.forEach(box => {
+        // Change type to checkbox so user can toggle lines on/off
+        box.type = "checkbox";
+
+        box.addEventListener('change', function() {
+            const lineId = this.value; 
+            const maxOnLine = parseFloat(this.dataset.maxAmount); 
+            const targetInput = document.getElementById('amount-' + lineId);
+
+            if (this.checked) {
+                // Only auto-fill if the input is currently empty
+                if (targetInput.value === "" || targetInput.value === "0") {
+                    let otherTyped = 0;
+                    amountInputs.forEach(i => { if(i.id !== targetInput.id) otherTyped += parseFloat(i.value || 0); });
+                    
+                    let stillNeeded = scheduledAmount - (creditAllocated + journalAllocated + cashAlreadyInDB + otherTyped);
+                    
+                    // Suggest the smaller of: what's left on the line OR what's needed for the bill
+                    let fillVal = Math.min(maxOnLine, Math.max(0, stillNeeded));
+                    targetInput.value = fillVal.toFixed(2);
+                }
+            } else {
+                // If unchecked, clear only this specific input
+                targetInput.value = '';
+            }
+            calculateLiveOutstanding();
+        });
+    });
+
+    amountInputs.forEach(input => {
+        input.addEventListener('input', function() {
+            const row = this.closest('tr');
+            const box = row.querySelector('.recon-radio');
+            
+            // Auto-check the box if user types a value
+            if (parseFloat(this.value) > 0) {
+                box.checked = true;
+            } else if (this.value === "") {
+                box.checked = false;
+            }
+            calculateLiveOutstanding();
+        });
+    });
+
+    // Run once on load to ensure card is correct
+    calculateLiveOutstanding();
 });
 </script>
 </body>

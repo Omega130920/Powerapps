@@ -1,0 +1,554 @@
+{% load static %}
+
+{% block title %}Two-Pot Claims Register{% endblock %}
+
+{% block extra_head %}
+<meta charset="UTF-8">
+<style>
+    /* Global Background and Body */
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #e8f5e9; margin: 0; color: #333; }
+    
+    /* Main Content Wrapper */
+    .global-history-container { 
+        max-width: 1400px;
+        margin: 30px auto; 
+        background: white; 
+        padding: 20px 40px; 
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+        border-radius: 8px; 
+        border-top: 8px solid #2e7d32; 
+    }
+    
+    h2 { margin-top: 0; color: #1b5e20; font-size: 28px; border-bottom: 2px solid #c8e6c9; padding-bottom: 10px; margin-bottom: 20px; }
+
+    /* --- Card Styling --- */
+    .card { border: 1px solid #dcedc8; border-radius: 6px; margin-bottom: 20px; background-color: #f1f8e9; }
+    .card-body { padding: 20px; }
+    
+    .filter-form-row { display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; }
+    .filter-form-control { padding: 8px 12px; border: 1px solid #c8e6c9; border-radius: 4px; font-size: 0.95em; height: 38px; box-sizing: border-box;}
+    .filter-label { display: block; font-size: 0.85em; color: #558b2f; font-weight: 600; margin-bottom: 5px; }
+
+    /* --- Table Styling --- */
+    table { width: 100%; border-collapse: collapse; font-size: 0.95em; margin-bottom: 20px; table-layout: fixed;}
+    th { background-color: #e3f2fd; color: #0d47a1; padding: 10px; text-align: left; border-bottom: 3px solid #bbdefb; }
+    td { padding: 10px; border-bottom: 1px solid #eee; color: #444; word-wrap: break-word; }
+    tr:hover { background-color: #f1f8e9; }
+    .amount-col { text-align: right; font-weight: bold; color: #2e7d32; }
+
+    /* Status Badges */
+    .badge-success { background-color: #e8f5e9; color: #2e7d32; padding: 3px 8px; border-radius: 4px; font-weight: bold; border: 1px solid #a5d6a7; display: inline-block; }
+
+    /* --- Button Styling --- */
+    .btn { padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: 600; text-decoration: none; display: inline-block; transition: background-color 0.2s; border: none; }
+    .btn-primary { background-color: #1b5e20; color: white; }
+    .btn-primary:hover { background-color: #2e7d32; }
+    .btn-secondary { background-color: #f5f5f5; color: #666; border: 1px solid #ccc; }
+    .btn-details { background-color: #f7931e; color: white; font-size: 11px; padding: 4px 10px; }
+
+    /* Modal Form Inputs */
+    .form-input, .form-select { width: 100%; padding: 8px; border: 1px solid #aed581; border-radius: 4px; background: white; box-sizing: border-box; font-size: 13px; }
+    .cancel-btn { background-color: #757575; color: white; padding: 8px 20px; border-radius: 4px; border: none; cursor: pointer; font-weight: bold; }
+    .save-info-btn { background-color: #1565c0; color: white; padding: 8px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+
+    /* Pagination Styling */
+    .pagination { display: flex; justify-content: center; gap: 5px; margin-top: 20px; }
+    .page-link { padding: 8px 12px; border: 1px solid #c8e6c9; background: white; color: #333; text-decoration: none; border-radius: 4px; font-weight: bold; }
+    .page-link:hover { background-color: #e8f5e9; }
+    .page-link.active { background-color: #1b5e20; color: white; border-color: #1b5e20; }
+
+    /* --- ENHANCED Email Preview Modal Styles --- */
+    .email-preview-modal-content {
+        background: #ffffff;
+        width: 85%;
+        max-width: 900px;
+        margin: 40px auto;
+        padding: 0;
+        border-radius: 12px;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+        border: none;
+        overflow: hidden;
+    }
+
+    .email-header-box {
+        background: #f1f3f4; /* Grey Gmail-like background */
+        padding: 25px 35px;
+        border-bottom: 1px solid #e0e0e0;
+    }
+
+    .email-header-title {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 18px;
+    }
+
+    .email-header-title h2 {
+        margin: 0;
+        color: #202124;
+        font-size: 1.5rem;
+        border: none;
+        padding: 0;
+    }
+
+    .header-meta-row {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .header-meta-item {
+        font-size: 0.95rem;
+        color: #5f6368;
+    }
+
+    .header-meta-item strong {
+        color: #202124;
+        width: 80px;
+        display: inline-block;
+    }
+
+    .email-body-container {
+        padding: 40px 50px;
+        background: #ffffff;
+        max-height: 60vh;
+        overflow-y: auto;
+        color: #3c4043;
+        font-size: 1.05rem;
+        line-height: 1.6;
+        all: revert; /* Isolates email styles */
+    }
+
+    .preview-footer {
+        padding: 15px 35px;
+        background: #f8f9fa;
+        text-align: right;
+        border-top: 1px solid #eee;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="padding: 20px 40px 0 40px; max-width: 1400px; margin: auto;">
+    <a href="{% url 'dashboard' %}" class="btn btn-secondary">Back to Dashboard</a>
+</div>
+
+<div class="global-history-container">
+    <h2>💰 Two-Pot Claims Register</h2>
+    <p class="text-muted">Specialized dashboard for Two-Pot withdrawal requests.</p>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="GET">
+                <div class="filter-form-row">
+                    <div class="form-group" style="flex: 2;">
+                        <label class="filter-label">Search:</label>
+                        <input type="text" name="q" class="filter-form-control" style="width: 100%;" placeholder="MIP Number, Surname, or ID..." value="{{ search_query|default:'' }}">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="filter-label">From:</label>
+                        <input type="date" name="start_date" class="filter-form-control" value="{{ start_date|default:'' }}">
+                    </div>
+                    <div class="form-group">
+                        <label class="filter-label">To:</label>
+                        <input type="date" name="end_date" class="filter-form-control" value="{{ end_date|default:'' }}">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Filter</button>
+                    <a href="{% url 'global_two_pot' %}" class="btn btn-secondary">Reset</a>
+                    <button type="button" class="btn btn-primary" style="background-color: #2e7d32;" onclick="openClaimModal()">+ New Two-Pot</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 8%;">Code</th>
+                <th style="width: 18%;">Member</th>
+                <th style="width: 12%;">MIP Number</th>
+                <th style="width: 12%;">ID Number</th>
+                <th style="width: 12%;" class="amount-col">Claim Amount</th>
+                <th style="width: 15%;">Status</th>
+                <th style="width: 15%;">Created</th>
+                <th style="width: 8%; text-align: right;">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for claim in page_obj %}
+            <tr>
+                <td><strong>{{ claim.company_code }}</strong></td>
+                <td>{{ claim.member_surname }}, {{ claim.member_name }}</td>
+                <td>{{ claim.mip_number|default:"-" }}</td>
+                <td>{{ claim.id_number }}</td>
+                <td class="amount-col">R {{ claim.claim_amount|default:"0.00"|floatformat:2 }}</td>
+                <td>
+                    <span class="badge-success">{{ claim.claim_status }}</span>
+                    {% if claim.linked_email_id %}
+                        <span onclick="previewLinkedEmail('{{ claim.id }}')" title="Linked to Email. Click to View Content" style="cursor: pointer; font-size: 1.2em; margin-left: 5px;">📧</span>
+                    {% endif %}
+                </td>
+                <td>{{ claim.claim_created_date|date:"Y-m-d" }}</td>
+                <td style="text-align: right;">
+                    <button class="btn btn-details" onclick="editClaim(this)" 
+                        data-id="{{ claim.id }}"
+                        data-company_code="{{ claim.company_code }}"
+                        data-agent="{{ claim.agent|default:'' }}"
+                        data-id_number="{{ claim.id_number }}"
+                        data-member_name="{{ claim.member_name }}"
+                        data-member_surname="{{ claim.member_surname }}"
+                        data-mip_number="{{ claim.mip_number|default:'' }}"
+                        data-claim_type="{{ claim.claim_type }}"
+                        data-claim_status="{{ claim.claim_status }}"
+                        data-claim_allocation="{{ claim.claim_allocation }}"
+                        data-payment_option="{{ claim.payment_option }}"
+                        data-claim_amount="{{ claim.claim_amount|default:'' }}"
+                        data-claim_created_date="{{ claim.claim_created_date|date:'Y-m-d' }}"
+                        data-linked_email_id="{{ claim.linked_email_id|default:'' }}"
+                    >Edit</button>
+
+                    <template id="notes-data-{{ claim.id }}">
+                        {% for note in claim.notes.all %}
+                            <tr><td>{{ note.note_description }}</td><td>{{ note.note_selection }}</td><td>{{ note.created_at|date:"Y-m-d H:i" }}</td><td>{{ note.created_by.username }}</td></tr>
+                        {% empty %}
+                            <tr><td colspan="4" style="text-align:center; color:#777;">No notes found.</td></tr>
+                        {% endfor %}
+                    </template>
+
+                    {% if claim.linked_email_id %}
+                    <template id="email-content-{{ claim.id }}">
+                        <div class="p-sender">{{ claim.email_preview_sender|default:"Unknown" }}</div>
+                        <div class="p-subject">{{ claim.email_preview_subject|default:"(No Subject)" }}</div>
+                        <div class="p-date">{{ claim.email_preview_date|date:"Y-m-d H:i" }}</div>
+                        <div class="p-body">{{ claim.email_preview_body|safe }}</div>
+                    </template>
+                    {% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8" style="text-align: center;">No Two-Pot claims found matching criteria.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if page_obj.has_other_pages %}
+    <div class="pagination">
+        {% if page_obj.has_previous %}
+            <a href="?page=1&q={{ search_query }}&start_date={{ start_date }}&end_date={{ end_date }}" class="page-link">&laquo; First</a>
+            <a href="?page={{ page_obj.previous_page_number }}&q={{ search_query }}&start_date={{ start_date }}&end_date={{ end_date }}" class="page-link">Previous</a>
+        {% endif %}
+
+        <span class="page-link active">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}&q={{ search_query }}&start_date={{ start_date }}&end_date={{ end_date }}" class="page-link">Next</a>
+            <a href="?page={{ page_obj.paginator.num_pages }}&q={{ search_query }}&start_date={{ start_date }}&end_date={{ end_date }}" class="page-link">Last &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<div id="claimModal" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+    <div style="background: white; width: 90%; max-width: 1000px; margin: 30px auto; padding: 20px; border-radius: 8px; max-height: 90vh; overflow-y: auto;">
+        <h2 id="modalTitle" style="color: #1b5e20; border-bottom: 2px solid #aed581; padding-bottom: 10px;">Manage Two-Pot Claim</h2>
+        
+        <form id="main_claim_form" method="POST" action="{% url 'save_global_claim' %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <input type="hidden" name="claim_id" id="modal_claim_id">
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <div>
+                    <label style="font-weight:bold;">Company Code *</label>
+                    <input list="company_list" name="company_code" id="company_code_input" class="form-input" required placeholder="Search Company...">
+                    <datalist id="company_list">
+                        {% for c in all_companies %}
+                            <option value="{{ c.a_company_code }}" data-agent="{{ c.c_agent }}">{{ c.a_company_code }} - {{ c.b_company_name }}</option>
+                        {% endfor %}
+                    </datalist>
+                </div>
+                <div><label style="font-weight:bold;">Agent</label><input type="text" name="agent" id="agent_input" class="form-input" readonly style="background-color: #eee;"></div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <div><label style="font-weight:bold;">ID / Passport *</label><input type="text" name="id_number" class="form-input" required></div>
+                <div><label style="font-weight:bold; color:#d32f2f;">MIP Number *</label><input type="text" name="mip_number" class="form-input" required></div>
+                <div><label style="font-weight:bold;">First Name *</label><input type="text" name="member_name" class="form-input" required></div>
+                <div><label style="font-weight:bold;">Surname *</label><input type="text" name="member_surname" class="form-input" required></div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <div>
+                    <label style="font-weight:bold;">Claim Type</label>
+                    <select name="claim_type" id="claim_type_select" class="form-select">
+                        <option value="Two Pot" selected>Two Pot</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-weight:bold;">Amount (R) (Optional)</label>
+                    <input type="number" step="0.01" name="claim_amount" class="form-input" placeholder="0.00">
+                </div>
+                <div>
+                    <label style="font-weight:bold;">Allocation</label>
+                    <select name="claim_allocation" class="form-select">
+                        <option value="New Claim">New Claim</option>
+                        <option value="Claim Paid">Claim Paid</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <div>
+                    <label style="font-weight:bold;">Claim Status</label>
+                    <select name="claim_status" id="claim_status_select" class="form-select" onchange="toggleWithdrawalSubFields()">
+                        <option value="Submitted">Submitted</option>
+                        <option value="Paid">Paid</option>
+                        <option value="Withdraw - Not Allowed">Withdraw - Not Allowed</option>
+                        </select>
+                </div>
+                
+                <div>
+                    <label style="font-weight:bold;">Payment Option</label>
+                    <select name="payment_option" id="payment_option_select" class="form-select">
+                        <option value="Full Payment">Full Payment</option>
+                        <option value="Partially Taken">Partially Taken</option>
+                        <option value="No Payment Instruction">No Payment Instruction</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="div_two_pot_withdrawal_details" style="display:none; margin-bottom: 15px; padding: 15px; background: #fffde7; border: 1px solid #fbc02d; border-radius: 5px;">
+                <label style="font-weight:bold; color: #bc5100;">Note Generator Helper</label>
+                <select id="two_pot_withdrawal_status" class="form-select" onchange="handleWithdrawalStatusChange()">
+                    <option value="">-- Select Note Template --</option>
+                    <option value="Withdrawal - Not Allowed">Insufficient Funds</option>
+                    <option value="Withdrawal - Already claim in current financial year">Already Claimed this Year</option>
+                </select>
+                <div id="div_prev_claim_date" style="display:none; margin-top: 10px;">
+                    <label>Member Previous Claim Date:</label>
+                    <input type="date" id="prev_claim_date_input" class="form-input" onchange="handleWithdrawalStatusChange()">
+                </div>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <div><label style="font-weight:bold;">Created *</label><input type="date" name="claim_created_date" class="form-input" required value="{% now 'Y-m-d' %}"></div>
+            </div>
+
+            <div class="row" style="margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 15px; margin-bottom: 15px;">
+                <div class="col-md-12">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 5px;">
+                        <label for="linked_email_id" style="font-weight: bold; color: #1e88e5;">🔗 Attach Delegated Email (Optional)</label>
+                        <button type="button" onclick="toggleEmailForm()" style="background-color: #ff9800; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">✉️ Compose Email</button>
+                    </div>
+                    
+                    <select id="linked_email_id" name="linked_email_id" class="form-select" style="border: 1px solid #1e88e5; width: 100%;">
+                        <option value="">-- Select an email to link to this claim --</option>
+                        {% for email in my_delegated_emails %}
+                            <option value="{{ email.id }}">📅 {{ email.received_at|date:"Y-m-d" }} | ✉️ {{ email.subject|slice:":40" }}... (From: {{ email.sender }})</option>
+                        {% empty %}
+                            <option value="" disabled>No delegated emails found for you.</option>
+                        {% endfor %}
+                    </select>
+
+                    <div id="email-composition-container" style="display: none; margin-top: 15px; background-color: #fffaf5; border: 2px dashed #ff9800; border-radius: 8px; padding: 20px;">
+                        <h3 style="color: #ff9800; margin-top: 0; font-size: 16px;">Compose Outgoing Email</h3>
+                        <textarea id="email_body_html_content" name="email_body_html_content" style="display:none;"></textarea>
+                        <div class="form-group" style="margin-bottom: 10px;">
+                            <label style="font-weight: bold; display: block; margin-bottom: 5px;">To:</label>
+                            <input type="text" id="member_recipient_email" name="member_recipient_email" placeholder="Enter email addresses..." style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 15px;">
+                            <label style="font-weight: bold; display: block; margin-bottom: 5px;">Subject:</label>
+                            <input type="text" id="member_email_subject_reply" name="member_email_subject_reply" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 15px;">
+                            <label style="font-weight: bold; display: block; margin-bottom: 5px;">Email Body:</label>
+                            <textarea id="member_email_body_editor" class="form-input" rows="6" style="width: 100%;">Dear Sir/Madam,&#10;&#10;Kind regards,&#10;{{ request.user.username }}</textarea>
+                        </div>
+                        <div style="text-align: right;">
+                            <button type="button" class="cancel-btn" onclick="toggleEmailForm()" style="font-size: 12px; margin-right: 10px;">Hide Email Form</button>
+                            <button type="submit" name="email_submission_action" value="send_email_and_log" style="padding: 8px 15px; background-color: #f7931e; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Send Email & Save Claim</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <label style="font-weight:bold;">Note Description</label>
+            <textarea name="note_description" id="note_description" rows="3" class="form-input" style="width: 100%; margin-bottom: 15px;"></textarea>
+            
+            <div style="margin-bottom: 15px;">
+                <label style="font-weight:bold; display:block; margin-bottom:5px;">Claim Attachment (File)</label>
+                <input type="file" name="claim_attachment" class="form-input">
+            </div>
+
+            <h3 style="color: #38761d; margin-top: 20px;">Claim Notes History</h3>
+            <div style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd;">
+                <table style="margin: 0; font-size: 12px; width:100%;">
+                    <thead style="background-color: #eee;"><tr><th>Note</th><th>Type</th><th>Date</th><th>User</th></tr></thead>
+                    <tbody id="claim_notes_tbody"></tbody>
+                </table>
+            </div>
+
+            <div style="text-align: right; margin-top: 20px;">
+                <button type="button" class="cancel-btn" onclick="document.getElementById('claimModal').style.display='none'">Cancel</button>
+                <button type="submit" class="save-info-btn">Save Claim Only</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="emailPreviewModal" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); z-index: 2000;">
+    <div class="email-preview-modal-content">
+        <div class="email-header-box">
+            <div class="email-header-title">
+                <span style="font-size: 1.6rem;">✉️</span>
+                <h2>Linked Email Details</h2>
+            </div>
+            
+            <div class="header-meta-row">
+                <div class="header-meta-item"><strong>From:</strong> <span id="pv_from"></span></div>
+                <div class="header-meta-item"><strong>Subject:</strong> <span id="pv_subject"></span></div>
+                <div class="header-meta-item"><strong>Date:</strong> <span id="pv_date"></span></div>
+            </div>
+        </div>
+        
+        <div id="pv_body" class="email-body-container">
+            </div>
+
+        <div class="preview-footer">
+            <button type="button" class="cancel-btn" style="background: #5f6368; padding: 10px 25px;" onclick="document.getElementById('emailPreviewModal').style.display='none'">
+                Close Preview
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function openClaimModal() {
+        const modal = document.getElementById('claimModal');
+        modal.querySelector('form').reset();
+        document.getElementById('modal_claim_id').value = '';
+        document.getElementById('modalTitle').innerText = "New Two-Pot Entry";
+        document.getElementById('claim_notes_tbody').innerHTML = '<tr><td colspan="4" style="text-align:center;">New entry.</td></tr>';
+        document.getElementById('claim_type_select').value = "Two Pot"; 
+        const emailSelect = document.getElementById('linked_email_id');
+        if(emailSelect) emailSelect.value = "";
+        document.getElementById('email-composition-container').style.display = 'none';
+        modal.style.display = 'block';
+    }
+
+    function editClaim(btn) {
+        document.getElementById('modalTitle').innerText = "Edit Two-Pot Claim";
+        document.getElementById('modal_claim_id').value = btn.dataset.id;
+        document.getElementById('company_code_input').value = btn.dataset.company_code;
+        document.getElementById('agent_input').value = btn.dataset.agent;
+        document.querySelector('input[name="id_number"]').value = btn.dataset.id_number;
+        document.querySelector('input[name="member_name"]').value = btn.dataset.member_name;
+        document.querySelector('input[name="member_surname"]').value = btn.dataset.member_surname;
+        document.querySelector('input[name="mip_number"]').value = btn.dataset.mip_number;
+        const statusSel = document.getElementById('claim_status_select');
+        statusSel.value = btn.dataset.claim_status;
+        document.querySelector('select[name="claim_allocation"]').value = btn.dataset.claim_allocation;
+        document.querySelector('select[name="payment_option"]').value = btn.dataset.payment_option;
+        document.querySelector('input[name="claim_amount"]').value = btn.dataset.claim_amount;
+        document.querySelector('input[name="claim_created_date"]').value = btn.dataset.claim_created_date;
+        document.getElementById('claim_type_select').value = "Two Pot";
+        const emailSelect = document.getElementById('linked_email_id');
+        if(emailSelect) emailSelect.value = btn.dataset.linked_email_id || "";
+        document.getElementById('email-composition-container').style.display = 'none';
+        const notesSrc = document.getElementById('notes-data-' + btn.dataset.id);
+        const notesTrg = document.getElementById('claim_notes_tbody');
+        if (notesSrc && notesTrg) notesTrg.innerHTML = notesSrc.innerHTML;
+        toggleWithdrawalSubFields();
+        document.getElementById('claimModal').style.display = 'block';
+    }
+
+    // --- EMAIL PREVIEW LOGIC (NO AJAX) ---
+    function previewLinkedEmail(claimId) {
+        const template = document.getElementById('email-content-' + claimId);
+        if (!template) return;
+        const sender = template.content.querySelector('.p-sender').innerText;
+        const subject = template.content.querySelector('.p-subject').innerText;
+        const date = template.content.querySelector('.p-date').innerText;
+        const body = template.content.querySelector('.p-body').innerHTML;
+        
+        document.getElementById('pv_from').innerText = sender;
+        document.getElementById('pv_subject').innerText = subject;
+        document.getElementById('pv_date').innerText = date;
+        document.getElementById('pv_body').innerHTML = body;
+        
+        document.getElementById('emailPreviewModal').style.display = 'block';
+    }
+
+    function toggleEmailForm() {
+        const container = document.getElementById('email-composition-container');
+        const isHidden = container.style.display === 'none';
+        container.style.display = isHidden ? 'block' : 'none';
+        if(isHidden) {
+            const company = document.getElementById('company_code_input').value || "UNKNOWN";
+            const subjectField = document.getElementById('member_email_subject_reply');
+            if(!subjectField.value || subjectField.value.trim() === "") {
+                subjectField.value = `[Two-Pot: ${company}] Withdrawal Update`;
+            }
+        }
+    }
+
+    document.getElementById('main_claim_form').addEventListener('submit', function() {
+        const bodyText = document.getElementById('member_email_body_editor').value;
+        document.getElementById('email_body_html_content').value = bodyText;
+    });
+
+    function toggleWithdrawalSubFields() {
+        const status = document.getElementById('claim_status_select').value;
+        const helper = document.getElementById('div_two_pot_withdrawal_details');
+        
+        // Show helper if status is "Withdraw - Not Allowed" 
+        // OR if the user manually selects a template from the helper dropdown
+        helper.style.display = (status === "Withdraw - Not Allowed") ? 'block' : 'none';
+        
+        if (status === "Withdraw - Not Allowed") {
+            document.getElementById('two_pot_withdrawal_status').value = "Withdrawal - Not Allowed";
+        }
+        handleWithdrawalStatusChange();
+    }
+
+    function handleWithdrawalStatusChange() {
+        const reason = document.getElementById('two_pot_withdrawal_status').value;
+        const dateDiv = document.getElementById('div_prev_claim_date');
+        const note = document.getElementById('note_description');
+
+        // Always show the whole helper block if a reason is chosen manually
+        if (reason !== "") {
+            document.getElementById('div_two_pot_withdrawal_details').style.display = 'block';
+        }
+
+        if (reason === "Withdrawal - Not Allowed") {
+            dateDiv.style.display = 'none';
+            note.value = "Withdrawal\n- Not Allowed - Not enough funds available";
+        } else if (reason.includes("Already claim")) {
+            dateDiv.style.display = 'block';
+            const date = document.getElementById('prev_claim_date_input').value;
+            note.value = `Withdrawal - Already claim in current financial year - Member claim date = ${date || '(Select Date)'} - Next Financial Year starting (01 March - End of February)`;
+        }
+    }
+
+    document.getElementById('company_code_input').addEventListener('input', function() {
+        let val = this.value;
+        let opts = document.getElementById('company_list').childNodes;
+        for (let i = 0; i < opts.length; i++) {
+            if (opts[i].value === val) {
+                document.getElementById('agent_input').value = opts[i].getAttribute('data-agent') || '';
+                break;
+            }
+        }
+    });
+
+    window.onclick = function(event) {
+        const epModal = document.getElementById('emailPreviewModal');
+        const cModal = document.getElementById('claimModal');
+        if (event.target == epModal) epModal.style.display = "none";
+        if (event.target == cModal) cModal.style.display = "none";
+    }
+</script>
+{% endblock %}

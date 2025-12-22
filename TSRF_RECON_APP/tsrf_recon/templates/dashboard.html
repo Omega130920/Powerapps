@@ -131,7 +131,9 @@
         <a href="{% url 'reconciled_bank_line_list' %}" class="button-block">Assigned Bank Lines</a>
         
         <a href="{% url 'add_levy' %}" class="button-block">Add New Levy Member</a>
+        {% if user.username == 'omega' %}
         <a href="{% url 'outlook_dashboard' %}" class="button-block">Email List</a>
+        {% endif %}
         <a href="{% url 'outlook_delegated_box' %}" class="button-block">Delegated Box</a>
         <a href="{% url 'outlook_recycle_bin' %}" class="button-block">Recycle Bin</a>
     </div>

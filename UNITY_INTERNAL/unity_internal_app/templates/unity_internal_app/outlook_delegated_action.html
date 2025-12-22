@@ -271,6 +271,8 @@
                             <option value="Claim" {% if delegation.email_category == 'Claim' %}selected{% endif %}>Claim</option>
                             <option value="Query" {% if delegation.email_category == 'Query' %}selected{% endif %}>Query</option>
                             <option value="Bank" {% if delegation.email_category == 'Bank' %}selected{% endif %}>Bank</option>
+                            <option value="Info Only" {% if delegation.email_category == 'Info Only' %}selected{% endif %}>Info Only</option>
+                            <option value="LPI" {% if delegation.email_category == 'LPI' %}selected{% endif %}>LPI</option>
                         </select>
                     </div>
 
@@ -278,9 +280,8 @@
                         <label for="status" class="form-label">Email Status:</label>
                         <select id="status" name="status" class="form-control">
                             <option value="DEL" {% if delegation.status == 'DEL' %}selected{% endif %}>Delegated</option>
-                            <option value="PRG" {% if delegation.status == 'PRG' %}selected{% endif %}>In Progress</option>
-                            <option value="ACT" {% if delegation.status == 'ACT' %}selected{% endif %}>Actioned</option>
-                            <option value="COM" {% if delegation.status == 'COM' %}selected{% endif %}>Completed</option>
+                            <option value="NEW" {% if delegation.status == 'NEW' %}selected{% endif %}>New / In Progress</option>
+                            <option value="COM" {% if delegation.status == 'COM' %}selected{% endif %}>Completed / Actioned</option>
                         </select>
                     </div>
 
@@ -312,7 +313,7 @@
                 </div>
             </div>
 
-            {# --- HIDE REPLY FORM IF RECYCLED --- #}
+            {# --- REPLY FORM --- #}
             {% if delegation.work_related %}
             <div class="custom-card">
                 <button class="collapse-toggle" type="button" data-target="#collapseReplyForm">
@@ -322,16 +323,23 @@
                 <div class="collapse-content" id="collapseReplyForm">
                     <form method="POST">
                         {% csrf_token %}
+                        <input type="hidden" name="email_log_type" value="REPLY">
+                        
                         <div class="form-group">
                             <label class="form-label">Action Note:</label>
                             <select name="action_notes" class="form-control" required>
                                 <option value="Feedback to Member">Feedback to Member</option>
                                 <option value="Enquiry to Sanlam">Enquiry to Sanlam</option>
+                                <option value="Feedback to Employer">Feedback to Employer</option>
                             </select>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Recipient:</label>
-                            <input type="email" class="form-control" name="reply_recipient" value="{{ email.from.emailAddress.address }}">
+                            <input type="email" class="form-control" name="reply_recipient" value="{{ email.from.emailAddress.address }}" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Subject:</label>
+                            <input type="text" class="form-control" name="reply_subject" value="RE: {{ email.subject }}" required>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Body:</label>
@@ -357,6 +365,8 @@
                             <small><strong>{{ note.user.username }}</strong> - {{ note.created_at|date:"M d, H:i" }}</small>
                             <p>{{ note.content }}</p>
                         </div>
+                        {% empty %}
+                        <div style="padding:10px; color:#777;">No history available.</div>
                         {% endfor %}
                     </div>
                     

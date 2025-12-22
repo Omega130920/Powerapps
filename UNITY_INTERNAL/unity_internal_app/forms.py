@@ -120,17 +120,43 @@ from .models import UnityClaim
 class UnityClaimForm(forms.ModelForm):
     class Meta:
         model = UnityClaim
+        # Using __all__ will now pick up 'mip_number' and 'claim_amount' from the model
         fields = '__all__'
+        
         widgets = {
+            # --- Personal & Identification ---
+            'id_number': forms.TextInput(attrs={'class': 'form-input'}),
+            'member_name': forms.TextInput(attrs={'class': 'form-input'}),
+            'member_surname': forms.TextInput(attrs={'class': 'form-input'}),
+            'mip_number': forms.TextInput(attrs={'class': 'form-input', 'placeholder': 'Enter MIP Number'}),
+            
+            # --- Dropdowns ---
+            'claim_type': forms.Select(attrs={'class': 'form-select', 'id': 'claim_type_select'}),
+            'exit_reason': forms.Select(attrs={'class': 'form-select'}),
+            'claim_allocation': forms.Select(attrs={'class': 'form-select'}),
+            'claim_status': forms.Select(attrs={'class': 'form-select', 'id': 'claim_status_select'}),
+            'payment_option': forms.Select(attrs={'class': 'form-select', 'id': 'payment_option_select'}),
+            
+            # --- Currency/Numbers ---
+            'claim_amount': forms.NumberInput(attrs={'class': 'form-input', 'step': '0.01', 'placeholder': '0.00'}),
+
+            # --- Dates ---
             'claim_created_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-input'}),
             'last_contribution_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-input'}),
             'date_submitted': forms.DateInput(attrs={'type': 'date', 'class': 'form-input'}),
             'date_paid': forms.DateInput(attrs={'type': 'date', 'class': 'form-input'}),
-            'claim_type': forms.Select(attrs={'class': 'form-select'}),
-            'exit_reason': forms.Select(attrs={'class': 'form-select'}),
-            'claim_allocation': forms.Select(attrs={'class': 'form-select'}),
-            'claim_status': forms.Select(attrs={'class': 'form-select'}),
-            'payment_option': forms.Select(attrs={'class': 'form-select'}),
-            'company_code': forms.TextInput(attrs={'class': 'form-input', 'readonly': 'readonly'}), # Auto-filled
-            'agent': forms.TextInput(attrs={'class': 'form-input', 'readonly': 'readonly'}), # Auto-filled
+            
+            # --- System/Readonly Fields ---
+            'company_code': forms.TextInput(attrs={'class': 'form-input', 'readonly': 'readonly'}),
+            'agent': forms.TextInput(attrs={'class': 'form-input', 'readonly': 'readonly'}),
+            'linked_email_id': forms.HiddenInput(), # Usually handled manually in the view via logic
         }
+
+    def __init__(self, *args, **kwargs):
+        super(UnityClaimForm, self).__init__(*args, **kwargs)
+        # Ensure fields that are not compulsory in your Two Pot logic are not required by the form
+        self.fields['mip_number'].required = False
+        self.fields['claim_amount'].required = False
+        self.fields['exit_reason'].required = False
+        self.fields['last_contribution_date'].required = False
+        self.fields['date_paid'].required = False
