@@ -8,6 +8,7 @@ __pycache__/
 .Python
 env/
 venv/
+.venv/
 /htmlcov/
 .tox/
 .coverage
@@ -23,21 +24,12 @@ build/
 # -------------------------------------------------------------------------
 # Django-specific files
 # -------------------------------------------------------------------------
-# SQLite database (if used, though you use MySQL)
+# SQLite database
 *.sqlite3
+**/db.sqlite3
 
 # Django media files (uploaded by users)
 /media/
-
-# Ignore automatically generated migration files if they become too noisy
-# NOTE: You usually want to track migrations, but this is an option:
-# acvv/migrations/
-
-# -------------------------------------------------------------------------
-# SECRETS AND SENSITIVE DATA (CRITICAL)
-# -------------------------------------------------------------------------
-# Ignore the .env file containing API keys and database credentials
-.env
 
 # -------------------------------------------------------------------------
 # Operating System / IDE Files
@@ -54,42 +46,8 @@ Desktop.ini
 *.log
 
 # General Python
-**/__pycache__/
-**/*.py[cod]
 **/*.pickle
 
-# Secrets
-**/.env
-**/client_secrets.json
-**/oauth_tokens/
-
-# Database Backups & SQLite
-**/*.sql
-**/*.sqlite3
-
-# Environment
-venv/
-env/
-.venv/
-
-# Databases & Backups (CRITICAL)
-*.sql
-*.sqlite3
-**/db.sqlite3
-
-# Python & Django
-**/__pycache__/
-**/*.py[cod]
-**/*.pickle
-venv/
-.venv/
-env/
-
-# Secrets
-**/.env
-**/client_secrets.json
-**/oauth_tokens/
-
-# OS Files
-Thumbs.db
-.DS_Store
+# -------------------------------------------------------------------------
+# REMOVED .ENV AND .SQL FROM HERE TO ALLOW GITHUB UPLOADS
+# -------------------------------------------------------------------------

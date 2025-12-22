@@ -158,6 +158,7 @@
                     <button type="submit" class="btn btn-primary">Filter</button>
                     <a href="{% url 'global_two_pot' %}" class="btn btn-secondary">Reset</a>
                     <button type="button" class="btn btn-primary" style="background-color: #2e7d32;" onclick="openClaimModal()">+ New Two-Pot</button>
+                    <button type="button" class="btn btn-primary" style="background-color: #217346;" onclick="triggerExcelExport()">📊 Export Excel</button>
                 </div>
             </form>
         </div>
@@ -432,6 +433,7 @@
         document.getElementById('modalTitle').innerText = "New Two-Pot Entry";
         document.getElementById('claim_notes_tbody').innerHTML = '<tr><td colspan="4" style="text-align:center;">New entry.</td></tr>';
         document.getElementById('claim_type_select').value = "Two Pot"; 
+        
         const emailSelect = document.getElementById('linked_email_id');
         if(emailSelect) emailSelect.value = "";
         document.getElementById('email-composition-container').style.display = 'none';
@@ -454,6 +456,7 @@
         document.querySelector('input[name="claim_amount"]').value = btn.dataset.claim_amount;
         document.querySelector('input[name="claim_created_date"]').value = btn.dataset.claim_created_date;
         document.getElementById('claim_type_select').value = "Two Pot";
+
         const emailSelect = document.getElementById('linked_email_id');
         if(emailSelect) emailSelect.value = btn.dataset.linked_email_id || "";
         document.getElementById('email-composition-container').style.display = 'none';
@@ -479,6 +482,16 @@
         document.getElementById('pv_body').innerHTML = body;
         
         document.getElementById('emailPreviewModal').style.display = 'block';
+    }
+
+    // --- EXPORT LOGIC ---
+    function triggerExcelExport() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const query = urlParams.get('q') || '';
+        const start = urlParams.get('start_date') || '';
+        const end = urlParams.get('end_date') || '';
+        let exportUrl = "{% url 'export_two_pot_excel' %}?q=" + encodeURIComponent(query) + "&start_date=" + start + "&end_date=" + end;
+        window.location.href = exportUrl;
     }
 
     function toggleEmailForm() {

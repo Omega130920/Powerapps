@@ -380,6 +380,40 @@ class CreditNote(models.Model):
         related_name='applied_credit_notes'
     )
 
+    # -------------------------------------------------------------------------
+    # --- NEW: LINKING APPROVAL WORKFLOW (Added Here) ---
+    # -------------------------------------------------------------------------
+    LINK_STATUS_CHOICES = (
+        ('Unlinked', 'Unlinked'),
+        ('Pending', 'Pending Approval'),
+        ('Approved', 'Approved'),
+        ('Rejected', 'Rejected'),
+    )
+
+    credit_link_status = models.CharField(
+        max_length=20, 
+        choices=LINK_STATUS_CHOICES, 
+        default='Unlinked',
+        db_column='credit_link_status'
+    )
+    
+    link_request_reason = models.TextField(
+        blank=True, 
+        null=True, 
+        db_column='link_request_reason'
+    )
+    
+    # Stores the Bill ID we WANT to link to, awaiting approval
+    pending_linked_bill = models.ForeignKey(
+        'UnityBill', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='pending_credits',
+        db_column='pending_linked_bill_id'
+    )
+    # -------------------------------------------------------------------------
+
     class Meta:
         db_table = 'Credit_note' 
         managed = False

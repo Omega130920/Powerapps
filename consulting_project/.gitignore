@@ -1,95 +1,44 @@
 # -------------------------------------------------------------------------
-# Python-specific files
+# Python & Django Core
 # -------------------------------------------------------------------------
 __pycache__/
-*.pyc
+*.py[cod]
+*.pickle
 *.pyo
 *.pyd
 .Python
 env/
 venv/
+.venv/
 /htmlcov/
 .tox/
 .coverage
 
-# VSCode settings directory
+# -------------------------------------------------------------------------
+# IDE & OS Files
+# -------------------------------------------------------------------------
 .vscode/
-
-# Build artifacts
-dist/
-build/
-*.egg-info/
-
-# -------------------------------------------------------------------------
-# Django-specific files
-# -------------------------------------------------------------------------
-# SQLite database (if used, though you use MySQL)
-*.sqlite3
-
-# Django media files (uploaded by users)
-/media/
-
-# Ignore automatically generated migration files if they become too noisy
-# NOTE: You usually want to track migrations, but this is an option:
-# acvv/migrations/
-
-# -------------------------------------------------------------------------
-# SECRETS AND SENSITIVE DATA (CRITICAL)
-# -------------------------------------------------------------------------
-# Ignore the .env file containing API keys and database credentials
-.env
-
-# -------------------------------------------------------------------------
-# Operating System / IDE Files
-# -------------------------------------------------------------------------
-# Windows files
 Thumbs.db
 ehthumbs.db
 Desktop.ini
-
-# Mac files
 .DS_Store
-
-# Logs
 *.log
 
-# General Python
-**/__pycache__/
-**/*.py[cod]
-**/*.pickle
+# -------------------------------------------------------------------------
+# Build & Media
+# -------------------------------------------------------------------------
+dist/
+build/
+*.egg-info/
+/media/
 
-# Secrets
-**/.env
-**/client_secrets.json
-**/oauth_tokens/
-
-# Database Backups & SQLite
-**/*.sql
-**/*.sqlite3
-
-# Environment
-venv/
-env/
-.venv/
-
-# Databases & Backups (CRITICAL)
-*.sql
+# -------------------------------------------------------------------------
+# SQLite (Only ignoring local SQLite, keeping MySQL SQL backups)
+# -------------------------------------------------------------------------
 *.sqlite3
 **/db.sqlite3
 
-# Python & Django
-**/__pycache__/
-**/*.py[cod]
-**/*.pickle
-venv/
-.venv/
-env/
-
-# Secrets
-**/.env
-**/client_secrets.json
-**/oauth_tokens/
-
-# OS Files
-Thumbs.db
-.DS_Store
+# -------------------------------------------------------------------------
+# NOTE: .env and .sql files are NO LONGER ignored.
+# Git will now track your backups and environment settings.
+# -------------------------------------------------------------------------

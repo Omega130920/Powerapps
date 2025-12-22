@@ -93,4 +93,9 @@ urlpatterns = [
     path('outlook/delete-permanent/', views.outlook_delete_permanent, name='outlook_delete_permanent'),
     path('view-email-thread/<str:email_id>/', views.view_email_thread, name='view_email_thread'),
     path('emails/archive/', views.email_list_view, name='email_list'),
+    
+    path('export_two_pot_excel/', views.export_two_pot_excel, name='export_two_pot_excel'),
+    path('export_global_claims_excel/', views.export_global_claims_excel, name='export_global_claims_excel'),
+    path('manager/credit-approvals/', views.manager_approval_dashboard, name='manager_approval_dashboard'),
+    path('manager/approve-link/<int:note_id>/', views.approve_credit_link, name='approve_credit_link'),
 ]

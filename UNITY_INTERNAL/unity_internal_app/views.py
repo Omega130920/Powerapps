@@ -1953,139 +1953,84 @@ def credit_note_list(request):
 @transaction.atomic
 def assign_fiscal_date_view(request, note_id):
     """
-    Assigns fiscal date and links a CreditNote to a UnityBill. 
-    FIX: Updates the math (BillSettlement), but DOES NOT auto-close the bill.
-    The bill remains OPEN until the user manually clicks 'Proceed to Recon'.
+    REQUEST FLOW (User Side):
+    1. Updates Member Group Code (if imported wrong).
+    2. Finds the target Open Bill.
+    3. Links to 'pending_linked_bill' and sets status to 'Pending'.
+    4. Does NOT link to the live 'assigned_unity_bill' (Manager must approve this).
     """
     from django.contrib import messages
-    from django.shortcuts import redirect, get_object_or_404
+    from django.shortcuts import redirect, get_object_or_404, render
     from django.urls import reverse
     from django.utils import timezone
     from decimal import Decimal
-    from django.db.models import Sum
-    from datetime import datetime
-    from .models import CreditNote, UnityBill, BillSettlement, ScheduleSurplus
+    
+    # Imports
+    from .models import CreditNote, UnityBill
     from .forms import FiscalDateAssignmentForm
 
     context_type = request.GET.get('context', 'info')
-    
     note_record = get_object_or_404(CreditNote, id=note_id)
-    company_code = note_record.member_group_code
     
-    redirect_bill_id = request.GET.get('bill_id')
-    
-    # --- Cleanup: Delete old BillSettlement for this note ---
-    BillSettlement.objects.filter(source_credit_note_id=note_id).delete()
-    
+    # Store current code to handle redirects if code changes
+    current_company_code = note_record.member_group_code 
+
     if request.method == 'POST':
-        form = FiscalDateAssignmentForm(request.POST,
-                                         instance=note_record,
-                                         company_code=company_code,
-                                         context_type=context_type)
+        form = FiscalDateAssignmentForm(request.POST, instance=note_record)
         
-        if form.is_valid():
+        # --- 1. BYPASS VALIDATION FOR REMOVED FIELDS ---
+        # The form might expect fiscal_date/target_bill, but we removed them from HTML.
+        if 'fiscal_date' in form.fields: form.fields['fiscal_date'].required = False
+        if 'target_bill_id' in form.fields: form.fields['target_bill_id'].required = False
+        # -----------------------------------------------
+
+        new_group_code = request.POST.get('member_group_code')
+        link_reason = request.POST.get('link_reason') # Required for approval
+
+        if form.is_valid() and new_group_code:
             note = form.save(commit=False)
-            user_selected_bill = form.cleaned_data.get('target_bill_id')
-            new_fiscal_date = form.cleaned_data.get('fiscal_date')
-            bill_to_process = user_selected_bill
             
-            # --- 1. Auto-Allocation Logic ---
-            if new_fiscal_date and bill_to_process is None:
-                try:
-                    # UPDATED SEARCH: Match Year/Month & is_reconciled=False
-                    open_bill = UnityBill.objects.filter(
-                        C_Company_Code=company_code,
-                        A_CCDatesMonth__year=new_fiscal_date.year,
-                        A_CCDatesMonth__month=new_fiscal_date.month,
-                        is_reconciled=False
-                    ).first()
-                    
-                    if open_bill:
-                        bill_to_process = open_bill
-                        messages.success(request, f"Credit auto-assigned to Bill ID {open_bill.id}.")
-                    else:
-                        messages.warning(request, f"Fiscal Date set, but no OPEN Bill found matching that month.")
-                except Exception as e:
-                    messages.error(request, f"Auto-allocation failed: {e}")
-
-            # --- 2. Set Assignment ---
-            if bill_to_process:
-                # 2A. Assignment & Save
-                note.assigned_unity_bill = bill_to_process
-                redirect_bill_id = bill_to_process.id
+            # Update the Group Code immediately (in case it was imported wrong)
+            note.member_group_code = new_group_code
+            
+            # --- 2. FIND THE OPEN BILL ---
+            # We search for the oldest OPEN bill for this group
+            open_bill = UnityBill.objects.filter(
+                C_Company_Code=new_group_code,
+                is_reconciled=False
+            ).order_by('A_CCDatesMonth').first()
+            
+            if open_bill:
+                # --- 3. SET PENDING LINK (DO NOT FINALIZE) ---
+                note.pending_linked_bill = open_bill       # Staging area
+                note.link_request_reason = link_reason     # Manager needs this
+                note.credit_link_status = 'Pending'        # Status flag
+                
+                # CRITICAL: We leave 'assigned_unity_bill' as None. 
+                # It will only display on the bill once a Manager approves it.
+                
                 note.save()
                 
-                # 2B. Create BillSettlement entry (Updates the Math ONLY)
-                aware_dt = timezone.now()
-                BillSettlement.objects.create(
-                    reconned_bank_line=None,
-                    unity_bill_source=bill_to_process,
-                    settled_amount=note.schedule_amount,
-                    settlement_date=aware_dt,
-                    source_credit_note_id=note.id,
-                    source_journal_entry_id=None
-                )
-
-                # 2C. Surplus Check
-                # (WE REMOVED THE AUTO-CLOSE LOGIC HERE)
-                
-                total_settled = BillSettlement.objects.filter(
-                    unity_bill_source_id=bill_to_process.pk
-                ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
-                
-                remaining_schedule = bill_to_process.H_Schedule_Amount - total_settled
-                
-                if total_settled >= bill_to_process.H_Schedule_Amount:
-                    # Just notify the user, DO NOT CLOSE
-                    messages.success(request, f"Credit Assigned. Bill #{bill_to_process.id} is now balanced (R0.00). It is ready for Final Recon.")
-                else:
-                    messages.success(request, f"Credit applied. Remaining Debt: R{remaining_schedule:.2f}")
-
-                # Handle Surplus if overpaid
-                if remaining_schedule < ZERO_DECIMAL:
-                    surplus_amount = abs(remaining_schedule)
-                    ScheduleSurplus.objects.create(
-                        unity_bill_source_id=bill_to_process.pk,
-                        surplus_amount=surplus_amount,
-                        creation_date=timezone.now().date(),
-                        generating_credit_note_id=note.pk,
-                        status='UNAPPLIED'
-                    )
-                    messages.warning(request, f"Credit Note created a Surplus of R{surplus_amount:.2f}.")
-                
+                messages.success(request, f"Request Sent! Linked to Bill #{open_bill.id} pending Manager Approval.")
             else:
-                # Unassign logic
-                if note.assigned_unity_bill_id:
-                    ScheduleSurplus.objects.filter(generating_credit_note_id=note.pk).delete()
-                note.assigned_unity_bill = None
+                # No bill found, save the code update anyway so they can correct it
                 note.save()
-            
-            # Final message and Redirect
+                messages.warning(request, f"Group Code updated to '{new_group_code}', but NO open bill found to link.")
+
+            # Redirect to the dashboard for the NEW code (in case it changed)
             timestamp = timezone.now().timestamp()
-            
-            if context_type == 'summary' and redirect_bill_id:
-                return redirect(f"{reverse('pre_bill_reconciliation_summary', kwargs={'company_code': company_code, 'bill_id': redirect_bill_id})}?cache={timestamp}")
-            else:
-                return redirect(f"{reverse('unity_billing_history', kwargs={'company_code': company_code})}?cache={timestamp}#credit")
+            return redirect(f"{reverse('unity_billing_history', kwargs={'company_code': new_group_code})}?cache={timestamp}#credit")
+
         else:
-            messages.error(request, "Error saving assignment. Please check all fields.")
-            
+            messages.error(request, f"Error saving request: {form.errors}")
     else:
-        # GET request
-        initial_data = {}
-        if note_record.assigned_unity_bill:
-            initial_data['target_bill_id'] = note_record.assigned_unity_bill
-        
-        form = FiscalDateAssignmentForm(instance=note_record,
-                                         company_code=company_code,
-                                         initial=initial_data,
-                                         context_type=context_type)
+        form = FiscalDateAssignmentForm(instance=note_record)
 
     context = {
-        'page_title': f'Assign Fiscal Date & Bill: Record {note_id}',
+        'page_title': f'Request Link Approval: Record {note_id}',
         'note': note_record,
         'form': form,
-        'company_code': company_code,
+        'company_code': current_company_code,
         'context_type': context_type,
     }
     return render(request, 'unity_internal_app/assign_fiscal_date.html', context)
@@ -3904,3 +3849,258 @@ def email_list_view(request):
         'page_obj': page_obj,
         'current_filter': filter_type
     })
+    
+@login_required
+def export_two_pot_excel(request):
+    """
+    Exports Two-Pot claims to Excel.
+    CORRECTION: Removed Pot/Certificate columns. Only specific Two-Pot layout.
+    """
+    query = request.GET.get('q')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+
+    claims_queryset = UnityClaim.objects.filter(claim_type='Two Pot').order_by('-claim_created_date')
+
+    if query:
+        claims_queryset = claims_queryset.filter(
+            Q(id_number__icontains=query) | 
+            Q(member_surname__icontains=query) | 
+            Q(company_code__icontains=query) |
+            Q(mip_number__icontains=query)
+        )
+
+    if start_date and end_date:
+        try:
+            claims_queryset = claims_queryset.filter(claim_created_date__range=[start_date, end_date])
+        except ValueError:
+            pass
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Two Pot Extract"
+
+    headers = [
+        "DATE EXTRACT INFO / FORM FROM WEB - Savings Form Request",
+        "Initials",
+        "Surname",
+        "Member number",
+        "ID NUMBER",
+        "Fund",
+        "Branch",
+        "Query",
+        "Claim",
+        "Qualified",
+        "Date submitted/ online",
+        "Succesfull Loaded confirmation",
+        "Amount Apply for",
+        "Admin Fee R33 + 15% Vat",
+        "Note"
+    ]
+    ws.append(headers)
+
+    for claim in claims_queryset:
+        initials = claim.member_name[:1] if claim.member_name else ""
+        
+        # Qualified Logic
+        status_text = str(claim.claim_status).strip()
+        if "Withdraw" in status_text: 
+            qualified_logic = "No"
+        else:
+            qualified_logic = "Yes"
+        
+        latest_note_obj = claim.notes.last()
+        note_content = latest_note_obj.note_description if latest_note_obj else ""
+
+        row = [
+            claim.claim_created_date,               # DATE EXTRACT
+            initials,                               # Initials
+            claim.member_surname,                   # Surname
+            claim.mip_number,                       # Member number
+            claim.id_number,                        # ID NUMBER
+            None,                                   # Fund
+            None,                                   # Branch
+            claim.claim_type,                       # Query
+            claim.exit_reason,                      # Claim
+            qualified_logic,                        # Qualified
+            claim.date_submitted,                   # Date submitted
+            qualified_logic,                        # Succesfull Loaded
+            claim.claim_amount,                     # Amount Apply for
+            37.95,                                  # Admin Fee
+            note_content                            # Note
+        ]
+        ws.append(row)
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename="Two_Pot_Export.xlsx"'
+    wb.save(response)
+    return response
+
+@login_required
+def export_global_claims_excel(request):
+    """
+    Exports Global Claims to Excel.
+    UPDATED: Now includes Vested/Savings Pot and Infund Certificate columns.
+    """
+    query = request.GET.get('q')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    claim_type_filter = request.GET.get('claim_type')
+
+    claims_queryset = UnityClaim.objects.all().order_by('-claim_created_date')
+
+    if query:
+        claims_queryset = claims_queryset.filter(
+            Q(id_number__icontains=query) | 
+            Q(member_surname__icontains=query) | 
+            Q(company_code__icontains=query) |
+            Q(mip_number__icontains=query)
+        )
+
+    if start_date and end_date:
+        try:
+            claims_queryset = claims_queryset.filter(claim_created_date__range=[start_date, end_date])
+        except ValueError:
+            pass
+
+    if claim_type_filter and claim_type_filter != "All":
+        claims_queryset = claims_queryset.filter(claim_type=claim_type_filter)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Global Claims Extract"
+
+    headers = [
+        "Company Code",
+        "Agent",
+        "ID Number",
+        "Member Name",
+        "Member Surname",
+        "MIP Number",
+        "Claim Type",
+        "Exit Reason",
+        "Claim Allocation",
+        "Claim Status",
+        "Payment Option",
+        "Claim Created Date",
+        "Last Contribution Date",
+        "Date Submitted",
+        "Date Paid",
+        # --- NEW COLUMNS ---
+        "Vested Pot available",
+        "Vested Pot Paid",
+        "Savings Pot available",
+        "Savings Pot Paid",
+        "Infund Preservation"
+    ]
+    ws.append(headers)
+
+    for claim in claims_queryset:
+        # Boolean Logic: Yes if True, Blank if False
+        vested_avail = "Yes" if claim.vested_pot_available else ""
+        savings_avail = "Yes" if claim.savings_pot_available else ""
+
+        row = [
+            claim.company_code,
+            claim.agent,
+            claim.id_number,
+            claim.member_name,
+            claim.member_surname,
+            claim.mip_number,
+            claim.claim_type,
+            claim.exit_reason,
+            claim.claim_allocation,
+            claim.claim_status,
+            claim.payment_option,
+            claim.claim_created_date,
+            claim.last_contribution_date,
+            claim.date_submitted,
+            claim.date_paid,
+            # --- NEW DATA ---
+            vested_avail,                                   # Vested Pot available
+            claim.vested_pot_paid_date,                     # Vested Pot Paid
+            savings_avail,                                  # Savings Pot available
+            claim.savings_pot_paid_date,                    # Savings Pot Paid
+            claim.infund_preservation_cert_received_date    # Infund Preservation
+        ]
+        ws.append(row)
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename="Global_Claims_Export.xlsx"'
+    wb.save(response)
+    return response
+
+@login_required
+def manager_approval_dashboard(request):
+    """
+    Lists all Credit Notes waiting for Linking Approval.
+    """
+    # Filter for Pending status
+    pending_credits = CreditNote.objects.filter(credit_link_status='Pending').order_by('-processed_date')
+    
+    context = {
+        'pending_credits': pending_credits
+    }
+    return render(request, 'unity_internal_app/manager_approval_dashboard.html', context)
+
+@login_required
+@transaction.atomic
+def approve_credit_link(request, note_id):
+    """
+    Manager clicks 'Approve'.
+    1. Moves pending_linked_bill -> assigned_unity_bill.
+    2. Creates BillSettlement.
+    3. Calculates Surplus/Balance.
+    4. Updates Status to 'Approved'.
+    """
+    note = get_object_or_404(CreditNote, id=note_id)
+    
+    # Security Check
+    if note.credit_link_status != 'Pending':
+        messages.error(request, "This credit is not pending approval.")
+        return redirect('manager_approval_dashboard')
+
+    target_bill = note.pending_linked_bill
+    
+    if not target_bill:
+        messages.error(request, "Error: No pending bill found linked to this note.")
+        return redirect('manager_approval_dashboard')
+
+    # --- 1. COMMIT THE LINK ---
+    note.assigned_unity_bill = target_bill
+    note.credit_link_status = 'Approved'
+    note.authorized_by = request.user.username # Track who approved it
+    note.authorized_at = timezone.now()
+    note.save()
+
+    # --- 2. CREATE FINANCIAL SETTLEMENT ---
+    BillSettlement.objects.create(
+        unity_bill_source=target_bill,
+        settled_amount=note.schedule_amount,
+        settlement_date=timezone.now(),
+        source_credit_note=note
+    )
+
+    # --- 3. CALCULATE BALANCE & SURPLUS ---
+    ZERO_DECIMAL = Decimal('0.00')
+    total_settled = BillSettlement.objects.filter(
+        unity_bill_source=target_bill
+    ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
+    
+    remaining_schedule = target_bill.H_Schedule_Amount - total_settled
+    
+    # Handle Surplus
+    if remaining_schedule < ZERO_DECIMAL:
+        surplus_amount = abs(remaining_schedule)
+        ScheduleSurplus.objects.create(
+            unity_bill_source=target_bill,
+            surplus_amount=surplus_amount,
+            creation_date=timezone.now().date(),
+            generating_credit_note=note,
+            status='UNAPPLIED'
+        )
+        messages.warning(request, f"Approved! Bill is paid, but Surplus of R{surplus_amount} created.")
+    else:
+        messages.success(request, f"Approved! Credit linked to Bill #{target_bill.id}. Remaining Debt: R{remaining_schedule}")
+
+    return redirect('manager_approval_dashboard')
