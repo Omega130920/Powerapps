@@ -98,4 +98,5 @@ urlpatterns = [
     path('export_global_claims_excel/', views.export_global_claims_excel, name='export_global_claims_excel'),
     path('manager/credit-approvals/', views.manager_approval_dashboard, name='manager_approval_dashboard'),
     path('manager/approve-link/<int:note_id>/', views.approve_credit_link, name='approve_credit_link'),
+    path('manager/reject-link/<int:note_id>/', views.reject_credit_link, name='reject_credit_link'),
 ]

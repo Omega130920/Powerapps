@@ -101,10 +101,44 @@ def login_view(request):
 
 @login_required
 def dashboard(request):
-    """Displays the user dashboard."""
+    """Displays the user dashboard with notification badges."""
+    from .models import CreditNote, EmailDelegation
+    
     username = request.user.username
+    
+    # Initialize counts
+    pending_approval_count = 0
+    new_emails_count = 0
+    recycled_count = 0
+    
+    # 1. Manager Logic (Omega only)
+    if username.lower() == 'omega':
+        # Financial Approvals
+        pending_approval_count = CreditNote.objects.filter(credit_link_status='Pending').count()
+        
+        # Inbox emails not yet assigned (Work Related only)
+        new_emails_count = EmailDelegation.objects.filter(
+            status='NEW', 
+            assigned_user__isnull=True, 
+            work_related=True
+        ).count()
+        
+        # Recycle Bin (Anything marked as non-work related)
+        recycled_count = EmailDelegation.objects.filter(work_related=False).count()
+    
+    # 2. User Logic: My Assigned Tasks
+    my_pending_delegations_count = EmailDelegation.objects.filter(
+        assigned_user=request.user,
+        status__in=['NEW', 'PENDING', 'DEL'],
+        work_related=True
+    ).count()
+    
     context = {
         'username': username,
+        'pending_approval_count': pending_approval_count,
+        'new_emails_count': new_emails_count,
+        'recycled_count': recycled_count,
+        'my_pending_delegations_count': my_pending_delegations_count,
     }
     return render(request, 'dashboard.html', context)
 
@@ -1211,6 +1245,7 @@ from decimal import Decimal
 def pre_bill_reconciliation_summary(request, company_code, bill_id):
     # Define a small tolerance for Decimal comparisons
     SAFETY_TOLERANCE = Decimal('0.0001') 
+    ZERO_DECIMAL = Decimal('0.00')
     
     bill_record = get_object_or_404(UnityBill, id=bill_id, C_Company_Code=company_code)
     
@@ -1230,8 +1265,7 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
         unity_bill_source_id=bill_record.pk
     ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
     
-    # 2. SEPARATE CASH ALREADY APPLIED (CORRECTED FIELD NAME)
-    # Using 'reconned_bank_line_id' from your model choices to find committed cash
+    # 2. SEPARATE CASH ALREADY APPLIED
     total_cash_applied = BillSettlement.objects.filter(
         unity_bill_source_id=bill_record.pk,
         reconned_bank_line_id__isnull=False 
@@ -1251,14 +1285,13 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
     # --- MATH UPDATES ---
     scheduled_amount = bill_record.H_Schedule_Amount or ZERO_DECIMAL
     
-    # Remaining Schedule: Original Bill minus ALL settled types (Credit + Surplus + Cash already saved)
-    # This ensures R333 becomes R33 after R300 is applied.
+    # Remaining Schedule logic
     remaining_scheduled_amount = scheduled_amount - total_credit_notes_assigned - total_surplus_applied_to_bill - total_cash_applied
     
-    # Outstanding card: Shows the R33.00 still needed to satisfy the bill
+    # Outstanding card
     current_outstanding = max(ZERO_DECIMAL, remaining_scheduled_amount)
 
-    # Surplus Logic: Available Debt minus what we actually NEED to apply
+    # Surplus Logic
     over_scheduled_amount = max(ZERO_DECIMAL, total_debt - current_outstanding)
 
     # --- FIND AVAILABLE SURPLUS FOR THIS COMPANY ---
@@ -1285,6 +1318,17 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
 
     # --- FETCH APPLIED JOURNALS FOR DISPLAY ---
     applied_journals = JournalEntry.objects.filter(target_bill=bill_record).select_related('surplus_source')
+
+    # --- NEW: FETCH ASSIGNED CREDIT NOTES FOR DISPLAY ---
+    # We query the Settlements table to find any credit notes that have been 
+    # used (even partially) for this bill.
+    assigned_note_ids = BillSettlement.objects.filter(
+        unity_bill_source_id=bill_record.pk,
+        source_credit_note_id__isnull=False
+    ).values_list('source_credit_note_id', flat=True)
+    
+    # Get the actual CreditNote objects based on those IDs
+    credit_notes_queryset = CreditNote.objects.filter(id__in=assigned_note_ids)
     
     # --- UPDATED ACTION MESSAGE LOGIC ---
     is_bill_fully_covered = total_applied >= (scheduled_amount - SAFETY_TOLERANCE)
@@ -1315,12 +1359,15 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
         'scheduled_amount': scheduled_amount,
         'total_credit_notes_assigned': total_credit_notes_assigned,
         'total_available_surplus': total_available_surplus_value,
-        'total_cash_applied': total_cash_applied,  # CRITICAL: Added for dynamic calculation in JS
+        'total_cash_applied': total_cash_applied,
         'remaining_schedule_amount': remaining_scheduled_amount,
         'current_outstanding': current_outstanding, 
         'over_scheduled_amount': over_scheduled_amount,
         'all_lines': available_debt_lines.all().order_by('transaction_date'),
-        'credit_notes': CreditNote.objects.filter(assigned_unity_bill=bill_record),
+        
+        # USE THE NEW QUERYSET HERE:
+        'credit_notes': credit_notes_queryset,
+        
         'available_surpluses': available_surpluses,
         'applied_journals': applied_journals,
         'total_journal_assigned': total_surplus_applied_to_bill,
@@ -1938,12 +1985,17 @@ def import_credit(request):
 @login_required
 def credit_note_list(request):
     """
-    Displays a list of all imported CreditNote records awaiting assignment.
+    Displays all imported CreditNote records.
+    Records disappear from this global list as soon as a 
+    user initiates a request (Status moves away from Unlinked).
     """
-    credit_notes = CreditNote.objects.all().order_by('-processed_date')
+    # Show only the 'Inbox' of items that have NO pending or approved allocations
+    credit_notes = CreditNote.objects.filter(
+        credit_link_status='Unlinked'
+    ).order_by('-processed_date')
     
     context = {
-        'page_title': 'Credit Note Records Awaiting Fiscal Date',
+        'page_title': 'Available Credit Imports',
         'credit_notes': credit_notes,
     }
     
@@ -1952,87 +2004,56 @@ def credit_note_list(request):
 @login_required
 @transaction.atomic
 def assign_fiscal_date_view(request, note_id):
-    """
-    REQUEST FLOW (User Side):
-    1. Updates Member Group Code (if imported wrong).
-    2. Finds the target Open Bill.
-    3. Links to 'pending_linked_bill' and sets status to 'Pending'.
-    4. Does NOT link to the live 'assigned_unity_bill' (Manager must approve this).
-    """
     from django.contrib import messages
     from django.shortcuts import redirect, get_object_or_404, render
     from django.urls import reverse
     from django.utils import timezone
     from decimal import Decimal
-    
-    # Imports
     from .models import CreditNote, UnityBill
     from .forms import FiscalDateAssignmentForm
 
     context_type = request.GET.get('context', 'info')
     note_record = get_object_or_404(CreditNote, id=note_id)
-    
-    # Store current code to handle redirects if code changes
     current_company_code = note_record.member_group_code 
 
     if request.method == 'POST':
         form = FiscalDateAssignmentForm(request.POST, instance=note_record)
-        
-        # --- 1. BYPASS VALIDATION FOR REMOVED FIELDS ---
-        # The form might expect fiscal_date/target_bill, but we removed them from HTML.
         if 'fiscal_date' in form.fields: form.fields['fiscal_date'].required = False
         if 'target_bill_id' in form.fields: form.fields['target_bill_id'].required = False
-        # -----------------------------------------------
 
         new_group_code = request.POST.get('member_group_code')
-        link_reason = request.POST.get('link_reason') # Required for approval
+        link_reason = request.POST.get('link_reason')
+        requested_amt = request.POST.get('requested_link_amount') # Capture specific amount
 
         if form.is_valid() and new_group_code:
             note = form.save(commit=False)
-            
-            # Update the Group Code immediately (in case it was imported wrong)
             note.member_group_code = new_group_code
             
-            # --- 2. FIND THE OPEN BILL ---
-            # We search for the oldest OPEN bill for this group
+            # Store the specific amount requested for the manager to see
+            if requested_amt:
+                note.requested_amount = Decimal(requested_amt)
+            
             open_bill = UnityBill.objects.filter(
                 C_Company_Code=new_group_code,
                 is_reconciled=False
             ).order_by('A_CCDatesMonth').first()
             
             if open_bill:
-                # --- 3. SET PENDING LINK (DO NOT FINALIZE) ---
-                note.pending_linked_bill = open_bill       # Staging area
-                note.link_request_reason = link_reason     # Manager needs this
-                note.credit_link_status = 'Pending'        # Status flag
-                
-                # CRITICAL: We leave 'assigned_unity_bill' as None. 
-                # It will only display on the bill once a Manager approves it.
-                
+                note.pending_linked_bill = open_bill
+                note.link_request_reason = link_reason
+                note.credit_link_status = 'Pending'
                 note.save()
-                
-                messages.success(request, f"Request Sent! Linked to Bill #{open_bill.id} pending Manager Approval.")
+                messages.success(request, f"Requested R{note.requested_amount} allocation for Bill #{open_bill.id}.")
             else:
-                # No bill found, save the code update anyway so they can correct it
                 note.save()
-                messages.warning(request, f"Group Code updated to '{new_group_code}', but NO open bill found to link.")
+                messages.warning(request, f"Code updated, but NO open bill found.")
 
-            # Redirect to the dashboard for the NEW code (in case it changed)
             timestamp = timezone.now().timestamp()
             return redirect(f"{reverse('unity_billing_history', kwargs={'company_code': new_group_code})}?cache={timestamp}#credit")
-
-        else:
-            messages.error(request, f"Error saving request: {form.errors}")
     else:
         form = FiscalDateAssignmentForm(instance=note_record)
 
-    context = {
-        'page_title': f'Request Link Approval: Record {note_id}',
-        'note': note_record,
-        'form': form,
-        'company_code': current_company_code,
-        'context_type': context_type,
-    }
+    context = {'page_title': 'Request Link Approval', 'note': note_record, 'form': form, 'company_code': current_company_code}
     return render(request, 'unity_internal_app/assign_fiscal_date.html', context)
 
 @login_required
@@ -2454,15 +2475,20 @@ TOLERANCE = Decimal('0.00001')
 @login_required
 def global_history_overview(request):
     """
-    Renders a template showing a high-level overview of ALL Bill History.
-    UPDATED: Determines 'RECON' status based on the is_reconciled flag, 
-    not just the math.
+    Renders a high-level overview of ALL Reconciled Bill History.
+    UPDATED: 
+    1. Only shows reconciled bills (is_reconciled=True).
+    2. Excludes empty/placeholder bills (0 members or 0 amount).
     """
+    from decimal import Decimal
+    from collections import defaultdict
+    
     start_date_str = request.GET.get('start_date')
     end_date_str = request.GET.get('end_date')
     
     filter_start_date = None
     filter_end_date = None
+    ZERO_DECIMAL = Decimal('0.00')
     
     try:
         if start_date_str:
@@ -2473,13 +2499,22 @@ def global_history_overview(request):
         messages.error(request, "Invalid date format provided for filtering.")
         
     T1_TABLE = 'bill_settlement'
-    
     filtered_bill_ids = set()
 
-    # --- 1. Determine Bill IDs to Display (Filtering Bills by Settlement Date) ---
+    # --- 1. Base Query with Strict Filters ---
+    # We apply the filters here first to ensure we only look for settled IDs 
+    # belonging to "Valid" reconciled bills.
+    base_bills = UnityBill.objects.filter(
+        is_reconciled=True
+    ).exclude(
+        E_Active_Members=0
+    ).exclude(
+        H_Schedule_Amount=0
+    )
+
+    # --- 2. Determine Bill IDs to Display (Filtering by Date) ---
     if filter_start_date or filter_end_date:
-        
-        # 1A. Filter by Cash Settlement Date (bill_settlement table)
+        # 1A. Filter by Cash Settlement Date
         where_conditions_cash = []
         sql_args_cash = []
         if filter_start_date:
@@ -2498,9 +2533,9 @@ def global_history_overview(request):
                 cash_ids = [row[0] for row in cursor.fetchall()]
                 filtered_bill_ids.update(cash_ids)
         except Exception as e:
-            messages.error(request, f"Database Error during cash settlement filter: {e}")
+            messages.error(request, f"Database Error during cash filter: {e}")
             
-        # 1B. Filter by Journal Entry/Surplus Allocation Date (JournalEntry model)
+        # 1B. Filter by Journal Entry Date
         journal_queryset = JournalEntry.objects.all()
         if filter_start_date:
             journal_queryset = journal_queryset.filter(allocation_date__gte=filter_start_date)
@@ -2509,67 +2544,41 @@ def global_history_overview(request):
         journal_ids = journal_queryset.values_list('target_bill_id', flat=True).distinct()
         filtered_bill_ids.update(journal_ids)
         
-        final_ids = list(filtered_bill_ids)
-
-        if not final_ids:
-            all_bills_queryset = UnityBill.objects.none()
-        else:
-            # Only include bills that match the ID list
-            all_bills_queryset = UnityBill.objects.filter(id__in=final_ids)
-            
+        # Apply the found IDs to our base strictly-filtered queryset
+        all_bills_queryset = base_bills.filter(id__in=list(filtered_bill_ids))
     else:
-        # No date filter: Show all bills
-        all_bills_queryset = UnityBill.objects.all()
+        # No date filter: Show all strictly-filtered reconciled bills
+        all_bills_queryset = base_bills
 
-    # Prefetch related data for efficiency
+    # Prefetch data
     all_bills = list(all_bills_queryset.order_by('-A_CCDatesMonth', 'C_Company_Code'))
-    filtered_bill_ids = [bill.id for bill in all_bills]
+    final_bill_ids = [bill.id for bill in all_bills]
     
-    # --- 2. Fetch Granular Settlements (Cash & Journal Entries) ---
-    if not filtered_bill_ids:
-        final_records = []
-    else:
-        id_placeholders = ', '.join(['%s'] * len(filtered_bill_ids))
-        
+    # --- 3. Fetch Granular Settlements ---
+    final_records = []
+    if final_bill_ids:
+        id_placeholders = ', '.join(['%s'] * len(final_bill_ids))
         T2_TABLE = 'reconned_bank'
         T3_TABLE = 'importbank'
 
-        # 2A. Fetch Cash Deposits (from BillSettlement)
+        # 3A. Cash Deposits
         sql_query_cash = f"""
-        SELECT
-            T1.unity_bill_source_id, T3.DATE, T1.settled_amount
-        FROM
-            {T1_TABLE} T1
-        LEFT JOIN
-            {T2_TABLE} T2 ON T1.reconned_bank_line_id = T2.bank_line_id
-        LEFT JOIN
-            {T3_TABLE} T3 ON T2.bank_line_id = T3.id
-        WHERE
-            T1.unity_bill_source_id IN ({id_placeholders})
-        ORDER BY
-            T1.unity_bill_source_id, T3.DATE
+        SELECT T1.unity_bill_source_id, T3.DATE, T1.settled_amount
+        FROM {T1_TABLE} T1
+        LEFT JOIN {T2_TABLE} T2 ON T1.reconned_bank_line_id = T2.bank_line_id
+        LEFT JOIN {T3_TABLE} T3 ON T2.bank_line_id = T3.id
+        WHERE T1.unity_bill_source_id IN ({id_placeholders})
         """
         deposits_by_bill = defaultdict(list)
         
-        try:
-            with connection.cursor() as cursor:
-                cursor.execute(sql_query_cash, filtered_bill_ids)
-                raw_results = cursor.fetchall()
-        except Exception as e:
-            messages.error(request, f"Database Error during cash deposit fetch: {e}")
-            raw_results = []
-    
-        for row in raw_results:
-            bill_id = row[0]
-            deposit_date = row[1]
-            deposit_amount = row[2]
-            # Only include non-Journal rows (where we found a date from importbank)
-            if deposit_date:
-                deposits_by_bill[bill_id].append({'date': deposit_date, 'amount': deposit_amount, 'type': 'Cash'})
+        with connection.cursor() as cursor:
+            cursor.execute(sql_query_cash, final_bill_ids)
+            for row in cursor.fetchall():
+                if row[1]: # Only if deposit_date exists
+                    deposits_by_bill[row[0]].append({'date': row[1], 'amount': row[2], 'type': 'Cash'})
             
-        # 2B. Fetch Journal Entries (Surplus Allocations)
-        journal_queryset = JournalEntry.objects.filter(target_bill__in=filtered_bill_ids).select_related('surplus_source')
-        
+        # 3B. Journal Entries
+        journal_queryset = JournalEntry.objects.filter(target_bill__in=final_bill_ids)
         for je in journal_queryset:
             deposits_by_bill[je.target_bill_id].append({
                 'date': je.allocation_date,
@@ -2577,53 +2586,33 @@ def global_history_overview(request):
                 'type': 'Journal',
             })
             
-        # 2C. Fetch Credits for Total Calculation
-        # (Note: We still need this to show the total settled amount, even if status is flag-based)
+        # 3C. Credits
         credit_notes_agg = BillSettlement.objects.filter(
-            unity_bill_source_id__in=filtered_bill_ids,
+            unity_bill_source_id__in=final_bill_ids,
             source_credit_note_id__isnull=False
-        ).values('unity_bill_source_id').annotate(
-            total_credit=Sum('settled_amount')
-        )
+        ).values('unity_bill_source_id').annotate(total_credit=Sum('settled_amount'))
         credits_map = {item['unity_bill_source_id']: item['total_credit'] for item in credit_notes_agg}
     
-        # --- 3. Consolidate Data and CHECK FLAG ---
-        
-        final_records = []
-        
+        # --- 4. Final Consolidation ---
         for bill in all_bills:
             deposits = deposits_by_bill.get(bill.id, [])
-            
-            # 3A. AGGREGATE TOTALS (For display purposes)
             cash_journal_settled = sum((d['amount'] for d in deposits), start=ZERO_DECIMAL)
             credit_settled = credits_map.get(bill.id, ZERO_DECIMAL)
-            total_covered = cash_journal_settled + credit_settled
             
-            # 3B. STATUS CHECK (UPDATED TO USE LATCH FLAG)
-            if bill.is_reconciled:
-                status_name = 'RECON COMPLETE'
-                status_class = 'badge-success'
-            else:
-                status_name = 'OPEN'
-                status_class = 'badge-danger'
-            
-            # If you want to show EVERYTHING (Open and Closed) so you can see history:
             final_records.append({
                 'bill': bill,
                 'deposits': deposits,
-                'status_name': status_name,
-                'status_class': status_class,
-                'is_settled': bill.is_reconciled,
-                'total_settled': total_covered,
+                'status_name': 'RECON COMPLETE',
+                'status_class': 'badge-success',
+                'is_settled': True,
+                'total_settled': cash_journal_settled + credit_settled,
             })
 
-    # --- 4. Render HTML Template ---
     context = {
         'bill_records': final_records,
         'filter_start_date': filter_start_date.strftime('%Y-%m-%d') if filter_start_date else '',
         'filter_end_date': filter_end_date.strftime('%Y-%m-%d') if filter_end_date else '',
     }
-    
     return render(request, 'unity_internal_app/global_history_overview.html', context)
 
 @login_required
@@ -2676,30 +2665,35 @@ def unallocate_surplus(request, bill_id):
 @login_required
 def confirmations_view(request):
     """
-    Displays bills ready for daily confirmation review, linking main bill data 
-    with their associated bank lines AND credit notes for auditing.
+    Displays bills ready for daily confirmation review.
     
-    Sorting: By Final Date (J_Final_Date) Ascending, then Company Code, to match
-    the specific grouped display required.
-    
-    Filtering: Applies to Final Date (J_Final_Date).
-    UPDATED: Only shows reconciled bills (is_reconciled=True).
+    UPDATED: 
+    1. Only shows reconciled bills (is_reconciled=True).
+    2. Filters out empty/placeholder bills (0 members or 0 amount).
     """
+    from decimal import Decimal
     
-    # 1. Date Filtering (No longer defaults to last 30 days)
+    # 1. Date Filtering
     filter_start_date_str = request.GET.get('start_date')
     filter_end_date_str = request.GET.get('end_date')
 
     # Base Query: Order by 'Final Date' (Ascending), then 'Company Code'
     bills_queryset = UnityBill.objects.all().order_by('J_Final_Date', 'C_Company_Code')
     
-    # NEW FILTER: Only include bills that are fully reconciled/closed
-    bills_queryset = bills_queryset.filter(is_reconciled=True)
+    # --- NEW FILTERS ---
+    # Only include bills that are fully reconciled/closed
+    # AND exclude bills with 0 members or 0 schedule amount to hide "N/A" or empty data
+    bills_queryset = bills_queryset.filter(
+        is_reconciled=True
+    ).exclude(
+        E_Active_Members=0
+    ).exclude(
+        H_Schedule_Amount=0
+    )
 
     if filter_start_date_str:
         try:
             start_dt = datetime.strptime(filter_start_date_str, '%Y-%m-%d').date()
-            # Filter based on J_Final_Date
             bills_queryset = bills_queryset.filter(J_Final_Date__gte=start_dt)
         except ValueError:
             pass
@@ -2707,11 +2701,11 @@ def confirmations_view(request):
     if filter_end_date_str:
         try:
             end_dt = datetime.strptime(filter_end_date_str, '%Y-%m-%d').date()
-            # Filter based on J_Final_Date
             bills_queryset = bills_queryset.filter(J_Final_Date__lte=end_dt)
         except ValueError:
             pass
             
+    # Limit to top 50 for performance
     review_bills = bills_queryset[:50]
 
     # 2. Data Consolidation
@@ -2732,7 +2726,6 @@ def confirmations_view(request):
                 source['type'] = 'Bank Line'
             elif settlement.source_credit_note_id:
                 try:
-                    # Assumes CreditNote is imported
                     credit_note = CreditNote.objects.get(id=settlement.source_credit_note_id)
                     source['date'] = credit_note.bank_stmt_date or settlement.settlement_date.date()
                     source['type'] = 'Credit Note'
@@ -2747,7 +2740,6 @@ def confirmations_view(request):
             
         source_details.sort(key=lambda x: x['date'] if x['date'] else datetime.date(1900, 1, 1))
 
-        # Use 0 if 'zero' is not defined/imported
         schedule_amount = bill.H_Schedule_Amount if bill.H_Schedule_Amount is not None else 0 
 
         confirmation_data.append({
@@ -2766,6 +2758,10 @@ def confirmations_view(request):
     # EXPORT TO EXCEL LOGIC (CLEAN GROUPED LAYOUT)
     # =========================================================
     if request.GET.get('export_excel'):
+        import openpyxl
+        from openpyxl.styles import Font, Alignment
+        from django.http import HttpResponse
+
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = "Confirmations"
@@ -2833,19 +2829,33 @@ def confirmations_view(request):
 def admin_billing_view(request):
     """
     Displays a raw, line-by-line list of bills ready for Admin Billing confirmation.
-    Calculates a 3% Admin Fee per bill line.
+    Calculates a 0.3% Admin Fee per bill line based on monthly salary.
     
-    UPDATED: Only shows reconciled bills (is_reconciled=True).
+    UPDATED: 
+    1. Only shows reconciled bills (is_reconciled=True).
+    2. Strictly excludes bills with 0 members or R0.00 schedule amount.
+    3. Updated fee calculation to 0.003 (0.3%).
     """
+    from decimal import Decimal
+    from datetime import datetime
+
     filter_start_date = request.GET.get('start_date')
     filter_end_date = request.GET.get('end_date')
 
-    # Order by CC Dates Month, then by Company Code
+    # Base Query: Order by CC Dates Month, then by Company Code
     bills_queryset = UnityBill.objects.all().order_by('-A_CCDatesMonth', 'C_Company_Code')
     
-    # NEW FILTER: Only include bills that are fully reconciled/closed
-    bills_queryset = bills_queryset.filter(is_reconciled=True)
-
+    # --- UPDATED FILTERS ---
+    # 1. Must be Reconciled
+    # 2. Exclude bills with 0 members (prevents N/A rows)
+    # 3. Exclude bills with 0.00 schedule (prevents zero-fee rows)
+    bills_queryset = bills_queryset.filter(
+        is_reconciled=True
+    ).exclude(
+        E_Active_Members=0
+    ).exclude(
+        H_Schedule_Amount=0
+    )
 
     if filter_start_date:
         try:
@@ -2863,29 +2873,26 @@ def admin_billing_view(request):
             
     final_bill_data = []
     
-    # Process each bill individually (line-by-line)
     for bill in bills_queryset:
-        
-        # Use Decimal('0.00') if 'zero' is not defined/imported
-        schedule_amount = bill.H_Schedule_Amount if bill.H_Schedule_Amount is not None else Decimal('0.00')
+        # Since we excluded 0.00 above, we know schedule_amount will be a valid positive number
+        schedule_amount = bill.H_Schedule_Amount or Decimal('0.00')
         active_members = bill.E_Active_Members or 0 
         
-        # Calculate 3% Admin Fee on this specific bill's schedule
-        admin_fee = schedule_amount * Decimal('0.03')
+        # 🚀 NEW: Calculate 0.3% Admin Fee (0.003) 🚀
+        admin_fee = schedule_amount * Decimal('0.003')
         
-        # Find the FIRST settlement record for the bill
+        # Find the FIRST settlement record for metadata (Posted Date/User)
         first_settlement = BillSettlement.objects.filter(
             unity_bill_source_id=bill.pk
         ).order_by('settlement_date').first()
         
         posted_date = first_settlement.settlement_date if first_settlement else None
         
+        # Get the username of the person who finalized the recon
         posted_user = "N/A"
         if first_settlement and first_settlement.confirmed_by:
-            # Assuming 'confirmed_by' is a ForeignKey to a User model
             posted_user = first_settlement.confirmed_by.username
         
-        # Determine the Fiscal Period key (e.g., "2025-12")
         fiscal_period_key = bill.A_CCDatesMonth.strftime("%Y-%m") if bill.A_CCDatesMonth else "N/A"
 
         final_bill_data.append({
@@ -3593,39 +3600,40 @@ def outlook_delegated_action(request, delegation_id):
 def outlook_delegate_to(request, email_id):
     """
     Handles the detailed delegation form for classification before assignment.
-    UPDATED: Now handles 'Work Related: No' by moving tasks to the Recycle Bin 
-    without requiring an agent selection.
+    UPDATED: Correctly updates database to status 'DLT' for Recycle Bin items.
     """
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     available_users = User.objects.filter(is_active=True).exclude(pk=request.user.pk)
     
     if request.method == 'POST':
-        work_related = request.POST.get('work_related')
+        work_related_input = request.POST.get('work_related') # 'Yes' or 'No'
         assignee_pk = request.POST.get('agent_name')
         
         # 1. Capture ALL classification fields
         data_for_delegation = {
             'company_code': request.POST.get('company_code'),
             'email_category': request.POST.get('email_category'),
-            'work_related': work_related,
+            'work_related': True if work_related_input == 'Yes' else False,
             'comm_type': request.POST.get('comm_type') or 'Email',
         }
 
         # --- BRANCH A: NOT WORK RELATED (Recycle Bin) ---
-        if work_related == 'No':
-            # We create/update the delegation record with work_related=False
-            # and status='COM' (Completed/Archived)
+        if work_related_input == 'No':
             from .models import EmailDelegation
+            # We update the record to DLT (Deleted/Recycled)
+            # Ensure 'DLT' is added to STATUS_CHOICES in your EmailDelegation model
             task, created = EmailDelegation.objects.update_or_create(
                 email_id=email_id,
                 defaults={
                     'work_related': False,
-                    'status': 'COM',
+                    'status': 'DLT',  
+                    'assigned_user': None,
                     'company_code': data_for_delegation['company_code'],
                     'email_category': data_for_delegation['email_category'],
+                    'communication_type': data_for_delegation['comm_type'],
                 }
             )
-            messages.error(request, "Email moved to Recycle Bin.")
+            messages.error(request, "Email moved to Recycle Bin (Status: DLT).")
             return redirect('outlook_dashboard')
 
         # --- BRANCH B: WORK RELATED (Delegation) ---
@@ -3634,7 +3642,7 @@ def outlook_delegate_to(request, email_id):
                 messages.error(request, "Please select an agent for delegation.")
             else:
                 # Proceed with standard delegation logic
-                data_for_delegation['status'] = 'DEL'
+                # Ensure the classification data passed to helper uses the new Boolean
                 success, message = delegate_email_task(
                     email_id, 
                     assignee_pk, 
@@ -4035,7 +4043,6 @@ def manager_approval_dashboard(request):
     """
     Lists all Credit Notes waiting for Linking Approval.
     """
-    # Filter for Pending status
     pending_credits = CreditNote.objects.filter(credit_link_status='Pending').order_by('-processed_date')
     
     context = {
@@ -4046,61 +4053,106 @@ def manager_approval_dashboard(request):
 @login_required
 @transaction.atomic
 def approve_credit_link(request, note_id):
-    """
-    Manager clicks 'Approve'.
-    1. Moves pending_linked_bill -> assigned_unity_bill.
-    2. Creates BillSettlement.
-    3. Calculates Surplus/Balance.
-    4. Updates Status to 'Approved'.
-    """
+    from decimal import Decimal
+    from django.db.models import Sum
+    from django.utils import timezone
+    from django.contrib import messages
+    from django.shortcuts import redirect, get_object_or_404
+    from .models import CreditNote, BillSettlement
+
     note = get_object_or_404(CreditNote, id=note_id)
     
-    # Security Check
     if note.credit_link_status != 'Pending':
         messages.error(request, "This credit is not pending approval.")
         return redirect('manager_approval_dashboard')
 
     target_bill = note.pending_linked_bill
-    
     if not target_bill:
-        messages.error(request, "Error: No pending bill found linked to this note.")
+        messages.error(request, "No target bill found.")
         return redirect('manager_approval_dashboard')
 
-    # --- 1. COMMIT THE LINK ---
-    note.assigned_unity_bill = target_bill
-    note.credit_link_status = 'Approved'
-    note.authorized_by = request.user.username # Track who approved it
+    # --- 1. CALCULATE CAP (Prevent Surplus) ---
+    ZERO_DECIMAL = Decimal('0.00')
+    total_already_settled = BillSettlement.objects.filter(
+        unity_bill_source_id=target_bill.pk
+    ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
+    
+    bill_remaining_debt = target_bill.H_Schedule_Amount - total_already_settled
+    
+    # In 'Pending' state, requested_amount IS the clerk's temporary request (e.g. R50)
+    current_temp_request = note.requested_amount or ZERO_DECIMAL
+
+    # APPLY THE CAP
+    final_allocation = min(current_temp_request, bill_remaining_debt)
+
+    if final_allocation <= ZERO_DECIMAL:
+        messages.warning(request, f"Bill #{target_bill.id} is already fully paid.")
+        note.credit_link_status = 'Unlinked'
+        note.pending_linked_bill = None
+        # Reset requested_amount to 0 because the R50 request was rejected/cancelled
+        note.requested_amount = ZERO_DECIMAL 
+        note.save()
+        return redirect('manager_approval_dashboard')
+
+    # --- 2. UPDATE CREDIT NOTE BALANCES ---
+    # Subtract from the live available balance (e.g. R600 - R50 = R550)
+    note.schedule_amount -= final_allocation 
+
+    # IMPORTANT: We keep requested_amount as the CUMULATIVE used total for the HTML
+    # Since we are approving this transaction, requested_amount now becomes a permanent 'Used' stat
+    note.requested_amount = final_allocation 
+
+    # Status Management
+    if note.schedule_amount <= ZERO_DECIMAL:
+        note.assigned_unity_bill = target_bill
+        note.credit_link_status = 'Approved' # Fully used up
+    else:
+        note.assigned_unity_bill = None
+        # Even if R550 is left, we set status to 'Unlinked' so it's ready for the NEXT bill
+        note.credit_link_status = 'Unlinked' 
+
+    note.pending_linked_bill = None
+    note.authorized_by = request.user.username
     note.authorized_at = timezone.now()
     note.save()
 
-    # --- 2. CREATE FINANCIAL SETTLEMENT ---
+    # --- 3. CREATE SETTLEMENT ---
     BillSettlement.objects.create(
         unity_bill_source=target_bill,
-        settled_amount=note.schedule_amount,
+        settled_amount=final_allocation,
         settlement_date=timezone.now(),
-        source_credit_note=note
+        source_credit_note_id=note.id,
+        reconned_bank_line=None
     )
 
-    # --- 3. CALCULATE BALANCE & SURPLUS ---
-    ZERO_DECIMAL = Decimal('0.00')
-    total_settled = BillSettlement.objects.filter(
-        unity_bill_source=target_bill
-    ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
-    
-    remaining_schedule = target_bill.H_Schedule_Amount - total_settled
-    
-    # Handle Surplus
-    if remaining_schedule < ZERO_DECIMAL:
-        surplus_amount = abs(remaining_schedule)
-        ScheduleSurplus.objects.create(
-            unity_bill_source=target_bill,
-            surplus_amount=surplus_amount,
-            creation_date=timezone.now().date(),
-            generating_credit_note=note,
-            status='UNAPPLIED'
-        )
-        messages.warning(request, f"Approved! Bill is paid, but Surplus of R{surplus_amount} created.")
-    else:
-        messages.success(request, f"Approved! Credit linked to Bill #{target_bill.id}. Remaining Debt: R{remaining_schedule}")
+    messages.success(request, f"Approved R{final_allocation} for Bill #{target_bill.id}.")
+    return redirect('manager_approval_dashboard')
 
+@login_required
+@transaction.atomic
+def reject_credit_link(request, note_id):
+    """
+    Manager clicks 'Reject'.
+    1. Resets the Credit Note so it can be requested again.
+    2. Clears pending fields.
+    """
+    from django.contrib import messages
+    from django.shortcuts import redirect, get_object_or_404
+    from .models import CreditNote
+
+    note = get_object_or_404(CreditNote, id=note_id)
+    
+    if note.credit_link_status != 'Pending':
+        messages.error(request, "This credit is not in a pending state.")
+        return redirect('manager_approval_dashboard')
+
+    # --- RESET THE NOTE ---
+    note.credit_link_status = 'Unlinked' # Or 'Rejected' if you want to track history
+    note.pending_linked_bill = None
+    note.requested_amount = 0  # Reset the request
+    # Note: We do NOT touch schedule_amount because no money was spent.
+    
+    note.save()
+
+    messages.warning(request, f"Request for Credit ID {note_id} has been Rejected. It is now unlocked for the clerk.")
     return redirect('manager_approval_dashboard')

@@ -415,7 +415,7 @@ class CreditNote(models.Model):
     # -------------------------------------------------------------------------
 
     class Meta:
-        db_table = 'Credit_note' 
+        db_table = 'credit_note' 
         managed = False
         
     def __str__(self):
@@ -727,6 +727,7 @@ class EmailDelegation(models.Model):
         ('DEL', 'Delegated'),
         ('COM', 'Completed'),
         ('RED', 'Re-delegated'),
+        ('DLT', 'Deleted/Recycled'),
     ]
     status = models.CharField(max_length=3, choices=STATUS_CHOICES, default='NEW')
     delegated_at = models.DateTimeField(null=True, blank=True)

@@ -115,10 +115,10 @@
 
     <div class="button-container">
         <a href="{% url 'global_members_list' %}" class="button-block">Global List</a>
-        <a href="{% url 'tasks' %}" class="button-block">Dashboard</a>
         {% if user.username == 'omega' %}
         <a href="{% url 'fetch_emails' %}" class="button-block">Delagtions</a>
         {% endif %}
+        <a href="{% url 'tasks' %}" class="button-block">Dashboard</a>
         <a href="{% url 'import_global_data' %}" class="button-block">Import Data</a>
         <!--<a href="{% url 'delegation_report' %}" class="button-block">Reports</a>-->
         <a href="{% url 'complaint_log' %}" class="button-block">Complaint Log</a>

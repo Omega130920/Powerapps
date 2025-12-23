@@ -1,30 +1,38 @@
 {% load static %}
 
-{% block title %}Global Bill History Overview{% endblock %}
+{% block title %}Section 13A Report | Unity Internal{% endblock %}
 
 {% block extra_head %}
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
-    /* Global Background and Body */
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #e8f5e9; margin: 0; color: #333; }
+    /* Global Background and Body - Unity Green Gradient */
+    body { 
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+        background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127)); 
+        margin: 0; 
+        color: #333; 
+        min-height: 100vh;
+        padding: 20px;
+    }
     
-    /* Main Content Wrapper (Adapted from .report-container) */
+    /* Main Content Wrapper */
     .global-history-container { 
         max-width: 1400px;
-        margin: 30px auto; 
+        margin: 20px auto; 
         background: white; 
-        padding: 20px 40px; 
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
+        padding: 30px; 
+        box-shadow: 0 4px 15px rgba(0,0,0,0.15); 
         border-radius: 8px; 
-        border-top: 8px solid #2e7d32; 
+        border-top: 8px solid #1b5e20; 
     }
     
     h2 { 
         margin-top: 0; 
         color: #1b5e20; 
         font-size: 28px;
-        border-bottom: 2px solid #c8e6c9; 
+        border-bottom: 2px solid #aed581; 
         padding-bottom: 10px;
         margin-bottom: 20px;
     }
@@ -33,60 +41,51 @@
     .card {
         border: 1px solid #dcedc8;
         border-radius: 6px;
-        box-shadow: none;
+        background-color: #f9fbe7;
         margin-bottom: 30px;
-    }
-    .card-header {
-        background-color: #f1f8e9;
-        color: #1b5e20;
-        font-weight: bold;
-        padding: 12px 20px;
-        border-bottom: 1px solid #dcedc8;
     }
     .card-body {
         padding: 20px;
     }
     
-    /* Styling for the filter form inputs and layout */
     .filter-form-row {
         display: flex;
         gap: 20px; 
         align-items: flex-end; 
+        flex-wrap: wrap;
+    }
+    .form-group {
+        display: flex;
+        flex-direction: column;
     }
     .filter-form-control {
         padding: 8px 12px;
         border: 1px solid #c8e6c9; 
         border-radius: 4px;
         font-size: 0.95em;
-        transition: border-color 0.2s;
         height: 38px; 
-    }
-    .filter-form-control:focus {
-        border-color: #558b2f;
-        outline: none;
-        box-shadow: 0 0 0 0.2rem rgba(46, 125, 50, 0.25); 
     }
     .filter-label {
         display: block; 
         font-size: 0.85em;
-        color: #558b2f; 
+        color: #2e7d32; 
         font-weight: 600; 
         margin-bottom: 5px;
-        min-width: 120px; 
     }
 
 
     /* --- Table Styling --- */
     table { width: 100%; border-collapse: collapse; font-size: 0.95em; margin-bottom: 20px; }
     th { 
-        background-color: #e3f2fd; 
-        color: #0d47a1; 
-        padding: 10px; 
+        background-color: #f1f8e9; 
+        color: #1b5e20; 
+        padding: 12px; 
         text-align: left; 
-        border-bottom: 3px solid #bbdefb; 
+        border-bottom: 3px solid #aed581; 
+        text-transform: uppercase;
     }
     td { 
-        padding: 10px; 
+        padding: 12px; 
         border-bottom: 1px solid #eee; 
         color: #444; 
     }
@@ -101,36 +100,28 @@
     .badge-success { 
         background-color: #e8f5e9; 
         color: #2e7d32; 
-        padding: 3px 8px; 
+        padding: 4px 10px; 
         border-radius: 4px; 
         font-weight: bold;
         border: 1px solid #a5d6a7;
         display: inline-block;
-    }
-    .badge-danger { 
-        background-color: #ffcdd2; 
-        color: #c62828; 
-        padding: 3px 8px; 
-        border-radius: 4px; 
-        font-weight: bold;
-        border: 1px solid #e57373;
-        display: inline-block;
+        font-size: 0.85em;
     }
 
     /* --- Button Styling --- */
     .btn {
-        padding: 8px 15px;
-        border-radius: 4px;
+        padding: 10px 20px;
+        border-radius: 5px;
         cursor: pointer;
         font-weight: 600;
         text-decoration: none;
         display: inline-block;
-        transition: background-color 0.2s;
+        transition: all 0.3s;
+        border: none;
     }
     .btn-primary { 
         background-color: #1b5e20; 
         color: white; 
-        border: 1px solid #1b5e20;
     }
     .btn-primary:hover { 
         background-color: #2e7d32; 
@@ -140,38 +131,41 @@
         color: #666; 
         border: 1px solid #ccc;
     }
-    .btn-secondary:hover { 
-        background-color: #e0e0e0; 
-    }
     .btn-success {
         background-color: #2e7d32; 
         color: white;
-        border: 1px solid #1b5e20;
-    }
-    .btn-success:hover {
-        background-color: #1b5e20;
     }
     .btn-details {
-        background-color: #1565c0;
+        background-color: #81c784;
         color: white;
+        padding: 6px 12px;
+        font-size: 0.85em;
     }
     .btn-details:hover {
-        background-color: #0d47a1;
+        background-color: #66bb6a;
     }
+
+    .return-button {
+        background-color: #1b5e20;
+        color: white;
+        margin-bottom: 15px;
+    }
+    .return-button:hover { background-color: #2e7d32; }
+
+    .mb-3 { margin-bottom: 1rem !important; }
 </style>
 {% endblock %}
 
-
 {% block content %}
-<div>
-<a href="{% url 'dashboard' %}" class="return-button">Back to Dashboard</a>
+<div style="max-width: 1400px; margin: 0 auto;">
+    <a href="{% url 'dashboard' %}" class="btn return-button">← Back to Dashboard</a>
 </div>
+
 <div class="global-history-container">
-    <h2>&#127760; Section 13A Report</h2>
-    <p class="text-muted">Filter and review all bill and payment history.</p>
+    <h2>🌎 Section 13A Report</h2>
+    <p class="text-muted">Review fully reconciled bill history and payment allocations.</p>
 
     <div class="card mb-4">
-        
         <div class="card-body">
             <form method="GET">
                 <div class="filter-form-row">
@@ -184,7 +178,7 @@
                         <input type="date" class="filter-form-control" id="end_date" name="end_date" value="{{ filter_end_date }}">
                     </div>
                     <div class="form-group">
-                        <button type="submit" class="btn btn-primary">Apply Filter</button>
+                        <button type="submit" class="btn btn-primary">🔍 Apply Filter</button>
                     </div>
                     <div class="form-group">
                         <a href="{% url 'export_global_bill_history' %}" class="btn btn-secondary">Clear Filter</a>
@@ -194,65 +188,54 @@
         </div>
     </div>
     
-    {% if filter_start_date or filter_end_date %}
-        {% with download_url=request.GET.urlencode %}
-        <a href="{% url 'export_global_history_csv' %}?{{ download_url }}" class="btn btn-success mb-3">
-            Download Filtered CSV Export
-        </a>
-        {% endwith %}
-    {% else %}
-        <a href="{% url 'export_global_history_csv' %}" class="btn btn-success mb-3">
-            Download Full CSV Export
-        </a>
-    {% endif %}
+    <div style="margin-bottom: 20px;">
+        {% if filter_start_date or filter_end_date %}
+            {% with download_url=request.GET.urlencode %}
+            <a href="{% url 'export_global_history_csv' %}?{{ download_url }}" class="btn btn-success">
+                📥 Download Filtered CSV Export
+            </a>
+            {% endwith %}
+        {% else %}
+            <a href="{% url 'export_global_history_csv' %}" class="btn btn-success">
+                📥 Download Full CSV Export
+            </a>
+        {% endif %}
+    </div>
     
     <div class="table-responsive">
-        <table class="table table-striped table-sm">
+        <table>
             <thead>
                 <tr>
-                    <th>Fisical Period</th>
-                    <th>Member Group Code</th>
+                    <th>Fiscal Period</th>
+                    <th>Group Code</th>
                     <th>Company Name</th>
                     <th class="amount-col">Schedule Amt (H)</th>
                     <th class="amount-col">Total Settled</th>
-                    <th>Status</th>
-                    <!--<th colspan="2">Deposits</th>-->
-                    <th>Action</th>
+                    <th style="text-align: center;">Status</th>
+                    <th style="text-align: center;">Action</th>
                 </tr>
             </thead>
             <tbody>
                 {% for record in bill_records %}
                 <tr>
-                    <td>{{ record.bill.A_CCDatesMonth|date:"Y-m" }}</td>
+                    <td><strong>{{ record.bill.A_CCDatesMonth|date:"Y-m" }}</strong></td>
                     <td>{{ record.bill.C_Company_Code }}</td>
                     <td>{{ record.bill.D_Company_Name }}</td>
                     <td class="amount-col">R {{ record.bill.H_Schedule_Amount|default:"0.00"|floatformat:2 }}</td>
-                    <td class="amount-col">R {{ record.total_settled|floatformat:2 }}</td>
-                    <td>
+                    <td class="amount-col" style="color: #2e7d32; font-weight: bold;">R {{ record.total_settled|floatformat:2 }}</td>
+                    <td style="text-align: center;">
                         <span class="badge badge-success">{{ record.status_name }}</span>
                     </td>
-                    
-                    <!--{% with deposits=record.deposits|slice:":2" %}
-                        {% for deposit in deposits %}
-                            <td>{{ deposit.date|date:"Y-m-d" }} / R {{ deposit.amount|floatformat:2 }}</td>
-                        {% endfor %}
-                        
-                        {% if deposits|length == 1 %}
-                            <td>N/A</td>
-                        {% elif deposits|length == 0 %}
-                            <td>N/A</td>
-                            <td>N/A</td>
-                        {% endif %}
-                    {% endwith %}-->
-                    
-                    <td>
+                    <td style="text-align: center;">
                         <a href="{% url 'settle_bill_report' company_code=record.bill.C_Company_Code bill_id=record.bill.id %}" 
-                           class="btn btn-details btn-sm">View Report</a>
+                           class="btn btn-details">View Report</a>
                     </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="9" class="text-center">No reconciled bill records found for the selected period.</td>
+                    <td colspan="7" style="text-align: center; padding: 40px; color: #999;">
+                        No reconciled bill records found for the selected period.
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>

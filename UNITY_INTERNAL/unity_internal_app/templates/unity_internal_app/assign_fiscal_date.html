@@ -51,7 +51,7 @@
         .form-group { margin-bottom: 20px; }
         label { display: block; margin-bottom: 8px; font-weight: 600; color: #2e7d32; }
         
-        input[type="text"], input[type="date"], textarea, select {
+        input[type="text"], input[type="number"], input[type="date"], textarea, select {
             width: 100%; padding: 12px; border: 1px solid #ced4da; border-radius: 6px;
             box-sizing: border-box; font-size: 1em; background-color: #fafafa; transition: all 0.3s ease;
         }
@@ -65,11 +65,11 @@
         /* --- 6. Buttons --- */
         .button-row { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; display: flex; align-items: center; gap: 15px; }
         .submit-button {
-            padding: 12px 30px; background-color: #2e7d32; color: white; border: none; border-radius: 6px;
+            padding: 12px 30px; background-color: #f57f17; color: white; border: none; border-radius: 6px;
             font-size: 1em; font-weight: bold; cursor: pointer; transition: background 0.3s;
             box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
-        .submit-button:hover { background-color: #1b5e20; transform: translateY(-1px); }
+        .submit-button:hover { background-color: #e65100; transform: translateY(-1px); }
         .back-link {
             text-decoration: none; color: #555; padding: 10px 20px; border-radius: 6px;
             background-color: #e0e0e0; font-weight: 600; transition: background 0.3s;
@@ -96,7 +96,7 @@
             <span>{{ note.member_group_name|default:"Unknown" }}</span>
         </div>
         <div class="detail-item">
-            <strong>Schedule Amount</strong>
+            <strong>Total Credit Balance</strong>
             <span>R {{ note.schedule_amount|floatformat:2 }}</span>
         </div>
         <div class="detail-item">
@@ -120,13 +120,18 @@
         <div class="form-group">
             <label for="id_member_group_code">Member Group Code (Auto-Assign Target)</label>
             <input type="text" name="member_group_code" id="id_member_group_code" value="{{ note.member_group_code }}" required>
-            <small style="color: #666;">Enter the code to automatically link this credit to the open bill for that group.</small>
+        </div>
+
+        <div class="form-group">
+            <label for="requested_link_amount" style="color: #2e7d32;">Amount to Allocate (R)</label>
+            <input type="number" step="0.01" name="requested_link_amount" id="requested_link_amount" 
+                   value="{{ note.schedule_amount|floatformat:2 }}" max="{{ note.schedule_amount }}" required>
+            <small style="color: #666;">Max Available: R {{ note.schedule_amount|floatformat:2 }}</small>
         </div>
 
         <div class="form-group">
             <label for="link_reason" style="color: #f57f17;">Reason for Linking (Required for Approval)</label>
-            <textarea name="link_reason" id="link_reason" class="form-input" required placeholder="Hi Manager, please approve this link because...">{{ note.link_request_reason|default:'' }}</textarea>
-            <small style="color: #666;">This request will be sent to your manager for approval before the bill is updated.</small>
+            <textarea name="link_reason" id="link_reason" class="form-input" required placeholder="Reason for using this specific amount...">{{ note.link_request_reason|default:'' }}</textarea>
         </div>
 
         {% for field in form.visible_fields %}
@@ -134,9 +139,6 @@
                 <div class="form-group">
                     <label for="{{ field.id_for_label }}">{{ field.label }}</label>
                     {{ field }}
-                    {% if field.errors %}
-                        <small style="color: #d32f2f;">{{ field.errors }}</small>
-                    {% endif %}
                 </div>
             {% endif %}
         {% endfor %}
@@ -146,7 +148,7 @@
         {% endfor %}
 
         <div class="button-row">
-            <button type="submit" class="submit-button" style="background-color: #f57f17;">Request Approval</button>
+            <button type="submit" class="submit-button">Request Approval</button>
             <a href="{% url 'dashboard' %}" class="back-link">Cancel</a>
         </div>
     </form>

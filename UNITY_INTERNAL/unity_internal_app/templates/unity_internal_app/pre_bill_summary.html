@@ -204,36 +204,51 @@ Description: {{ line.bank_line.transaction_description|truncatechars:100 }}
 
 {% if credit_notes %}
 <h3 style="color: #3f51b5;">💲 Associated Credit Notes ({{ credit_notes|length }} items)</h3>
-<p>These are records imported from the Bill Details file that can be used for reconciliation purposes.</p>
+<p>These are credit portions that have been approved by the manager and applied to this specific bill.</p>
 <table class="credit-note-table" style="background-color: #f0f8ff; border: 1px solid #b3e0ff;">
-<thead>
-<tr>
-<th>ID</th>
-<th>Bill Date (CC)</th>
-<th>Scheduled Amount</th>
-<th>Fiscal Date</th>
-<th>Review Note</th>
-<th>Imported By</th>
-</tr>
-</thead>
-<tbody>
-{% for note in credit_notes %}
-<tr {% if not note.fiscal_date %}style="background-color: #fff3cd;"{% endif %}>
-<td>{{ note.id }}</td>
-<td>{{ note.ccdates_month|date:"Y-m-d"|default:"N/A" }}</td>
-<td>R {{ note.schedule_amount|default:"0.00"|floatformat:2 }}</td>
-<td>
-{% if note.fiscal_date %}
-<span style="font-weight: bold; color: #1b5e20;">{{ note.fiscal_date|date:"Y-m-d" }}</span>
-{% else %}
-<span style="color: red; font-weight: bold;">(Unassigned)</span>
-{% endif %}
-</td>
-<td>{{ note.review_note|truncatechars:50|default:"No note" }}</td>
-<td>{{ note.processed_by }}</td>
-</tr>
-{% endfor %}
-</tbody>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Processed Date</th>
+            <th>Original Amount</th>
+            <th style="background-color: #283593;">Applied to Bill</th>
+            <th>Remaining Balance</th>
+            <th>Status</th>
+            <th>Imported By</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for note in credit_notes %}
+        <tr {% if not note.fiscal_date %}style="background-color: #fff3cd;"{% endif %}>
+            <td>{{ note.id }}</td>
+            <td>{{ note.processed_date|date:"Y-m-d"|default:"N/A" }}</td>
+
+            <td>R {{ note.schedule_amount|add:note.requested_amount|floatformat:2 }}</td>
+
+            <td style="font-weight: bold; color: white; background-color: #3949ab;">
+                R {{ note.requested_amount|default:"0.00"|floatformat:2 }}
+            </td>
+
+            <td style="color: #1b5e20; font-weight: bold;">
+                R {{ note.schedule_amount|default:"0.00"|floatformat:2 }}
+            </td>
+
+            <td>
+                {% if note.schedule_amount > 0 %}
+                    <span style="color: #f57f17; font-weight: bold;">PARTIAL</span>
+                {% else %}
+                    <span style="color: #388e3c; font-weight: bold;">FULLY USED</span>
+                {% endif %}
+            </td>
+            <td>{{ note.processed_by }}</td>
+        </tr>
+        {% endfor %}
+        <tr style="background-color: #e8eaf6; font-weight: bold;">
+            <td colspan="3" style="text-align: right;">Total Credit Applied:</td>
+            <td style="color: #283593; background-color: #c5cae9;">R {{ total_credit_notes_assigned|floatformat:2 }}</td>
+            <td colspan="3"></td>
+        </tr>
+    </tbody>
 </table>
 <hr>
 {% endif %}
@@ -338,7 +353,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const outstandingDisplay = document.getElementById('dynamic-outstanding');
     const outstandingSmall = document.getElementById('dynamic-outstanding-small');
     
-    // 1. Grab base values from Django (ensuring we handle potential nulls)
     const scheduledAmount = parseFloat("{{ scheduled_amount|default:0 }}");
     const creditAllocated = parseFloat("{{ total_credit_notes_assigned|default:0 }}");
     const journalAllocated = parseFloat("{{ total_journal_assigned|default:0 }}");
@@ -347,7 +361,6 @@ document.addEventListener('DOMContentLoaded', function() {
     function calculateLiveOutstanding() {
         let currentTypedCash = 0;
         
-        // Sum values currently typed in all input boxes
         amountInputs.forEach(input => {
             const val = parseFloat(input.value);
             if (!isNaN(val)) {
@@ -355,7 +368,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // FORMULA: Bill - (Credit + Journal + Saved Cash) - Currently Typed Cash
         let remaining = scheduledAmount - creditAllocated - journalAllocated - cashAlreadyInDB - currentTypedCash;
         
         if (remaining < 0) remaining = 0;
@@ -364,7 +376,7 @@ document.addEventListener('DOMContentLoaded', function() {
         outstandingDisplay.innerText = formatted;
         
         if (remaining <= 0.01) {
-            outstandingDisplay.style.color = "#4CAF50"; // Green
+            outstandingDisplay.style.color = "#4CAF50"; 
             outstandingSmall.innerHTML = "Debt is perfectly matched to the Remaining Scheduled Amount.";
         } else {
             outstandingDisplay.style.color = "white";
@@ -373,7 +385,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     checkboxes.forEach(box => {
-        // Change type to checkbox so user can toggle lines on/off
         box.type = "checkbox";
 
         box.addEventListener('change', function() {
@@ -382,19 +393,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const targetInput = document.getElementById('amount-' + lineId);
 
             if (this.checked) {
-                // Only auto-fill if the input is currently empty
                 if (targetInput.value === "" || targetInput.value === "0") {
                     let otherTyped = 0;
                     amountInputs.forEach(i => { if(i.id !== targetInput.id) otherTyped += parseFloat(i.value || 0); });
                     
                     let stillNeeded = scheduledAmount - (creditAllocated + journalAllocated + cashAlreadyInDB + otherTyped);
-                    
-                    // Suggest the smaller of: what's left on the line OR what's needed for the bill
                     let fillVal = Math.min(maxOnLine, Math.max(0, stillNeeded));
                     targetInput.value = fillVal.toFixed(2);
                 }
             } else {
-                // If unchecked, clear only this specific input
                 targetInput.value = '';
             }
             calculateLiveOutstanding();
@@ -406,7 +413,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const row = this.closest('tr');
             const box = row.querySelector('.recon-radio');
             
-            // Auto-check the box if user types a value
             if (parseFloat(this.value) > 0) {
                 box.checked = true;
             } else if (this.value === "") {
@@ -416,7 +422,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Run once on load to ensure card is correct
     calculateLiveOutstanding();
 });
 </script>
