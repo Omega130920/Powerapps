@@ -1,0 +1,98 @@
+{% block content %}
+<style>
+    body { font-family: sans-serif; background: linear-gradient(to bottom, #d1e2c4, #d1e2c4); margin: 20px; color: #333; line-height: 1.6; }
+    .container-custom { max-width: 98%; margin: 2em auto; padding: 1em; background-color: #f0fff0; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+    
+    /* Header Layout */
+    .top-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    h2 { color: #1b5e20; border-bottom: 2px solid #aed581; padding-bottom: 10px; margin-top: 0; }
+    
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); font-size: 13px; background: white; }
+    thead th { background-color: #43a047; color: white; padding: 10px; text-align: left; font-weight: bold; }
+    tbody td { padding: 8px 10px; border-bottom: 1px solid #aed581; }
+    tbody tr:nth-child(even) { background-color: #e6ffe6; }
+    
+    .action-button { padding: 6px 12px; background-color: #3f51b5; border: 1px solid #3f51b5; border-radius: 4px; text-decoration: none; color: white; font-size: 0.9em; cursor: pointer; display: inline-block; }
+    .action-button:hover { background-color: #303f9f; color: white; }
+    .view-btn { background-color: #78909c; border-color: #78909c; }
+    .export-btn { background-color: #2e7d32; border-color: #1b5e20; }
+    .dash-btn { background-color: #546e7a; border-color: #455a64; margin-bottom: 10px; }
+
+    /* Filter Styling */
+    .filter-container { display: flex; gap: 1em; align-items: center; padding: 0.8em 1em; background-color: #f0fff0; border-radius: 6px; border: 1px solid #aed581; flex-wrap: wrap; }
+    .filter-container label { font-weight: bold; color: #1b5e20; }
+    .date-input, .search-input { padding: 0.4em 0.5em; border: 1px solid #ccc; border-radius: 4px; color: #333; }
+    .date-input { width: 130px; }
+    .clear-btn { background-color: #f44336; color: white; padding: 0.4em 0.8em; border-radius: 4px; text-decoration: none; font-weight: bold; font-size: 0.9em; }
+</style>
+
+<div class="container-custom">
+    <div class="top-nav">
+        <a href="{% url 'dashboard' %}" class="action-button dash-btn"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
+        <button onclick="exportGlobalBank()" class="action-button export-btn"><i class="fas fa-file-excel"></i> Export to Excel</button>
+    </div>
+
+    <h2><i class="fas fa-university"></i> Global Bank History Archive</h2>
+
+    
+
+    <form method="GET">
+        <div class="filter-container">
+            <div class="date-group">
+                <label>From:</label>
+                <input type="date" name="start_date" class="date-input" value="{{ start_date }}">
+            </div>
+            <div class="date-group">
+                <label>To:</label>
+                <input type="date" name="end_date" class="date-input" value="{{ end_date }}">
+            </div>
+            <div class="date-group" style="flex-grow: 1;">
+                <label>Search:</label>
+                <input type="text" name="q" class="search-input" style="width: 80%;" placeholder="Code, description..." value="{{ search_query|default:'' }}">
+            </div>
+            <button type="submit" class="action-button">Filter</button>
+            <a href="{% url 'global_bank' %}" class="clear-btn">Clear</a>
+        </div>
+    </form>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Description</th>
+                <th>Member Group</th>
+                <th>Deposit</th>
+                <th>Settled</th>
+                <th>Balance</th>
+                <th>Status</th>
+                <th>Agent</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in global_records %}
+            <tr>
+                <td>{{ item.transaction_date|date:"Y-m-d" }}</td>
+                <td><small>{{ item.description }}</small></td>
+                <td><strong>{{ item.company_code }}</strong><br><small>{{ item.company_name }}</small></td>
+                <td style="color: #1b5e20;">R {{ item.amount|floatformat:2 }}</td>
+                <td style="color: #43a047;">R {{ item.settled|floatformat:2 }}</td>
+                <td style="{% if item.remaining > 0 %}color: #d32f2f; font-weight: bold;{% endif %}">R {{ item.remaining|floatformat:2 }}</td>
+                <td>{{ item.status }}</td>
+                <td>{{ item.agent }}</td>
+                <td><a href="{% url 'display_bankline_review' item.id %}" class="action-button view-btn">Review</a></td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="9" style="text-align: center; padding: 20px;">No records found for the selected criteria.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+function exportGlobalBank() {
+    const urlParams = new URLSearchParams(window.location.search);
+    window.location.href = `{% url 'export_global_bank_excel' %}?` + urlParams.toString();
+}
+</script>
+{% endblock %}

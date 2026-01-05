@@ -1,8 +1,10 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <title>Email Thread | {{ task.subject }}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         /* --- General Page Styling --- */
         body {
@@ -48,14 +50,14 @@
             border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
             margin-bottom: 40px;
-            border-left: 5px solid #1976d2; /* Blue accent for incoming email */
+            border-left: 5px solid #1976d2;
+            overflow: hidden; /* Ensures attachment background doesn't bleed */
         }
 
         .card-header-main {
             padding: 20px;
             background-color: #fafafa;
             border-bottom: 1px solid #eee;
-            border-top-right-radius: 8px;
         }
 
         .card-header-main h3 {
@@ -69,6 +71,35 @@
             overflow-x: auto;
         }
 
+        /* --- ATTACHMENT SECTION --- */
+        .attachment-section {
+            background-color: #f8fafc;
+            padding: 15px 25px;
+            border-top: 1px solid #edf2f7;
+        }
+
+        .attachment-pill {
+            display: inline-flex;
+            align-items: center;
+            background: #fff;
+            padding: 6px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 20px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            transition: all 0.2s ease;
+            text-decoration: none;
+            color: #2d3748;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .attachment-pill:hover {
+            border-color: #1976d2;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            background-color: #f1f5f9;
+        }
+
         /* --- Timeline (Audit Trail) --- */
         .timeline-container {
             position: relative;
@@ -76,7 +107,6 @@
             margin-top: 20px;
         }
 
-        /* The vertical line */
         .timeline-container::before {
             content: '';
             position: absolute;
@@ -97,7 +127,6 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.03);
         }
 
-        /* The Circle Dots on the line */
         .timeline-icon {
             position: absolute;
             left: -39px;
@@ -111,7 +140,6 @@
             box-shadow: 0 0 0 3px #f4f7f6;
         }
 
-        /* Status Badges */
         .badge-status {
             display: inline-block;
             padding: 4px 12px;
@@ -166,14 +194,34 @@
         <div class="card-body-content">
             {{ email_body|safe }}
         </div>
+
+        {# --- 🚀 ATTACHMENT SECTION (Synchronized Logic) --- #}
+        {% if attachments %}
+        <div class="attachment-section">
+            <div style="margin-bottom: 10px; font-size: 13px; font-weight: bold; color: #4a5568;">
+                <i class="fas fa-paperclip" style="color: #1976d2; margin-right: 5px;"></i> Original Attachments:
+            </div>
+            <div style="display: flex; flex-wrap: wrap;">
+                {% for att in attachments %}
+                <a href="{% url 'download_attachment' message_id=email_id attachment_id=att.id %}" class="attachment-pill" target="_blank">
+                    {% if att.contentBytes %}
+                        <img src="data:{{ att.contentType }};base64,{{ att.contentBytes }}" 
+                             style="height: 18px; width: 18px; border-radius: 2px; margin-right: 8px; object-fit: cover;">
+                    {% else %}
+                        <i class="fas fa-file-download" style="margin-right: 8px; color: #718096;"></i>
+                    {% endif %}
+                    {{ att.name }}
+                    <span style="font-weight: normal; color: #a0aec0; margin-left: 5px;">({{ att.size|filesizeformat }})</span>
+                </a>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
     </div>
 
     <h2 style="font-size: 1.2em; color: #4a5568; margin-bottom: 20px; padding-left: 10px;">Activity Timeline</h2>
 
-    
-
     <div class="timeline-container">
-        
         <div class="timeline-event">
             <div class="timeline-icon" style="background-color: #2b6cb0;"></div>
             <span class="badge-status bg-delegated">Delegation Created</span>
@@ -207,7 +255,6 @@
             </span>
         </div>
         {% endfor %}
-
     </div>
 </div>
 

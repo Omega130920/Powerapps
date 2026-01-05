@@ -24,6 +24,9 @@ th { background-color: #e6ffe6; color: #1b5e20; font-weight: 700; cursor: pointe
 tr:nth-child(even){background-color:#f9f9f9}
 tr:hover {background-color: #e8f5e9;}
 
+/* View Email Inline Button */
+.btn-view-inline { background-color: #1e88e5; color: white; font-size: 10px; padding: 2px 6px; border-radius: 3px; margin-left: 5px; cursor: pointer; border: none; font-weight: bold; }
+
 .status-tag{display:inline-block;padding:3px 8px;border-radius:4px;font-weight:700;font-size:.8em}
 .status-reconcomplete{background-color:#d1c4e9;color:#512da8}
 .status-open{background-color:#fffde7;color:#fbc02d}
@@ -275,43 +278,44 @@ tr:hover {background-color: #e8f5e9;}
                     <div><label style="font-weight:bold;">Paid</label><input type="date" name="date_paid" class="form-input"></div>
                 </div>
 
-<div class="pot-section">
-    <h4 style="margin-top: 0; color: #1565c0; border-bottom: 1px solid #1e88e5; padding-bottom: 5px;">Pot Availability & Certificates</h4>
-    <div class="pot-grid">
-        <div class="pot-box">
-            <label style="font-weight: bold; display: block; margin-bottom: 5px;">
-                <input type="checkbox" name="vested_pot_available" id="id_vested_pot_available" onchange="togglePotVisibility()"> 
-                Vested Pot Funds available for payout
-            </label>
-            
-            <div id="div_vested_paid" style="display: none; margin-top: 10px;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <label style="font-size: 0.9em; color: #333; font-weight: bold; margin: 0;">Vested Pot Paid</label>
-                    <input type="date" name="vested_pot_paid_date" id="id_vested_pot_paid_date" class="form-input" style="width: auto;">
-                </div>
-            </div>
-        </div>
+                <div class="pot-section">
+                    <h4 style="margin-top: 0; color: #1565c0; border-bottom: 1px solid #1e88e5; padding-bottom: 5px;">Pot Availability & Certificates</h4>
+                    <div class="pot-grid">
+                        <div class="pot-box">
+                            <label style="font-weight: bold; display: block; margin-bottom: 5px;">
+                                <input type="checkbox" name="vested_pot_available" id="id_vested_pot_available" onchange="togglePotVisibility()"> 
+                                Vested Pot Funds available for payout
+                            </label>
+                            
+                            <div id="div_vested_paid" style="display: none; margin-top: 10px;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <label style="font-size: 0.9em; color: #333; font-weight: bold; margin: 0;">Vested Pot Paid</label>
+                                    <input type="date" name="vested_pot_paid_date" id="id_vested_pot_paid_date" class="form-input" style="width: auto;">
+                                </div>
+                            </div>
+                        </div>
 
-        <div class="pot-box">
-            <label style="font-weight: bold; display: block; margin-bottom: 5px;">
-                <input type="checkbox" name="savings_pot_available" id="id_savings_pot_available" onchange="togglePotVisibility()"> 
-                Savings Pot available
-            </label>
-            
-            <div id="div_savings_paid" style="display: none; margin-top: 10px;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <label style="font-size: 0.9em; color: #333; font-weight: bold; margin: 0;">Savings Pot Paid</label>
-                    <input type="date" name="savings_pot_paid_date" id="id_savings_pot_paid_date" class="form-input" style="width: auto;">
-                </div>
-            </div>
-        </div>
-    </div>
+                        <div class="pot-box">
+                            <label style="font-weight: bold; display: block; margin-bottom: 5px;">
+                                <input type="checkbox" name="savings_pot_available" id="id_savings_pot_available" onchange="togglePotVisibility()"> 
+                                Savings Pot available
+                            </label>
+                            
+                            <div id="div_savings_paid" style="display: none; margin-top: 10px;">
+                                <div style="display: flex; align-items: center; gap: 10px;">
+                                    <label style="font-size: 0.9em; color: #333; font-weight: bold; margin: 0;">Savings Pot Paid</label>
+                                    <input type="date" name="savings_pot_paid_date" id="id_savings_pot_paid_date" class="form-input" style="width: auto;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
-    <div style="margin-top: 15px; background: #fffde7; padding: 10px; border-radius: 4px; border: 1px solid #fbc02d; display: flex; align-items: center; gap: 10px;">
-        <label style="font-weight: bold; color: #f57f17; margin: 0;">In-Fund Preservation Paid Up Certificate Received Date:</label>
-        <input type="date" name="infund_cert_date" id="id_infund_cert_date" class="form-input" style="width: auto;">
-    </div>
-</div>
+                    <div style="margin-top: 15px; background: #fffde7; padding: 10px; border-radius: 4px; border: 1px solid #fbc02d; display: flex; align-items: center; gap: 10px;">
+                        <label style="font-weight: bold; color: #f57f17; margin: 0;">In-Fund Preservation Paid Up Certificate Received Date:</label>
+                        <input type="date" name="infund_cert_date" id="id_infund_cert_date" class="form-input" style="width: auto;">
+                    </div>
+                </div>
+
                 <div class="row" style="margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 15px; margin-bottom: 15px;">
                     <div class="col-md-12">
                         <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 5px;">
@@ -367,7 +371,7 @@ tr:hover {background-color: #e8f5e9;}
                 </div>
 
                 <h3 style="color: #38761d; margin-top: 20px;">Claim Notes History</h3>
-                <div style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd;">
+                <div style="max-height: 250px; overflow-y: auto; border: 1px solid #ddd;">
                     <table style="margin: 0; font-size: 12px; width:100%;">
                         <thead style="background-color: #eee;"><tr><th>Note</th><th>Type</th><th>Date</th><th>User</th></tr></thead>
                         <tbody id="claim_notes_tbody"></tbody>
@@ -420,12 +424,9 @@ tr:hover {background-color: #e8f5e9;}
     function triggerGlobalExport() {
         const urlParams = new URLSearchParams(window.location.search);
         const q = document.querySelector('input[name="q"]').value || (urlParams.get('q') || '');
-        // For Global View we don't have date/type filters on page yet, but if you add them later, grab them here.
-        // For now just pass Q
         let exportUrl = "{% url 'export_global_claims_excel' %}?q=" + encodeURIComponent(q);
         window.location.href = exportUrl;
     }
-    // ----------------------
 
     function togglePotVisibility() {
         const vestedChecked = document.getElementById('id_vested_pot_available').checked;
@@ -444,7 +445,7 @@ tr:hover {background-color: #e8f5e9;}
         document.getElementById('email-composition-container').style.display = 'none';
         
         toggleTwoPotLogic();
-        togglePotVisibility(); // Reset visibility
+        togglePotVisibility();
         
         const sSel = document.getElementById('claim_status_select');
         if(sSel && sSel.options.length > 0) sSel.value = "Submitted";
@@ -452,8 +453,9 @@ tr:hover {background-color: #e8f5e9;}
     }
 
     function editClaim(btn) {
+        const claimId = btn.dataset.id;
         document.getElementById('modalTitle').innerText = "Edit Claim Entry";
-        document.getElementById('modal_claim_id').value = btn.dataset.id;
+        document.getElementById('modal_claim_id').value = claimId;
         document.getElementById('company_code_input').value = btn.dataset.company_code;
         document.getElementById('agent_input').value = btn.dataset.agent;
         document.querySelector('input[name="id_number"]').value = btn.dataset.id_number;
@@ -475,21 +477,40 @@ tr:hover {background-color: #e8f5e9;}
         document.querySelector('input[name="date_submitted"]').value = btn.dataset.date_submitted;
         document.querySelector('input[name="date_paid"]').value = btn.dataset.date_paid;
 
-        // Pot Data Population
         document.getElementById('id_vested_pot_available').checked = (btn.dataset.vested_pot_available === 'True');
         document.getElementById('id_vested_pot_paid_date').value = btn.dataset.vested_pot_paid_date || "";
         document.getElementById('id_savings_pot_available').checked = (btn.dataset.savings_pot_available === 'True');
         document.getElementById('id_savings_pot_paid_date').value = btn.dataset.savings_pot_paid_date || "";
         document.getElementById('id_infund_cert_date').value = btn.dataset.infund_cert_date || "";
-        togglePotVisibility(); // Refresh view
+        togglePotVisibility();
         
         const emailSelect = document.getElementById('linked_email_id');
         if(emailSelect) emailSelect.value = btn.dataset.linked_email_id || "";
         document.getElementById('email-composition-container').style.display = 'none';
 
-        const notesSrc = document.getElementById('notes-data-' + btn.dataset.id);
+        // --- POPULATE NOTES WITH VIEW EMAIL BUTTON ---
+        const notesSrc = document.getElementById('notes-data-' + claimId);
         const notesTrg = document.getElementById('claim_notes_tbody');
-        if (notesSrc && notesTrg) notesTrg.innerHTML = notesSrc.innerHTML;
+        
+        if (notesSrc && notesTrg) {
+            const content = notesSrc.content.cloneNode(true);
+            const rows = content.querySelectorAll('tr');
+
+            rows.forEach(row => {
+                const noteCell = row.cells[0]; 
+                if (noteCell && noteCell.innerText.includes("Linked to Delegated Email ID #")) {
+                    const viewBtn = document.createElement('button');
+                    viewBtn.type = "button";
+                    viewBtn.innerText = "View Email";
+                    viewBtn.className = "btn-view-inline";
+                    viewBtn.onclick = function() { previewLinkedEmail(claimId); };
+                    noteCell.appendChild(viewBtn);
+                }
+            });
+
+            notesTrg.innerHTML = ""; 
+            notesTrg.appendChild(content);
+        }
 
         toggleWithdrawalSubFields();
         document.getElementById('claimModal').style.display = 'block';
@@ -497,7 +518,10 @@ tr:hover {background-color: #e8f5e9;}
 
     function previewLinkedEmail(claimId) {
         const template = document.getElementById('email-content-' + claimId);
-        if (!template) return;
+        if (!template) {
+            alert("Email content not found for this claim.");
+            return;
+        }
         document.getElementById('pv_from').innerText = template.content.querySelector('.p-sender').innerText;
         document.getElementById('pv_subject').innerText = template.content.querySelector('.p-subject').innerText;
         document.getElementById('pv_date').innerText = template.content.querySelector('.p-date').innerText;

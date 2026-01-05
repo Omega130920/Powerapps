@@ -143,47 +143,46 @@ body {
     </div>
     
     {% if recycled_tasks %}
-    <table class="task-table">
-        <thead>
-            <tr>
-                <th style="width: 40px;"><input type="checkbox" id="select_all"></th>
-                <th style="width: 35%;">Subject / Email ID</th>
-                <th>Company Code</th>
-                <th>Classification</th>
-                <th style="text-align: center;">Actions</th>
-            </tr>
-        </thead>
-        <tbody id="table_body">
-            {% for task in recycled_tasks %}
-            <tr class="data-row">
-                <td onclick="event.stopPropagation();">
-                    <input type="checkbox" name="email_ids" value="{{ task.email_id }}" form="delete_form" class="delete-checkbox">
-                </td>
-                
-                <td onclick="window.location.href='{% url 'outlook_delegated_action' delegation_id=task.pk %}';">
-                    <a href="{% url 'outlook_delegated_action' delegation_id=task.pk %}" style="text-decoration: none; color: inherit;">
-                        <strong>Task Ref: {{ task.email_id|truncatechars:40 }}</strong><br>
-                        <small style="color: #888;">Received: {{ task.received_at|date:"d M Y H:i" }}</small>
-                    </a>
-                </td>
+<table class="task-table">
+    <thead>
+        <tr>
+            <th style="width: 40px;"><input type="checkbox" id="select_all"></th>
+            <th style="width: 45%;">Subject</th> <th>Company Code</th>
+            <th>Classification</th>
+            <th style="text-align: center;">Actions</th>
+        </tr>
+    </thead>
+    <tbody id="table_body">
+        {% for task in recycled_tasks %}
+        <tr class="data-row">
+            <td onclick="event.stopPropagation();">
+                <input type="checkbox" name="email_ids" value="{{ task.email_id }}" form="delete_form" class="delete-checkbox">
+            </td>
+            
+            <td onclick="window.location.href='{% url 'outlook_delegated_action' delegation_id=task.pk %}';">
+                <a href="{% url 'outlook_delegated_action' delegation_id=task.pk %}" style="text-decoration: none; color: inherit;">
+                    <strong style="color: #333;">{{ task.subject_display }}</strong><br>
+                    <small style="color: #888;">Received: {{ task.received_at|date:"d M Y H:i" }}</small>
+                </a>
+            </td>
 
-                <td onclick="window.location.href='{% url 'outlook_delegated_action' delegation_id=task.pk %}';">
-                    {{ task.company_code|default:"N/A" }}
-                </td>
+            <td onclick="window.location.href='{% url 'outlook_delegated_action' delegation_id=task.pk %}';">
+                {{ task.company_code|default:"N/A" }}
+            </td>
 
-                <td onclick="window.location.href='{% url 'outlook_delegated_action' delegation_id=task.pk %}';">
-                    {{ task.email_category|default:"Non-work related" }}
-                </td>
+            <td onclick="window.location.href='{% url 'outlook_delegated_action' delegation_id=task.pk %}';">
+                {{ task.email_category|default:"Non-work related" }}
+            </td>
 
-                <td style="text-align: center;" onclick="event.stopPropagation();">
-                    <a href="{% url 'outlook_delegated_action' delegation_id=task.pk %}" class="btn-restore">
-                        👁️ View & Restore
-                    </a>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+            <td style="text-align: center;" onclick="event.stopPropagation();">
+                <a href="{% url 'outlook_delegated_action' delegation_id=task.pk %}" class="btn-restore">
+                    👁️ View & Restore
+                </a>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
     {% else %}
     <div style="text-align: center; padding: 50px;">
         <p style="font-size: 1.2em; color: #666;">🎉 The Recycle Bin is currently empty.</p>

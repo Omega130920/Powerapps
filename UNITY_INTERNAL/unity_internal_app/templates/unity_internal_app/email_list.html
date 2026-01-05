@@ -1,3 +1,5 @@
+{% load static %}
+
 {% block title %}Master Email Archive{% endblock %}
 
 {% block content %}
@@ -74,6 +76,7 @@
         font-weight: bold;
         text-transform: uppercase;
         display: inline-block;
+        margin-bottom: 5px;
     }
 
     .type-original { background-color: #e3f2fd; color: #1565c0; } 
@@ -179,28 +182,27 @@
     <table id="masterEmailTable" class="task-table">
         <thead>
             <tr>
-                <th style="width: 8%;">Type</th>
-                <th style="width: 10%;">Status</th>
-                <th style="width: 30%;">Subject</th>
+                <th style="width: 12%;">Status</th>
+                <th style="width: 38%;">Subject</th>
                 <th style="width: 20%;">Participant (From/To)</th>
                 <th style="width: 14%;">Date / Time</th>
-                <th style="width: 18%;">Assigned / Action By</th>
+                <th style="width: 16%;">Assigned / Action By</th>
             </tr>
         </thead>
         <tbody>
             {% for item in page_obj %}
             <tr class="archive-row">
                 {% if item.action_type %}
-                    {# TRANSACTION LOGS (REPLIES) #}
-                    <td><span class="badge-type type-reply">↩️ {{ item.action_type }}</span></td>
-                    <td><span class="status-tag" style="color: #607d8b;">Logged</span></td>
+                    {# TRANSACTION LOGS (REPLIES/ACTIONS) #}
+                    <td>
+                        <span class="status-tag" style="color: #2e7d32;">Actioned</span>
+                    </td>
                     <td><strong>{{ item.subject }}</strong></td>
                     <td><small style="color: #555;"><b>To:</b> {{ item.recipient_email }}</small></td>
                     <td>{{ item.timestamp|date:"Y-m-d H:i" }}</td>
                     <td><i class="fas fa-user-edit"></i> {{ item.user.username }}</td>
                 {% else %}
                     {# ORIGINAL DELEGATION TASKS #}
-                    <td><span class="badge-type type-original">✉️ Task</span></td>
                     <td>
                         {% if item.status == 'COM' %}
                             <span class="status-tag" style="color: #43a047;">Completed</span>
@@ -224,6 +226,10 @@
                         {% endif %}
                     </td>
                 {% endif %}
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" style="text-align: center; padding: 30px; color: #888;">No archived items found matching your filters.</td>
             </tr>
             {% endfor %}
         </tbody>

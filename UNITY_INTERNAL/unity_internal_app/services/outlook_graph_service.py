@@ -151,3 +151,25 @@ class OutlookGraphService:
             return response
         
         return {'success': True, 'message': 'Email successfully submitted to Graph API.'}
+    
+    # --- Attachment Handling ---
+
+    @staticmethod
+    def fetch_attachments(target_email, message_id):
+        """
+        Fetches the metadata for all attachments belonging to a specific message.
+        """
+        endpoint = f"messages/{message_id}/attachments"
+        response = OutlookGraphService._make_graph_request(endpoint, target_email)
+        
+        # Return the list of attachment objects if found, else empty list
+        return response.get('value', [])
+
+    @staticmethod
+    def get_attachment_raw(target_email, message_id, attachment_id):
+        """
+        Fetches the raw data for a specific attachment.
+        Note: Microsoft Graph returns this as a Base64 string in the 'contentBytes' field.
+        """
+        endpoint = f"messages/{message_id}/attachments/{attachment_id}"
+        return OutlookGraphService._make_graph_request(endpoint, target_email)

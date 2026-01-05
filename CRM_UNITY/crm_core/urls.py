@@ -40,4 +40,8 @@ urlpatterns = [
     path('report/', views.delegation_report_view, name='delegation_report'),
     path('complaint-log/', views.complaint_log_view, name='complaint_log'),
     path('thread/<str:email_id>/', views.view_email_thread, name='view_email_thread'),
+    
+    path('download-attachment/<str:message_id>/<str:attachment_id>/', views.download_attachment_view, name='download_attachment'),
+    path('delegation-report/export/', views.export_delegation_report_excel, name='export_delegation_report_excel'),
+    path('final-sla-report/', views.final_sla_report_view, name='final_sla_report'),
 ]

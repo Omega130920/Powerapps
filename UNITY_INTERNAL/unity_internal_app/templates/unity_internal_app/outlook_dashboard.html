@@ -1,4 +1,3 @@
-
 {% load static %}
 
 {% block title %}Managed Outlook Inbox{% endblock %}
@@ -42,7 +41,7 @@
     }
     .log-controls {
         display: flex;
-        gap: 15px; /* Reduced gap slightly */
+        gap: 15px;
         align-items: center;
     }
     .task-table {
@@ -70,7 +69,6 @@
     }
     /* Custom status colors */
     .status-new { color: #1e88e5; font-weight: bold; }
-    .status-delegated { color: #2e7d32; font-weight: bold; }
     
     .log-notes {
         font-style: italic;
@@ -97,7 +95,7 @@
     .return-button:hover {
         background-color: #66bb6a;
     }
-    /* NEW STYLE for the button replacing the form/dropdown */
+    
     .btn-delegate-link {
         background-color: #f7931e;
         color: white;
@@ -124,12 +122,21 @@
         margin-right: 10px;
     }
     .archive-link:hover { background-color: #455a64; }
+
+    .delegate-btn {
+        background-color: #43a047;
+        color: white;
+        padding: 8px 15px;
+        border-radius: 5px;
+        text-decoration: none;
+        font-weight: bold;
+    }
+    .delegate-btn:hover { background-color: #2e7d32; }
 </style>
 
 <div class="Dashboard" style="margin-top: 25px;">
     <a href="{% url 'dashboard' %}" class="return-button">Back to Dashboard</a>
     <a href="{% url 'outlook_delegated_box' %}" class="return-button">My Delegated Tasks</a>
-    {# Link to the new Master List #}
     <a href="{% url 'email_list' %}" class="archive-link"><i class="fas fa-archive"></i> Master Email Archive</a>
 </div>
 
@@ -160,7 +167,7 @@
             {% for message in messages %}
             <tr>
                 <td><b class="status-new">NEW</b></td>
-                <td>{{ message.receivedDateTime|date:"Y-m-d H:i" }}</td>
+                <td>{{ message.internal_received_at|date:"Y-m-d H:i" }}</td>
                 <td>
                     <b>{{ message.subject|default:"(No Subject)" }}</b>
                     <div class="log-notes">{{ message.body.content|striptags|truncatechars:70 }}</div>
@@ -186,4 +193,7 @@
     </div>
     {% endif %}
 </div>
+
+
+
 {% endblock %}

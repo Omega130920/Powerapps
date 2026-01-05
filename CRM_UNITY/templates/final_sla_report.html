@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Final SLA Report</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
+        
+        .sla-table { width: 100%; border-collapse: collapse; }
+        .sla-table th, .sla-table td { padding: 1rem; border: 1px solid #e5e7eb; }
+        
+        /* Match your app's emerald and indigo theme */
+        .header-row { background-color: #10b981; color: white; }
+        .footer-row { background-color: #10b981; color: white; font-weight: 700; }
+        .stripe-row { background-color: #f9fafb; }
+        
+        .btn-return {
+            @apply text-indigo-600 hover:text-indigo-800 font-medium transition duration-150 ease-in-out;
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+
+    <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-2xl overflow-hidden">
+        <div class="p-6 bg-indigo-700 flex justify-between items-center">
+            <div>
+                <h1 class="text-3xl font-bold text-white">SLA Performance Report</h1>
+                <p class="text-indigo-300 mt-1 text-sm">Combined metrics from Emails, Calls, and Teams.</p>
+            </div>
+            <div class="text-right">
+                <span class="text-indigo-200 text-xs block uppercase tracking-widest">Report Date</span>
+                <span class="text-white font-mono">2026-01-05</span>
+            </div>
+        </div>
+
+        <div class="p-8">
+            <a href="{% url 'dashboard' %}" class="btn-return mb-6 inline-block">← Return to Dashboard</a>
+
+            <div class="rounded-lg border border-gray-200 overflow-hidden shadow-sm">
+                <table class="sla-table">
+                    <thead>
+                        <tr class="header-row">
+                            <th class="text-left uppercase tracking-wider text-sm">SLA Handled Category</th>
+                            <th class="text-right uppercase tracking-wider text-sm">Grand Total</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-gray-700">
+                        <tr class="stripe-row">
+                            <td class="font-semibold text-gray-600">CALLS</td>
+                            <td class="text-right font-mono text-lg">{{ report.CALLS }}</td>
+                        </tr>
+                        <tr>
+                            <td class="font-semibold text-gray-600 italic">INBOX EMAILS</td>
+                            <td class="text-right font-bold text-emerald-600 underline text-lg decoration-2 underline-offset-4">
+                                {{ report.INBOX_EMAILS }}
+                            </td>
+                        </tr>
+                        <tr class="stripe-row">
+                            <td class="font-semibold text-gray-600 italic">QUERIES</td>
+                            <td class="text-right font-bold text-emerald-600 underline text-lg decoration-2 underline-offset-4">
+                                {{ report.QUERIES }}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="font-semibold text-gray-600">SENT EMAILS</td>
+                            <td class="text-right font-mono text-lg">{{ report.SENT_EMAILS }}</td>
+                        </tr>
+                        <tr class="stripe-row">
+                            <td class="font-semibold text-gray-600">TEAMS</td>
+                            <td class="text-right font-mono text-lg">{{ report.TEAMS }}</td>
+                        </tr>
+                    </tbody>
+                    <tfoot>
+                        <tr class="footer-row">
+                            <td class="text-lg">TOTAL SLA HANDLED</td>
+                            <td class="text-right text-2xl font-black tracking-tight">{{ grand_total }}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            
+            <p class="mt-4 text-xs text-gray-400 italic text-center">
+                * Data aggregated from crm_delegate_to, client_notes, and direct_email_log.
+            </p>
+        </div>
+    </div>
+
+</body>
+</html>

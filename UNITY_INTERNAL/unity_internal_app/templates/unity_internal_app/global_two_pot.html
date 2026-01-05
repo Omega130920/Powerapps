@@ -45,6 +45,9 @@
     .btn-primary:hover { background-color: #2e7d32; }
     .btn-secondary { background-color: #f5f5f5; color: #666; border: 1px solid #ccc; }
     .btn-details { background-color: #f7931e; color: white; font-size: 11px; padding: 4px 10px; }
+    
+    /* View Email Inline Button */
+    .btn-view-inline { background-color: #1e88e5; color: white; font-size: 10px; padding: 2px 6px; border-radius: 3px; margin-left: 5px; cursor: pointer; border: none; }
 
     /* Modal Form Inputs */
     .form-input, .form-select { width: 100%; padding: 8px; border: 1px solid #aed581; border-radius: 4px; background: white; box-sizing: border-box; font-size: 13px; }
@@ -212,7 +215,12 @@
 
                     <template id="notes-data-{{ claim.id }}">
                         {% for note in claim.notes.all %}
-                            <tr><td>{{ note.note_description }}</td><td>{{ note.note_selection }}</td><td>{{ note.created_at|date:"Y-m-d H:i" }}</td><td>{{ note.created_by.username }}</td></tr>
+                            <tr>
+                                <td>{{ note.note_description }}</td>
+                                <td>{{ note.note_selection }}</td>
+                                <td>{{ note.created_at|date:"Y-m-d H:i" }}</td>
+                                <td>{{ note.created_by.username }}</td>
+                            </tr>
                         {% empty %}
                             <tr><td colspan="4" style="text-align:center; color:#777;">No notes found.</td></tr>
                         {% endfor %}
@@ -303,8 +311,8 @@
                 <div>
                     <label style="font-weight:bold;">Claim Status</label>
                     <select name="claim_status" id="claim_status_select" class="form-select" onchange="toggleWithdrawalSubFields()">
-                        <option value="Submitted">Submitted</option>
-                        <option value="Paid">Paid</option>
+                        <option value="Member Emergency Savings Pot Withdrawal Submitted">Member Emergency Savings Pot Withdrawal Submitted </option>
+                        <option value="Member Emergency Savings Pot Withdrawal Requested">Member Emergency Savings Pot Withdrawal Requested </option>
                         <option value="Withdraw - Not Allowed">Withdraw - Not Allowed</option>
                         </select>
                 </div>
@@ -384,7 +392,7 @@
             </div>
 
             <h3 style="color: #38761d; margin-top: 20px;">Claim Notes History</h3>
-            <div style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd;">
+            <div style="max-height: 250px; overflow-y: auto; border: 1px solid #ddd;">
                 <table style="margin: 0; font-size: 12px; width:100%;">
                     <thead style="background-color: #eee;"><tr><th>Note</th><th>Type</th><th>Date</th><th>User</th></tr></thead>
                     <tbody id="claim_notes_tbody"></tbody>
@@ -441,8 +449,9 @@
     }
 
     function editClaim(btn) {
+        const claimId = btn.dataset.id;
         document.getElementById('modalTitle').innerText = "Edit Two-Pot Claim";
-        document.getElementById('modal_claim_id').value = btn.dataset.id;
+        document.getElementById('modal_claim_id').value = claimId;
         document.getElementById('company_code_input').value = btn.dataset.company_code;
         document.getElementById('agent_input').value = btn.dataset.agent;
         document.querySelector('input[name="id_number"]').value = btn.dataset.id_number;
@@ -460,9 +469,32 @@
         const emailSelect = document.getElementById('linked_email_id');
         if(emailSelect) emailSelect.value = btn.dataset.linked_email_id || "";
         document.getElementById('email-composition-container').style.display = 'none';
-        const notesSrc = document.getElementById('notes-data-' + btn.dataset.id);
+        
+        // --- POPULATE NOTES WITH VIEW EMAIL BUTTON ---
+        const notesSrc = document.getElementById('notes-data-' + claimId);
         const notesTrg = document.getElementById('claim_notes_tbody');
-        if (notesSrc && notesTrg) notesTrg.innerHTML = notesSrc.innerHTML;
+        
+        if (notesSrc && notesTrg) {
+            // Use template content clone
+            const content = notesSrc.content.cloneNode(true);
+            const rows = content.querySelectorAll('tr');
+
+            rows.forEach(row => {
+                const noteCell = row.cells[0]; // Note Description column
+                if (noteCell && noteCell.innerText.includes("Linked to Delegated Email ID #")) {
+                    const viewBtn = document.createElement('button');
+                    viewBtn.type = "button";
+                    viewBtn.innerText = "View Email";
+                    viewBtn.className = "btn-view-inline";
+                    viewBtn.onclick = function() { previewLinkedEmail(claimId); };
+                    noteCell.appendChild(viewBtn);
+                }
+            });
+
+            notesTrg.innerHTML = ""; 
+            notesTrg.appendChild(content);
+        }
+
         toggleWithdrawalSubFields();
         document.getElementById('claimModal').style.display = 'block';
     }
@@ -470,7 +502,10 @@
     // --- EMAIL PREVIEW LOGIC (NO AJAX) ---
     function previewLinkedEmail(claimId) {
         const template = document.getElementById('email-content-' + claimId);
-        if (!template) return;
+        if (!template) {
+            alert("No email content found for this claim.");
+            return;
+        }
         const sender = template.content.querySelector('.p-sender').innerText;
         const subject = template.content.querySelector('.p-subject').innerText;
         const date = template.content.querySelector('.p-date').innerText;
@@ -516,8 +551,6 @@
         const status = document.getElementById('claim_status_select').value;
         const helper = document.getElementById('div_two_pot_withdrawal_details');
         
-        // Show helper if status is "Withdraw - Not Allowed" 
-        // OR if the user manually selects a template from the helper dropdown
         helper.style.display = (status === "Withdraw - Not Allowed") ? 'block' : 'none';
         
         if (status === "Withdraw - Not Allowed") {
@@ -531,7 +564,6 @@
         const dateDiv = document.getElementById('div_prev_claim_date');
         const note = document.getElementById('note_description');
 
-        // Always show the whole helper block if a reason is chosen manually
         if (reason !== "") {
             document.getElementById('div_two_pot_withdrawal_details').style.display = 'block';
         }

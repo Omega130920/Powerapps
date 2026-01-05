@@ -68,26 +68,18 @@ tbody tr:nth-child(even){background-color:#e6ffe6;}
 <div class="card-body">
 <h5 class="card-title">Scheduled Bill Amount (Original)</h5>
 <p class="card-text">R {{ scheduled_amount|floatformat:2 }}</p>
-<small>
-Remaining Schedule: R{{ remaining_schedule_amount|floatformat:2 }}
-{% if over_scheduled_amount > 0 %}
-<br>**R {{ over_scheduled_amount|floatformat:2 }}** recorded as **Unapplied Surplus**.
-{% endif %}
-</small>
 </div>
 </div>
 <div class="metric-card blue">
 <div class="card-body">
-<h5 class="card-title">Total Available Balance</h5>
+<h5 class="card-title">Total Bank Lines</h5>
 <p class="card-text">R {{ total_debt|floatformat:2 }}</p>
-<small>Total assigned cash available to settle bills.</small>
 </div>
 </div>
 <div class="metric-card purple">
 <div class="card-body">
 <h5 class="card-title">Credit Allocated (Used)</h5>
 <p class="card-text">R {{ total_credit_notes_assigned|default:"0.00"|floatformat:2 }}</p>
-<small>Sum of Credit Notes applied to this bill.</small>
 </div>
 </div>
 
@@ -95,15 +87,6 @@ Remaining Schedule: R{{ remaining_schedule_amount|floatformat:2 }}
 <div class="card-body">
 <h5 class="card-title">Outstanding (Debt - Remaining Schedule)</h5>
 <p class="card-text" id="dynamic-outstanding">R {{ current_outstanding|floatformat:2 }}</p>
-<small id="dynamic-outstanding-small">
-{% if current_outstanding > 0 %}
-**R {{ current_outstanding|floatformat:2 }}** remains **Unbilled Debt**.
-{% elif current_outstanding < 0 %}
-**R {{ current_outstanding|floatformat:2|slice:"1:" }}** is **Over-scheduled**.
-{% else %}
-Debt is perfectly matched to the Remaining Scheduled Amount.
-{% endif %}
-</small>
 </div>
 </div>
 </div>

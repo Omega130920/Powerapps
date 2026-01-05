@@ -99,4 +99,7 @@ urlpatterns = [
     path('manager/credit-approvals/', views.manager_approval_dashboard, name='manager_approval_dashboard'),
     path('manager/approve-link/<int:note_id>/', views.approve_credit_link, name='approve_credit_link'),
     path('manager/reject-link/<int:note_id>/', views.reject_credit_link, name='reject_credit_link'),
+    path('bank/global/', views.global_bank_view, name='global_bank'),
+    path('bank/global/export/', views.export_global_bank_excel, name='export_global_bank_excel'),
+    path('outlook/download/<str:message_id>/<str:attachment_id>/', views.download_attachment_view, name='download_attachment'),
 ]

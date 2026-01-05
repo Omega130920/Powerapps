@@ -101,3 +101,18 @@ class OutlookGraphService:
             return {'success': False, 'error': result.get('error')}
         
         return {'success': True}
+    
+    
+    @staticmethod
+    def fetch_attachments(target_email, message_id):
+        """Metadata for all attachments."""
+        endpoint = f"messages/{message_id}/attachments"
+        # URL built inside _make_graph_request uses settings.OUTLOOK_EMAIL_ADDRESS
+        response = OutlookGraphService._make_graph_request(endpoint, method='GET')
+        return response.get('value', [])
+    
+    @staticmethod
+    def get_attachment_raw(target_email, message_id, attachment_id):
+        """Raw bytes for image thumbnails."""
+        endpoint = f"messages/{message_id}/attachments/{attachment_id}"
+        return OutlookGraphService._make_graph_request(endpoint, method='GET')

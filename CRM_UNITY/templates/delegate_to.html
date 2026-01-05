@@ -1,191 +1,169 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Delegate Task</title>
+{% load static %}
+{% block title %}Delegate CRM Task{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
 <style>
 /* -------------------------------------- */
-/* BASE STYLES */
+/* BASE STYLES & DELEGATE FORM STYLES */
 /* -------------------------------------- */
-body {
-    font-family: sans-serif;
-    margin: 0;
-    color: #333;
-    line-height: 1.6;
-    background-color: #d1e2c4;
-}
+body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; background-color: #d1e2c4; }
+.delegate-container { max-width: 900px; margin: 40px auto; padding: 30px; background-color: #fff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,.15); border: 1px solid #c3e6cb; }
+.delegate-container h1 { margin-bottom: 20px; color: #43a047; font-size: 28px; border-bottom: 2px solid #e0f2f1; padding-bottom: 15px; }
 
-/* -------------------------------------- */
-/* DELEGATE FORM STYLES */
-/* -------------------------------------- */
-.delegate-container {
-    max-width: 900px;
-    margin: 40px auto;
-    padding: 30px;
-    background-color: #ffffff;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    border: 1px solid #c3e6cb;
-}
-.delegate-container h1 {
-    margin-bottom: 20px;
-    color: #43a047;
-    font-size: 28px;
-    border-bottom: 2px solid #e0f2f1;
-    padding-bottom: 15px;
-}
-
-/* --- ADAPTED EMAIL CARD STYLES --- */
+/* --- PROFESSIONAL EMAIL CARD STYLES --- */
 .email-thread-card {
     background: #ffffff;
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     margin-bottom: 30px;
     border: 1px solid #eee;
-    border-left: 5px solid #1976d2; 
+    border-left: 5px solid rgb(105, 187, 85); /* Unity Green accent */
 }
-
 .card-header-main {
     padding: 15px 20px;
     background-color: #fafafa;
     border-bottom: 1px solid #eee;
 }
-
-.card-header-main h3 {
-    margin: 0 0 5px 0;
-    color: #1976d2;
-    font-size: 1.1em;
-}
-
+.card-header-main h3 { margin: 0 0 5px 0; color: rgb(105, 187, 85); font-size: 1.1em; }
 .card-body-content {
     padding: 20px;
     line-height: 1.7;
-    max-height: 400px; 
+    max-height: 450px; 
     overflow-y: auto;
     background: #fff;
     font-size: 14px;
 }
 
-/* -------------------------------------- */
-/* FORM STYLES */
-/* -------------------------------------- */
-.form-group {
-    margin-bottom: 20px;
+/* --- ATTACHMENT SECTION --- */
+.attachment-list { 
+    margin-top: 0; 
+    padding: 15px 20px; 
+    background-color: #f1f8e9; 
+    border-top: 1px solid #e0e0e0; 
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
 }
-.form-group label {
-    display: block;
-    margin-bottom: 5px;
+.attachment-item {
+    display: inline-flex;
+    align-items: center;
+    background: #fff;
+    padding: 5px 12px;
+    border: 1px solid #c5e1a5;
+    border-radius: 20px;
+    margin-right: 10px;
+    margin-bottom: 8px;
+    transition: all 0.2s ease;
+}
+.attachment-item:hover {
+    border-color: #43a047;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transform: translateY(-1px);
+}
+.attachment-link { 
+    color: #2e7d32; 
+    text-decoration: none; 
+    font-size: 13px; 
     font-weight: bold;
-    color: #333;
-    font-size: 14px;
 }
-.form-group input[type="text"], .form-group select, .form-group textarea { 
-    width: 100%;
-    padding: 8px 10px;
-    border: 1px solid #aed581;
-    border-radius: 4px;
-    box-sizing: border-box;
-    font-size: 14px;
-}
-.btn-delegate {
-    width: 100%;
-    padding: 12px;
-    background-color: #81c784;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-size: 18px;
-    transition: background-color 0.3s ease;
-}
-.btn-delegate:hover {
-    background-color: #66bb6a;
-}
+.attachment-link i { margin-right: 5px; color: #43a047; }
 
-.attachment-list {
-    margin-top: 10px;
-    padding: 10px;
-    background-color: #f0fff0;
-    border-top: 1px solid #eee;
+/* --- FORM STYLES --- */
+.form-group { margin-bottom: 20px; }
+.form-group label { display: block; margin-bottom: 5px; font-weight: 700; color: #333; font-size: 14px; }
+.form-group input[type=text], .form-group select { width: 100%; padding: 8px 10px; border: 1px solid #aed581; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
+.form-group input:focus, .form-group select:focus { border-color: #66bb6a; box-shadow: 0 0 0 .1rem rgba(102,187,106,.5); outline: none; }
+
+.button-container { display: flex; justify-content: space-between; align-items: center; margin-top: 25px; }
+.btn-cancel { padding: 12px 20px; background-color: #757575; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 18px; transition: background-color .3s ease; text-decoration: none; display: inline-block; }
+.btn-cancel:hover { background-color: #616161; }
+
+.btn-delegate { 
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 12px 25px; 
+    background-color: #81c784; 
+    color: white; 
+    border: none; 
+    border-radius: 4px; 
+    cursor: pointer; 
+    font-size: 18px; 
+    transition: all 0.3s ease; 
+    font-weight: bold; 
 }
-.attachment-link {
-    display: inline-block;
-    margin-right: 15px;
-    color: #1e88e5;
-    text-decoration: underline;
-    font-size: 13px;
-}
-.form-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr); 
-    gap: 15px; 
-}
+.btn-delegate:hover { background-color: #66bb6a; }
+
+.form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
 .hidden { display: none; }
 </style>
-</head>
-<body>
+
 <div class="delegate-container">
+    <h1>Delegate CRM Task</h1>
     
-    <h1>Delegate Task for **{{ member_code }}**</h1>
-
-    <form method="post">
+    <form method="post" action="{% url 'delegate_email' email_id=email_id %}">
         {% csrf_token %}
-
+        
         <div class="form-group">
-            <label for="email_subject">Email Subject:</label>
-            <input type="text" id="email_subject" name="email_subject" value="{{ email_subject }}" required>
+            <label for="email_subject_display">Email Subject:</label>
+            <input type="text" id="email_subject_display" name="email_subject_display" value="{{ email_subject }}" readonly>
         </div>
-
+        
         <div class="email-thread-card">
             <div class="card-header-main">
-                <h3>Original Communication</h3>
-                <div style="font-size: 13px; color: #4a5568;">
-                    <strong>Sender:</strong> {{ inbox_item.sender|default:"System" }} <br>
+                <h3>Original Communication Content</h3>
+                <div style="font-size: 13px; color: #666;">
+                    <strong>Sender:</strong> {{ inbox_item.sender|default:"Unknown" }} <br>
                     <strong>Arrival:</strong> {{ inbox_item.received_timestamp|date:"d M Y, H:i" }}
                 </div>
             </div>
+            
             <div class="card-body-content">
                 {{ email_body|safe }}
             </div>
-
+            
             {% if attachments %}
             <div class="attachment-list">
-                <strong style="font-size: 13px; color: #2e7d32;">Attachments:</strong><br>
-                {% for att in attachments %}
-                    <input type="hidden" name="delegated_attachment_id" value="{{ att.attachmentId }}">
-                    <input type="hidden" name="delegated_attachment_filename" value="{{ att.filename }}">
-                    <input type="hidden" name="delegated_attachment_size" value="{{ att.size }}">
-
-                    <a href="{% url 'download_attachment' message_id=email_id attachment_id=att.attachmentId %}" 
-                        target="_blank" class="attachment-link">
-                        📄 {{ att.filename }} ({{ att.size|filesizeformat }})
-                    </a>
-                {% endfor %}
+                <strong style="display:block; margin-bottom:10px; color:#2e7d32; font-size: 14px;">
+                    <i class="fas fa-paperclip"></i> Attachments Detected (Click to download):
+                </strong>
+                <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                    {% for att in attachments %}
+                    <div class="attachment-item">
+                        <a href="{% url 'download_attachment' message_id=email_id attachment_id=att.id %}" class="attachment-link" target="_blank">
+                            {% if att.contentBytes %}
+                                <img src="data:{{ att.contentType }};base64,{{ att.contentBytes }}" 
+                                     style="height: 20px; width: 20px; border-radius: 3px; margin-right: 5px; object-fit: cover; vertical-align: middle;">
+                            {% else %}
+                                <i class="fas fa-file-download"></i>
+                            {% endif %}
+                            
+                            {{ att.name }} 
+                            <small style="color: #666; font-weight: normal;">({{ att.size|filesizeformat }})</small>
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
             {% endif %}
         </div>
-        
-        <div class="form-group">
-            <label for="work_related">Work Related:*(Mandatory)*</label>
-            <select id="work_related" name="work_related">
-                <option value="Yes">Yes</option>
-                <option value="No">No</option>
-            </select>
-        </div>
+    
+    <div class="form-group">
+        <label for="work_related">Is this task Work Related?*</label>
+        <select id="work_related" name="work_related" required>
+            <option value="Yes" selected>Yes (Assign to Agent)</option>
+            <option value="No">No (Archive/Recycle)</option>
+        </select>
+    </div>
 
-        <div id="metadata_fields_container">
+        <div id="classification_fields_wrapper">
             <div class="form-grid">
                 <div class="form-group">
                     <label for="mip_number">Member Group Code:</label>
                     <input type="text" id="mip_number" name="mip_number" placeholder="Enter MIP Number">
                 </div>
-
-                <div class="form-group">
-                    <label for="id_passport">ID / Passport Number:</label>
-                    <input type="text" id="id_passport" name="id_passport" placeholder="Enter ID/Passport">
-                </div>
-
+                
                 <div class="form-group">
                     <label for="email_category">Enquiry Type:</label>
                     <select id="email_category" name="email_category">
@@ -193,56 +171,215 @@ body {
                         <option value="1">1. Reconciliation</option>
                         <option value="2">2. Claim</option>
                         <option value="3">3. Section 13A</option>
+                        <option value="4">4. New Business</option>
+                        <option value="5">5. Amendments</option>
+                        <option value="6">6. Section 28</option>
+                        <option value="7">7. Section 14</option>
+                        <option value="8">8. Section 27</option>
+                        <option value="9">9. Complaints</option>
+                        <option value="10">10. Two Pot</option>
+                        <option value="11">11. Report Back</option>
+                        <option value="12">12. Broker Investigations and Rebrokes</option>
                         <option value="13">13. General</option>
                         <option value="14">14. Other</option>
                     </select>
                 </div>
-
+                
                 <div class="form-group">
-                    <label for="email_type">Enquiry Selection:</label>
-                    <select id="email_type" name="email_type">
-                        <option value="" data-category="none">-- Select Enquiry Type First --</option> 
-                        <option value="1.1 Schedule Query" data-category="1" class="hidden">1.1 Schedule Query</option>
-                        <option value="13.1 Underwriting Queries" data-category="13" class="hidden">13.1 Underwriting Queries</option>
-                        <option value="14.15 Bulk Benefit Statements" data-category="14" class="hidden">14.15 Bulk Benefit Statements</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label for="email_method">Communication Type:</label>
-                    <select id="email_method" name="email_method">
-                        <option value="Email">Inbox Email</option>
+                    <label for="comm_type">Communication Type:</label>
+                    <select id="comm_type" name="comm_type">
+                        <option value="Email" selected>Outlook Inbox</option>
                     </select>
                 </div>
             </div>
-        </div> 
-        
-        <div class="form-group" id="delegation_fields" style="margin-top: 20px;">
-            <label for="agent_name">Delegate To Agent:*(Mandatory)*</label>
-            <select id="agent_name" name="agent_name" required>
-                <option value="__Select Agent__">__Select Agent__</option>
-                {% for agent in available_agents %}
-                    <option value="{{ agent }}">{{ agent }}</option>
-                {% endfor %}
-            </select>
+
+            <div class="form-group">
+                <label for="email_type">Enquiry Selection:</label>
+                <select id="email_type" name="email_type">
+                    <option value="" data-category="none">-- Select Enquiry Type First --</option> 
+                    
+                    <option value="1.1 Schedule Query" data-category="1" class="hidden">1.1 Schedule Query</option>
+                    <option value="1.2 Member Data Query" data-category="1" class="hidden">1.2 Member Data Query</option>
+                    <option value="1.3 Payment Query" data-category="1" class="hidden">1.3 Payment Query</option>
+                    <option value="1.4 Arrears Query" data-category="1" class="hidden">1.4 Arrears Query</option>
+                    <option value="1.5 Online client RFW training Reconciliation" data-category="1" class="hidden">1.5 Online client RFW training Reconciliation</option>
+                    <option value="1.6 Online Employer Amendment Data Query" data-category="1" class="hidden">1.6 Online Employer Amendment Data Query</option>
+                    <option value="1.7 Employer Data Referral for Overpayment" data-category="1" class="hidden">1.7 Employer Data Referral for Overpayment</option>
+                    <option value="1.8 Employer Data Referral for Duplicate records and Merge queries" data-category="1" class="hidden">1.8 Employer Data Referral for Duplicate records and Merge queries</option>
+                    <option value="1.9 Member reinstatement" data-category="1" class="hidden">1.9 Member reinstatement</option>
+                    <option value="1.10 Member record Merge" data-category="1" class="hidden">1.10 Member record Merge</option>
+                    
+                    <option value="2.1 Claim Form Query Active Withdrawal" data-category="2" class="hidden">2.1 Claim Form Query Active Withdrawal</option>
+                    <option value="2.2 Claim Form Receipt" data-category="2" class="hidden">2.2 Claim Form Receipt</option>
+                    <option value="2.3 Claim Form submission Active" data-category="2" class="hidden">2.3 Claim Form submission Active</option>
+                    <option value="2.4 Claim outstanding details" data-category="2" class="hidden">2.4 Claim outstanding details</option>
+                    <option value="2.5 Claim Paid Confirmation" data-category="2" class="hidden">2.5 Claim Paid Confirmation</option>
+                    <option value="2.6 Forward Claim payment letter and tax documents" data-category="2" class="hidden">2.6 Forward Claim payment letter and tax documents</option>
+                    <option value="2.7 Claim Preservation Query" data-category="2" class="hidden">2.7 Claim Preservation Query</option>
+                    <option value="2.8 Claim ROT query" data-category="2" class="hidden">2.8 Claim ROT query</option>
+                    <option value="2.9 Claim Sec 14 query" data-category="2" class="hidden">2.9 Claim Sec 14 query</option>
+                    <option value="2.10 Claim Paid Up Query" data-category="2" class="hidden">2.10 Claim Paid Up Query</option>
+                    <option value="2.11 Emergency Two Pot Claim query" data-category="2" class="hidden">2.11 Emergency Two Pot Claim query</option>
+                    <option value="2.12 Retirement Claim query" data-category="2" class="hidden">2.12 Retirement Claim query</option>
+                    <option value="2.13 Retirement Claim preservation Query" data-category="2" class="hidden">2.13 Retirement Claim preservation Query</option>
+                    <option value="2.14 Retirement Claim Ill Health" data-category="2" class="hidden">2.14 Retirement Claim Ill Health</option>
+                    <option value="2.15 Claim Paid Up Submission" data-category="2" class="hidden">2.15 Claim Paid Up Submission</option>
+                    <option value="2.16 Paid Up claim finalised (paid)" data-category="2" class="hidden">2.16 Paid Up claim finalised (paid)</option>
+                    
+                    <option value="3.1 LPI Section 13A Letter" data-category="3" class="hidden">3.1 LPI Section 13A Letter</option>
+                    <option value="3.2 Section 13A Client Query" data-category="3" class="hidden">3.2 Section 13A Client Query</option>
+                    <option value="3.3 Section 13A Termination" data-category="3" class="hidden">3.3 Section 13A Termination</option>
+                    <option value="3.4 Section 13A Council Action " data-category="3" class="hidden">3.4 Section 13A Council Action </option>
+                    <option value="3.5 Section 13A Member Communication " data-category="3" class="hidden">3.5 Section 13A Member Communication </option>
+                    <option value="3.6 Section 13A CBC Action" data-category="3" class="hidden">3.6 Section 13A CBC Action</option>
+                    
+                    <option value="4.1 New Business Quote request" data-category="4" class="hidden">4.1 New Business Quote request</option>
+                    <option value="4.2 New Business COA and Accepted Quote submission" data-category="4" class="hidden">4.2 New Business COA and Accepted Quote submission</option>
+                    <option value="4.3 Welcome Email" data-category="4" class="hidden">4.3 Welcome Email</option>
+                    <option value="4.4 Starter Pack Email" data-category="4" class="hidden">4.4 Starter Pack Email</option>
+                    <option value="4.5 Starter Pack Meeting" data-category="4" class="hidden">4.5 Starter Pack Meeting</option>
+                    <option value="4.6 Implementation confirmation" data-category="4" class="hidden">4.6 Implementation confirmation</option>
+                    <option value="4.7 Employer Training" data-category="4" class="hidden">4.7 Employer Training</option>
+                    
+                    <option value="5.1 Amendment Documentation" data-category="5" class="hidden">5.1 Amendment Documentation</option>
+                    <option value="5.2 Amendment to Acceptances" data-category="5" class="hidden">5.2 Amendment to Acceptances</option>
+                    <option value="5.3 Outstanding Amendment Documents" data-category="5" class="hidden">5.3 Outstanding Amendment Documents</option>
+                    <option value="5.4 Amendment Handover" data-category="5" class="hidden">5.4 Amendment Handover</option>
+                    <option value="5.5 Amendment Rule to client broker" data-category="5" class="hidden">5.5 Amendment Rule to client broker</option>
+                    <option value="5.6 Amendment COP to client broker" data-category="5" class="hidden">5.6 Amendment COP to client broker</option>
+                    <option value="5.7 Amendment RFW (Broker/Employer/3rd Party)" data-category="5" class="hidden">5.7 Amendment RFW (Broker/Employer/3rd Party)</option>
+                    
+                    <option value="6.1 Termination Query" data-category="6" class="hidden">6.1 Termination Query</option>
+                    <option value="6.2 Termination Documentation Notice Letter" data-category="6" class="hidden">6.2 Termination Documentation Notice Letter</option>
+                    <option value="6.3 Termination Banking Details for refund" data-category="6" class="hidden">6.3 Termination Banking Details for refund</option>
+                    <option value="6.4 Termination Checklist" data-category="6" class="hidden">6.4 Termination Checklist</option>
+                    <option value="6.5 Termination Withdrawal Forms" data-category="6" class="hidden">6.5 Termination Withdrawal Forms</option>
+                    <option value="6.6 Council confirmation of termination" data-category="6" class="hidden">6.6 Council confirmation of termination</option>
+                    <option value="6.7 Member Termination Communication" data-category="6" class="hidden">6.7 Member Termination Communication</option>
+                    <option value="6.8 Section 14 Compulsory Form" data-category="6" class="hidden">6.8 Section 14 Compulsory Form</option>
+                    <option value="6.9 Section 14 Checklist" data-category="6" class="hidden">6.9 Section 14 Checklist</option>
+                    <option value="6.10 Termination Fee Recovery" data-category="6" class="hidden">6.10 Termination Fee Recovery</option>
+                    
+                    <option value="7.1 Section 14 Query" data-category="7" class="hidden">7.1 Section 14 Query</option>
+                    <option value="7.2 Section 14 Documentation" data-category="7" class="hidden">7.2 Section 14 Documentation</option>
+                    <option value="7.3 Section 14 Outstanding requirements" data-category="7" class="hidden">7.3 Section 14 Outstanding requirements</option>
+                    <option value="7.4 Section 14 Fund Query" data-category="7" class="hidden">7.4 Section 14 Fund Query</option>
+                    <option value="7.5 Section 14 Bank POP" data-category="7" class="hidden">7.5 Section 14 Bank POP</option>
+                    <option value="7.6 Section 14 Closure" data-category="7" class="hidden">7.6 Section 14 Closure</option>
+                    <option value="7.7 Section 14 Compulsory Form" data-category="7" class="hidden">7.7 Section 14 Compulsory Form</option>
+                    <option value="7.8 Section 14 Checklist" data-category="7" class="hidden">7.8 Section 14 Checklist</option>
+                    <option value="7.9 Section 14 Member and Employer communication" data-category="7" class="hidden">7.9 Section 14 Member and Employer communication</option>
+                    
+                    <option value="8.1 Termination Query" data-category="8" class="hidden">8.1 Termination Query</option>
+                    <option value="8.2 Termination Documentation Notice Letter" data-category="8" class="hidden">8.2 Termination Documentation Notice Letter</option>
+                    <option value="8.3 Termination Banking Details for refund" data-category="8" class="hidden">8.3 Termination Banking Details for refund</option>
+                    <option value="8.4 Termination Checklist" data-category="8" class="hidden">8.4 Termination Checklist</option>
+                    <option value="8.5 Termination Withdrawal Forms" data-category="8" class="hidden">8.5 Termination Withdrawal Forms</option>
+                    <option value="8.6 Council confirmation of termination" data-category="8" class="hidden">8.6 Council confirmation of termination</option>
+                    <option value="8.7 Member Termination Communication (Retrenchment)" data-category="8" class="hidden">8.7 Member Termination Communication (Retrenchment)</option>
+                    <option value="8.8 Section 27 Compulsory Form" data-category="8" class="hidden">8.8 Section 27 Compulsory Form</option>
+                    <option value="8.9 Termination Member and Employer communication" data-category="8" class="hidden">8.9 Termination Member and Employer communication</option>
+                    
+                    <option value="9.1 Complaint Detail Request" data-category="9" class="hidden">9.1 Complaint Detail Request</option>
+                    <option value="9.2 Complaint determination PFA" data-category="9" class="hidden">9.2 Complaint determination PFA</option>
+                    <option value="9.3 Member Complaint receipt and referral" data-category="9" class="hidden">9.3 Member Complaint receipt and referral</option>
+                    <option value="9.4 Employer Complaint receipt and referral" data-category="9" class="hidden">9.4 Employer Complaint receipt and referral</option>
+                    <option value="9.5 Complaint Claim Payment" data-category="9" class="hidden">9.5 Complaint Claim Payment</option>
+                    
+                    <option value="10.1 Employer Information Bulk Bank details" data-category="10" class="hidden">10.1 Employer Information Bulk Bank details</option>
+                    <option value="10.2 Employer Information Bulk Contact Details" data-category="10" class="hidden">10.2 Employer Information Bulk Contact Details</option>
+                    <option value="10.3 Employer information Bulk Tax Detail changes" data-category="10" class="hidden">10.3 Employer information Bulk Tax Detail changes</option>
+                    <option value="10.4 Training Employer Two Pot System changes" data-category="10" class="hidden">10.4 Training Employer Two Pot System changes</option>
+                    <option value="10.5 Training Broker Two Pot Changes to Online" data-category="10" class="hidden">10.5 Training Broker Two Pot Changes to Online</option>
+                    <option value="10.6 Claim forms process query" data-category="10" class="hidden">10.6 Claim forms process query</option>
+                    <option value="10.7 Two Pot Process Claim Paid reports " data-category="10" class="hidden">10.7 Two Pot Process Claim Paid reports </option>
+                    <option value="10.8 Two Pot Member Claim Query" data-category="10" class="hidden">10.8 Two Pot Member Claim Query</option>
+                    <option value="10.9  Two Pot Employer Query Reports for Qualifying Members" data-category="10" class="hidden">10.9  Two Pot Employer Query Reports for Qualifying Members</option>
+                    <option value="10.11 Two Pot Communication Employer Member Broker" data-category="10" class="hidden">10.11 Two Pot Communication Employer Member Broker</option>
+                    
+                    <option value="11.1 Council Report Back " data-category="11" class="hidden">11.1 Council Report Back </option>
+                    <option value="11.2 Broker Reports" data-category="11" class="hidden">11.2 Broker Reports</option>
+                    <option value="11.3 Employer Reports" data-category="11" class="hidden">11.3 Employer Reports</option>
+                    <option value="11.4 Sanlam Reports " data-category="11" class="hidden">11.4 Sanlam Reports </option>
+                    <option value="11.5 Member Benefit Statement Monthly Reports" data-category="11" class="hidden">11.5 Member Benefit Statement Monthly Reports</option>
+                    <option value="11.6 Termination Report Back - Liquidations" data-category="11" class="hidden">11.6 Termination Report Back - Liquidations</option>
+                    <option value="11.7 Termination Report Back Clean Up Projects" data-category="11" class="hidden">11.7 Termination Report Back Clean Up Projects</option>
+                    <option value="11.8 Termination Report Back Dormant/Zero Members 2019 - 2024" data-category="11" class="hidden">11.8 Termination Report Back Dormant/Zero Members 2019 - 2024</option>
+                    
+                    <option value="12.1 Broker Investigation Letter" data-category="12" class="hidden">12.1 Broker Investigation Letter</option>
+                    <option value="12.2 Broker Data and report Back Investigation Letter" data-category="12" class="hidden">12.2 Broker Data and report Back Investigation Letter</option>
+                    <option value="12.3 Broker Client Reports for Claims Experience (Risk)" data-category="12" class="hidden">12.3 Broker Client Reports for Claims Experience (Risk)</option>
+                    <option value="12.4 Broker Reports for Member Data, Underwriting and Claims Unresolved" data-category="12" class="hidden">12.4 Broker Reports for Member Data, Underwriting and Claims Unresolved</option>
+                    
+                    <option value="13.1 Underwriting Queries" data-category="13" class="hidden">13.1 Underwriting Queries</option>
+                    <option value="13.2 Death Claims Query" data-category="13" class="hidden">13.2 Death Claims Query</option>
+                    <option value="13.3 Funeral Claim Queries and notifications" data-category="13" class="hidden">13.3 Funeral Claim Queries and notifications</option>
+                    <option value="13.4 Funeral Claim Outstanding Documents" data-category="13" class="hidden">13.4 Funeral Claim Outstanding Documents</option>
+                    <option value="13.5 Death Claim Outstanding Documents" data-category="13" class="hidden">13.5 Death Claim Outstanding Documents</option>
+                    <option value="13.6 Death Claim Beneficiary Fund Queries" data-category="13" class="hidden">13.6 Death Claim Beneficiary Fund Queries</option>
+                    <option value="13.7 Death Claim Distribution Approval to PE and Broker" data-category="13" class="hidden">13.7 Death Claim Distribution Approval to PE and Broker</option>
+                    <option value="13.8 AGRI Paid Up Funeral Claims" data-category="13" class="hidden">13.8 AGRI Paid Up Funeral Claims</option>
+                    <option value="13.9 AGRI Paid Up Certificate Requests SGR" data-category="13" class="hidden">13.9 AGRI Paid Up Certificate Requests SGR</option>
+                    <option value="13.10 Repatriation Assistance to PE Family Broker" data-category="13" class="hidden">13.10 Repatriation Assistance to PE Family Broker</option>
+                    <option value="13.11 Funeral Claim Submission" data-category="13" class="hidden">13.11 Funeral Claim Submission</option>
+                    <option value="13.12 Disability Query" data-category="13" class="hidden">13.12 Disability Query</option>
+                    <option value="13.13 Disability Application Submission" data-category="13" class="hidden">13.13 Disability Application Submission</option>
+                    <option value="13.14 Disability Outstanding Reports" data-category="13" class="hidden">13.14 Disability Outstanding Reports</option>
+                    <option value="13.15 Disability Approval" data-category="13" class="hidden">13.15 Disability Approval</option>
+                    <option value="13.16 Disability Declined" data-category="13" class="hidden">13.16 Disability Declined</option>
+                    
+                    <option value="14.1 Bulk SMS to Members for documents, tax numbers" data-category="14" class="hidden">14.1 Bulk SMS to Members for documents, tax numbers</option>
+                    <option value="14.2 Investment Reports for Brokers" data-category="14" class="hidden">14.2 Investment Reports for Brokers</option>
+                    <option value="14.3 Joint Forum Client Reports for PE and CBC" data-category="14" class="hidden">14.3 Joint Forum Client Reports for PE and CBC</option>
+                    <option value="14.4 Divorce Orders - submission flagging" data-category="14" class="hidden">14.4 Divorce Orders - submission flagging</option>
+                    <option value="14.5 Amendment to Member Guides - benefit changes" data-category="14" class="hidden">14.5 Amendment to Member Guides - benefit changes</option>
+                    <option value="14.7 Maintenance Orders - submission flagging " data-category="14" class="hidden">14.7 Maintenance Orders - submission flagging </option>
+                    <option value="14.8 Divorce order claim forms non member spouse" data-category="14" class="hidden">14.8 Divorce order claim forms non member spouse</option>
+                    <option value="14.9 Annual Rate Revision Data Preparation" data-category="14" class="hidden">14.9 Annual Rate Revision Data Preparation</option>
+                    <option value="14.10 Annual Rate Revision Amendments (AGR/Council etc)" data-category="14" class="hidden">14.10 Annual Rate Revision Amendments (AGR/Council etc)</option>
+                    <option value="14.11 Annual Rate Revision Distribution - PE Broker" data-category="14" class="hidden">14.11 Annual Rate Revision Distribution - PE Broker</option>
+                    <option value="14.12 Global List Monthly Checks and Amendments" data-category="14" class="hidden">14.12 Global List Monthly Checks and Amendments</option>
+                    <option value="14.13 0101 Account Monthly Checks and Action" data-category="14" class="hidden">14.13 0101 Account Monthly Checks and Action</option>
+                    <option value="14.14 Benefit Statement Query (member/employer)" data-category="14" class="hidden">14.14 Benefit Statement Query (member/employer)</option>
+                    <option value="14.15 Bulk Benefit Statements (employer/member) ad-hoc" data-category="14" class="hidden">14.15 Bulk Benefit Statements (employer/member) ad-hoc</option>
+                </select>
+            </div>
+
+            <div class="form-group" id="delegation_fields" style="margin-top: 15px;">
+                <label for="agent_name">Delegate To Agent:*</label>
+                <select id="agent_name" name="agent_name">
+                    <option value="">-- Select Agent --</option>
+                    {% for agent in available_agents %}
+                        <option value="{{ agent.username }}">{{ agent.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
         </div>
-        
+
         <input type="hidden" name="email_id" value="{{ email_id }}">
-        <button type="submit" id="submit_button" class="btn-delegate" style="margin-top: 20px;">Confirm Delegation</button>
+
+        <div class="button-container">
+            <a href="javascript:history.back()" class="btn-cancel">Cancel</a>
+            <button type="submit" id="submit_button" class="btn-delegate">
+                <span id="btn-icon">👤</span> 
+                <span id="btn-text">Assign Task</span>
+            </button>
+        </div>
     </form>
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function(){
     const categorySelect = document.getElementById('email_category');
     const typeSelect = document.getElementById('email_type');
     const typeOptions = typeSelect.querySelectorAll('option');
     const initialOption = typeSelect.querySelector('option[data-category="none"]'); 
-    
+
     const workRelatedSelect = document.getElementById('work_related');
-    const metadataFields = document.getElementById('metadata_fields_container');
-    const delegationFields = document.getElementById('delegation_fields');
+    const classificationWrapper = document.getElementById('classification_fields_wrapper');
     const submitButton = document.getElementById('submit_button');
+    const btnIcon = document.getElementById('btn-icon');
+    const btnText = document.getElementById('btn-text');
     const agentSelect = document.getElementById('agent_name');
 
     function updateEnquirySelection() {
@@ -253,13 +390,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 option.selected = false;
             }
         });
-
-        if (!selectedCategory || selectedCategory === "") {
-            typeSelect.disabled = true;
-            initialOption.textContent = "-- Select Enquiry Type First --";
-        } else {
+        if (selectedCategory) {
             typeSelect.disabled = false;
-            initialOption.textContent = "-- Select --";
             typeOptions.forEach(option => {
                 if (option.getAttribute('data-category') === selectedCategory) {
                     option.classList.remove('hidden');
@@ -269,29 +401,28 @@ document.addEventListener('DOMContentLoaded', function() {
         initialOption.selected = true;
     }
 
-    function toggleFormSections() {
-        if (workRelatedSelect.value === 'No') {
-            // Hide everything related to delegation and categorization
-            metadataFields.style.display = 'none';
-            delegationFields.style.display = 'none';
-            submitButton.textContent = 'Confirm Move to Recycle Bin';
+    function toggleFormSections(){
+        const isWorkRelated = workRelatedSelect.value === 'Yes';
+        if(!isWorkRelated){
+            classificationWrapper.style.display = 'none';
+            submitButton.style.backgroundColor = '#d32f2f'; 
+            btnIcon.textContent = '🗑️'; 
+            btnText.textContent = 'Archive to Recycle Bin';
             agentSelect.removeAttribute('required');
         } else {
-            // Show all fields
-            metadataFields.style.display = 'block';
-            delegationFields.style.display = 'block';
-            submitButton.textContent = 'Confirm Delegation';
+            classificationWrapper.style.display = 'block';
+            submitButton.style.backgroundColor = '#81c784'; 
+            btnIcon.textContent = '👤'; 
+            btnText.textContent = 'Assign Task';
             agentSelect.setAttribute('required', 'required');
         }
     }
 
     categorySelect.addEventListener('change', updateEnquirySelection);
     workRelatedSelect.addEventListener('change', toggleFormSections);
-
-    // Run on load
-    updateEnquirySelection();
+    
     toggleFormSections();
+    updateEnquirySelection();
 });
 </script>
-</body>
-</html>
+{% endblock %}

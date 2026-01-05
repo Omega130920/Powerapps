@@ -16,14 +16,14 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     margin-bottom: 30px;
     border: 1px solid #eee;
-    border-left: 5px solid #1976d2; /* Blue accent */
+    border-left: 5px solid  rgb(105, 187, 85); /* Blue accent */
 }
 .card-header-main {
     padding: 15px 20px;
     background-color: #fafafa;
     border-bottom: 1px solid #eee;
 }
-.card-header-main h3 { margin: 0 0 5px 0; color: #1976d2; font-size: 1.1em; }
+.card-header-main h3 { margin: 0 0 5px 0; color:  rgb(105, 187, 85); font-size: 1.1em; }
 .card-body-content {
     padding: 20px;
     line-height: 1.7;
@@ -32,6 +32,39 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
     background: #fff;
     font-size: 14px;
 }
+
+/* --- ATTACHMENT SECTION --- */
+.attachment-list { 
+    margin-top: 0; 
+    padding: 15px 20px; 
+    background-color: #f1f8e9; 
+    border-top: 1px solid #e0e0e0; 
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+.attachment-item {
+    display: inline-flex;
+    align-items: center;
+    background: #fff;
+    padding: 5px 12px;
+    border: 1px solid #c5e1a5;
+    border-radius: 20px;
+    margin-right: 10px;
+    margin-bottom: 8px;
+    transition: all 0.2s ease;
+}
+.attachment-item:hover {
+    border-color: #43a047;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transform: translateY(-1px);
+}
+.attachment-link { 
+    color: #2e7d32; 
+    text-decoration: none; 
+    font-size: 13px; 
+    font-weight: bold;
+}
+.attachment-link i { margin-right: 5px; color: #43a047; }
 
 /* --- FORM STYLES --- */
 .form-group { margin-bottom: 20px; }
@@ -60,8 +93,6 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
 }
 .btn-delegate:hover { background-color: #66bb6a; }
 
-.attachment-list { margin-top: 10px; padding: 10px; background-color: #f0fff0; border-top: 1px solid #eee; }
-.attachment-link { display: inline-block; margin-right: 15px; color: #1e88e5; text-decoration: underline; font-size: 13px; }
 .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
 </style>
 
@@ -97,12 +128,19 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
             
             {% if attachments %}
             <div class="attachment-list">
-                <strong>Attachments Detected:</strong><br>
-                {% for att in attachments %}
-                <span class="attachment-link">
-                    📄 {{ att.name }} ({{ att.size|filesizeformat }})
-                </span>
-                {% endfor %}
+                <strong style="display:block; margin-bottom:10px; color:#2e7d32; font-size: 14px;">
+                    <i class="fas fa-paperclip"></i> Attachments Detected (Click to download):
+                </strong>
+                <div style="display: flex; flex-wrap: wrap;">
+                    {% for att in attachments %}
+                    <div class="attachment-item">
+                        <a href="{% url 'download_attachment' message_id=email_id attachment_id=att.id %}" class="attachment-link">
+                            <i class="fas fa-file-download"></i> {{ att.name }} 
+                            <small style="color: #666; font-weight: normal;">({{ att.size|filesizeformat }})</small>
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
             {% endif %}
         </div>
@@ -110,7 +148,7 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
         <div class="form-group">
             <label for="work_related">Is this task Work Related?*</label>
             <select id="work_related" name="work_related" required>
-                <option value="Yes">Yes (Assign to Agent)</option>
+                <option value="Yes" selected>Yes (Assign to Agent)</option>
                 <option value="No">No (Archive/Recycle)</option>
             </select>
         </div>
@@ -176,25 +214,24 @@ document.addEventListener('DOMContentLoaded', function(){
     const agentSelect = document.getElementById('agent_name');
 
     function toggleFormSections(){
-        if(workRelatedSelect.value === 'No'){
-            // Archive State
+        const isWorkRelated = workRelatedSelect.value === 'Yes';
+
+        if(!isWorkRelated){
             classificationWrapper.style.display = 'none';
             submitButton.style.backgroundColor = '#d32f2f'; // Red
-            btnIcon.textContent = '🗑️'; // Recycle Bin Icon
+            btnIcon.textContent = '🗑️'; 
             btnText.textContent = 'Archive to Recycle Bin';
             agentSelect.removeAttribute('required');
         } else {
-            // Assign State
             classificationWrapper.style.display = 'block';
             submitButton.style.backgroundColor = '#81c784'; // Green
-            btnIcon.textContent = '👤'; // Agent Icon
+            btnIcon.textContent = '👤'; 
             btnText.textContent = 'Assign Task';
             agentSelect.setAttribute('required', 'required');
         }
     }
 
     workRelatedSelect.addEventListener('change', toggleFormSections);
-    // Initialize correct state on load
     toggleFormSections();
 });
 </script>

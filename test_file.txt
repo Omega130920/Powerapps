@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unity Internal Portal</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.2);
+            --glass-border: rgba(255, 255, 255, 0.3);
+            --text-dark: #1b5e20;
+            --accent-green: #43a047;
+        }
+
+        html, body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #d1e2c4 0%, #8fcf7f 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-sizing: border-box;
+            padding: 2vh 2vw;
+        }
+
+        h1 {
+            font-size: clamp(1.8rem, 3.5vh, 2.8rem);
+            text-align: center;
+            margin: 2vh 0 4vh 0;
+            color: var(--text-dark);
+            font-weight: 300;
+            letter-spacing: 1px;
+        }
+
+        .button-container {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 20px;
+            width: 100%;
+            max-width: 1500px;
+            flex: 1;
+            min-height: 0;
+            padding-bottom: 20px;
+        }
+
+        /* --- MODERN GLASS CARD STYLING --- */
+        .button-block {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            text-decoration: none;
+            color: var(--text-dark);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            position: relative;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            text-align: center;
+        }
+
+        .button-block:hover {
+            background: rgba(255, 255, 255, 0.4);
+            transform: translateY(-8px);
+            box-shadow: 0 12px 24px rgba(0, 0, 0, 0.1);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .button-block i {
+            font-size: 2.2rem;
+            margin-bottom: 12px;
+            color: var(--text-dark);
+            opacity: 0.8;
+        }
+
+        .button-text {
+            font-size: clamp(0.85rem, 0.9vw, 1.1rem);
+            font-weight: 600;
+            line-height: 1.2;
+        }
+
+        /* --- BADGE STYLING --- */
+        .badge {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background-color: #ef5350;
+            color: white;
+            border-radius: 8px;
+            padding: 4px 8px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(239, 83, 80, 0.4);
+            border: 1px solid rgba(255,255,255,0.3);
+        }
+
+        .badge.blue-badge { background-color: #42a5f5; box-shadow: 0 2px 8px rgba(66, 165, 245, 0.4); }
+        .badge.orange-badge { background-color: #ffa726; box-shadow: 0 2px 8px rgba(255, 167, 38, 0.4); }
+        .badge.grey-badge { background-color: #78909c; box-shadow: 0 2px 8px rgba(120, 144, 156, 0.4); }
+
+        .button-block.export-btn {
+            background: rgba(27, 94, 32, 0.15);
+            border: 1px solid rgba(27, 94, 32, 0.2);
+        }
+
+        /* --- RESPONSIVE LAYOUT --- */
+        @media (max-width: 1400px) { .button-container { grid-template-columns: repeat(4, 1fr); } }
+        @media (max-width: 1000px) { .button-container { grid-template-columns: repeat(3, 1fr); } }
+        @media (max-width: 750px) { 
+            .button-container { grid-template-columns: repeat(2, 1fr); overflow-y: auto; }
+            body { overflow-y: auto; }
+        }
+
+        .logout-wrapper { position: absolute; top: 20px; right: 20px; }
+        .logout-button {
+            background: var(--glass-bg);
+            backdrop-filter: blur(5px);
+            color: var(--text-dark);
+            padding: 8px 16px;
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        .logout-button:hover { background: rgba(255,255,255,0.4); }
+    </style>
+</head>
+<body>
+
+    <div class="logout-wrapper">
+        <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="logout-button"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        </form>
+    </div>
+
+    <h1>Welcome back, <strong>{{ username }}</strong></h1>
+
+    
+
+    <div class="button-container">
+        {% if user.username == 'omega' %}
+            <a href="{% url 'outlook_dashboard' %}" class="button-block">
+                <i class="fas fa-envelope-open-text"></i>
+                <span class="button-text">Delegations</span>
+                <span id="badge-new-emails" class="badge blue-badge" {% if not new_emails_count %}style="display:none;"{% endif %}>{{ new_emails_count }}</span>
+            </a>
+            <a href="{% url 'email_list' %}" class="button-block">
+                <i class="fas fa-list-check"></i>
+                <span class="button-text">Email List</span>
+            </a>
+            <a href="{% url 'outlook_recycle_bin' %}" class="button-block">
+                <i class="fas fa-trash-can"></i>
+                <span class="button-text">Recycle Bin</span>
+                <span id="badge-recycled" class="badge grey-badge" {% if not recycled_count %}style="display:none;"{% endif %}>{{ recycled_count }}</span>
+            </a>
+            <a href="{% url 'manager_approval_dashboard' %}" class="button-block">
+                <i class="fas fa-user-check"></i>
+                <span class="button-text">Manager Approval</span>
+                <span id="badge-manager-approval" class="badge" {% if not pending_approval_count %}style="display:none;"{% endif %}>{{ pending_approval_count }}</span>
+            </a>
+        {% endif %}
+
+        <a href="{% url 'outlook_delegated_box' %}" class="button-block">
+            <i class="fas fa-gauge-high"></i>
+            <span class="button-text">Task Dashboard</span>
+            <span id="badge-my-delegations" class="badge orange-badge" {% if not my_pending_delegations_count %}style="display:none;"{% endif %}>{{ my_pending_delegations_count }}</span>
+        </a>
+
+        <a href="{% url 'unity_list' %}" class="button-block">
+            <i class="fas fa-handshake"></i>
+            <span class="button-text">Employer Recon</span>
+        </a>
+        <a href="{% url 'add_member' %}" class="button-block">
+            <i class="fas fa-users-plus"></i>
+            <span class="button-text">Add Member Group</span>
+        </a>
+        <a href="{% url 'import_data' %}" class="button-block">
+            <i class="fas fa-file-import"></i>
+            <span class="button-text">Import Bank</span>
+        </a>
+        <a href="{% url 'import_credit' %}" class="button-block">
+            <i class="fas fa-file-invoice"></i>
+            <span class="button-text">Import Credit Note</span>
+        </a>
+        
+        <a href="{% url 'bank_list' %}" class="button-block">
+            <i class="fas fa-building-columns"></i>
+            <span class="button-text">Bank Lines</span>
+            <span id="badge-bank-lines" class="badge orange-badge" {% if not bank_lines_count %}style="display:none;"{% endif %}>{{ bank_lines_count }}</span>
+        </a>
+
+        <a href="{% url 'credit_note_list' %}" class="button-block">
+            <i class="fas fa-receipt"></i>
+            <span class="button-text">Credit Notes</span>
+            <span id="badge-credit-notes" class="badge blue-badge" {% if not credit_notes_count %}style="display:none;"{% endif %}>{{ credit_notes_count }}</span>
+        </a>
+
+        <a href="{% url 'global_claims' %}" class="button-block">
+            <i class="fas fa-file-signature"></i>
+            <span class="button-text">Withdrawal Claims</span>
+        </a>
+        <a href="{% url 'global_two_pot' %}" class="button-block">
+            <i class="fas fa-coins"></i>
+            <span class="button-text">Two-Pot Claims</span>
+        </a>
+        <a href="{% url 'admin_billing' %}" class="button-block">
+            <i class="fas fa-calculator"></i>
+            <span class="button-text">Admin Billing</span>
+        </a>
+        <a href="{% url 'confirmations' %}" class="button-block">
+            <i class="fas fa-calendar-check"></i>
+            <span class="button-text">Daily Confirmations</span>
+        </a>
+        <a href="{% url 'export_global_bill_history' %}" class="button-block export-btn">
+            <i class="fas fa-file-excel"></i>
+            <span class="button-text">Section 13A Report</span>
+        </a>
+        <a href="{% url 'global_bank' %}" class="button-block">
+            <i class="fas fa-vault"></i>
+            <span class="button-text">Global Bank</span>
+        </a>
+    </div>
+
+    <script>
+        // Use the polling logic from before...
+        function refreshDashboardStats() {
+            fetch('/dashboard-stats/') 
+                .then(response => response.json())
+                .then(data => {
+                    updateBadge('badge-new-emails', data.new_emails_count);
+                    updateBadge('badge-recycled', data.recycled_count);
+                    updateBadge('badge-manager-approval', data.pending_approval_count);
+                    updateBadge('badge-my-delegations', data.my_pending_delegations_count);
+                    updateBadge('badge-bank-lines', data.bank_lines_count);
+                    updateBadge('badge-credit-notes', data.credit_notes_count);
+                });
+        }
+
+        function updateBadge(id, count) {
+            const badge = document.getElementById(id);
+            if (!badge) return;
+            badge.innerText = count;
+            badge.style.display = count > 0 ? 'flex' : 'none';
+        }
+        setInterval(refreshDashboardStats, 30000);
+    </script>
+</body>
+</html>

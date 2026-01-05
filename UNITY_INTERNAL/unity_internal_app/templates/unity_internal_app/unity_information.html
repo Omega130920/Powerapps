@@ -1155,12 +1155,12 @@
             <table class="styled-table">
                 <thead>
                     <tr>
-                        <th>Email Type</th>
+                        <th style="width: 160px;">Email Type</th>
                         <th>Subject</th>
                         <th>Received Date</th>
                         <th>Delegated Date</th>
-                        <th>Assigned To</th>
-                        <th>Status</th>
+                        <th>Assigned To / Recipient</th>
+                        <th style="width: 120px;">Action / Status</th>
                         <th>Actioned Date</th>
                         <th style="text-align: center;">Thread</th>
                     </tr>
@@ -1172,7 +1172,11 @@
                             <div class="type-cell">
                                 <span style="font-size: 1.2em;">{{ log.icon }}</span>
                                 <span style="font-weight:bold; color: {{ log.badge_color }};">
-                                    {% if log.type == 'Direct Sent' %}DIRECT{% else %}ORIGINAL{% endif %}
+                                    {% if log.type == 'DIRECT' %}
+                                        DIRECT
+                                    {% else %}
+                                        ORIGINAL
+                                    {% endif %}
                                 </span>
                             </div>
                         </td>
@@ -1183,7 +1187,7 @@
                         <td>{{ log.delegated_at|date:"Y-m-d H:i"|default:"-" }}</td>
                         <td><strong>{{ log.assigned_to|default:"-" }}</strong></td>
                         <td>
-                            <span class="status-tag" style="background-color: {{ log.badge_color }}; color: white; font-size: 11px;">
+                            <span class="status-tag" style="background-color: {{ log.badge_color }}; color: white; font-size: 11px; padding: 4px 8px; border-radius: 4px; display: inline-block; min-width: 80px; text-align: center;">
                                 {{ log.display_type|upper }}
                             </span>
                         </td>
@@ -1204,7 +1208,7 @@
             </table>
         </div>
     {% else %}
-        <p class="empty-message" style="background: white; border-radius: 8px; margin-top: 15px;">No email history found for this record.</p>
+        <p class="empty-message" style="background: white; border-radius: 8px; margin-top: 15px; padding: 20px; text-align: center;">No email history found for this record.</p>
     {% endif %}
 </div>
 

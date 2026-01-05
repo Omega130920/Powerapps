@@ -4,230 +4,82 @@
 
 {% block content %}
 <style>
-    /* -------------------------------------------------------------------------
-    * BASE STYLES
-    * ------------------------------------------------------------------------- */
-    body {
-        font-family: sans-serif;
-        background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-start;
-        align-items: center;
-        min-height: 100vh;
-        padding: 40px 20px;
-        box-sizing: border-box;
-    }
+    /* ... (Your existing styles remain unchanged) ... */
+    body { font-family: sans-serif; background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127)); display: flex; flex-direction: column; justify-content: flex-start; align-items: center; min-height: 100vh; padding: 40px 20px; box-sizing: border-box; }
+    .task-container { width: 100%; max-width: 1200px; background: #ffffff; border-radius: 8px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); padding: 30px; }
+    .main-grid { display: flex; flex-wrap: wrap; gap: 20px; }
+    .left-column { flex: 2; min-width: 300px; }
+    .right-column { flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 15px; }
+    .custom-card { border: 1px solid #ddd; border-radius: 6px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05); overflow: hidden; margin-bottom: 5px; }
+    .card-header-primary { background-color:  rgb(105, 187, 85); color: white; padding: 15px; font-weight: bold; display: flex; align-items: center; }
+    .card-header-dark { background-color: #343a40; color: white; padding: 15px; font-weight: bold; display: flex; align-items: center; }
+    .card-body-content { padding: 20px; }
+    .task-header h1 { font-size: 28px; margin-bottom: 5px; color: #333; }
+    .task-header .status-badge { display: inline-block; padding: 5px 12px; border-radius: 50px; font-weight: bold; font-size: 14px; margin-left: 10px; }
+    .badge-dlt { background-color: #d32f2f; color: white; }
+    .badge-com { background-color: #28a745; color: white; }
+    .badge-default { background-color: #ffc107; color: #212529; }
+    .form-label { font-weight: bold; display: block; margin-bottom: 5px; margin-top: 10px; }
+    .form-control { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; margin-bottom: 10px; }
+    .notes-history-container { border: 1px solid #eee; background-color: #f8f9fa; padding: 10px; max-height: 380px; overflow-y: auto; border-radius: 4px; margin-bottom: 20px; }
+    .note-item { border-left: 5px solid #28a745; padding: 10px; background: #ffffff; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05); border-radius: 0 4px 4px 0; }
+    .collapse-toggle { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 15px; background: #f8f9fa; border: none; text-align: left; font-size: 16px; font-weight: bold; cursor: pointer; border-bottom: 3px solid  rgb(105, 187, 85); color: #333; }
+    .collapse-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
+    .collapse-content.show { max-height: 1000px; padding: 20px; }
+    .custom-btn { padding: 12px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: background-color 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; width: 100%; box-sizing: border-box; }
+    .btn-primary { background-color:  rgb(105, 187, 85); color: white; }
+    .btn-success { background-color: #28a745; color: white; }
+    .btn-update-metadata { background-color:  rgb(105, 187, 85); color: white; }
+    .btn-back { background-color: white; color: #343a40; border: 1px solid #343a40; }
+    .btn-restore { background-color: #d32f2f; color: white; width: 100%; font-size: 18px; padding: 15px; margin-bottom: 15px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.15); display: flex; align-items: center; justify-content: center; gap: 12px; }
 
-    .task-container {
-        width: 100%;
-        max-width: 1200px;
-        background: #ffffff;
-        border-radius: 8px;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-        padding: 30px;
-    }
-
-    .main-grid {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 20px;
-    }
-
-    .left-column {
-        flex: 2;
-        min-width: 300px;
-    }
-
-    .right-column {
-        flex: 1;
-        min-width: 300px;
-    }
-
-    /* --- Card Styling --- */
-    .custom-card {
-        border: 1px solid #ddd;
-        border-radius: 6px;
-        margin-bottom: 20px;
-        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
-        overflow: hidden;
-    }
-
-    .card-header-primary {
-        background-color: #007bff;
-        color: white;
+    /* --- ATTACHMENT SPECIFIC STYLES --- */
+    .attachment-section {
+        margin-top: 15px;
         padding: 15px;
-        font-weight: bold;
-        display: flex;
+        background-color: #f1f8e9;
+        border-top: 1px solid #c5e1a5;
+    }
+    .attachment-pill {
+        display: inline-flex;
         align-items: center;
-    }
-
-    .card-header-dark {
-        background-color: #343a40;
-        color: white;
-        padding: 15px;
-        font-weight: bold;
-        display: flex;
-        align-items: center;
-    }
-
-    .card-body-content {
-        padding: 20px;
-    }
-    
-    /* --- Task Header --- */
-    .task-header h1 {
-        font-size: 28px;
-        margin-bottom: 5px;
-        color: #333;
-    }
-    .task-header .status-badge {
-        display: inline-block;
-        background-color: #ffc107;
-        color: #212529;
-        padding: 5px 12px;
-        border-radius: 50px;
-        font-weight: bold;
-        font-size: 14px;
-        margin-left: 10px;
-    }
-
-    /* --- Form Styling --- */
-    .form-label {
-        font-weight: bold;
-        display: block;
-        margin-bottom: 5px;
-        margin-top: 10px;
-    }
-    .form-control {
-        width: 100%;
-        padding: 10px;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        box-sizing: border-box;
-        margin-bottom: 10px;
-    }
-    textarea.form-control {
-        min-height: 120px;
-        resize: vertical;
-    }
-
-    /* --- Notes History --- */
-    .notes-history-container {
-        border: 1px solid #eee;
-        background-color: #f8f9fa;
-        padding: 10px;
-        max-height: 380px;
-        overflow-y: auto;
-        border-radius: 4px;
-        margin-bottom: 20px;
-    }
-
-    .note-item {
-        border-left: 5px solid #28a745;
-        padding: 10px;
-        background: #ffffff;
+        background: #fff;
+        padding: 6px 12px;
+        border: 1px solid #aed581;
+        border-radius: 20px;
+        margin-right: 8px;
         margin-bottom: 8px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        border-radius: 0 4px 4px 0;
-    }
-
-    /* --- Collapsible Functionality --- */
-    .collapse-toggle {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        width: 100%;
-        padding: 15px;
-        background: #f8f9fa;
-        border: none;
-        text-align: left;
-        font-size: 16px;
-        font-weight: bold;
-        cursor: pointer;
-        border-bottom: 3px solid #007bff;
-        color: #333;
-    }
-    
-    .collapse-content {
-        max-height: 0;
-        overflow: hidden;
-        transition: max-height 0.3s ease-out, padding 0.3s ease-out;
-    }
-
-    .collapse-content.show {
-        max-height: 1000px;
-        padding: 20px;
-    }
-
-    .toggle-icon {
-        transition: transform 0.3s ease;
-    }
-
-    .collapse-toggle[aria-expanded="true"] .toggle-icon {
-        transform: rotate(180deg);
-    }
-    
-    /* --- Button Styling --- */
-    .custom-btn {
-        padding: 10px 15px;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-weight: bold;
-        transition: background-color 0.2s;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 8px;
+        font-size: 13px;
         text-decoration: none;
+        color: #333;
+        transition: all 0.2s;
     }
-    .btn-primary { background-color: #007bff; color: white; }
-    .btn-success { background-color: #28a745; color: white; width: 100%; }
-    .btn-update-metadata { background-color: #1e88e5; color: white; width: 100%; }
-    .btn-back { background-color: white; color: #343a40; border: 1px solid #343a40; width: 100%; margin-top: 20px; }
-
-    /* --- RESTORE BUTTON STYLE --- */
-    .btn-restore {
-        background-color: #d32f2f;
-        color: white;
-        width: 100%;
-        font-size: 18px;
-        padding: 15px;
-        margin-bottom: 25px;
-        border: none;
-        border-radius: 8px;
-        cursor: pointer;
-        font-weight: bold;
-        transition: 0.3s;
-        box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 12px;
+    .attachment-pill:hover {
+        background-color: #e8f5e9;
+        border-color: #43a047;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-    .btn-restore:hover {
-        background-color: #b71c1c;
-    }
-
-    @media (max-width: 992px) {
-        .main-grid { flex-direction: column; }
-    }
+    .attachment-pill i { color: #43a047; margin-right: 8px; }
 </style>
 
 <div class="task-container">
-    
     <div class="task-header">
         <h1><i class="fas fa-tasks"></i> Task Action: #{{ delegation.pk }}</h1>
         <p>
-            Assigned to: <strong>{{ delegation.assigned_user.username|default:"Unassigned (Archived)" }}</strong> 
-            | Status: <span class="status-badge">{{ delegation.get_status_display }}</span>
+            Assigned to: <strong>{{ delegation.assigned_user.username|default:"Unassigned" }}</strong> 
+            | Status: 
+            <span class="status-badge 
+                {% if delegation.status == 'DLT' %}badge-dlt
+                {% elif delegation.status == 'COM' %}badge-com
+                {% else %}badge-default{% endif %}">
+                {{ delegation.get_status_display }}
+            </span>
         </p>
         <hr style="border-top: 1px solid #eee; margin-bottom: 25px;">
     </div>
 
     {% if messages %}
-        <div class="message-area" style="margin-bottom: 20px;">
+        <div class="message-area">
         {% for message in messages %}
             <div class="alert alert-{{ message.tags }}" role="alert" style="padding: 10px; border-radius: 4px; background: #fff3cd; border: 1px solid #ffeeba; margin-bottom: 10px;">
                 {{ message }}
@@ -236,8 +88,8 @@
         </div>
     {% endif %}
 
-    {# --- RESTORE BUTTON (Shown only if work_related is False) --- #}
-    {% if delegation.work_related == False %}
+    {# --- RESTORE BUTTON --- #}
+    {% if delegation.status == 'DLT' %}
     <form method="POST" action="{% url 'outlook_delegated_action' delegation_id=delegation.pk %}">
         {% csrf_token %}
         <input type="hidden" name="action_type" value="restore_to_inbox">
@@ -248,21 +100,19 @@
     {% endif %}
 
     <div class="custom-card">
-        <div class="card-header-dark" style="background-color: #1e88e5;">
+        <div class="card-header-dark" style="background-color:  rgb(105, 187, 85)">
             <i class="fas fa-info-circle" style="margin-right: 10px;"></i>
             <h5 style="margin: 0;">Internal Email Info & Metadata</h5>
         </div>
         <div class="card-body-content">
-            <form method="POST" action="{% url 'outlook_delegated_action' delegation_id=delegation.pk %}">
+            <form method="POST">
                 {% csrf_token %}
                 <input type="hidden" name="action_type" value="update_metadata">
-                
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; align-items: end;">
                     <div class="form-group">
                         <label for="company_code" class="form-label">Member Group Code:</label>
                         <input type="text" id="company_code" name="company_code" value="{{ delegation.company_code|default:'' }}" class="form-control">
                     </div>
-
                     <div class="form-group">
                         <label for="email_category" class="form-label">Email Type:</label>
                         <select id="email_category" name="email_category" class="form-control">
@@ -275,7 +125,6 @@
                             <option value="LPI" {% if delegation.email_category == 'LPI' %}selected{% endif %}>LPI</option>
                         </select>
                     </div>
-
                     <div class="form-group">
                         <label for="status" class="form-label">Email Status:</label>
                         <select id="status" name="status" class="form-control">
@@ -284,7 +133,6 @@
                             <option value="COM" {% if delegation.status == 'COM' %}selected{% endif %}>Completed / Actioned</option>
                         </select>
                     </div>
-
                     <div class="form-group">
                         <button type="submit" class="custom-btn btn-update-metadata">
                             <i class="fas fa-sync-alt"></i> Update Info
@@ -302,19 +150,35 @@
                     <i class="fas fa-inbox" style="margin-right: 10px;"></i> 
                     <h5 style="margin: 0;">Email: {{ email.subject|default:"(No Subject)" }}</h5>
                 </div>
-                <div class="card-body-content">
-                    <div style="padding: 15px; border: 1px solid #ddd; background: #f8f9fa; max-height: 500px; overflow-y: auto;">
+                <div class="card-body-content" style="padding: 0;">
+                    <div style="padding: 20px; max-height: 500px; overflow-y: auto;">
                         {% if email.body.contentType == 'html' %}
                             {{ email.body.content|safe }}
                         {% else %}
                             <pre style="white-space: pre-wrap;">{{ email.body.content }}</pre>
                         {% endif %}
                     </div>
+
+                    {# --- ATTACHMENT SECTION --- #}
+                    {% if attachments %}
+                    <div class="attachment-section">
+                        <strong style="display:block; margin-bottom:10px; color:#2e7d32; font-size: 14px;">
+                            <i class="fas fa-paperclip"></i> Task Attachments:
+                        </strong>
+                        <div style="display: flex; flex-wrap: wrap;">
+                            {% for att in attachments %}
+                            <a href="{% url 'download_attachment' message_id=delegation.email_id attachment_id=att.id %}" class="attachment-pill">
+                                <i class="fas fa-file-download"></i> 
+                                <strong>{{ att.name }}</strong>&nbsp;<small>({{ att.size|filesizeformat }})</small>
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
 
-            {# --- REPLY FORM --- #}
-            {% if delegation.work_related %}
+            {% if delegation.status != 'DLT' %}
             <div class="custom-card">
                 <button class="collapse-toggle" type="button" data-target="#collapseReplyForm">
                     <span><i class="fas fa-reply" style="margin-right: 8px;"></i> Send Reply</span>
@@ -324,7 +188,6 @@
                     <form method="POST">
                         {% csrf_token %}
                         <input type="hidden" name="email_log_type" value="REPLY">
-                        
                         <div class="form-group">
                             <label class="form-label">Action Note:</label>
                             <select name="action_notes" class="form-control" required>
@@ -345,7 +208,7 @@
                             <label class="form-label">Body:</label>
                             <textarea class="form-control" name="reply_body" rows="6"></textarea>
                         </div>
-                        <button type="submit" class="custom-btn btn-primary" style="width: 100%;">Send Email</button>
+                        <button type="submit" class="custom-btn btn-primary">Send Email</button>
                     </form>
                 </div>
             </div>
@@ -369,34 +232,46 @@
                         <div style="padding:10px; color:#777;">No history available.</div>
                         {% endfor %}
                     </div>
-                    
+                    {% if delegation.status != 'DLT' %}
                     <button class="collapse-toggle" style="border-bottom: 3px solid #28a745;" type="button" data-target="#collapseAddNote">
                         <span><i class="fas fa-plus-circle" style="color: #28a745;"></i> Add Note</span>
                         <i class="fas fa-chevron-down toggle-icon"></i>
                     </button>
                     <div class="collapse-content" id="collapseAddNote">
-                        <form method="POST">
+                        <form method="POST" style="margin-top:10px;">
                             {% csrf_token %}
                             <textarea class="form-control" name="note_content" rows="4" required></textarea>
                             <button type="submit" class="custom-btn btn-success">Save Note</button>
                         </form>
                     </div>
+                    {% endif %}
                 </div>
             </div>
 
-            {# --- ADJUST BACK BUTTON BASED ON SOURCE --- #}
-            {% if delegation.work_related == False %}
-            <a href="{% url 'outlook_recycle_bin' %}" class="custom-btn btn-back">
-                <i class="fas fa-arrow-left"></i> Back to Recycle Bin
-            </a>
+            {% if delegation.status == 'DLT' %}
+                <a href="{% url 'outlook_recycle_bin' %}" class="custom-btn btn-back">
+                    <i class="fas fa-arrow-left"></i> Back to Recycle Bin
+                </a>
             {% else %}
-            <a href="{% url 'outlook_delegated_box' %}" class="custom-btn btn-back">
-                <i class="fas fa-arrow-left"></i> Back to Queue
-            </a>
+                <a href="{% url 'outlook_delegated_box' %}" class="custom-btn btn-back">
+                    <i class="fas fa-arrow-left"></i> Back to Queue
+                </a>
+            {% endif %}
+
+            {% if delegation.status != 'COM' and delegation.status != 'DLT' %}
+            <form method="POST">
+                {% csrf_token %}
+                <input type="hidden" name="action_type" value="mark_complete">
+                <button type="submit" class="custom-btn btn-success" style="margin-top: 10px;">
+                    <i class="fas fa-check-double"></i> MARK AS COMPLETED
+                </button>
+            </form>
             {% endif %}
         </div>
     </div>
 </div>
+
+
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
@@ -408,6 +283,8 @@
                     const isExpanded = this.getAttribute('aria-expanded') === 'true';
                     targetEl.classList.toggle('show');
                     this.setAttribute('aria-expanded', !isExpanded);
+                    this.querySelector('.toggle-icon').classList.toggle('fa-chevron-up');
+                    this.querySelector('.toggle-icon').classList.toggle('fa-chevron-down');
                 });
             }
         });

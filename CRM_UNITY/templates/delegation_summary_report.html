@@ -20,40 +20,43 @@
 </head>
 <body class="p-4 sm:p-8">
 
-    <div class="max-w-4xl mx-auto bg-white rounded-xl shadow-2xl overflow-hidden">
+    <div class="max-w-6xl mx-auto bg-white rounded-xl shadow-2xl overflow-hidden">
         <div class="p-6 bg-indigo-700 rounded-t-xl flex justify-between items-center">
             <div>
                 <h1 class="text-3xl font-bold text-white">Delegation Dashboard Report</h1>
-                <p class="text-indigo-300 mt-1 text-sm">Summary counts grouped by Work Status and Enquiry Category.</p>
+                <p class="text-indigo-300 mt-1 text-sm">Detailed summary including Enquiry Groupings and categorisation.</p>
             </div>
-            <!-- Export Button Added Here -->
-            <a href="{% url 'delegation_report' %}" class="button-block">Reports</a>
-                Export to Excel (Detailed)
-            </a>
+            <div class="flex gap-3">
+                <a href="{% url 'export_delegation_report_excel' %}" class="export-btn">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    Export to Excel
+                </a>
+            </div>
         </div>
 
         <div class="p-6">
-            
-            <a href="{% url 'dashboard' %}" class="btn text-indigo-600 hover:text-indigo-800 mb-6 inline-block">← Return to Home Screen</a>
+            <a href="{% url 'dashboard' %}" class="text-indigo-600 hover:text-indigo-800 mb-6 inline-block font-medium">← Return to Home Screen</a>
 
             <table class="summary-table">
                 <thead>
                     <tr class="header-row">
-                        <th colspan="2" class="text-lg">Work Related or Not Work Related</th>
+                        <th colspan="2" class="text-lg">Overall Email Statistics</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
+                        <th class="w-2/3">All Emails (Total)</th>
+                        <td class="text-right font-bold text-lg">{{ all_emails_total|default:0 }}</td>
+                    </tr>
+                    <tr>
                         <th>Work Related</th>
-                        <td class="text-right">{{ work_related_data.Yes|default:0 }}</td>
+                        <td class="text-right text-green-700">{{ work_related_data.Yes|default:0 }}</td>
                     </tr>
                     <tr>
                         <th>Not Work Related</th>
-                        <td class="text-right">{{ work_related_data.No|default:0 }}</td>
-                    </tr>
-                    <tr class="total-row">
-                        <th>Total</th>
-                        <td class="text-right">{{ work_related_data.Yes|default:0|add:work_related_data.No|default:0 }}</td>
+                        <td class="text-right text-red-600">{{ work_related_data.No|default:0 }}</td>
                     </tr>
                 </tbody>
             </table>
@@ -61,26 +64,55 @@
             <table class="summary-table">
                 <thead>
                     <tr class="header-row">
-                        <th class="text-lg">Enquiry Category</th>
-                        <th class="text-lg text-center">Count of Enquiry</th>
+                        <th class="text-lg">Enquiry Type (Category)</th>
+                        <th class="text-lg">Enquiry Selection</th>
+                        <th class="text-lg">Grouping</th>
+                        <th class="text-lg text-center">Count</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {# Loop over the pre-processed list from the view, which includes 0 counts #}
-                    {% for item in category_summary %}
+                    {% for item in type_selection_breakdown %}
                     <tr>
-                        <th>{{ item.EnquiryCategory }}</th>
-                        <td class="text-right">{{ item.count }}</td>
+                        <td class="font-semibold text-indigo-900">{{ item.category }}</td>
+                        <td class="text-gray-700">{{ item.type }}</td>
+                        <td class="text-gray-500 italic text-sm">{{ item.grouping }}</td>
+                        <td class="text-right font-mono">{{ item.count }}</td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="2" class="text-center text-gray-500">No data found in the report table.</td>
+                        <td colspan="4" class="text-center text-gray-500 py-8 italic">No detailed selection data found for this period.</td>
                     </tr>
                     {% endfor %}
-                    
+                </tbody>
+            </table>
+
+            <table class="summary-table">
+                <thead>
+                    <tr class="header-row">
+                        <th class="text-lg">Category Summary</th>
+                        <th class="text-lg text-center">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in category_summary %}
+                    <tr>
+                        <th>{{ item.category }}</th>
+                        <td class="text-right">{{ item.subtotal }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="2" class="text-center text-gray-500">No categorised data found.</td>
+                    </tr>
+                    {% endfor %}
                     <tr class="total-row">
-                        <th>Total</th>
-                        <td class="text-right">{{ total_enquiries }}</td>
+                        <th>Total Categorised Entries</th>
+                        <td class="text-right">
+                            {% if category_summary %}
+                                {{ type_selection_breakdown|length }} Selections Recorded
+                            {% else %}
+                                0
+                            {% endif %}
+                        </td>
                     </tr>
                 </tbody>
             </table>
