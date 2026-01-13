@@ -16,12 +16,16 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.contrib.auth import views as auth_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     
-    # --- This line is correct ---
-    # It passes control for the root path to the 'consulting.urls' file.
-    path('', include('consulting.urls')),
-    # ----------------------------------
+    # This makes the root URL (http://127.0.0.1:8000/) the login page
+    path('', auth_views.LoginView.as_view(template_name='consulting/login.html'), name='login'),
+    
+    # All other consulting app URLs (Dashboard, Calendar, etc.)
+    path('consulting/', include('consulting.urls')),
+    
+    path('accounts/', include('django.contrib.auth.urls')), 
 ]

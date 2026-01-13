@@ -77,20 +77,22 @@ class EmailDelegation(models.Model):
     """Tracks delegation status, assignee, notes, and classification for a specific Outlook email."""
     
     email_id = models.CharField(max_length=255, unique=True)
+    subject = models.CharField(max_length=255, null=True, blank=True) # 🛑 NEW FIELD
     assigned_user = models.ForeignKey(
         User, 
         on_delete=models.SET_NULL, 
         null=True, 
         blank=True,
-        # Default name is acvv_user_id, setting for clarity if needed
     )
     
     STATUS_CHOICES = [
         ('NEW', 'Undelegated - New'),
         ('DEL', 'Delegated'),
         ('COM', 'Completed'),
-        ('CLO', 'Closed')
+        ('CLO', 'Closed'),
+        ('DLT', 'Deleted'), 
     ]
+    
     status = models.CharField(
         max_length=3,
         choices=STATUS_CHOICES,
@@ -99,18 +101,17 @@ class EmailDelegation(models.Model):
     
     received_at = models.DateTimeField(null=True, blank=True)
     delegated_at = models.DateTimeField(null=True, blank=True)
+    sender_address = models.CharField(max_length=255, null=True, blank=True)
     
-    # 🛑 NEW CLASSIFICATION FIELDS 🛑
-    work_related = models.BooleanField(default=True) # Assuming defaults to Yes
+    work_related = models.BooleanField(default=True)
     email_category = models.CharField(max_length=50, null=True, blank=True)
     communication_type = models.CharField(max_length=50, null=True, blank=True)
-    mip_names = models.CharField(max_length=50, null=True, blank=True) # For MIP/Group Code
+    mip_names = models.CharField(max_length=50, null=True, blank=True)
 
     def __str__(self):
         return f"Task ID {self.pk} - {self.get_status_display()}"
 
     class Meta:
-        # 🛑 CRITICAL: Tell Django not to manage the schema
         managed = False
         db_table = 'email_delegation'
 
@@ -152,3 +153,90 @@ class DelegationTransactionLog(models.Model):
         managed = False
         db_table = 'delegation_transaction_log' 
         ordering = ['transaction_time']
+        
+class AcvvClaim(models.Model):
+    id = models.AutoField(db_column='ID', primary_key=True)
+    company_code = models.CharField(db_column='company_code', max_length=50) 
+    agent = models.CharField(db_column='agent', max_length=100, null=True, blank=True)
+    id_number = models.CharField(db_column='id_number', max_length=50)
+    member_name = models.CharField(db_column='member_name', max_length=255)
+    member_surname = models.CharField(db_column='member_surname', max_length=255)
+    mip_number = models.CharField(db_column='mip_number', max_length=50, null=True, blank=True)
+    claim_type = models.CharField(db_column='claim_type', max_length=100)
+    exit_reason = models.CharField(db_column='exit_reason', max_length=100, null=True, blank=True)
+    claim_allocation = models.CharField(db_column='claim_allocation', max_length=100)
+    claim_status = models.CharField(db_column='claim_status', max_length=100)
+    payment_option = models.CharField(db_column='payment_option', max_length=100, null=True, blank=True)
+    claim_amount = models.DecimalField(db_column='claim_amount', max_digits=15, decimal_places=2, null=True, blank=True)
+    
+    claim_created_date = models.DateField(db_column='claim_created_date', null=True, blank=True)
+    last_contribution_date = models.DateField(db_column='last_contribution_date', null=True, blank=True)
+    date_submitted = models.DateField(db_column='date_submitted', null=True, blank=True)
+    date_paid = models.DateField(db_column='date_paid', null=True, blank=True)
+    
+    vested_pot_available = models.BooleanField(db_column='vested_pot_available', default=False)
+    vested_pot_paid_date = models.DateField(db_column='vested_pot_paid_date', null=True, blank=True)
+    savings_pot_available = models.BooleanField(db_column='savings_pot_available', default=False)
+    savings_pot_paid_date = models.DateField(db_column='savings_pot_paid_date', null=True, blank=True)
+    infund_cert_date = models.DateField(db_column='infund_cert_date', null=True, blank=True)
+    
+    linked_email_id = models.CharField(db_column='linked_email_id', max_length=255, null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'acvv_claims'
+
+class ClaimNote(models.Model):
+    id = models.AutoField(db_column='ID', primary_key=True)
+    claim = models.ForeignKey(AcvvClaim, on_delete=models.CASCADE, related_name='notes', db_column='claim_id')
+    note_selection = models.CharField(db_column='note_selection', max_length=255, null=True, blank=True)
+    note_description = models.TextField(db_column='note_description', null=True, blank=True)
+    attachment = models.FileField(db_column='attachment', upload_to='claim_attachments/%Y/%m/', null=True, blank=True)
+    created_at = models.DateTimeField(db_column='created_at', auto_now_add=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, db_column='created_by_id')
+
+    class Meta:
+        managed = False
+        db_table = 'acvv_claim_notes'
+        
+class ReconciliationRecord(models.Model):
+    """Stores fiscal month data for branch reconciliations (8th to 7th cycle)."""
+    fiscal_month = models.DateField()
+    mip_name = models.CharField(max_length=255)
+    branch_code = models.CharField(max_length=50)
+    
+    billed_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    paid_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    outstanding_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    note = models.TextField(null=True, blank=True)
+    
+    is_closed = models.BooleanField(default=False)
+    closed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        managed = False  # Set to False as per your requirement
+        db_table = 'reconciliation_record'
+
+    def __str__(self):
+        return f"{self.mip_name} - {self.fiscal_month.strftime('%B %Y')}"
+    
+class ReconciliationWorksheet(models.Model):
+    fiscal_month = models.DateField()
+    mg_name = models.CharField(max_length=255)
+    mg_code = models.CharField(max_length=100)
+    company_status = models.CharField(max_length=50, default='Active')
+    payment_method = models.CharField(max_length=50, default='Debit Order')
+    last_fiscal_reconciled = models.CharField(max_length=100, null=True, blank=True)
+    arrears = models.CharField(max_length=255, null=True, blank=True)
+    member_count_reconciled = models.IntegerField(default=0)
+    contribution_amount_reconciled = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    reconciled_status = models.CharField(max_length=50, default='Unreconciled')
+    date_schedule_received = models.DateField(null=True, blank=True)
+    date_confirmed_on_step = models.DateField(null=True, blank=True)
+    debit_order_date = models.DateField(null=True, blank=True)
+    is_closed = models.BooleanField(default=False)
+    closed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'reconciliation_worksheet'

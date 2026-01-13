@@ -1,307 +1,156 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Daily Confirmations</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>Daily Confirmations | Unity Internal</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
-        :root {
-            /* Matches the fresh lime green from the image */
-            --futura-green: #6bc26b; 
-            --text-dark: #333;
-            --border-light: #f0f0f0;
-            --border-separator: #ccc;
-        }
-
-        /* Merged Body Styles */
-        body {
-            font-family: sans-serif;
-            background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
-            margin: 10px;
-            color: #333;
-            line-height: 1.6;
-        }
-
-        /* --- Header Section --- */
-        .top-bar {
-            /* Removed background-color: white to let gradient show, or kept transparent */
-            padding: 20px 30px;
-            display: flex;
+        /* --- SHARED GLOBAL STYLES --- */
+        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+        body { 
+            font-family: sans-serif; 
+            font-size: 14px; 
+            background: linear-gradient(to bottom, #d1e2c4, #d1e2c4); 
+            color: #333; 
+            display: flex; 
             justify-content: center; 
-            align-items: center;
+            align-items: center; 
+        }
+        
+        .container { 
+            width: 95%; max-width: 98%; height: 90vh; display: flex; flex-direction: column; 
+            background-color: #f0fff0; padding: 1.5em; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,.1); 
         }
 
-        /* Merged H1 Styles */
-        h1.page-title {
-            color: #1b5e20;
-            text-align: center;
-            margin-bottom: 0px;
-            font-size: 2.5em;
-            font-weight: 300;
+        /* HEADER & BUTTONS */
+        .dashboard-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+        .dashboard-button { 
+            padding: 8px 16px; background-color: #81c784; border: 1px solid #81c784; border-radius: 5px; 
+            text-decoration: none; color: white; font-weight: 700; transition: background-color .3s ease; font-size: 13px; cursor: pointer; 
+            display: inline-flex; align-items: center; gap: 6px;
         }
+        .dashboard-button:hover { background-color: #66bb6a; color: white; }
+        h1 { color: #1b5e20; text-align: center; flex-grow: 1; font-size: 22px; margin: 0; }
 
-        /* Requested Container Class */
-        .container {
-            max-width: 95%;
-            margin: 2em auto;
-            padding: 1em;
+        /* SEARCH/FILTER CONTAINER */
+        .search-container { 
+            display: flex; gap: 10px; margin-bottom: 15px; background: #e8f5e9; padding: 15px; 
+            border-radius: 8px; border: 1px solid #c8e6c9; align-items: flex-end; 
         }
-
-        /* Requested Return Button Class (Class exists, but no button in HTML per previous request) */
-        .return-button {
-            display: inline-block;
-            padding: 10px 20px;
-            margin-bottom: 20px;
-            background-color: #81c784;
-            border: 1px solid #81c784;
-            border-radius: 5px;
-            text-decoration: none;
-            color: white;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-        .return-button:hover {
-            background-color: #66bb6a;
-        }
-
-        /* --- Filters & Buttons --- */
-        .filter-container {
-            padding: 0 30px 15px 30px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
+        .filter-group { display: flex; flex-direction: column; gap: 5px; }
+        .filter-label { font-size: 11px; font-weight: bold; color: #1b5e20; margin-bottom: 2px; }
+        
         .date-input-group {
             display: flex;
             align-items: center;
-            border: 1px solid #ccc;
-            padding: 4px 8px;
+            border: 1px solid #aed581;
+            padding: 6px 10px;
             background: white;
             border-radius: 4px;
         }
+        .date-input { border: none; outline: none; font-size: 13px; color: #333; width: 120px; }
 
-        .date-input {
-            border: none;
-            outline: none;
-            font-size: 0.9rem;
-            color: #555;
-            padding: 2px;
-            background: transparent;
-        }
-
-        /* Button Styling */
-        .filter-btn {
-            padding: 6px 15px;
-            font-size: 0.9rem;
-            border: none;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            text-decoration: none;
-            transition: 0.2s;
-            font-weight: 500;
-            border-radius: 4px; 
-        }
-
-        /* Search Button (Green) */
-        .btn-search {
-            background-color: var(--futura-green);
-            color: white;
-        }
-        .btn-search:hover {
-            background-color: #55aa55;
-            color: white;
-        }
-
-        /* Clear Button (Grey) */
-        .btn-clear {
-            background-color: #f0f0f0;
-            color: #555;
-            border: 1px solid #ccc;
-        }
-        .btn-clear:hover {
-            background-color: #e0e0e0;
-            color: #333;
-            border-color: #bbb;
-        }
-
-        /* Export Button (Blue) */
-        .btn-export {
-            background-color: #0d6efd; 
-            color: white;
-            margin-left: auto; 
-        }
-        .btn-export:hover {
-            background-color: #0b5ed7;
-            color: white;
-        }
-
-        /* --- Table Styling --- */
-        .table-responsive {
-            padding: 0;
-            /* Allow the table's border-radius to show */
-            overflow: visible; 
-        }
-
-        /* Merged Table Styles */
-        .custom-table {
-            width: 100%;
-            border-collapse: collapse; /* Note: box-shadow/border-radius on collapsed tables can be tricky in some browsers */
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-            border-radius: 5px;
-            overflow: hidden;
-            background-color: #f0fff0;
-            border: 1px solid #c3e6cb;
-            margin-bottom: 20px;
-            font-size: 0.9em;
-        }
-
-        .custom-table thead tr {
-            background-color: var(--futura-green);
-            color: white;
-            text-align: left;
-        }
-
-        .custom-table th {
-            padding: 12px 10px;
-            font-weight: 600;
-            white-space: nowrap;
-            vertical-align: bottom;
-            line-height: 1.2;
-        }
-
-        .custom-table td {
-            padding: 10px;
-            vertical-align: top;
-            color: #444;
-            /* Removed background-color: white to let the table's mint green show */
-            border-bottom: 1px solid #c3e6cb; 
-        }
-
-        /* --- Column Alignment --- */
-        /* Center Active Members */
-        .custom-table th:nth-child(3), 
-        .custom-table td:nth-child(3) {
-            text-align: center; 
-        }
-
-        /* Right Align Schedule Amount */
-        .custom-table th:nth-child(6), 
-        .custom-table td:nth-child(6),
-        .custom-table td.amount-col { 
-             text-align: right; 
-        }
+        /* TABLE STYLES */
+        .table-wrapper { overflow-y: auto; flex: 1; border: 1px solid #aed581; border-radius: 4px; background: white; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #aed581; font-size: 13px; word-wrap: break-word; }
         
-        /* Right Align Bank Amount (Last Column) */
-        .custom-table th:nth-last-child(1),
-        .custom-table td:nth-last-child(1) {
-             text-align: right; 
-        }
-
-        /* --- Bill Separator --- */
-        .bill-separator td {
-            border-bottom: 2px solid #a5d6a7 !important; /* Slightly darker green separator */
-        }
+        /* Fixed Header */
+        th { background-color: #e6ffe6; color: #1b5e20; font-weight: 700; position: sticky; top: 0; z-index: 10; border-bottom: 2px solid #aed581; }
         
-        /* Light line for bank rows inside a bill */
-        .bank-row td {
-            border-bottom: 1px solid #c3e6cb;
-        }
+        tr:hover td { background-color: #f1f8e9; }
 
+        /* Specific Column Alignments */
+        .text-center { text-align: center; }
+        .amount-col { text-align: right; font-weight: 600; }
+
+        /* Row Separator Logic */
+        .bill-group-end td { border-bottom: 2px solid #81c784 !important; }
+        
     </style>
 </head>
 <body>
 
-    <!-- Updated to use .container instead of .container-fluid to match your CSS -->
     <div class="container">
-        <a href="{% url 'dashboard' %}" class="return-button">Back to Dashboard</a>
-        
-        <div class="top-bar">
-            <h1 class="page-title">Daily Confirmations</h1>
+        <div class="dashboard-header">
+            <a href="{% url 'dashboard' %}" class="dashboard-button">
+                <i class="fa-solid fa-arrow-left"></i> Back to Home Screen
+            </a>
+            <h1>Daily Confirmations</h1>
         </div>
 
-        <form method="get" class="filter-container">
-            
-            <!-- Date Inputs -->
-            <div class="date-input-group">
-                <i class="fa-regular fa-calendar me-2 text-muted"></i>
-                <input type="date" name="start_date" class="date-input" value="{{ filter_start_date }}">
+        <form method="get" class="search-container">
+            <div class="filter-group">
+                <label class="filter-label">FROM DATE</label>
+                <div class="date-input-group">
+                    <i class="fa-regular fa-calendar me-2 text-muted"></i>
+                    <input type="date" name="start_date" class="date-input" value="{{ filter_start_date }}">
+                </div>
             </div>
 
-            <span class="text-muted">-</span>
-
-            <div class="date-input-group">
-                <i class="fa-regular fa-calendar me-2 text-muted"></i>
-                <input type="date" name="end_date" class="date-input" value="{{ filter_end_date }}">
+            <div class="filter-group">
+                <label class="filter-label">TO DATE</label>
+                <div class="date-input-group">
+                    <i class="fa-regular fa-calendar me-2 text-muted"></i>
+                    <input type="date" name="end_date" class="date-input" value="{{ filter_end_date }}">
+                </div>
             </div>
 
-            <!-- Action Buttons -->
-            <button type="submit" class="filter-btn btn-search">
+            <button type="submit" class="dashboard-button">
                 <i class="fa-solid fa-magnifying-glass"></i> Search
             </button>
 
-            <a href="{{ request.path }}" class="filter-btn btn-clear">
+            <a href="{{ request.path }}" class="dashboard-button" style="background-color: #757575; border-color: #757575;">
                 <i class="fa-solid fa-xmark"></i> Clear
             </a>
 
-            <!-- Export Button (Pushed to Right) -->
-            <button type="submit" name="export_excel" value="true" class="filter-btn btn-export">
+            <button type="submit" name="export_excel" value="true" class="dashboard-button" style="background-color: #217346; border-color: #217346; margin-left: auto;">
                 <i class="fa-solid fa-file-excel"></i> Export to Excel
             </button>
-
         </form>
 
-        <div class="table-responsive px-3">
-            <table class="custom-table">
+        <div class="table-wrapper">
+            <table>
                 <thead>
                     <tr>
-                        <th>CC Dates<br>Month</th>
-                        <th>Company<br>Code</th>
-                        <th>Active<br>Members</th>
-                        <th>Schedule Date</th>
-                        <th>Final Date</th>
-                        <th>Schedule<br>Amount</th>
-                        <th>Confirmed Date</th>
-                        <th>Bank Date</th>
-                        <th>Bank Amount</th>
+                        <th style="width: 10%;">CC Dates Month</th>
+                        <th style="width: 8%;">Company Code</th>
+                        <th style="width: 8%;" class="text-center">Active Members</th>
+                        <th style="width: 10%;">Schedule Date</th>
+                        <th style="width: 10%;">Final Date</th>
+                        <th style="width: 12%;" class="amount-col">Schedule Amount</th>
+                        <th style="width: 12%;">Confirmed Date</th>
+                        <th style="width: 10%;">Bank Date</th>
+                        <th style="width: 12%;" class="amount-col">Bank Amount</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for record in confirmation_records %}
                         {% with source_count=record.source_details|length %}
-                            
-                            {# Determine row span #}
                             {% with row_span=source_count|default:1 %}
 
                                 {% if source_count == 0 %}
-                                    <!-- SCENARIO A: No Bank Lines -->
-                                    <tr class="bill-separator">
+                                    <tr class="bill-group-end">
                                         <td>{{ record.cc_dates_month|date:"Y-m-d" }}</td>
                                         <td>{{ record.company_code }}</td>
-                                        <td>{{ record.active_members }}</td>
+                                        <td class="text-center">{{ record.active_members }}</td>
                                         <td>{{ record.schedule_date|date:"Y-m-d" }}</td>
                                         <td>{{ record.final_date|date:"Y-m-d"|default:"-" }}</td>
                                         <td class="amount-col">R {{ record.schedule_amount }}</td>
                                         <td>-</td>
                                         <td>-</td> 
-                                        <td>-</td> 
+                                        <td class="amount-col">-</td> 
                                     </tr>
-
                                 {% else %}
-                                    <!-- SCENARIO B: Has Bank Lines -->
                                     {% for source in record.source_details %}
-                                        <tr class="{% if forloop.last %}bill-separator{% else %}bank-row{% endif %}">
-                                            
-                                            {# Render BILL info only on first iteration #}
+                                        <tr class="{% if forloop.last %}bill-group-end{% endif %}">
                                             {% if forloop.first %}
                                                 <td rowspan="{{ row_span }}">{{ record.cc_dates_month|date:"Y-m-d" }}</td>
                                                 <td rowspan="{{ row_span }}">{{ record.company_code }}</td>
-                                                <td rowspan="{{ row_span }}">{{ record.active_members }}</td>
+                                                <td rowspan="{{ row_span }}" class="text-center">{{ record.active_members }}</td>
                                                 <td rowspan="{{ row_span }}">{{ record.schedule_date|date:"Y-m-d" }}</td>
                                                 <td rowspan="{{ row_span }}">{{ record.final_date|date:"Y-m-d"|default:"-" }}</td>
                                                 <td rowspan="{{ row_span }}" class="amount-col">R {{ record.schedule_amount }}</td>
@@ -309,10 +158,8 @@
                                                     {{ record.confirmed_date|date:"Y-m-d"|default:"-" }}
                                                 </td>
                                             {% endif %}
-
-                                            <!-- Render SOURCE info -->
                                             <td>{{ source.date|date:"Y-m-d" }}</td>
-                                            <td>R {{ source.amount }}</td>
+                                            <td class="amount-col">R {{ source.amount }}</td>
                                         </tr>
                                     {% endfor %}
                                 {% endif %}
@@ -321,7 +168,7 @@
                         {% endwith %}
                     {% empty %}
                         <tr>
-                            <td colspan="9" class="text-center p-5 text-muted">No records found.</td>
+                            <td colspan="9" class="text-center" style="padding: 40px; color: #757575;">No records found matching the criteria.</td>
                         </tr>
                     {% endfor %}
                 </tbody>

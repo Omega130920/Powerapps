@@ -6,187 +6,105 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Billing History | Unity Internal</title>
     <style>
-        /* Global Background and Body - Matches your main dashboard */
+        /* --- INTEGRATED GLOBAL STYLES --- */
+        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
         body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127)); 
-            margin: 0; 
+            font-family: sans-serif; 
+            font-size: 14px; 
+            background: linear-gradient(to bottom, #d1e2c4, #d1e2c4); 
             color: #333; 
-            min-height: 100vh;
-            padding: 20px;
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
         }
         
-        /* Main Content Wrapper */
-        .global-history-container { 
-            max-width: 1400px;
-            margin: 20px auto; 
-            background: white; 
-            padding: 30px; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15); 
-            border-radius: 8px; 
-            border-top: 8px solid #1b5e20; 
-        }
-        
-        h2 { 
-            margin-top: 0; 
-            color: #1b5e20; 
-            font-size: 28px;
-            border-bottom: 2px solid #aed581; 
-            padding-bottom: 10px;
-            margin-bottom: 20px;
+        .container { 
+            width: 95%; max-width: 98%; height: 90vh; display: flex; flex-direction: column; 
+            background-color: #f0fff0; padding: 1.5em; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,.1); 
         }
 
-        /* --- Filter Card Styling --- */
-        .card {
-            border: 1px solid #dcedc8;
-            border-radius: 6px;
-            background-color: #f9fbe7;
-            margin-bottom: 30px;
+        /* HEADER & BUTTONS */
+        .dashboard-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+        .dashboard-button { 
+            padding: 8px 16px; background-color: #81c784; border: 1px solid #81c784; border-radius: 5px; 
+            text-decoration: none; color: white; font-weight: 700; transition: background-color .3s ease; font-size: 13px; cursor: pointer; 
         }
-        .card-body {
-            padding: 20px;
-        }
-        
-        .filter-form-row {
-            display: flex;
-            gap: 20px; 
-            align-items: flex-end; 
-            flex-wrap: wrap;
-        }
-        .form-group {
-            display: flex;
-            flex-direction: column;
-        }
-        .filter-form-control {
-            padding: 8px 12px;
-            border: 1px solid #c8e6c9; 
-            border-radius: 4px;
-            font-size: 0.95em;
-            height: 38px; 
-        }
-        .filter-label {
-            display: block; 
-            font-size: 0.85em;
-            color: #2e7d32; 
-            font-weight: 600; 
-            margin-bottom: 5px;
-        }
+        .dashboard-button:hover { background-color: #66bb6a; }
+        h1 { color: #1b5e20; text-align: center; flex-grow: 1; font-size: 22px; margin: 0; }
 
-        /* --- Table Styling --- */
-        table { width: 100%; border-collapse: collapse; font-size: 0.95em; margin-bottom: 20px; }
-        th { 
-            background-color: #f1f8e9; 
-            color: #1b5e20; 
-            padding: 12px; 
-            text-align: left; 
-            border-bottom: 3px solid #aed581; 
-            text-transform: uppercase;
-        }
-        td { 
-            padding: 12px; 
-            border-bottom: 1px solid #eee; 
-            color: #444; 
-        }
-        
-        .amount-col { text-align: right; font-weight: 500; }
-        .fee-col {
-            text-align: right;
-            font-weight: bold;
-            color: #2e7d32; /* Unity Dark Green for Fees */
-        }
-        
-        /* --- Button Styling --- */
-        .btn {
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            font-weight: 600;
-            text-decoration: none;
-            display: inline-block;
-            transition: all 0.3s;
-            border: none;
-        }
-        .btn-primary { 
-            background-color: #1b5e20; 
-            color: white; 
-        }
-        .btn-primary:hover { background-color: #2e7d32; }
-        
-        .btn-secondary { 
-            background-color: #f5f5f5; 
-            color: #666; 
-            border: 1px solid #ccc;
-        }
-
-        .return-button {
-            background-color: #1b5e20;
-            color: white;
-            margin-bottom: 15px;
-        }
-        .return-button:hover {
-            background-color: #2e7d32;
-        }
-
+        /* SUMMARY BOX */
         .summary-box {
             background: #e8f5e9;
             border: 1px solid #c8e6c9;
-            padding: 15px;
+            padding: 12px;
             border-radius: 6px;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             color: #1b5e20;
             font-weight: 500;
+            font-size: 13px;
         }
+
+        /* SEARCH/FILTER CONTAINER */
+        .search-container { 
+            display: flex; gap: 10px; margin-bottom: 15px; background: #e8f5e9; padding: 15px; 
+            border-radius: 8px; border: 1px solid #c8e6c9; align-items: flex-end; 
+        }
+        .filter-group { display: flex; flex-direction: column; gap: 5px; }
+        .filter-label { font-size: 11px; font-weight: bold; color: #1b5e20; margin-bottom: 2px; }
+        .search-input { padding: 8px; border: 1px solid #aed581; border-radius: 4px; font-size: 14px; background: white; }
+
+        /* TABLE STYLES */
+        .table-wrapper { overflow-y: auto; flex: 1; border: 1px solid #aed581; border-radius: 4px; background: white; }
+        table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #aed581; font-size: 13px; word-wrap: break-word; }
+        th { background-color: #e6ffe6; color: #1b5e20; font-weight: 700; position: sticky; top: 0; z-index: 10; }
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        tr:hover { background-color: #e8f5e9; }
+
+        .amount-col { text-align: right; }
+        .fee-col { text-align: right; font-weight: bold; color: #2e7d32; }
     </style>
 </head>
 <body>
 
-<div style="max-width: 1400px; margin: 0 auto;">
-    <a href="{% url 'dashboard' %}" class="btn return-button">← Back to Dashboard</a>
-</div>
+<div class="container">
+    <div class="dashboard-header">
+        <a href="{% url 'dashboard' %}" class="dashboard-button">← Back to Home Screen</a>
+        <h1>💻 Admin Billing Overview</h1>
+    </div>
 
-<div class="global-history-container">
-    <h2>💻 Admin Billing Overview</h2>
-    
     <div class="summary-box">
         <strong>Recon Percentage:</strong> 0.3% (0.003) based on monthly salary per bill. 
         <br><small>Note: Each bill is listed separately per fiscal period.</small>
     </div>
 
-    <div class="card">
-        <div class="card-body">
-            <form method="GET">
-                <div class="filter-form-row">
-                    <div class="form-group">
-                        <label for="start_date" class="filter-label">Start Date (Bill Period):</label>
-                        <input type="date" class="filter-form-control" id="start_date" name="start_date" value="{{ filter_start_date }}">
-                    </div>
-                    <div class="form-group">
-                        <label for="end_date" class="filter-label">End Date (Bill Period):</label>
-                        <input type="date" class="filter-form-control" id="end_date" name="end_date" value="{{ filter_end_date }}">
-                    </div>
-                    <div class="form-group">
-                        <button type="submit" class="btn btn-primary">🔍 Apply Filter</button>
-                    </div>
-                    <div class="form-group">
-                        <a href="{% url 'admin_billing' %}" class="btn btn-secondary">Clear Filter</a>
-                    </div>
-                </div>
-            </form>
+    <form method="GET" action="" class="search-container">
+        <div class="filter-group" style="flex: 1;">
+            <label for="start_date" class="filter-label">START DATE (BILL PERIOD)</label>
+            <input type="date" class="search-input" id="start_date" name="start_date" value="{{ filter_start_date }}">
         </div>
-    </div>
+
+        <div class="filter-group" style="flex: 1;">
+            <label for="end_date" class="filter-label">END DATE (BILL PERIOD)</label>
+            <input type="date" class="search-input" id="end_date" name="end_date" value="{{ filter_end_date }}">
+        </div>
+
+        <button type="submit" class="dashboard-button">🔍 Apply Filter</button>
+        <a href="{% url 'admin_billing' %}" class="dashboard-button" style="background-color: #757575; border-color: #757575;">Clear Filter</a>
+    </form>
     
-    <div class="table-responsive">
+    <div class="table-wrapper">
         <table>
             <thead>
                 <tr>
-                    <th>Fiscal Period</th>
-                    <th>Company Code</th>
-                    <th>Company Name</th>
-                    <th>Active Members</th>
-                    <th class="amount-col">Monthly Salary</th>
-                    <th class="fee-col">Admin Fee (0.3%)</th>
-                    <th>Confirmed By</th>
-                    <th>Date Confirmed</th>
+                    <th style="width: 12%;">Fiscal Period</th>
+                    <th style="width: 10%;">Code</th>
+                    <th style="width: 18%;">Company Name</th>
+                    <th style="width: 10%;">Members</th>
+                    <th style="width: 13%;" class="amount-col">Salary</th>
+                    <th style="width: 13%;" class="fee-col">Fee (0.3%)</th>
+                    <th style="width: 12%;">Confirmed By</th>
+                    <th style="width: 12%;">Date</th>
                 </tr>
             </thead>
             <tbody>
@@ -212,5 +130,6 @@
         </table>
     </div>
 </div>
+
 </body>
 </html>

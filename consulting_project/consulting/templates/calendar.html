@@ -1,0 +1,193 @@
+{% block content %}
+<style>
+    :root {
+        --primary-green: #4CAF50;
+        --accent-green: #2e7d32;
+        --bg-light-green: #f1f8e9;
+        --danger-red: #d32f2f;
+    }
+
+    .container { font-family: sans-serif; }
+
+    .transaction-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+        background: white;
+    }
+
+    .transaction-table th {
+        background-color: var(--bg-light-green);
+        color: var(--accent-green);
+        padding: 12px;
+        text-align: left;
+        border: 1px solid #ddd;
+    }
+
+    .transaction-table td {
+        padding: 10px;
+        border: 1px solid #ddd;
+        vertical-align: middle;
+    }
+
+    .save-button {
+        background-color: var(--primary-green);
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background 0.3s;
+    }
+
+    .save-button:hover { background-color: var(--accent-green); }
+
+    .filter-bar {
+        background: var(--bg-light-green);
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        border: 1px solid #e0e0e0;
+    }
+
+    /* Action Button Styles */
+    .action-container {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+    }
+
+    .btn-done {
+        background: #e8f5e9;
+        border: 1px solid var(--primary-green);
+        color: var(--accent-green);
+        padding: 6px 12px;
+        cursor: pointer;
+        border-radius: 4px;
+        font-weight: bold;
+        text-decoration: none;
+    }
+
+    .btn-delete {
+        background: #ffebee;
+        border: 1px solid var(--danger-red);
+        color: var(--danger-red);
+        padding: 6px 12px;
+        cursor: pointer;
+        border-radius: 4px;
+        font-weight: bold;
+    }
+
+    .btn-done:hover { background: var(--primary-green); color: white; }
+    .btn-delete:hover { background: var(--danger-red); color: white; }
+</style>
+
+<div class="container" style="max-width: 98%; margin: 20px auto; padding: 25px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+    
+    <h2 style="color: var(--accent-green); border-bottom: 3px solid var(--primary-green); padding-bottom: 10px;">📅 Client Reminders & Future Planning</h2>
+
+    <fieldset style="border: 1px solid #ddd; padding: 20px; border-radius: 8px; margin-bottom: 30px; background-color: #fafafa;">
+        <legend style="padding: 0 10px; font-weight: bold; color: var(--accent-green);">Add New Note/Reminder</legend>
+        <form method="POST" action="{% url 'add_reminder' %}">
+            {% csrf_token %}
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
+                <div class="form-group">
+                    <label style="font-weight:600;">Client</label>
+                    <select name="client_id" required style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
+                        <option value="">-- Select Client --</option>
+                        {% for client in clients %}
+                        <option value="{{ client.id }}">{{ client.client_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label style="font-weight:600;">Date</label>
+                    <input type="date" name="date" required style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
+                </div>
+                <div class="form-group">
+                    <label style="font-weight:600;">Title</label>
+                    <input type="text" name="title" required placeholder="e.g. FICA Review" style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
+                </div>
+            </div>
+            <div style="margin-top: 15px;">
+                <label style="font-weight:600;">Notes</label>
+                <textarea name="note" rows="2" placeholder="Enter specific instructions or notes..." style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;"></textarea>
+            </div>
+            <button type="submit" class="save-button" style="margin-top: 15px; width: 100%;">💾 Save to Calendar</button>
+        </form>
+    </fieldset>
+
+<div class="filter-bar">
+    <form method="GET" action="{% url 'client_calendar' %}" style="display: flex; align-items: center; gap: 15px;">
+        <label style="font-weight: bold; color: var(--accent-green);">View Future Schedule For:</label>
+        
+        <select name="view_client" style="flex: 1; padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
+            <option value="">-- All Clients --</option>
+            {% for client in clients %}
+                <option value="{{ client.id }}" {% if selected_client and selected_client.id == client.id %}selected{% endif %}>
+                    {{ client.client_name }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <button type="submit" style="padding: 10px 25px; background: var(--accent-green); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
+            View Calendar
+        </button>
+    </form>
+</div>
+
+    <h3 style="color: var(--accent-green); margin-top: 30px;">
+        {% if selected_client %} 
+            Upcoming Schedule for: <span style="color: #333;">{{ selected_client.client_name }}</span>
+        {% else %} 
+            All Future Reminders 
+        {% endif %}
+    </h3>
+
+    <table class="transaction-table">
+        <thead>
+            <tr>
+                <th style="width: 15%;">Date</th>
+                {% if not selected_client %}
+                <th style="width: 25%;">Client</th>
+                {% endif %}
+                <th style="width: 20%;">Reminder</th>
+                <th>Notes</th>
+                <th style="width: 15%; text-align: center;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for rem in reminders_list %}
+            <tr>
+                <td style="font-weight: bold; color: var(--danger-red);">{{ rem.reminder_date|date:"D, d M Y" }}</td>
+                {% if not selected_client %}
+                <td style="font-weight: 600;">{{ rem.client.client_name }}</td>
+                {% endif %}
+                <td><strong>{{ rem.title }}</strong></td>
+                <td style="color: #555;">{{ rem.note }}</td>
+                <td>
+                    <div class="action-container">
+                        <form method="POST" action="{% url 'dismiss_single_reminder' rem.id %}" style="margin:0;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-done" title="Complete">Done</button>
+                        </form>
+                        
+                        <form method="POST" action="{% url 'delete_reminder' rem.id %}" onsubmit="return confirm('Are you sure you want to delete this reminder?');" style="margin:0;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-delete" title="Delete Permanent">Delete</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 40px; color: #888; font-style: italic;">
+                    No future reminders found for this selection.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

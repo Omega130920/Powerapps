@@ -1,0 +1,170 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Reconciliation Worksheet | {{ display_name }}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f0f2f5; margin: 0; display: flex; flex-direction: column; min-height: 100vh; }
+        .main-wrapper { display: flex; flex: 1; padding: 20px; gap: 20px; }
+        .history-sidebar { width: 250px; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); height: fit-content; }
+        .history-sidebar h3 { color: #2e7d32; border-bottom: 2px solid #e8f5e9; padding-bottom: 10px; margin-top: 0; }
+        .history-link { display: block; padding: 10px; color: #444; text-decoration: none; border-radius: 4px; transition: background 0.2s; margin-bottom: 5px; font-weight: 500; }
+        .history-link:hover { background: #e8f5e9; color: #2e7d32; }
+        .history-link.active { background: #2e7d32; color: white; }
+        .worksheet-container { flex: 1; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); overflow-x: auto; }
+        .header-section { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+        .fiscal-info h1 { margin: 0; color: #1b5e20; font-size: 1.8rem; }
+        .fiscal-info p { margin: 5px 0; color: #666; font-weight: 500; }
+        
+        /* --- Search Bar Styling --- */
+        .search-container { margin-bottom: 20px; position: relative; max-width: 400px; }
+        .search-input { width: 100%; padding: 12px 40px 12px 15px; border: 2px solid #e0e0e0; border-radius: 25px; font-size: 14px; transition: all 0.3s; }
+        .search-input:focus { border-color: #2e7d32; outline: none; box-shadow: 0 0 8px rgba(46, 125, 50, 0.2); }
+        .search-icon { position: absolute; right: 15px; top: 13px; color: #999; }
+
+        .action-buttons { display: flex; gap: 10px; }
+        .recon-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 10px; }
+        .recon-table th { background-color: #2e7d32; color: white; padding: 12px 8px; text-align: left; position: sticky; top: 0; white-space: nowrap; z-index: 10; }
+        .recon-table td { padding: 8px; border-bottom: 1px solid #eee; }
+        .recon-table tr:hover { background-color: #f9f9f9; }
+        .input-field { width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        .status-badge { padding: 4px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; }
+        .status-unreconciled { background: #fff3e0; color: #e65100; }
+        .status-reconciled { background: #e8f5e9; color: #2e7d32; }
+        .btn { padding: 10px 16px; border-radius: 6px; font-weight: bold; text-decoration: none; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-size: 14px; transition: 0.3s; }
+        .btn-save { background-color: #1976d2; color: white; }
+        .btn-export { background-color: #43a047; color: white; }
+        .btn-close { background-color: #d32f2f; color: white; }
+        .btn-back { background-color: #616161; color: white; }
+        [disabled] { background-color: #f5f5f5; cursor: not-allowed; opacity: 0.7; }
+    </style>
+</head>
+<body>
+
+<div class="main-wrapper">
+    <aside class="history-sidebar">
+        <h3>Fiscal History</h3>
+        <a href="{% url 'reconciliation_worksheet' %}" class="history-link {% if not request.GET.month %}active{% endif %}">
+            <i class="fas fa-calendar-check"></i> Current Month
+        </a>
+        <hr>
+        {% for h in history %}
+        <a href="?month={{ h.fiscal_month|date:'Y-m-d' }}" 
+           class="history-link {% if request.GET.month == h.fiscal_month|date:'Y-m-d' %}active{% endif %}">
+            {{ h.fiscal_month|date:"F Y" }}
+        </a>
+        {% endfor %}
+    </aside>
+
+    <div class="worksheet-container">
+        <div class="header-section">
+            <div class="fiscal-info">
+                <h1>{{ display_name }} Worksheet</h1>
+                <p><i class="far fa-clock"></i> Fiscal Period: 8th to 7th</p>
+                {% if is_closed %}
+                    <span class="status-badge status-reconciled"><i class="fas fa-check-circle"></i> Closed Off</span>
+                {% else %}
+                    <span class="status-badge status-unreconciled"><i class="fas fa-edit"></i> Open / In-Progress</span>
+                {% endif %}
+            </div>
+            
+            <div class="action-buttons">
+                <a href="{% url 'export_reconciliation_worksheet' current_fiscal|date:'Y-m-d' %}" class="btn btn-export">
+                    <i class="fas fa-file-excel"></i> Export Excel
+                </a>
+                <a href="{% url 'dashboard' %}" class="btn btn-back">Back to Home Screen</a>
+            </div>
+        </div>
+
+        <div class="search-container">
+            <input type="text" id="reconSearch" class="search-input" placeholder="Search by MG Name or MG Code...">
+            <i class="fas fa-search search-icon"></i>
+        </div>
+
+        <form method="post">
+            {% csrf_token %}
+            <table class="recon-table" id="reconTable">
+                <thead>
+                    <tr>
+                        <th>MG Name</th>
+                        <th>MG Code</th>
+                        <th>Arrears</th>
+                        <th>Member Count</th>
+                        <th>Contribution (R)</th>
+                        <th>Recon Status</th>
+                        <th>Schedule Received</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in records %}
+                    <tr class="recon-row">
+                        <td class="search-name" title="{{ r.mg_name }}">{{ r.mg_name|truncatechars:30 }}</td>
+                        <td class="search-code"><strong>{{ r.mg_code }}</strong></td>
+                        <td>
+                            <input type="text" name="arrears_{{ r.id }}" value="{{ r.arrears|default:'' }}" 
+                                   class="input-field" {% if is_closed %}disabled{% endif %}>
+                        </td>
+                        <td>
+                            <input type="number" name="count_{{ r.id }}" value="{{ r.member_count_reconciled }}" 
+                                   class="input-field" {% if is_closed %}disabled{% endif %}>
+                        </td>
+                        <td>
+                            <input type="number" step="0.01" name="amount_{{ r.id }}" value="{{ r.contribution_amount_reconciled }}" 
+                                   class="input-field" {% if is_closed %}disabled{% endif %}>
+                        </td>
+                        <td>
+                            <select name="status_{{ r.id }}" class="input-field" {% if is_closed %}disabled{% endif %}>
+                                <option value="Unreconciled" {% if r.reconciled_status == 'Unreconciled' %}selected{% endif %}>Unreconciled</option>
+                                <option value="Reconciled" {% if r.reconciled_status == 'Reconciled' %}selected{% endif %}>Reconciled</option>
+                            </select>
+                        </td>
+                        <td>
+                            <input type="date" name="schedule_{{ r.id }}" value="{{ r.date_schedule_received|date:'Y-m-d' }}" 
+                                   class="input-field" {% if is_closed %}disabled{% endif %}>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+
+            <div style="margin-top: 30px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #eee; padding-top: 20px;">
+                <div>
+                    {% if can_close %}
+                    <button type="submit" name="close_month" class="btn btn-close" onclick="return confirm('Closing this month will lock all entries. Are you sure?')">
+                        <i class="fas fa-lock"></i> Finalize & Close Month
+                    </button>
+                    {% endif %}
+                </div>
+                
+                {% if not is_closed %}
+                <button type="submit" name="save_changes" class="btn btn-save">
+                    <i class="fas fa-save"></i> Save Progress
+                </button>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.getElementById('reconSearch').addEventListener('keyup', function() {
+        let filter = this.value.toLowerCase();
+        let rows = document.querySelectorAll('.recon-row');
+        
+        rows.forEach(row => {
+            let name = row.querySelector('.search-name').textContent.toLowerCase();
+            let code = row.querySelector('.search-code').textContent.toLowerCase();
+            
+            if (name.includes(filter) || code.includes(filter)) {
+                row.style.display = "";
+            } else {
+                row.style.display = "none";
+            }
+        });
+    });
+</script>
+
+</body>
+</html>

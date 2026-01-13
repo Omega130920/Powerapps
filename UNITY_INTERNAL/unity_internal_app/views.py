@@ -35,7 +35,7 @@ from django.db.models import Q
 from django.conf import settings
 from django.core.mail import EmailMessage
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
-from openpyxl.styles import Font, Alignment
+from openpyxl.styles import Font, Alignment, PatternFill
 from django.db.models import Q, Max
 import datetime as dt_mod
 from datetime import datetime, time
@@ -72,12 +72,20 @@ from datetime import datetime, date
 
 # --- Global Definitions ---
 REVIEW_NOTES_OPTIONS = [
-    "No change required / Review complete",
-    "FX Difference identified",
-    "Company Code corrected",
-    "Fiscal Period corrected",
-    "Query required - Further action pending",
-    "Adjustment needed",
+    "AWAIT 0101 REPORT",
+    "AWAIT COVID APPROVAL",
+    "BILLING FISCAL NOT AVAILABLE ON RFW",
+    "DEBIT ADJUSTMENT",
+    "GL0101 BALANCE NOT UTILISED",
+    "HISTORIC CONTRIBUTIONS",
+    "HISTORIC DEBIT - EMPLOYER TO PAY SHORTFALL",
+    "NO SCHEDULE RECEIVED",
+    "OVERS CREDIT LINE",
+    "PARTIALLY RECONCILED",
+    "RECONCILED",
+    "REQUESTED SUPPORTING DOCUMENTS",
+    "SALARY DOES NOT MATCH CONTRIBUTION RATE",
+    "SCHEDULE DOES NOT MATCH PAYMENT",
 ]
 ZERO_DECIMAL = Decimal('0.00')
 # --------------------------
@@ -1446,25 +1454,19 @@ def get_bank_lines_used_in_settlement(bill_record):
 def process_cash_allocation(request, company_code, bill_id):
     """
     Handles cash allocation for a single selected bank line.
-    Calculates bill capacity dynamically to support multi-line UI selection.
+    REVISED: Ensures remainders are fully moved to CreditNote and the bank line is closed.
     """
     if request.method != 'POST':
         messages.error(request, "Invalid request method.")
         return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
 
     aware_dt = timezone.now()
-    
-    # In a multi-checkbox UI, the 'selected_recon_id' usually comes from the specific form submitted
     selected_recon_id = request.POST.get('selected_recon_id')
     amount_to_apply_str = request.POST.get('amount_to_apply')
     should_split_and_reallocate = request.POST.get('split_and_reallocate') == 'True' 
 
     if not selected_recon_id:
-        messages.error(request, "Allocation failed: No Bank Line selected for this action.")
-        return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
-        
-    if not amount_to_apply_str or amount_to_apply_str.strip() == '':
-        messages.error(request, "Allocation failed: You must specify an amount to apply.")
+        messages.error(request, "Allocation failed: No Bank Line selected.")
         return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
         
     try:
@@ -1473,33 +1475,31 @@ def process_cash_allocation(request, company_code, bill_id):
             messages.error(request, "Allocation failed: Amount must be greater than zero.")
             return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
             
-        # 1. Lock records for ACID compliance
+        # 1. Lock records
         recon_line = ReconnedBank.objects.select_for_update().get(pk=selected_recon_id, company_code=company_code)
         bill_record = UnityBill.objects.select_for_update().get(pk=bill_id, C_Company_Code=company_code)
         
-        # 2. Check Bank Line Capacity
+        # 2. Capacity Checks
         line_unsettled = recon_line.transaction_amount - recon_line.amount_settled
-        if amount_to_apply > (line_unsettled + Decimal('0.0001')): # Added small float buffer
-            messages.error(request, f"Allocation failed: Only R{line_unsettled:.2f} remains on Bank Line {selected_recon_id}.")
+        if amount_to_apply > (line_unsettled + Decimal('0.0001')):
+            messages.error(request, f"Allocation failed: Only R{line_unsettled:.2f} remains.")
             return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
             
-        # 3. Calculate Bill Capacity (Current liability minus everything already settled)
+        # 3. Bill Needs Calculation
         bill_settled_agg = BillSettlement.objects.filter(unity_bill_source_id=bill_record.pk).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
-        
-        # Also account for Journal Entries (Surpluses) applied to this bill
         journal_total = JournalEntry.objects.filter(target_bill=bill_record).aggregate(total=Sum('amount'))['total'] or ZERO_DECIMAL
         
         total_commitments = bill_settled_agg + journal_total
         bill_remaining_liability = bill_record.H_Schedule_Amount - total_commitments
         
-        # 4. Cap the application to the bill's needs
+        # 4. Final Application Amount (Capped by bill liability)
         final_amount_applied = min(amount_to_apply, bill_remaining_liability)
         
         if final_amount_applied <= ZERO_DECIMAL:
-            messages.warning(request, "This bill is already fully covered. No further cash can be applied.")
+            messages.warning(request, "This bill is already fully covered.")
             return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
             
-        # 5. Create Settlement Record
+        # 5. Create Settlement (Audit Trail for the Bill)
         BillSettlement.objects.create(
             reconned_bank_line=recon_line,
             unity_bill_source=bill_record,
@@ -1509,17 +1509,17 @@ def process_cash_allocation(request, company_code, bill_id):
             original_import_bank_id=recon_line.bank_line_id,
         )
         
-        # 6. Update Source Line
+        # 6. Update Source Line - Record the amount used for this specific bill
         recon_line.amount_settled += final_amount_applied
         
-        # 7. Handle Splitting / Re-allocation
+        # 7. HANDLE REMAINDER (Overs Logic)
+        # Calculate exactly what is left on the physical bank transaction
         amount_left_on_source = recon_line.transaction_amount - recon_line.amount_settled
-        original_company_code = recon_line.company_code 
         
-        if amount_left_on_source > Decimal('0.009'): # Using 1 cent as threshold
+        if amount_left_on_source > Decimal('0.009'):
             if should_split_and_reallocate:
-                # Create the unassigned remainder segment
-                new_line = ReconnedBank.objects.create(
+                # OPTION A: Hard Split to Unassigned Pool
+                ReconnedBank.objects.create(
                     bank_line_id=recon_line.bank_line_id,
                     company_code=None,
                     transaction_amount=amount_left_on_source,
@@ -1527,38 +1527,41 @@ def process_cash_allocation(request, company_code, bill_id):
                     recon_status='Unreconciled - New Source',
                     amount_settled=ZERO_DECIMAL,
                 )
-                # Close the current segment as fully reconciled
-                recon_line.transaction_amount = recon_line.amount_settled
-                recon_line.recon_status = 'Reconciled'
-                messages.info(request, f"Split R{amount_left_on_source:.2f} back to unassigned pool (Segment {new_line.id}).")
+                messages.info(request, f"Remainder R{amount_left_on_source:.2f} split to unassigned pool.")
             else:
-                recon_line.recon_status = 'Partially Reconciled'
-                messages.info(request, f"R{amount_left_on_source:.2f} remains assigned to {company_code} on this line.")
+                # OPTION B: Move to CreditNote (Overs credit line)
+                CreditNote.objects.create(
+                    member_group_code=company_code,
+                    schedule_amount=amount_left_on_source,
+                    credit_link_status='Unlinked',
+                    link_request_reason="Overs credit line",
+                    source_bank_line=recon_line,
+                    comment=f"Auto-generated Overs from Bank Line {recon_line.id} on Bill {bill_id}",
+                    processed_by=request.user.username,
+                    processed_date=aware_dt,
+                    ccdates_month=bill_record.A_CCDatesMonth,
+                    bank_stmt_date=recon_line.transaction_date,
+                    note_selection="OVERS" 
+                )
+                messages.warning(request, f"R{amount_left_on_source:.2f} moved to Available Credits as 'Overs credit line'.")
+
+            # CRITICAL: Mark the original segment as fully reconciled so it disappears from 'Bank Lines' UI
+            # We set the 'transaction_amount' of this segment to what was actually settled here, 
+            # because the rest has been moved to a new CreditNote or Bank Segment.
+            recon_line.transaction_amount = recon_line.amount_settled
+            recon_line.recon_status = 'Reconciled'
         else:
             recon_line.recon_status = 'Reconciled'
 
         recon_line.save()
         
-        # 8. Check for Surplus (Overpayment)
-        new_total_settled = bill_settled_agg + final_amount_applied
-        if new_total_settled > bill_record.H_Schedule_Amount:
-            surplus_val = new_total_settled - bill_record.H_Schedule_Amount
-            ScheduleSurplus.objects.create(
-                unity_bill_source_id=bill_record.pk,
-                surplus_amount=surplus_val,
-                creation_date=aware_dt.date(),
-                status='UNAPPLIED'
-            )
-            messages.warning(request, f"R{surplus_val:.2f} recorded as surplus.")
-
-        # 9. Return to summary
-        messages.success(request, f"Applied R{final_amount_applied:.2f} from Bank Line {selected_recon_id}.")
+        messages.success(request, f"Applied R{final_amount_applied:.2f} from Bank Line.")
         return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
         
     except Exception as e:
         messages.error(request, f"Allocation Error: {str(e)}")
         return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
-
+    
 @login_required
 @transaction.atomic
 def finalize_reconciliation(request, company_code, bill_id):
@@ -1575,7 +1578,6 @@ def finalize_reconciliation(request, company_code, bill_id):
             selected_ids = request.POST.getlist('selected_recon_ids')
             
             for recon_id in selected_ids:
-                # Get the specific amount entered for this specific row
                 amount_str = request.POST.get(f'amount_to_apply_{recon_id}')
                 if not amount_str:
                     continue
@@ -1584,10 +1586,8 @@ def finalize_reconciliation(request, company_code, bill_id):
                 if amount_to_apply <= ZERO_DECIMAL:
                     continue
 
-                # Fetch and Lock the bank line
                 recon_line = ReconnedBank.objects.select_for_update().get(pk=recon_id)
                 
-                # Check capacity
                 line_unsettled = recon_line.transaction_amount - recon_line.amount_settled
                 applied_amount = min(amount_to_apply, line_unsettled)
 
@@ -1612,12 +1612,13 @@ def finalize_reconciliation(request, company_code, bill_id):
         # 2. FINALIZATION CHECK (Verify if bill is now balanced)
         bill_settled_agg = BillSettlement.objects.filter(unity_bill_source_id=bill_record.pk).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
         
-        # Check against schedule (including a small tolerance)
         if bill_settled_agg >= (bill_record.H_Schedule_Amount - Decimal('0.0001')):
             if not bill_record.is_reconciled:
                 bill_record.is_reconciled = True
                 bill_record.save()
                 messages.success(request, f"Bill #{bill_id} successfully processed and marked as **RECONCILED**.")
+                
+                # FIX: Redirect to the success view name used in urls.py
                 return redirect('reconciliation_success_view', company_code=company_code, bill_id=bill_id)
             else:
                 messages.info(request, "Bill is already reconciled.")
@@ -1635,52 +1636,54 @@ def finalize_reconciliation(request, company_code, bill_id):
 def reconciliation_success_view(request, company_code, bill_id):
     """
     Renders the confirmation/final summary page after successful reconciliation.
-    Gathers all required context for finalize_reconciliation.html (which is now 
-    the final success page).
+    Gathers all required context for finalize_reconciliation.html.
     """
     bill_record = get_object_or_404(UnityBill, id=bill_id, C_Company_Code=company_code)
     
     # --- Data Aggregation ---
     
-    # 1. Settled Totals
-    total_settled_against_bill = BillSettlement.objects.filter(unity_bill_source_id=bill_record.pk).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
-    total_credit_assigned = BillSettlement.objects.filter(unity_bill_source_id=bill_record.pk, source_credit_note_id__isnull=False).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
+    # 1. Settled Totals (Cash + Credit + Journal)
+    total_settled_against_bill = BillSettlement.objects.filter(
+        unity_bill_source_id=bill_record.pk
+    ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
     
-    # 2. Bank Lines used for settlement (used for the table display)
+    total_credit_assigned = BillSettlement.objects.filter(
+        unity_bill_source_id=bill_record.pk, 
+        source_credit_note_id__isnull=False
+    ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
+    
+    # 2. Bank Lines used for settlement display
     lines_to_settle = get_bank_lines_used_in_settlement(bill_record) 
     
-    # 3. Fiscal Dates 
-    # Assumes Bill record has a date field called A_CCDatesMonth
+    # 3. Fiscal Dates calculation
     bill_date = bill_record.A_CCDatesMonth
     month_start_date = bill_date.replace(day=1)
     fiscal_starting_date = month_start_date 
-    # Assuming relativedelta is available/imported
     fiscal_closing_date = month_start_date + relativedelta(months=1) - relativedelta(days=1)
     
-    # 4. Final Math
-    scheduled_amount = bill_record.H_Schedule_Amount - total_settled_against_bill # Should be 0.00 or near zero
+    # 4. Final Math for Template Display
     total_scheduled_amount_initial = bill_record.H_Schedule_Amount
+    # Remaining liability should be 0, but we use max() to avoid negative display
+    scheduled_amount = max(ZERO_DECIMAL, total_scheduled_amount_initial - total_settled_against_bill)
     
     # total_debt represents the total funds applied (total_settled_against_bill)
     total_debt = total_settled_against_bill
     
-    # --- Context Setup ---
+    # --- Context Setup (Matches finalize_reconciliation.html variables) ---
     context = {
         'company_code': company_code,
         'bill_record': bill_record,
-        
-        # Data required by finalize_reconciliation.html
         'lines_to_settle': lines_to_settle, 
         'total_debt': total_debt,
         'total_scheduled_amount_initial': total_scheduled_amount_initial,
         'total_settled_against_bill': total_settled_against_bill,
         'total_credit_assigned': total_credit_assigned,
-        'scheduled_amount': scheduled_amount, # Remaining schedule (should be 0)
+        'scheduled_amount': scheduled_amount,
         
         'fiscal_starting_date': fiscal_starting_date,
         'fiscal_closing_date': fiscal_closing_date,
 
-        'warning_message': 'This bill is permanently closed and reconciled.', 
+        'warning_message': '✅ RECONCILIATION SUCCESSFUL: This bill is permanently closed.', 
         'settle_button_text': 'Reconciliation Complete',
     }
     
@@ -3833,13 +3836,25 @@ def outlook_restore_email(request, email_id):
 
 @login_required
 def outlook_delete_permanent(request):
-    """Permanently deletes selected items from the database."""
+    """
+    Hides items from the Recycle Bin by moving them to ARC status.
+    This avoids IntegrityErrors with foreign key notes while removing them from the UI.
+    """
     if request.method == 'POST':
         email_ids = request.POST.getlist('email_ids')
-        EmailDelegation.objects.filter(email_id__in=email_ids).delete()
-        messages.error(request, f"Permanently deleted {len(email_ids)} items.")
-    return redirect('outlook_recycle_bin')
-
+        
+        if email_ids:
+            # Move from 'DLT' (Recycle Bin) to 'ARC' (Hidden/Archived)
+            # This satisfies the DB constraint because the row still exists, 
+            # but it will no longer show up in the filter(status='DLT') query.
+            EmailDelegation.objects.filter(email_id__in=email_ids).update(status='ARC')
+            
+            messages.success(request, f"Successfully removed {len(email_ids)} items from the Recycle Bin.")
+        else:
+            messages.warning(request, "No items were selected for removal.")
+            
+        return redirect('outlook_recycle_bin')
+    
 @login_required
 def view_email_thread(request, email_id):
     """
@@ -3897,7 +3912,7 @@ def email_list_view(request):
     filter_type = request.GET.get('type', 'all')
     
     # 1. Fetch all Delegation Tasks (excluding Recycle Bin)
-    delegations_qs = EmailDelegation.objects.exclude(status='DLT').order_by('-received_at')
+    delegations_qs = EmailDelegation.objects.exclude(status__in=['DLT', 'ARC']).order_by('-received_at')
     
     # FIX: delegation_id is the correct field in DelegationTransactionLog
     # We get a set of IDs for delegations that have at least one log entry
@@ -4171,6 +4186,12 @@ def manager_approval_dashboard(request):
 @login_required
 @transaction.atomic
 def approve_credit_link(request, note_id):
+    """
+    Manager Approval Logic.
+    UPDATED: Handles "Overs credit line" differently. 
+    - If it's an 'Overs' line: It is approved to become a usable credit (Unlinked).
+    - If it's a standard link request: It allocates money to a specific bill.
+    """
     from decimal import Decimal
     from django.db.models import Sum
     from django.utils import timezone
@@ -4179,62 +4200,72 @@ def approve_credit_link(request, note_id):
     from .models import CreditNote, BillSettlement
 
     note = get_object_or_404(CreditNote, id=note_id)
+    ZERO_DECIMAL = Decimal('0.00')
     
     if note.credit_link_status != 'Pending':
         messages.error(request, "This credit is not pending approval.")
         return redirect('manager_approval_dashboard')
 
-    target_bill = note.pending_linked_bill
-    if not target_bill:
-        messages.error(request, "No target bill found.")
+    # --- NEW LOGIC: HANDLE "OVERS CREDIT LINE" VERIFICATION ---
+    # If the reason is 'Overs credit line', the manager is just verifying the 
+    # bank overpayment is valid. It doesn't get applied to a bill immediately.
+    if note.link_request_reason == "Overs credit line":
+        note.credit_link_status = 'Unlinked' # Now available for future bill requests
+        note.pending_linked_bill = None
+        note.authorized_by = request.user.username
+        note.authorized_at = timezone.now()
+        note.save()
+        
+        messages.success(request, f"Overs credit line of R{note.schedule_amount} verified and released to Member Group {note.member_group_code}.")
         return redirect('manager_approval_dashboard')
 
-    # --- 1. CALCULATE CAP (Prevent Surplus) ---
-    ZERO_DECIMAL = Decimal('0.00')
+    # --- EXISTING LOGIC: HANDLE BILL ALLOCATION REQUESTS ---
+    target_bill = note.pending_linked_bill
+    if not target_bill:
+        # Fallback: if no bill and not an 'Overs', reset to Unlinked
+        note.credit_link_status = 'Unlinked'
+        note.save()
+        messages.warning(request, "Request reset: No target bill was attached to this link request.")
+        return redirect('manager_approval_dashboard')
+
+    # 1. Calculate Cap to prevent over-settling the bill
     total_already_settled = BillSettlement.objects.filter(
         unity_bill_source_id=target_bill.pk
     ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
     
     bill_remaining_debt = target_bill.H_Schedule_Amount - total_already_settled
     
-    # In 'Pending' state, requested_amount IS the clerk's temporary request (e.g. R50)
+    # Use the amount the agent requested
     current_temp_request = note.requested_amount or ZERO_DECIMAL
-
-    # APPLY THE CAP
     final_allocation = min(current_temp_request, bill_remaining_debt)
 
     if final_allocation <= ZERO_DECIMAL:
-        messages.warning(request, f"Bill #{target_bill.id} is already fully paid.")
+        messages.warning(request, f"Bill #{target_bill.id} is already fully paid. Credit reset to Unlinked.")
         note.credit_link_status = 'Unlinked'
         note.pending_linked_bill = None
-        # Reset requested_amount to 0 because the R50 request was rejected/cancelled
         note.requested_amount = ZERO_DECIMAL 
         note.save()
         return redirect('manager_approval_dashboard')
 
-    # --- 2. UPDATE CREDIT NOTE BALANCES ---
-    # Subtract from the live available balance (e.g. R600 - R50 = R550)
+    # 2. Update Balances
+    # Subtract from available balance
     note.schedule_amount -= final_allocation 
-
-    # IMPORTANT: We keep requested_amount as the CUMULATIVE used total for the HTML
-    # Since we are approving this transaction, requested_amount now becomes a permanent 'Used' stat
+    # Store what was actually used
     note.requested_amount = final_allocation 
 
-    # Status Management
     if note.schedule_amount <= ZERO_DECIMAL:
         note.assigned_unity_bill = target_bill
-        note.credit_link_status = 'Approved' # Fully used up
+        note.credit_link_status = 'Approved' # Fully consumed
     else:
         note.assigned_unity_bill = None
-        # Even if R550 is left, we set status to 'Unlinked' so it's ready for the NEXT bill
-        note.credit_link_status = 'Unlinked' 
+        note.credit_link_status = 'Unlinked' # Partial remains for future use
 
     note.pending_linked_bill = None
     note.authorized_by = request.user.username
     note.authorized_at = timezone.now()
     note.save()
 
-    # --- 3. CREATE SETTLEMENT ---
+    # 3. Create Audit Trail
     BillSettlement.objects.create(
         unity_bill_source=target_bill,
         settled_amount=final_allocation,
@@ -4249,11 +4280,6 @@ def approve_credit_link(request, note_id):
 @login_required
 @transaction.atomic
 def reject_credit_link(request, note_id):
-    """
-    Manager clicks 'Reject'.
-    1. Resets the Credit Note so it can be requested again.
-    2. Clears pending fields.
-    """
     from django.contrib import messages
     from django.shortcuts import redirect, get_object_or_404
     from .models import CreditNote
@@ -4264,15 +4290,18 @@ def reject_credit_link(request, note_id):
         messages.error(request, "This credit is not in a pending state.")
         return redirect('manager_approval_dashboard')
 
-    # --- RESET THE NOTE ---
-    note.credit_link_status = 'Unlinked' # Or 'Rejected' if you want to track history
+    # --- UPDATED LOGIC ---
+    # If the manager rejects it, we move it back to 'Unlinked'
+    # This allows the clerk to try the request again or fix a mistake.
+    note.credit_link_status = 'Unlinked'
     note.pending_linked_bill = None
-    note.requested_amount = 0  # Reset the request
-    # Note: We do NOT touch schedule_amount because no money was spent.
+    note.requested_amount = 0  
     
+    # Track who rejected it for the audit trail
+    note.review_note = f"Rejected by {request.user.username} on {timezone.now().date()}"
     note.save()
 
-    messages.warning(request, f"Request for Credit ID {note_id} has been Rejected. It is now unlocked for the clerk.")
+    messages.warning(request, f"Credit ID {note_id} was rejected and returned to the unlinked pool.")
     return redirect('manager_approval_dashboard')
 
 @login_required
@@ -4403,4 +4432,105 @@ def download_attachment_view(request, message_id, attachment_id):
 
     response = HttpResponse(file_content, content_type=content_type)
     response['Content-Disposition'] = f'attachment; filename="{file_name}"'
+    return response
+
+@login_required
+def export_email_list(request):
+    """
+    Exports the Master Archive to Excel, applying date and category filters.
+    """
+    filter_type = request.GET.get('type', 'all')
+    search_query = request.GET.get('search', '')
+    start_date = request.GET.get('start')
+    end_date = request.GET.get('end')
+
+    # 1. Fetch Data (Mirroring email_list_view logic)
+    delegations_qs = EmailDelegation.objects.exclude(status='DLT')
+    all_log_delegation_ids = DelegationTransactionLog.objects.values_list('delegation_id', flat=True)
+    emails_with_replies = set(all_log_delegation_ids)
+    inbox_map = {obj.email_id: obj for obj in OutlookInbox.objects.all()}
+
+    # Process Delegations
+    filtered_delegations = []
+    for d in delegations_qs:
+        has_reply = d.id in emails_with_replies
+        should_show = (d.status == 'NEW') or (d.status == 'COM') or (d.status == 'DEL' and has_reply)
+        
+        if should_show:
+            # Apply Date Filters to Delegations
+            if start_date and d.received_at and d.received_at.date() < timezone.datetime.strptime(start_date, '%Y-%m-%d').date():
+                continue
+            if end_date and d.received_at and d.received_at.date() > timezone.datetime.strptime(end_date, '%Y-%m-%d').date():
+                continue
+            
+            inbox_detail = inbox_map.get(d.email_id)
+            d.subject = inbox_detail.subject if inbox_detail else "Unknown Subject"
+            d.sender_address = inbox_detail.sender_address if inbox_detail else "Unknown"
+            filtered_delegations.append(d)
+
+    # Process Transactions
+    transactions_qs = DelegationTransactionLog.objects.all()
+    if start_date:
+        transactions_qs = transactions_qs.filter(timestamp__date__gte=start_date)
+    if end_date:
+        transactions_qs = transactions_qs.filter(timestamp__date__lte=end_date)
+    
+    transactions = list(transactions_qs)
+
+    # 2. Apply Category Filtering
+    if filter_type == 'new':
+        final_items = [d for d in filtered_delegations if d.status == 'NEW']
+    elif filter_type == 'delegated':
+        final_items = [d for d in filtered_delegations if d.status == 'DEL']
+    elif filter_type == 'reply':
+        final_items = transactions
+    else:
+        final_items = sorted(
+            filtered_delegations + transactions,
+            key=lambda x: x.received_at if hasattr(x, 'received_at') else x.timestamp,
+            reverse=True
+        )
+
+    # 3. Create Excel
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Email Archive"
+
+    # Styling
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="43A047", end_color="43A047", fill_type="solid")
+    
+    headers = ['Status', 'Subject', 'Participant (From/To)', 'Date / Time', 'Assigned / Action By']
+    ws.append(headers)
+
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+
+    # 4. Populate Rows
+    for item in final_items:
+        if hasattr(item, 'action_type'): # It's a Transaction
+            status = "Actioned"
+            subject = item.subject
+            participant = f"To: {item.recipient_email}"
+            dt = item.timestamp.strftime('%Y-%m-%d %H:%M')
+            user = item.user.username if item.user else "System"
+        else: # It's a Delegation
+            status = "Completed" if item.status == 'COM' else ("Delegated" if item.status == 'DEL' else "New")
+            subject = item.subject
+            participant = f"From: {item.sender_address}"
+            dt = item.received_at.strftime('%Y-%m-%d %H:%M') if item.received_at else ""
+            user = item.assigned_user.username if item.assigned_user else "Pending"
+
+        ws.append([status, subject, participant, dt, user])
+
+    # Adjust column widths
+    for i, width in enumerate([15, 50, 30, 20, 20], 1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width
+
+    # 5. Return File
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename=Email_Archive_{timezone.now().strftime("%Y%m%d")}.xlsx'
+    wb.save(response)
     return response

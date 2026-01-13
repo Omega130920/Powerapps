@@ -514,7 +514,7 @@
 
         <div class="profile-layout">
             <ul class="tab-nav">
-                <li class="active" data-tab-target="#overview">Member Overview</li>
+                <li class="active" data-tab-target="#overview">Member Group</li>
                 <li data-tab-target="#general-info">General Info</li>
                 <li data-tab-target="#cbc">CBC</li>
                 <li data-tab-target="#cbc-admin">CBC Admin</li>
@@ -535,14 +535,14 @@
             <div class="tab-content">
                
                 <section id="overview" class="tab-pane active">
-                    <h2>Member Overview & Financial Summary</h2>
+                    <h2>Member Group Overview & Financial Summary</h2>
                     <div class="overview-grid">
                        
                         <div class="card contact-info-card">
                             <h3>Contact & Status</h3>
                             <table class="data-table">
                                 <tbody>
-                                    <tr><th>Member Name</th><td>{{ contact_info.member_group_name|default:"N/A" }}</td></tr>
+                                    <tr><th>Member Group Name</th><td>{{ contact_info.member_group_name|default:"N/A" }}</td></tr>
                                     <tr><th>Fund Status</th><td>{{ contact_info.fund_status|default:"N/A" }}</td></tr>
                                     <tr><th>Start Date</th><td>{{ contact_info.commencement_date|date:"Y-m-d"|default:"N/A" }}</td></tr>
                                     <tr><th>Contact Number</th><td>{{ contact_info.work_contact_number|default:"N/A" }}</td></tr>
@@ -1314,30 +1314,46 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {# 1. DELEGATED/ORIGINAL EMAILS #}
+                    {# 1. DELEGATED LOG (ORIGINAL & REPLIES) #}
                     {% for email in combined_email_log %}
-                    <tr style="border-bottom: 1px solid #eee; transition: background-color 0.2s;">
+                    <tr style="border-bottom: 1px solid #eee; transition: background-color 0.2s; {% if email.status == 'Completed' %}background-color: #f9f9f9; color: #888;{% endif %}">
                         <td style="padding: 10px;">
-                            <span style="font-weight: bold; color: #1976d2;">📥 ORIGINAL</span>
+                            {% if email.type == 'Original' %}
+                                <span style="font-weight: bold; color: #1976d2;">📥 ORIGINAL</span>
+                            {% else %}
+                                <span style="font-weight: bold; color: #673ab7;">📤 REPLY</span>
+                            {% endif %}
                         </td>
                         <td style="padding: 10px;">
-                            <a href="{% url 'delegate_action' email_id=email.email_id %}" style="color: #2e7d32; text-decoration: none; font-weight: 500;">
-                                {{ email.subject|truncatechars:45 }}
-                            </a>
+                            {% if email.status == 'Completed' %}
+                                {# Locked view for both Originals and Replies #}
+                                <span style="color: #666; font-weight: 500; cursor: not-allowed;" title="Thread is completed and locked">
+                                    <i class="fas fa-lock" style="font-size: 0.8em; margin-right: 5px; color: #999;"></i> {{ email.subject|truncatechars:45 }}
+                                </span>
+                            {% else %}
+                                {# Active Link - Only available if not Completed #}
+                                <a href="{% url 'delegate_action' email_id=email.email_id %}" style="color: #2e7d32; text-decoration: none; font-weight: 500;">
+                                    {{ email.subject|truncatechars:45 }}
+                                </a>
+                            {% endif %}
                         </td>
-                        <td style="padding: 10px;">{{ email.arrival_timestamp|date:"Y-m-d H:i" }}</td>
-                        <td style="padding: 10px;">{{ email.delegation_timestamp|date:"Y-m-d H:i" }}</td>
+                        <td style="padding: 10px;">{{ email.arrival_timestamp|date:"Y-m-d H:i"|default:"-" }}</td>
+                        <td style="padding: 10px;">{{ email.timestamp|date:"Y-m-d H:i"|default:email.delegation_timestamp|date:"Y-m-d H:i" }}</td>
                         <td style="padding: 10px;">{{ email.assigned_to }}</td>
                         <td style="padding: 10px;">
                             {% if email.status == 'Completed' %}
-                                <span style="color: #388e3c; font-weight: bold;">Actioned</span>
+                                <span style="color: #388e3c; font-weight: bold;"><i class="fas fa-check-circle"></i> Actioned</span>
                             {% elif email.status == 'Delegated' %}
                                 <span style="color: #1976d2; font-weight: bold;">Delegated</span>
                             {% else %}
                                 <span style="color: #f57c00; font-weight: bold;">{{ email.status }}</span>
                             {% endif %}
                         </td>
-                        <td style="padding: 10px;">-</td>
+                        <td style="padding: 10px;">
+                            {% if email.status == 'Completed' %}
+                                {{ email.timestamp|date:"Y-m-d H:i" }}
+                            {% else %}-{% endif %}
+                        </td>
                         <td style="padding: 10px; text-align: center;">
                             <a href="{% url 'view_email_thread' email_id=email.email_id %}" 
                                style="background-color: #81c784; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 0.85em;">
@@ -1347,15 +1363,15 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="8" style="padding: 20px; text-align: center; color: #777;">No original delegated emails found.</td>
+                        <td colspan="8" style="padding: 20px; text-align: center; color: #777;">No delegated communication found.</td>
                     </tr>
                     {% endfor %}
 
-                    {# 2. DIRECT SENT EMAILS (FROM LOG) #}
+                    {# 2. DIRECT SENT EMAILS (STANDALONE LOG) #}
                     {% for email in direct_emails %}
                     <tr style="border-bottom: 1px solid #eee; background-color: #fafafa;">
                         <td style="padding: 10px;"><span style="font-weight: bold; color: #e91e63;">📨 DIRECT</span></td>
-                        <td style="padding: 10px;">{{ email.subject|truncatechars:45 }}</td>
+                        <td style="padding: 10px; color: #666;">{{ email.subject|truncatechars:45 }}</td>
                         <td style="padding: 10px;">-</td>
                         <td style="padding: 10px;">-</td>
                         <td style="padding: 10px;">{{ email.recipient_email }}</td>
@@ -1496,6 +1512,14 @@
             font-size: 0.85em;
         }
         .attachment-link:hover { text-decoration: underline; }
+        
+        /* Specific styling for the Email Link card */
+        .email-link-card {
+            background-color: #e3f2fd; 
+            padding: 15px; 
+            border-radius: 8px; 
+            border: 1px solid #1e88e5;
+        }
     </style>
 
     <div class="content-section">
@@ -1517,11 +1541,25 @@
                                     <option value="Outgoing Call">☎️ Outgoing Call</option>
                                     <option value="Notes Log">📝 Notes Log</option>
                                     <option value="Teams Meeting">📝 Teams Meeting</option>
+                                    <option value="Sent E-mail">📧 Sent E-mail</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6" id="email-attach-section" style="flex: 1; display: none;">
+                            <div class="email-link-card">
+                                <label for="email_list_select" style="font-weight: bold; display: block; margin-bottom: 5px; color: #1565c0;">Reference Delegated Email:</label>
+                                <input type="hidden" name="attached_email_id" id="attached_email_id">
+                                <select id="email_list_select" style="width: 100%; padding: 8px; border: 1px solid #90caf9; border-radius: 4px;">
+                                    <option value="">-- Select Email to Link --</option>
+                                    {% for email in combined_email_log %}
+                                        <option value="{{ email.email_id }}">{{ email.timestamp|date:"d M" }} - {{ email.subject|truncatechars:30 }}</option>
+                                    {% endfor %}
                                 </select>
                             </div>
                         </div>
                         
-                        <div class="col-md-6" style="flex: 1;">
+                        <div class="col-md-6" id="action-notes-container" style="flex: 1;">
                             <div class="card card-notes-select" style="background-color: #e6ffe6; padding: 15px; border-radius: 8px;">
                                 <label for="id_action_notes" style="font-weight: bold; display: block; margin-bottom: 5px; color: #38761d;">Action Notes:</label>
                                 <select id="id_action_notes" name="action_notes" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
@@ -1817,18 +1855,22 @@
         const commTypeSelect = document.getElementById('id_communication_type');
         const regularNoteArea = document.getElementById('regular-note-area');
         const dialerArea = document.getElementById('dialer-area');
+        const emailAttachSection = document.getElementById('email-attach-section');
         const callLogSubmit = document.getElementById('call_note_submit');
         const notesMasterForm = document.getElementById('notes_master_form');
         
         const dialButton = document.getElementById('trigger_call_dialer');
 
-
         // Field references (NOTES TAB ONLY)
         const regularNoteContent = document.getElementById('regular_note_content'); 
         const regularNoteSubmit = document.getElementById('regular_note_submit'); 
-        const actionInput = notesMasterForm.querySelector('input[name="action"]');
+        const actionInput = notesMasterForm ? notesMasterForm.querySelector('input[name="action"]') : null;
         const dialerNumber = document.getElementById('dialer_number');
         const callStatus = document.getElementById('call_status');
+        
+        // Reference Email ID hidden input and selection list
+        const attachedEmailIdInput = document.getElementById('attached_email_id');
+        const emailListSelect = document.getElementById('email_list_select');
        
         // Dialer Pad specific references
         const dialerButtons = document.querySelectorAll('.dialer-btn');
@@ -1856,55 +1898,53 @@
             });
         }
 
-
         function toggleCommunicationForms() {
+            if (!commTypeSelect) return;
             const selectedValue = commTypeSelect.value;
            
-            // Hide all action buttons and areas initially
-            regularNoteArea.style.display = 'none';
-            dialerArea.style.display = 'none';
-            callLogSubmit.style.display = 'none';
+            // Hide all action areas initially
+            if (regularNoteArea) regularNoteArea.style.display = 'none';
+            if (dialerArea) dialerArea.style.display = 'none';
+            if (emailAttachSection) emailAttachSection.style.display = 'none';
+            if (callLogSubmit) callLogSubmit.style.display = 'none';
 
-            // Reset required/disabled attributes on ALL dynamically used fields
-            regularNoteContent.value = '';
-            regularNoteContent.removeAttribute('required'); 
-            regularNoteContent.removeAttribute('disabled');
-            regularNoteSubmit.removeAttribute('name');
-            regularNoteSubmit.removeAttribute('disabled');
-           
-            // Reset required state for dialerNumber
-            dialerNumber.removeAttribute('required');
-            callStatus.removeAttribute('required');
-           
-            // Reset the form action flag (only used by the "Notes" form)
-            actionInput.value = ''; 
-
+            // Reset dynamic fields
+            if (regularNoteContent) {
+                regularNoteContent.value = '';
+                regularNoteContent.removeAttribute('required'); 
+                regularNoteContent.removeAttribute('disabled');
+            }
+            if (regularNoteSubmit) {
+                regularNoteSubmit.removeAttribute('name');
+                regularNoteSubmit.removeAttribute('disabled');
+            }
+            if (dialerNumber) dialerNumber.removeAttribute('required');
+            if (callStatus) callStatus.removeAttribute('required');
+            
+            // Reset the Reference Email values
+            if (emailListSelect) emailListSelect.value = '';
+            if (attachedEmailIdInput) attachedEmailIdInput.value = '';
 
             if (selectedValue === 'Outgoing Call') {
-                // --- State for Outgoing Call ---
-                dialerArea.style.display = 'block';
-                regularNoteArea.style.display = 'block'; // Use regular note area for call notes
-                callLogSubmit.style.display = 'block'; // Show the call log submission button
+                if (dialerArea) dialerArea.style.display = 'block';
+                if (regularNoteArea) regularNoteArea.style.display = 'block';
+                if (callLogSubmit) callLogSubmit.style.display = 'block';
+                if (dialerNumber) dialerNumber.setAttribute('required', 'required');
+                if (regularNoteSubmit) regularNoteSubmit.setAttribute('disabled', 'true');
 
-                // Dialer Number is required
-                dialerNumber.setAttribute('required', 'required');
-               
-                // Disable the default 'Add Note' button
-                regularNoteSubmit.setAttribute('disabled', 'true');
+            } else if (selectedValue === 'Sent E-mail') {
+                if (regularNoteArea) regularNoteArea.style.display = 'block';
+                if (emailAttachSection) emailAttachSection.style.display = 'block';
+                if (regularNoteSubmit) regularNoteSubmit.setAttribute('name', 'note_submission_action');
 
-            } else if (selectedValue === 'Incoming Call' || selectedValue === 'Notes Log' || selectedValue === 'Teams Meeting') {
-                // --- State for Regular Note Log / Incoming Call / Teams Meeting ---
-                regularNoteArea.style.display = 'block';
-               
-                // Required fields for regular note submission
-                regularNoteContent.setAttribute('required', 'required');
-                regularNoteSubmit.setAttribute('name', 'note_submission_action');
+            } else if (['Incoming Call', 'Notes Log', 'Teams Meeting'].includes(selectedValue)) {
+                if (regularNoteArea) regularNoteArea.style.display = 'block';
+                if (regularNoteContent) regularNoteContent.setAttribute('required', 'required');
+                if (regularNoteSubmit) regularNoteSubmit.setAttribute('name', 'note_submission_action');
                
             } else {
-                // Default state (nothing selected or unexpected value)
-                regularNoteArea.style.display = 'block';
-                regularNoteContent.removeAttribute('required'); 
-                regularNoteSubmit.setAttribute('name', 'note_submission_action');
+                if (regularNoteArea) regularNoteArea.style.display = 'block';
+                if (regularNoteSubmit) regularNoteSubmit.setAttribute('name', 'note_submission_action');
             }
         }
        
@@ -1912,26 +1952,27 @@
         if (commTypeSelect) {
             commTypeSelect.addEventListener('change', toggleCommunicationForms);
         }
+
+        // Email Select sync with hidden ID input
+        if (emailListSelect && attachedEmailIdInput) {
+            emailListSelect.addEventListener('change', function() {
+                attachedEmailIdInput.value = this.value;
+            });
+        }
        
-        // SIMPLE DIAL TRIGGER LOGIC
+        // Dialer Trigger Logic
         if (dialButton) {
             dialButton.addEventListener('click', function() {
-               
-                const phoneNumber = dialerNumber.value.trim();
-
-                // Basic validation check: ONLY the phone number is mandatory to dial
+                const phoneNumber = dialerNumber ? dialerNumber.value.trim() : '';
                 if (phoneNumber === '') {
-                    // Replaced alert() with console/UI message as per guidelines, though Django validation will typically happen server-side
                     console.error('Please enter the Number to Dial.');
                     return;
                 }
-
-                // Trigger the softphone via TEL URI
                 window.location.href = 'tel:' + phoneNumber.replace(/[^0-9+]/g, ''); 
             });
         }
 
-        // Initial call to set state correctly on page load
+        // Run on load to set initial visibility
         if (commTypeSelect) {
             toggleCommunicationForms();
         }
@@ -1939,31 +1980,26 @@
         // --- Form Submission Handler for NOTES TAB ---
         if (notesMasterForm) {
             notesMasterForm.addEventListener('submit', function(event) {
-               
-                const isCallLog = commTypeSelect.value === 'Outgoing Call';
+                const selectedType = commTypeSelect ? commTypeSelect.value : '';
+                const isCallLog = selectedType === 'Outgoing Call';
 
-                // 1. Handle Call Log Submission (Outbound Call)
                 if (isCallLog) {
-                   
-                    // Check if the required field (dialerNumber) has content.
-                    if (dialerNumber.value.trim() === '') {
+                    if (dialerNumber && dialerNumber.value.trim() === '') {
                          console.error('The Number to Dial is required to log a call.');
                          event.preventDefault();
                          return;
                     }
-                   
-                } 
-                // 2. Handle Regular Note Submission (Incoming Call / Notes Log / Teams Meeting)
-                else if (regularNoteArea.style.display === 'block' && regularNoteContent.hasAttribute('required') && regularNoteContent.value.trim() === '') {
-                    // This applies to Incoming Call / Notes Log (where communication_type is not 'Outgoing Call')
-                    console.error('Note content is required for a log entry.');
-                    event.preventDefault();
+                } else if (regularNoteArea && regularNoteArea.style.display === 'block') {
+                    if (regularNoteContent && regularNoteContent.hasAttribute('required') && regularNoteContent.value.trim() === '') {
+                        console.error('Note content is required for a log entry.');
+                        event.preventDefault();
+                    }
                 }
             });
         }
         
         // ====================================================================
-        // === COMPOSE EMAIL TAB LOGIC (NEW) ===
+        // === COMPOSE EMAIL TAB LOGIC (UNMODIFIED) ===
         // ====================================================================
         const composeEmailForm = document.getElementById('compose_email_form');
         const directEmailBodyEditor = document.getElementById('direct_member_email_body_editor');
@@ -1972,11 +2008,8 @@
 
         if (composeEmailForm) {
             composeEmailForm.addEventListener('submit', function(event) {
-                // Set the hidden HTML content input before submission
                 if (directEmailBodyEditor && directEmailBodyHtmlInput) {
                     const content = directEmailBodyEditor.innerHTML.trim();
-                   
-                    // Basic check for empty content
                     if (!content || directEmailBodyEditor.innerText.trim() === '') {
                         console.error('Email body cannot be empty.');
                         event.preventDefault();
@@ -1984,17 +2017,11 @@
                     }
                     directEmailBodyHtmlInput.value = content;
                 }
-
-                // Ensure the form action is set correctly
                 if (directEmailActionInput) {
                      directEmailActionInput.value = 'send_direct_email';
                 }
-                
-                // Note: File uploads (attachments) are handled natively by the form due to enctype="multipart/form-data".
             });
         }
-
-
     });
 </script>
 </body>

@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Live Inbox - Unified Task Log</title>
 <style>
+    /* --- INTEGRATED GLOBAL STYLES --- */
+    html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
     body {
         font-family: sans-serif;
         background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
@@ -12,178 +14,191 @@
         flex-direction: column;
         justify-content: flex-start;
         align-items: center;
-        min-height: 100vh;
         padding: 20px;
         box-sizing: border-box;
     }
+
     .log-container {
         width: 100%;
         max-width: 1400px; 
-        margin: 40px auto;
+        height: 85vh; 
+        margin: 10px auto; 
         padding: 20px;
         background-color: #ffffff;
         border-radius: 8px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        display: flex;
+        flex-direction: column;
     }
+
     .log-header {
         border-bottom: 2px solid #aed581;
-        padding-bottom: 10px;
-        margin-bottom: 20px;
+        padding-bottom: 15px;
+        margin-bottom: 15px;
         display: flex;
         justify-content: space-between;
         align-items: center;
+        flex-shrink: 0;
     }
-    .log-header h1 {
-        margin: 0;
-        color: #43a047;
-    }
+    .log-header h1 { margin: 0; color: #1b5e20; font-size: 24px; }
+    
+    .log-controls { display: flex; gap: 20px; align-items: center; }
+    
     #search_input {
         padding: 8px 12px;
         border: 1px solid #ccc;
         border-radius: 4px;
         width: 300px;
         font-size: 14px;
-        transition: border-color 0.3s;
     }
-    #search_input:focus {
-        border-color: #66bb6a;
-        outline: none;
+
+    .table-wrapper {
+        overflow-y: auto;
+        flex-grow: 1;
+        border: 1px solid #eee;
+        border-radius: 4px;
     }
-    .log-controls {
-        display: flex;
-        gap: 20px;
-        align-items: center;
-    }
+
     .task-table {
         width: 100%;
         border-collapse: collapse;
         table-layout: fixed;
     }
-    .task-table th, .task-table td {
-        padding: 12px 15px;
-        border-bottom: 1px solid #eee;
-        text-align: left;
-        font-size: 14px;
-        word-wrap: break-word;
-    }
+    
     .task-table th {
         background-color: #43a047;
         color: white;
+        padding: 12px 15px;
+        text-align: left;
+        font-size: 13px;
         font-weight: 600;
         text-transform: uppercase;
-    }
-    .task-table tr:nth-child(even) { background-color: #f9fbe7; }
-    
-    .task-table tr.clickable-row:hover {
-        background-color: #e8f5e9;
-        cursor: pointer;
-    }
-    .status-not-actioned { color: #1e88e5; font-weight: bold; }
-    
-    .log-notes {
-        font-style: italic;
-        color: #555;
-        max-width: 100%;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        margin-top: 4px;
+        position: sticky;
+        top: 0;
+        z-index: 10;
     }
 
-    .delegate-btn {
-        background-color: #f7931e;
-        color: white;
-        border: none;
-        padding: 8px 16px;
-        text-decoration: none;
-        display: inline-block;
-        font-size: 13px;
-        font-weight: bold;
-        border-radius: 4px;
-        transition: background 0.3s;
+    .task-table td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #eee;
+        font-size: 14px;
+        word-wrap: break-word;
     }
-    .delegate-btn:hover {
-        background-color: #d67d1a;
+
+    .task-table tr:nth-child(even) { background-color: #f9fbe7; }
+    .task-table tr.clickable-row:hover { background-color: #e8f5e9; cursor: pointer; }
+    
+    .btn {
+        padding: 8px 16px;
+        border-radius: 5px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 13px;
+        display: inline-block;
     }
 
     .return-button {
-        padding: 10px 20px;
-        background-color: #81c784;
-        border-radius: 5px;
-        text-decoration: none;
+        background-color: #1b5e20;
         color: white;
-        margin-right: 10px;
-        display: inline-block;
-        font-weight: 500;
+        margin-bottom: 10px;
+        align-self: flex-start;
     }
+
+    .delegate-btn { background-color: #f7931e; color: white; }
+
+    /* The Hidden Frame */
+    #hidden_refresher { display: none; }
 </style>
 </head>
 <body>
 
-    <div class="Dashboard" style="margin-top: 25px;">
-        <a href="{% url 'dashboard' %}" class="return-button">Back to Dashboard</a>
-        <a href="{% url 'tasks' %}" class="return-button">Delegated Tasks Log</a>
+    <div style="width: 100%; max-width: 1400px;">
+        <a href="{% url 'dashboard' %}" class="btn return-button">← Back To Home Screen</a>
     </div>
 
 <div class="log-container">
     <div class="log-header">
-        <h1>📨 Live Inbox (Graph API)</h1>
+        <h1>📨 Live Inbox</h1>
         <div class="log-controls">
             <input type="text" id="search_input" placeholder="🔍 Search subject or sender..." autofocus>
-            <p>Total Pending: <strong>{{ email_list|length }}</strong></p>
+            <p style="margin: 0; font-size: 14px; color: #555;">Total Pending: <strong id="pending_count">{{ email_list|length }}</strong></p>
         </div>
     </div>
     
-    {% if email_list %}
-    <table class="task-table" id="main_table">
-        <thead>
-            <tr>
-                <th style="width: 45%;">Subject / Snippet</th>
-                <th style="width: 25%;">From</th>
-                <th style="width: 15%;">Status</th>
-                <th style="width: 15%;">Action</th> 
-            </tr>
-        </thead>
-        <tbody id="table_body">
-            {% for email in email_list %}
-            <tr onclick="window.location.href='{% url 'delegate_email' email_id=email.email_id %}';" class="clickable-row">
-                <td title="{{ email.subject }}">
-                    <b>{{ email.subject }}</b>
-                    <div class="log-notes">{{ email.snippet|default:"No preview available." }}</div>
-                </td>
-                <td>{{ email.sender }}</td>
-                <td class="status-not-actioned">PENDING</td>
-                <td>
-                    <a href="{% url 'delegate_email' email_id=email.email_id %}" class="delegate-btn">
-                        DELEGATE
-                    </a>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <div style="text-align: center; padding: 40px;">
-        <p style="font-size: 1.2em;">🎉 Your Inbox is currently clean! All emails are processed.</p>
+    <div class="table-wrapper">
+        <table class="task-table" id="main_table">
+            <thead>
+                <tr>
+                    <th style="width: 45%;">Subject / Snippet</th>
+                    <th style="width: 25%;">From</th>
+                    <th style="width: 15%;">Status</th>
+                    <th style="width: 15%;">Action</th> 
+                </tr>
+            </thead>
+            <tbody id="table_body">
+                {% for email in email_list %}
+                <tr onclick="window.location.href='{% url 'delegate_email' email_id=email.email_id %}';" class="clickable-row">
+                    <td>
+                        <b>{{ email.subject }}</b>
+                        <span style="display:block; font-size:12px; color:#777; font-style:italic;">{{ email.snippet|default:"No preview available." }}</span>
+                    </td>
+                    <td>{{ email.sender }}</td>
+                    <td style="color: #1e88e5; font-weight: bold;">PENDING</td>
+                    <td>
+                        <a href="{% url 'delegate_email' email_id=email.email_id %}" class="btn delegate-btn">DELEGATE</a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
-    {% endif %}
 </div>
+
+<iframe id="hidden_refresher" src="{{ request.path }}"></iframe>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('search_input');
     const tableBody = document.getElementById('table_body');
-    
-    if (searchInput && tableBody) {
+    const totalDisplay = document.getElementById('pending_count');
+    const iframe = document.getElementById('hidden_refresher');
+
+    // 1. SEARCH FILTER (Applied instantly to whatever is in the table)
+    function applyFilter() {
+        const filter = searchInput.value.toLowerCase();
         const rows = tableBody.getElementsByTagName('tr');
-        searchInput.addEventListener('input', function() {
-            const filter = searchInput.value.toLowerCase();
-            Array.from(rows).forEach(row => {
-                const text = row.textContent.toLowerCase();
-                row.style.display = text.includes(filter) ? "" : "none";
-            });
+        Array.from(rows).forEach(row => {
+            const text = row.textContent.toLowerCase();
+            row.style.display = text.includes(filter) ? "" : "none";
         });
     }
+    searchInput.addEventListener('input', applyFilter);
+
+    // 2. THE SILENT UPDATE
+    // This runs every time the hidden iframe finishes loading
+    iframe.onload = function() {
+        try {
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            const newRows = iframeDoc.getElementById('table_body').innerHTML;
+            const newCount = iframeDoc.getElementById('pending_count').innerText;
+
+            // Only update the table content and the count number
+            // User's scroll position and search input remain untouched
+            tableBody.innerHTML = newRows;
+            totalDisplay.innerText = newCount;
+
+            // Re-apply the search filter so the new emails respect the current search
+            applyFilter();
+        } catch (e) {
+            console.warn("Background refresh error:", e);
+        }
+    };
+
+    // 3. REFRESH TIMER (30 seconds)
+    setInterval(function() {
+        // We tell the HIDDEN frame to reload, not the main page
+        iframe.contentWindow.location.reload();
+    }, 30000);
 });
 </script>
 

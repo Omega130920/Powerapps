@@ -128,6 +128,10 @@ body {
 </head>
 <body>
 
+    <div style="margin-top: 20px;">
+        <a href="{% url 'dashboard' %}" class="return-button">Return to Home Screen</a>
+    </div>
+
 <div class="log-container">
     <div class="log-header">
         <h1>🗑️ Internal Recycle Bin</h1>
@@ -188,11 +192,6 @@ body {
         <p style="font-size: 1.2em; color: #666;">🎉 The Recycle Bin is currently empty.</p>
     </div>
     {% endif %}
-
-    <div style="margin-top: 20px;">
-        <a href="{% url 'dashboard' %}" class="return-button">Dashboard</a>
-        <a href="{% url 'outlook_dashboard' %}" class="return-button" style="background-color: #81c784;">Outlook Inbox</a>
-    </div>
 </div>
 
 <script>

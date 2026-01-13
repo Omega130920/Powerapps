@@ -29,8 +29,10 @@
             margin-bottom: 30px;
             margin-top: 40px;
             width: 100%;
+            color: #1b5e20;
         }
 
+        /* This container is what makes the buttons look organized */
         .button-container {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -70,6 +72,7 @@
             justify-content: center;
             align-items: center;
             transition: background-color 0.3s ease, border-color 0.3s ease, transform 0.2s;
+            position: relative;
         }
 
         .button-block:hover {
@@ -77,6 +80,30 @@
             border: 1px solid rgb(105, 187, 85);
             transform: translateY(-2px);
         }
+
+        .badge {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background-color: #d32f2f;
+            color: white;
+            border-radius: 50%;
+            min-width: 26px;
+            height: 26px;
+            padding: 2px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            border: 2px solid white;
+            z-index: 10;
+        }
+
+        .badge.blue-badge { background-color: #1976d2; }
+        .badge.orange-badge { background-color: #ff8f00; }
+        .badge.grey-badge { background-color: #616161; }
 
         .logout-wrapper {
             position: fixed;
@@ -94,13 +121,9 @@
             cursor: pointer;
             font-size: 1em;
             transition: background-color 0.3s ease;
-            margin: 0;
-            display: inline-block;
         }
 
-        .logout-button:hover {
-            background-color: darkgreen;
-        }
+        .logout-button:hover { background-color: darkgreen; }
     </style>
 </head>
 <body>
@@ -114,16 +137,38 @@
     </div>
 
     <div class="button-container">
-        <a href="{% url 'global_members_list' %}" class="button-block">Global List</a>
+        
         {% if user.username == 'omega' %}
-        <a href="{% url 'fetch_emails' %}" class="button-block">Delagtions</a>
+        <a href="{% url 'fetch_emails' %}" class="button-block">
+            Delegations
+            {% if new_emails_count > 0 %}
+                <span class="badge blue-badge">{{ new_emails_count }}</span>
+            {% endif %}
+        </a>
         {% endif %}
-        <a href="{% url 'tasks' %}" class="button-block">Dashboard</a>
-        <a href="{% url 'import_global_data' %}" class="button-block">Import Data</a>
+        
+        <a href="{% url 'email_workflow_log' %}" class="button-block">Email List</a>
+        
+        <a href="{% url 'tasks' %}" class="button-block">
+            Dashboard
+            {% if my_pending_delegations_count > 0 %}
+                <span class="badge orange-badge">{{ my_pending_delegations_count }}</span>
+            {% endif %}
+        </a>
+
+        <a href="{% url 'recycle_bin' %}" class="button-block">
+            Recycle Bin
+            {% if recycled_count > 0 %}
+                <span class="badge grey-badge">{{ recycled_count }}</span>
+            {% endif %}
+        </a>
+
+        <a href="{% url 'global_members_list' %}" class="button-block">Global List</a>
+        
+        <a href="{% url 'import_global_data' %}" class="button-block">Update Global List Import</a>
         <a href="{% url 'delegation_report' %}" class="button-block">Reports</a>
         <a href="{% url 'complaint_log' %}" class="button-block">Complaint Log</a>
-        <!--<a href="{% url 'add_member' %}" class="button-block">Add Member</a>-->
-        <a href="{% url 'recycle_bin' %}" class="button-block">Recycle Bin</a>
+        
         <a href="{% url 'final_sla_report' %}" class="button-block">View Final SLA Report</a>
     </div>
 

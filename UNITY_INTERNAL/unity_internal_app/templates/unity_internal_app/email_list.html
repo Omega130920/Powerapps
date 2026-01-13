@@ -1,6 +1,6 @@
 {% load static %}
 
-{% block title %}Master Email Archive{% endblock %}
+{% block title %}UNITY INTERNAL{% endblock %}
 
 {% block content %}
 <style>
@@ -95,6 +95,24 @@
         display: inline-block;
     }
 
+    /* NEW EXPORT BUTTON STYLE */
+    .export-button {
+        padding: 10px 20px;
+        background-color: #0277bd;
+        border: 1px solid #01579b;
+        border-radius: 5px;
+        text-decoration: none;
+        color: white;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        text-align: center;
+        display: inline-block;
+        font-weight: bold;
+    }
+    .export-button:hover {
+        background-color: #01579b;
+    }
+
     .form-input, .filter-select {
         width: 100%;
         padding: 10px;
@@ -146,7 +164,7 @@
 
 <div class="log-container">
     <div class="log-header">
-        <h1><i class="fas fa-history"></i> Master Email & Action Archive</h1>
+        <h1><i class="fas fa-history"></i> E-mail list</h1>
     </div>
 
     <div class="filter-section" style="margin-bottom: 20px; background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
@@ -174,6 +192,11 @@
             </div>
             <div style="display: flex; gap: 5px; white-space: nowrap;">
                 <button type="submit" class="return-button" style="background-color: #43a047; padding: 10px;">Filter</button>
+                
+                <button type="button" onclick="submitExport()" class="export-button" style="padding: 10px;">
+                    <i class="fas fa-file-excel"></i> Export to Excel
+                </button>
+
                 <a href="{% url 'email_list' %}" class="return-button" style="background-color: #607d8b; padding: 10px;">Reset</a>
             </div>
         </form>
@@ -193,7 +216,6 @@
             {% for item in page_obj %}
             <tr class="archive-row">
                 {% if item.action_type %}
-                    {# TRANSACTION LOGS (REPLIES/ACTIONS) #}
                     <td>
                         <span class="status-tag" style="color: #2e7d32;">Actioned</span>
                     </td>
@@ -202,7 +224,6 @@
                     <td>{{ item.timestamp|date:"Y-m-d H:i" }}</td>
                     <td><i class="fas fa-user-edit"></i> {{ item.user.username }}</td>
                 {% else %}
-                    {# ORIGINAL DELEGATION TASKS #}
                     <td>
                         {% if item.status == 'COM' %}
                             <span class="status-tag" style="color: #43a047;">Completed</span>
@@ -251,6 +272,7 @@
 </div>
 
 <script>
+    // Search highlight/filter (Client side)
     document.getElementById('emailSearch').addEventListener('keyup', function() {
         let filter = this.value.toLowerCase();
         let rows = document.querySelectorAll('.archive-row');
@@ -258,5 +280,20 @@
             row.style.display = row.innerText.toLowerCase().includes(filter) ? '' : 'none';
         });
     });
+
+    // Handle the Export Action
+    function submitExport() {
+        const form = document.getElementById('filterForm');
+        const originalAction = form.action;
+        
+        // Point the form to your export view URL
+        form.action = "{% url 'export_email_list' %}"; 
+        form.submit();
+        
+        // Restore original action for normal filtering after a short delay
+        setTimeout(() => {
+            form.action = originalAction;
+        }, 100);
+    }
 </script>
 {% endblock %}

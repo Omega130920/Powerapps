@@ -1,0 +1,214 @@
+{% load static %}
+
+{% block title %}Email Task List{% endblock %}
+
+{% block content %}
+<style>
+    /* -------------------------------------------------------------------------
+    * CUSTOM TASK LOG STYLES
+    * ------------------------------------------------------------------------- */
+    body {
+        font-family: sans-serif;
+        background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        min-height: 100vh;
+        padding: 20px;
+        box-sizing: border-box;
+    }
+    .log-container {
+        max-width: 1500px; 
+        width: 100%;
+        margin: 20px auto;
+        padding: 20px;
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .log-header {
+        border-bottom: 2px solid #aed581;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .log-header h1 {
+        margin: 0;
+        color: #43a047;
+    }
+    
+    .search-wrapper {
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        background: #f1f8e9;
+        padding: 10px 15px;
+        border-radius: 25px;
+        border: 1px solid #aed581;
+        width: 100%;
+        max-width: 500px;
+    }
+    .search-input {
+        border: none;
+        background: none;
+        outline: none;
+        padding-left: 10px;
+        width: 100%;
+        font-size: 14px;
+    }
+    
+    .task-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+    .task-table th, .task-table td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #eee;
+        text-align: left;
+        font-size: 13px;
+        word-wrap: break-word;
+    }
+    .task-table th {
+        background-color: #43a047;
+        color: white;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .task-table tr:nth-child(even) { background-color: #f9fbe7; }
+    .task-table tr:hover { background-color: #e8f5e9; }
+    
+    .status-new { color: #1e88e5; font-weight: bold; }
+    .status-del { color: #f57c00; font-weight: bold; }
+    
+    .return-button {
+        padding: 10px 20px;
+        background-color: #81c784;
+        border: 1px solid #81c784;
+        border-radius: 5px;
+        text-decoration: none;
+        color: white;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        text-align: center;
+        margin-right: 10px;
+        display: inline-block;
+    }
+    .return-button:hover { background-color: #66bb6a; }
+
+    .btn-action-link {
+        background-color: #f7931e;
+        color: white;
+        border: none;
+        padding: 8px 12px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 12px;
+        font-weight: bold;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color .3s ease;
+        white-space: nowrap;
+    }
+    .btn-action-link:hover { background-color: #d87d16; }
+    .btn-view-thread { background-color: #1976d2; }
+    .btn-view-thread:hover { background-color: #1565c0; }
+</style>
+
+<div class="navigation-bar" style="width: 100%; max-width: 1500px; margin-top: 10px;">
+    <a href="{% url 'dashboard' %}" class="return-button"><i class="fas fa-arrow-left"></i> Back to Home Screen</a>
+</div>
+
+<div class="log-container">
+    <div class="log-header">
+        <h1><i class="fas fa-tasks"></i> Active Email Tasks</h1>
+    </div>
+    
+    <div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; gap: 20px;">
+            <span class="status-new"><i class="fas fa-circle"></i> New: {{ new_count }}</span>
+            <span class="status-del"><i class="fas fa-circle"></i> Delegated: {{ del_count }}</span>
+        </div>
+        
+        <div class="search-wrapper">
+            <i class="fas fa-search" style="color: #43a047;"></i>
+            <input type="text" id="emailSearchInput" class="search-input" placeholder="Search Subject, From, or MG...">
+        </div>
+    </div>
+
+    {% if emails %}
+    <table class="task-table" id="emailTaskTable">
+        <thead>
+            <tr>
+                <th style="width: 8%;">Status</th>
+                <th style="width: 12%;">Received</th>
+                <th style="width: 25%;">Subject</th>
+                <th style="width: 20%;">From</th>
+                <th style="width: 15%;">Member Group</th>
+                <th style="width: 20%;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for email in emails %}
+            <tr class="task-row">
+                <td>
+                    {% if email.status == 'NEW' %}
+                        <span class="status-new">NEW</span>
+                    {% else %}
+                        <span class="status-del">DEL</span>
+                    {% endif %}
+                </td>
+                <td>{{ email.received_at|date:"Y-m-d H:i" }}</td>
+                <td class="search-subject"><b>{{ email.subject|default:"(No Subject)" }}</b></td>
+                <td class="search-sender">{{ email.sender_address|default:"" }}</td>
+                <td class="search-mg"><strong>{{ email.mip_names|default:"" }}</strong></td>
+                <td>
+                    {% if email.status == 'NEW' %}
+                        <a href="{% url 'outlook_delegate_to' email_id=email.email_id %}" class="btn-action-link">
+                            <i class="fas fa-user-tag"></i> Delegate
+                        </a>
+                    {% else %}
+                        <a href="{% url 'outlook_view_thread' delegation_id=email.id %}" class="btn-action-link btn-view-thread">
+                            <i class="fas fa-eye"></i> View Thread
+                        </a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="text-align: center; padding: 40px;">
+        <p style="font-size: 1.2em; color: #43a047;">🎉 <strong>Inbox is clear!</strong></p>
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    document.getElementById('emailSearchInput').addEventListener('keyup', function() {
+        let filter = this.value.toLowerCase();
+        let rows = document.querySelectorAll('.task-row');
+        
+        rows.forEach(row => {
+            let subject = row.querySelector('.search-subject').innerText.toLowerCase();
+            let sender = row.querySelector('.search-sender').innerText.toLowerCase();
+            let mg = row.querySelector('.search-mg').innerText.toLowerCase();
+            
+            if (subject.includes(filter) || sender.includes(filter) || mg.includes(filter)) {
+                row.style.display = "";
+            } else {
+                row.style.display = "none";
+            }
+        });
+    });
+
+    setTimeout(function(){
+       window.location.reload();
+    }, 30000);
+</script>
+
+{% endblock %}

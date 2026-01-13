@@ -44,4 +44,7 @@ urlpatterns = [
     path('download-attachment/<str:message_id>/<str:attachment_id>/', views.download_attachment_view, name='download_attachment'),
     path('delegation-report/export/', views.export_delegation_report_excel, name='export_delegation_report_excel'),
     path('final-sla-report/', views.final_sla_report_view, name='final_sla_report'),
+    path('email-log/', views.email_workflow_log_view, name='email_workflow_log'),
+    path('email-log/export/', views.export_email_workflow_csv, name='export_email_workflow'),
+
 ]

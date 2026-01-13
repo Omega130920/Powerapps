@@ -140,6 +140,10 @@ body {
 </head>
 <body>
 
+    <div class="Dashboard" style="margin-top: 25px;">
+        <a href="{% url 'dashboard' %}" class="return-button">Back to Home Screen</a>
+    </div>
+
 <div class="log-container">
     <div class="log-header">
         <h1>🗑️ Recycle Bin / Archived Emails</h1>
@@ -222,12 +226,6 @@ body {
     {% else %}
     <p>🎉 The Recycle Bin is empty! All non-work related emails are cleared.</p>
     {% endif %}
-
-    <div class="Dashboard" style="margin-top: 25px;">
-        <a href="{% url 'dashboard' %}" class="return-button">Back to Dashboard</a>
-        <a href="{% url 'fetch_emails' %}" class="return-button">Go to Live Inbox</a>
-        <a href="{% url 'tasks' %}" class="return-button">View Delegated Tasks</a>
-    </div>
 
 </div>
 

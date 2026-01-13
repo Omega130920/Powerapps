@@ -1,246 +1,177 @@
 {% load static %}
 
-{% block title %}Two-Pot Claims Register{% endblock %}
-
 {% block extra_head %}
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-    /* Global Background and Body */
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #e8f5e9; margin: 0; color: #333; }
+    /* --- INTEGRATED GLOBAL STYLES --- */
+    html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+    body { font-family: sans-serif; font-size: 14px; background: linear-gradient(to bottom, #d1e2c4, #d1e2c4); color: #333; display: flex; justify-content: center; align-items: center; }
     
-    /* Main Content Wrapper */
-    .global-history-container { 
-        max-width: 1400px;
-        margin: 30px auto; 
-        background: white; 
-        padding: 20px 40px; 
-        box-shadow: 0 4px 15px rgba(0,0,0,0.1); 
-        border-radius: 8px; 
-        border-top: 8px solid #2e7d32; 
+    .container { 
+        width: 95%; max-width: 98%; height: 90vh; display: flex; flex-direction: column; 
+        background-color: #f0fff0; padding: 1.5em; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,.1); 
     }
-    
-    h2 { margin-top: 0; color: #1b5e20; font-size: 28px; border-bottom: 2px solid #c8e6c9; padding-bottom: 10px; margin-bottom: 20px; }
 
-    /* --- Card Styling --- */
-    .card { border: 1px solid #dcedc8; border-radius: 6px; margin-bottom: 20px; background-color: #f1f8e9; }
-    .card-body { padding: 20px; }
-    
-    .filter-form-row { display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; }
-    .filter-form-control { padding: 8px 12px; border: 1px solid #c8e6c9; border-radius: 4px; font-size: 0.95em; height: 38px; box-sizing: border-box;}
-    .filter-label { display: block; font-size: 0.85em; color: #558b2f; font-weight: 600; margin-bottom: 5px; }
+    /* HEADER & BUTTONS */
+    .dashboard-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+    .dashboard-button { 
+        padding: 8px 16px; background-color: #81c784; border: 1px solid #81c784; border-radius: 5px; 
+        text-decoration: none; color: white; font-weight: 700; transition: background-color .3s ease; font-size: 13px; cursor: pointer; 
+    }
+    .dashboard-button:hover { background-color: #66bb6a; }
+    h1 { color: #1b5e20; text-align: center; flex-grow: 1; font-size: 22px; margin: 0; }
 
-    /* --- Table Styling --- */
-    table { width: 100%; border-collapse: collapse; font-size: 0.95em; margin-bottom: 20px; table-layout: fixed;}
-    th { background-color: #e3f2fd; color: #0d47a1; padding: 10px; text-align: left; border-bottom: 3px solid #bbdefb; }
-    td { padding: 10px; border-bottom: 1px solid #eee; color: #444; word-wrap: break-word; }
-    tr:hover { background-color: #f1f8e9; }
-    .amount-col { text-align: right; font-weight: bold; color: #2e7d32; }
+    /* SEARCH/FILTER CONTAINER */
+    .search-container { 
+        display: flex; gap: 10px; margin-bottom: 15px; background: #e8f5e9; padding: 15px; 
+        border-radius: 8px; border: 1px solid #c8e6c9; align-items: flex-end; 
+    }
+    .filter-group { display: flex; flex-direction: column; gap: 5px; }
+    .filter-label { font-size: 11px; font-weight: bold; color: #1b5e20; margin-bottom: 2px; }
+    .search-input { padding: 8px; border: 1px solid #aed581; border-radius: 4px; font-size: 14px; background: white; }
 
-    /* Status Badges */
+    /* TABLE STYLES */
+    .table-wrapper { overflow-y: auto; flex: 1; border: 1px solid #aed581; border-radius: 4px; background: white; }
+    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+    th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #aed581; font-size: 13px; word-wrap: break-word; }
+    th { background-color: #e6ffe6; color: #1b5e20; font-weight: 700; position: sticky; top: 0; z-index: 10; }
+    tr:nth-child(even) { background-color: #f9f9f9; }
+    tr:hover { background-color: #e8f5e9; }
+
+    /* STATUS BADGES */
+    .status-tag { display: inline-block; padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: .8em; background-color: #d1c4e9; color: #512da8; }
     .badge-success { background-color: #e8f5e9; color: #2e7d32; padding: 3px 8px; border-radius: 4px; font-weight: bold; border: 1px solid #a5d6a7; display: inline-block; }
 
-    /* --- Button Styling --- */
-    .btn { padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: 600; text-decoration: none; display: inline-block; transition: background-color 0.2s; border: none; }
-    .btn-primary { background-color: #1b5e20; color: white; }
-    .btn-primary:hover { background-color: #2e7d32; }
-    .btn-secondary { background-color: #f5f5f5; color: #666; border: 1px solid #ccc; }
-    .btn-details { background-color: #f7931e; color: white; font-size: 11px; padding: 4px 10px; }
-    
-    /* View Email Inline Button */
-    .btn-view-inline { background-color: #1e88e5; color: white; font-size: 10px; padding: 2px 6px; border-radius: 3px; margin-left: 5px; cursor: pointer; border: none; }
+    /* FORM INPUTS */
+    .form-select, .form-input { width: 100%; padding: 6px; border: 1px solid #aed581; border-radius: 4px; background-color: #fff; color: #333; font-size: 13px; box-sizing: border-box; }
+    .cancel-btn { background-color: #757575; color: white; padding: 8px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    .save-info-btn { background-color: #1565c0; color: white; padding: 8px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-left: 10px; }
 
-    /* Modal Form Inputs */
-    .form-input, .form-select { width: 100%; padding: 8px; border: 1px solid #aed581; border-radius: 4px; background: white; box-sizing: border-box; font-size: 13px; }
-    .cancel-btn { background-color: #757575; color: white; padding: 8px 20px; border-radius: 4px; border: none; cursor: pointer; font-weight: bold; }
-    .save-info-btn { background-color: #1565c0; color: white; padding: 8px 20px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    /* PAGINATION */
+    .pagination { display: flex; justify-content: center; gap: 5px; padding-top: 15px; }
+    .page-link { padding: 6px 12px; border: 1px solid #81c784; background: white; color: #1b5e20; text-decoration: none; border-radius: 4px; font-size: 12px; font-weight: bold; }
+    .page-link.active { background: #1b5e20; color: white; border-color: #1b5e20; }
 
-    /* Pagination Styling */
-    .pagination { display: flex; justify-content: center; gap: 5px; margin-top: 20px; }
-    .page-link { padding: 8px 12px; border: 1px solid #c8e6c9; background: white; color: #333; text-decoration: none; border-radius: 4px; font-weight: bold; }
-    .page-link:hover { background-color: #e8f5e9; }
-    .page-link.active { background-color: #1b5e20; color: white; border-color: #1b5e20; }
-
-    /* --- ENHANCED Email Preview Modal Styles --- */
-    .email-preview-modal-content {
-        background: #ffffff;
-        width: 85%;
-        max-width: 900px;
-        margin: 40px auto;
-        padding: 0;
-        border-radius: 12px;
-        box-shadow: 0 20px 50px rgba(0,0,0,0.4);
-        border: none;
-        overflow: hidden;
-    }
-
-    .email-header-box {
-        background: #f1f3f4; /* Grey Gmail-like background */
-        padding: 25px 35px;
-        border-bottom: 1px solid #e0e0e0;
-    }
-
-    .email-header-title {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-bottom: 18px;
-    }
-
-    .email-header-title h2 {
-        margin: 0;
-        color: #202124;
-        font-size: 1.5rem;
-        border: none;
-        padding: 0;
-    }
-
-    .header-meta-row {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-    }
-
-    .header-meta-item {
-        font-size: 0.95rem;
-        color: #5f6368;
-    }
-
-    .header-meta-item strong {
-        color: #202124;
-        width: 80px;
-        display: inline-block;
-    }
-
-    .email-body-container {
-        padding: 40px 50px;
-        background: #ffffff;
-        max-height: 60vh;
-        overflow-y: auto;
-        color: #3c4043;
-        font-size: 1.05rem;
-        line-height: 1.6;
-        all: revert; /* Isolates email styles */
-    }
-
-    .preview-footer {
-        padding: 15px 35px;
-        background: #f8f9fa;
-        text-align: right;
-        border-top: 1px solid #eee;
-    }
+    /* EMAIL PREVIEW MODAL */
+    .email-preview-modal-content { background: #ffffff; width: 85%; max-width: 900px; margin: 40px auto; padding: 0; border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.4); border: none; overflow: hidden; }
+    .email-header-box { background: #f1f3f4; padding: 25px 35px; border-bottom: 1px solid #e0e0e0; }
+    .email-header-title { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+    .email-header-title h2 { margin: 0; color: #202124; font-size: 1.5rem; border: none; padding: 0; }
+    .header-meta-row { display: flex; flex-direction: column; gap: 8px; }
+    .header-meta-item { font-size: 0.95rem; color: #5f6368; }
+    .header-meta-item strong { color: #202124; width: 80px; display: inline-block; }
+    .email-body-container { padding: 40px 50px; background: #ffffff; max-height: 55vh; overflow-y: auto; color: #3c4043; font-size: 1.05rem; line-height: 1.6; all: revert; }
+    .preview-footer { padding: 15px 35px; background: #f8f9fa; text-align: right; border-top: 1px solid #eee; }
 </style>
 {% endblock %}
 
 {% block content %}
-<div style="padding: 20px 40px 0 40px; max-width: 1400px; margin: auto;">
-    <a href="{% url 'dashboard' %}" class="btn btn-secondary">Back to Dashboard</a>
-</div>
-
-<div class="global-history-container">
-    <h2>💰 Two-Pot Claims Register</h2>
-    <p class="text-muted">Specialized dashboard for Two-Pot withdrawal requests.</p>
-
-    <div class="card">
-        <div class="card-body">
-            <form method="GET">
-                <div class="filter-form-row">
-                    <div class="form-group" style="flex: 2;">
-                        <label class="filter-label">Search:</label>
-                        <input type="text" name="q" class="filter-form-control" style="width: 100%;" placeholder="MIP Number, Surname, or ID..." value="{{ search_query|default:'' }}">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label class="filter-label">From:</label>
-                        <input type="date" name="start_date" class="filter-form-control" value="{{ start_date|default:'' }}">
-                    </div>
-                    <div class="form-group">
-                        <label class="filter-label">To:</label>
-                        <input type="date" name="end_date" class="filter-form-control" value="{{ end_date|default:'' }}">
-                    </div>
-
-                    <button type="submit" class="btn btn-primary">Filter</button>
-                    <a href="{% url 'global_two_pot' %}" class="btn btn-secondary">Reset</a>
-                    <button type="button" class="btn btn-primary" style="background-color: #2e7d32;" onclick="openClaimModal()">+ New Two-Pot</button>
-                    <button type="button" class="btn btn-primary" style="background-color: #217346;" onclick="triggerExcelExport()">📊 Export Excel</button>
-                </div>
-            </form>
+<div class="container">
+    <div class="dashboard-header">
+        <a href="{% url 'dashboard' %}" class="dashboard-button">Back to Home Screen</a>
+        <h1>💰 Two-Pot Claims Register</h1>
+        <div style="display: flex; gap: 10px;">
+            <button type="button" class="dashboard-button" style="background-color: #2e7d32;" onclick="openClaimModal()">➕ New Two-Pot</button>
         </div>
     </div>
 
-    <table>
-        <thead>
-            <tr>
-                <th style="width: 8%;">Code</th>
-                <th style="width: 18%;">Member</th>
-                <th style="width: 12%;">MIP Number</th>
-                <th style="width: 12%;">ID Number</th>
-                <th style="width: 12%;" class="amount-col">Claim Amount</th>
-                <th style="width: 15%;">Status</th>
-                <th style="width: 15%;">Created</th>
-                <th style="width: 8%; text-align: right;">Action</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for claim in page_obj %}
-            <tr>
-                <td><strong>{{ claim.company_code }}</strong></td>
-                <td>{{ claim.member_surname }}, {{ claim.member_name }}</td>
-                <td>{{ claim.mip_number|default:"-" }}</td>
-                <td>{{ claim.id_number }}</td>
-                <td class="amount-col">R {{ claim.claim_amount|default:"0.00"|floatformat:2 }}</td>
-                <td>
-                    <span class="badge-success">{{ claim.claim_status }}</span>
-                    {% if claim.linked_email_id %}
-                        <span onclick="previewLinkedEmail('{{ claim.id }}')" title="Linked to Email. Click to View Content" style="cursor: pointer; font-size: 1.2em; margin-left: 5px;">📧</span>
-                    {% endif %}
-                </td>
-                <td>{{ claim.claim_created_date|date:"Y-m-d" }}</td>
-                <td style="text-align: right;">
-                    <button class="btn btn-details" onclick="editClaim(this)" 
-                        data-id="{{ claim.id }}"
-                        data-company_code="{{ claim.company_code }}"
-                        data-agent="{{ claim.agent|default:'' }}"
-                        data-id_number="{{ claim.id_number }}"
-                        data-member_name="{{ claim.member_name }}"
-                        data-member_surname="{{ claim.member_surname }}"
-                        data-mip_number="{{ claim.mip_number|default:'' }}"
-                        data-claim_type="{{ claim.claim_type }}"
-                        data-claim_status="{{ claim.claim_status }}"
-                        data-claim_allocation="{{ claim.claim_allocation }}"
-                        data-payment_option="{{ claim.payment_option }}"
-                        data-claim_amount="{{ claim.claim_amount|default:'' }}"
-                        data-claim_created_date="{{ claim.claim_created_date|date:'Y-m-d' }}"
-                        data-linked_email_id="{{ claim.linked_email_id|default:'' }}"
-                    >Edit</button>
+    <form method="GET" action="" class="search-container">
+        <div class="filter-group" style="flex: 2;">
+            <label class="filter-label">SEARCH</label>
+            <input type="text" name="q" class="search-input" placeholder="MIP Number, Surname, or ID..." value="{{ search_query|default:'' }}">
+        </div>
+        
+        <div class="filter-group">
+            <label class="filter-label">FROM</label>
+            <input type="date" name="start_date" class="search-input" value="{{ start_date|default:'' }}">
+        </div>
 
-                    <template id="notes-data-{{ claim.id }}">
-                        {% for note in claim.notes.all %}
-                            <tr>
-                                <td>{{ note.note_description }}</td>
-                                <td>{{ note.note_selection }}</td>
-                                <td>{{ note.created_at|date:"Y-m-d H:i" }}</td>
-                                <td>{{ note.created_by.username }}</td>
-                            </tr>
-                        {% empty %}
-                            <tr><td colspan="4" style="text-align:center; color:#777;">No notes found.</td></tr>
-                        {% endfor %}
-                    </template>
+        <div class="filter-group">
+            <label class="filter-label">TO</label>
+            <input type="date" name="end_date" class="search-input" value="{{ end_date|default:'' }}">
+        </div>
 
-                    {% if claim.linked_email_id %}
-                    <template id="email-content-{{ claim.id }}">
-                        <div class="p-sender">{{ claim.email_preview_sender|default:"Unknown" }}</div>
-                        <div class="p-subject">{{ claim.email_preview_subject|default:"(No Subject)" }}</div>
-                        <div class="p-date">{{ claim.email_preview_date|date:"Y-m-d H:i" }}</div>
-                        <div class="p-body">{{ claim.email_preview_body|safe }}</div>
-                    </template>
-                    {% endif %}
-                </td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="8" style="text-align: center;">No Two-Pot claims found matching criteria.</td></tr>
-            {% endfor %}
-        </tbody>
-    </table>
+        <button type="submit" class="dashboard-button">Filter</button>
+        <button type="button" class="dashboard-button" style="background-color: #217346;" onclick="triggerExcelExport()">📊 Export Excel</button>
+        <a href="{% url 'global_two_pot' %}" class="dashboard-button" style="background-color: #757575;">Reset</a>
+    </form>
+
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 8%;">Code</th>
+                    <th style="width: 18%;">Member</th>
+                    <th style="width: 12%;">MIP Number</th>
+                    <th style="width: 12%;">ID Number</th>
+                    <th style="width: 15%;">Status</th>
+                    <th style="width: 15%;">Created</th>
+                    <th style="width: 8%; text-align: right;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for claim in page_obj %}
+                <tr>
+                    <td><strong>{{ claim.company_code }}</strong></td>
+                    <td>{{ claim.member_surname }}, {{ claim.member_name }}</td>
+                    <td>{{ claim.mip_number|default:"-" }}</td>
+                    <td>{{ claim.id_number }}</td>
+                    <td>
+                        <span class="badge-success">{{ claim.claim_status }}</span>
+                        {% if claim.linked_email_id %}
+                            <span onclick="previewLinkedEmail('{{ claim.id }}')" title="Linked to Email" style="cursor: pointer; font-size: 1.2em; margin-left: 5px;">📧</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ claim.claim_created_date|date:"Y-m-d" }}</td>
+                    <td style="text-align: right;">
+                        <button class="dashboard-button" style="padding: 4px 10px; font-size: 11px; background-color: #f7931e; border-color: #f7931e;" 
+                            onclick="editClaim(this)" 
+                            data-id="{{ claim.id }}"
+                            data-company_code="{{ claim.company_code }}"
+                            data-agent="{{ claim.agent|default:'' }}"
+                            data-id_number="{{ claim.id_number }}"
+                            data-member_name="{{ claim.member_name }}"
+                            data-member_surname="{{ claim.member_surname }}"
+                            data-mip_number="{{ claim.mip_number|default:'' }}"
+                            data-claim_type="{{ claim.claim_type }}"
+                            data-claim_status="{{ claim.claim_status }}"
+                            data-claim_allocation="{{ claim.claim_allocation }}"
+                            data-payment_option="{{ claim.payment_option }}"
+                            data-claim_amount="{{ claim.claim_amount|default:'' }}"
+                            data-claim_created_date="{{ claim.claim_created_date|date:'Y-m-d' }}"
+                            data-linked_email_id="{{ claim.linked_email_id|default:'' }}"
+                        >Edit</button>
+
+                        <template id="notes-data-{{ claim.id }}">
+                            {% for note in claim.notes.all %}
+                                <tr>
+                                    <td>{{ note.note_description }}</td>
+                                    <td>{{ note.note_selection }}</td>
+                                    <td>{{ note.created_at|date:"Y-m-d H:i" }}</td>
+                                    <td>{{ note.created_by.username }}</td>
+                                </tr>
+                            {% empty %}
+                                <tr><td colspan="4" style="text-align:center; color:#777;">No notes found.</td></tr>
+                            {% endfor %}
+                        </template>
+
+                        {% if claim.linked_email_id %}
+                        <template id="email-content-{{ claim.id }}">
+                            <div class="p-sender">{{ claim.email_preview_sender|default:"Unknown" }}</div>
+                            <div class="p-subject">{{ claim.email_preview_subject|default:"(No Subject)" }}</div>
+                            <div class="p-date">{{ claim.email_preview_date|date:"Y-m-d H:i" }}</div>
+                            <div class="p-body">{{ claim.email_preview_body|safe }}</div>
+                        </template>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" style="text-align: center; padding: 20px;">No Two-Pot claims found matching criteria.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 
     {% if page_obj.has_other_pages %}
     <div class="pagination">
@@ -314,7 +245,7 @@
                         <option value="Member Emergency Savings Pot Withdrawal Submitted">Member Emergency Savings Pot Withdrawal Submitted </option>
                         <option value="Member Emergency Savings Pot Withdrawal Requested">Member Emergency Savings Pot Withdrawal Requested </option>
                         <option value="Withdraw - Not Allowed">Withdraw - Not Allowed</option>
-                        </select>
+                    </select>
                 </div>
                 
                 <div>
@@ -355,8 +286,6 @@
                         <option value="">-- Select an email to link to this claim --</option>
                         {% for email in my_delegated_emails %}
                             <option value="{{ email.id }}">📅 {{ email.received_at|date:"Y-m-d" }} | ✉️ {{ email.subject|slice:":40" }}... (From: {{ email.sender }})</option>
-                        {% empty %}
-                            <option value="" disabled>No delegated emails found for you.</option>
                         {% endfor %}
                     </select>
 
@@ -414,21 +343,15 @@
                 <span style="font-size: 1.6rem;">✉️</span>
                 <h2>Linked Email Details</h2>
             </div>
-            
             <div class="header-meta-row">
                 <div class="header-meta-item"><strong>From:</strong> <span id="pv_from"></span></div>
                 <div class="header-meta-item"><strong>Subject:</strong> <span id="pv_subject"></span></div>
                 <div class="header-meta-item"><strong>Date:</strong> <span id="pv_date"></span></div>
             </div>
         </div>
-        
-        <div id="pv_body" class="email-body-container">
-            </div>
-
+        <div id="pv_body" class="email-body-container"></div>
         <div class="preview-footer">
-            <button type="button" class="cancel-btn" style="background: #5f6368; padding: 10px 25px;" onclick="document.getElementById('emailPreviewModal').style.display='none'">
-                Close Preview
-            </button>
+            <button type="button" class="cancel-btn" style="background: #5f6368; padding: 10px 25px;" onclick="document.getElementById('emailPreviewModal').style.display='none'">Close Preview</button>
         </div>
     </div>
 </div>
@@ -441,7 +364,6 @@
         document.getElementById('modalTitle').innerText = "New Two-Pot Entry";
         document.getElementById('claim_notes_tbody').innerHTML = '<tr><td colspan="4" style="text-align:center;">New entry.</td></tr>';
         document.getElementById('claim_type_select').value = "Two Pot"; 
-        
         const emailSelect = document.getElementById('linked_email_id');
         if(emailSelect) emailSelect.value = "";
         document.getElementById('email-composition-container').style.display = 'none';
@@ -465,22 +387,16 @@
         document.querySelector('input[name="claim_amount"]').value = btn.dataset.claim_amount;
         document.querySelector('input[name="claim_created_date"]').value = btn.dataset.claim_created_date;
         document.getElementById('claim_type_select').value = "Two Pot";
-
         const emailSelect = document.getElementById('linked_email_id');
         if(emailSelect) emailSelect.value = btn.dataset.linked_email_id || "";
         document.getElementById('email-composition-container').style.display = 'none';
-        
-        // --- POPULATE NOTES WITH VIEW EMAIL BUTTON ---
         const notesSrc = document.getElementById('notes-data-' + claimId);
         const notesTrg = document.getElementById('claim_notes_tbody');
-        
         if (notesSrc && notesTrg) {
-            // Use template content clone
             const content = notesSrc.content.cloneNode(true);
             const rows = content.querySelectorAll('tr');
-
             rows.forEach(row => {
-                const noteCell = row.cells[0]; // Note Description column
+                const noteCell = row.cells[0]; 
                 if (noteCell && noteCell.innerText.includes("Linked to Delegated Email ID #")) {
                     const viewBtn = document.createElement('button');
                     viewBtn.type = "button";
@@ -490,36 +406,27 @@
                     noteCell.appendChild(viewBtn);
                 }
             });
-
             notesTrg.innerHTML = ""; 
             notesTrg.appendChild(content);
         }
-
         toggleWithdrawalSubFields();
         document.getElementById('claimModal').style.display = 'block';
     }
 
-    // --- EMAIL PREVIEW LOGIC (NO AJAX) ---
     function previewLinkedEmail(claimId) {
         const template = document.getElementById('email-content-' + claimId);
-        if (!template) {
-            alert("No email content found for this claim.");
-            return;
-        }
+        if (!template) { alert("No email content found."); return; }
         const sender = template.content.querySelector('.p-sender').innerText;
         const subject = template.content.querySelector('.p-subject').innerText;
         const date = template.content.querySelector('.p-date').innerText;
         const body = template.content.querySelector('.p-body').innerHTML;
-        
         document.getElementById('pv_from').innerText = sender;
         document.getElementById('pv_subject').innerText = subject;
         document.getElementById('pv_date').innerText = date;
         document.getElementById('pv_body').innerHTML = body;
-        
         document.getElementById('emailPreviewModal').style.display = 'block';
     }
 
-    // --- EXPORT LOGIC ---
     function triggerExcelExport() {
         const urlParams = new URLSearchParams(window.location.search);
         const query = urlParams.get('q') || '';
@@ -550,9 +457,7 @@
     function toggleWithdrawalSubFields() {
         const status = document.getElementById('claim_status_select').value;
         const helper = document.getElementById('div_two_pot_withdrawal_details');
-        
         helper.style.display = (status === "Withdraw - Not Allowed") ? 'block' : 'none';
-        
         if (status === "Withdraw - Not Allowed") {
             document.getElementById('two_pot_withdrawal_status').value = "Withdrawal - Not Allowed";
         }
@@ -563,11 +468,7 @@
         const reason = document.getElementById('two_pot_withdrawal_status').value;
         const dateDiv = document.getElementById('div_prev_claim_date');
         const note = document.getElementById('note_description');
-
-        if (reason !== "") {
-            document.getElementById('div_two_pot_withdrawal_details').style.display = 'block';
-        }
-
+        if (reason !== "") { document.getElementById('div_two_pot_withdrawal_details').style.display = 'block'; }
         if (reason === "Withdrawal - Not Allowed") {
             dateDiv.style.display = 'none';
             note.value = "Withdrawal\n- Not Allowed - Not enough funds available";

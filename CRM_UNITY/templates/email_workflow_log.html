@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Email Workflow History - Unified Log</title>
+<style>
+    body {
+        font-family: sans-serif;
+        background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        min-height: 100vh;
+        padding: 20px;
+        box-sizing: border-box;
+    }
+    .log-container {
+        width: 100%;
+        max-width: 1550px; 
+        margin: 40px auto;
+        padding: 20px;
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .log-header {
+        border-bottom: 2px solid #aed581;
+        padding-bottom: 15px;
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .log-header h1 {
+        margin: 0;
+        color: #43a047;
+    }
+    .log-controls {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+    }
+    #search_input, .date-input {
+        padding: 8px 12px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 14px;
+        transition: border-color 0.3s;
+    }
+    #search_input:focus, .date-input:focus {
+        border-color: #66bb6a;
+        outline: none;
+    }
+    .task-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+    .task-table th, .task-table td {
+        padding: 12px 10px;
+        border-bottom: 1px solid #eee;
+        text-align: left;
+        font-size: 13px;
+        word-wrap: break-word;
+    }
+    .task-table th {
+        background-color: #43a047;
+        color: white;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .task-table tr:nth-child(even) { background-color: #f9fbe7; }
+    
+    .task-table tr.clickable-row:hover {
+        background-color: #e8f5e9;
+        cursor: pointer;
+    }
+    
+    /* Status Styling */
+    .status-badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-weight: bold;
+        font-size: 11px;
+    }
+    .status-new { color: #1e88e5; background: #e3f2fd; }
+    .status-delegated { color: #f7931e; background: #fff3e0; }
+    .status-completed { color: #43a047; background: #e8f5e9; }
+    .status-recycled { color: #e53935; background: #ffebee; }
+
+    .log-notes {
+        font-style: italic;
+        color: #555;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        margin-top: 4px;
+    }
+
+    .action-btn {
+        background-color: #43a047;
+        color: white;
+        border: none;
+        padding: 6px 12px;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 11px;
+        font-weight: bold;
+        border-radius: 4px;
+    }
+
+    .export-btn {
+        background-color: #2e7d32;
+        color: white;
+        padding: 10px 15px;
+        border-radius: 5px;
+        text-decoration: none;
+        font-weight: bold;
+        font-size: 14px;
+    }
+
+    .return-button {
+        padding: 10px 20px;
+        background-color: #81c784;
+        border-radius: 5px;
+        text-decoration: none;
+        color: white;
+        margin-right: 10px;
+        display: inline-block;
+        font-weight: 500;
+    }
+
+    /* Pagination Styling */
+    .pagination {
+        margin-top: 20px;
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+    }
+    .pagination a, .pagination span {
+        padding: 8px 12px;
+        border: 1px solid #ccc;
+        background: white;
+        text-decoration: none;
+        color: #333;
+        border-radius: 4px;
+    }
+    .pagination .current {
+        background-color: #43a047;
+        color: white;
+        border-color: #43a047;
+    }
+</style>
+</head>
+<body>
+
+    <div class="Dashboard" style="margin-top: 25px; width: 100%; max-width: 1550px; display: flex; justify-content: space-between;">
+        <a href="{% url 'dashboard' %}" class="return-button">Back To Home Screen</a>
+        <a href="{% url 'export_email_workflow' %}?{{ request.GET.urlencode }}" class="export-btn">📊 Export to Excel (CSV)</a>
+    </div>
+
+<div class="log-container">
+    <div class="log-header">
+        <h1>📑 Email Workflow Registry</h1>
+        
+        <form method="GET" class="log-controls">
+            <input type="date" name="start_date" class="date-input" value="{{ request.GET.start_date }}" title="Start Date">
+            <input type="date" name="end_date" class="date-input" value="{{ request.GET.end_date }}" title="End Date">
+            <input type="text" name="search" id="search_input" placeholder="🔍 Search subject, sender, or code..." value="{{ request.GET.search }}">
+            <button type="submit" class="action-btn" style="padding: 10px 20px;">FILTER</button>
+        </form>
+    </div>
+    
+    {% if page_obj %}
+    <table class="task-table" id="main_table">
+        <thead>
+            <tr>
+                <th style="width: 12%;">Received Date</th>
+                <th style="width: 25%;">Subject / Snippet</th>
+                <th style="width: 18%;">From</th>
+                <th style="width: 10%;">Member Code</th>
+                <th style="width: 10%;">Status</th>
+                <th style="width: 12%;">Delegated To</th>
+                <th style="width: 13%;">Last Replied</th>
+            </tr>
+        </thead>
+        <tbody id="table_body">
+            {% for row in page_obj %}
+            <tr onclick="window.location.href='{% if row.is_delegated %}{% url 'delegate_action' email_id=row.email_id %}{% else %}{% url 'delegate_email' email_id=row.email_id %}{% endif %}';" class="clickable-row">
+                <td>{{ row.received_timestamp|date:"Y-m-d H:i" }}</td>
+                <td>
+                    <b>{{ row.subject|truncatechars:60 }}</b>
+                    <div class="log-notes">{{ row.category|default:"Unclassified" }}</div>
+                </td>
+                <td>{{ row.sender|truncatechars:40 }}</td>
+                <td>{{ row.member_group_code }}</td>
+                <td>
+                    <span class="status-badge 
+                        {% if row.status == 'New' %}status-new
+                        {% elif row.status == 'Delegated' %}status-delegated
+                        {% elif row.status == 'Completed' %}status-completed
+                        {% elif row.status == 'Recycled' %}status-recycled
+                        {% endif %}">
+                        {{ row.status|upper }}
+                    </span>
+                </td>
+                <td>{{ row.delegated_to|default:"-" }}</td>
+                <td>
+                    {% if row.last_replied_timestamp %}
+                        {{ row.last_replied_timestamp|date:"Y-m-d H:i" }}
+                    {% else %}
+                        <span style="color: #bbb;">No Reply</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div class="pagination">
+        {% if page_obj.has_previous %}
+            <a href="?page=1&search={{ request.GET.search }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}">« First</a>
+            <a href="?page={{ page_obj.previous_page_number }}&search={{ request.GET.search }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}">Previous</a>
+        {% endif %}
+
+        <span class="current">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}&search={{ request.GET.search }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}">Next</a>
+            <a href="?page={{ page_obj.paginator.num_pages }}&search={{ request.GET.search }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}">Last »</a>
+        {% endif %}
+    </div>
+
+    {% else %}
+    <div style="text-align: center; padding: 40px;">
+        <p style="font-size: 1.2em; color: #666;">No email records found matching your criteria.</p>
+    </div>
+    {% endif %}
+</div>
+
+</body>
+</html>

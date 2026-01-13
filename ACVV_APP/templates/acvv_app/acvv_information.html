@@ -3,318 +3,63 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ACVV Information</title>
+    <title>ACVV Information - {{ acvv_record.mip_names }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Main layout for a non-scrollable page. */
-        html, body {
-            height: 100%;
-            margin: 0;
-            padding: 0;
-            overflow: hidden; /* This prevents scrolling */
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; font-family: 'Inter', sans-serif; }
+        body { background: linear-gradient(to bottom, #d1e2c4, #8fcf7f); display: flex; justify-content: center; align-items: center; }
+        .container { width: 95%; max-width: 98%; height: 90vh; display: flex; flex-direction: column; background-color: #f0fff0; padding: 1.5em; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        .dashboard-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+        .dashboard-button { padding: 8px 16px; background-color: #81c784; border-radius: 5px; text-decoration: none; color: white; font-weight: bold; font-size: 13px; transition: 0.3s; cursor: pointer; border: none; }
+        .dashboard-button:hover { background-color: #66bb6a; }
+        h1 { color: #1b5e20; text-align: center; flex-grow: 1; font-size: 22px; font-weight: 800; }
+        .profile-layout { display: flex; gap: 15px; flex: 1; min-height: 0; }
+        .tab-nav { list-style-type: none; padding: 0; margin: 0; display: flex; flex-direction: column; width: 180px; border-right: 2px solid #aed581; overflow-y: auto; }
+        .tab-nav li { padding: 12px 15px; cursor: pointer; background-color: #81c784; color: white; margin-bottom: 4px; border-radius: 5px 0 0 5px; text-align: right; transition: 0.2s; font-size: 13px; font-weight: 600; }
+        .tab-nav li.active { background-color: #f0fff0; color: #1b5e20; border: 2px solid #43a047; border-right: none; font-weight: 800; transform: translateX(2px); z-index: 1; }
+        .tab-content { flex: 1; background-color: #f0fff0; padding: 15px; border: 1px solid #aed581; border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); overflow-y: auto; }
+        .tab-pane { display: none; }
+        .tab-pane.active { display: block; }
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; margin-top: 10px; }
+        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #aed581; font-size: 13px; }
+        th { background-color: #e6ffe6; color: #1b5e20; font-weight: bold; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; overflow-y: auto; padding: 20px; }
+        .modal-content { background: white; width: 95%; max-width: 1000px; margin: 20px auto; padding: 25px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+        .form-input, .form-select { width: 100%; border: 1px solid #ccc; border-radius: 4px; padding: 8px; font-size: 14px; outline: none; }
+        .cancel-btn { background: #ef5350; color: white; padding: 10px 20px; border-radius: 5px; font-weight: bold; }
+        .save-info-btn { background: #1b5e20; color: white; padding: 10px 20px; border-radius: 5px; font-weight: bold; }
+        .status-badge { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; }
+        .status-two-pot { background-color: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb; }
         
-        body {
-            font-family: sans-serif;
-            font-size: 14px; /* Reduced base font size */
-            background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
-            color: #333;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .container {
-            width: 95%;
-            max-width: 98%;
-            height: 90vh;
-            display: flex;
-            flex-direction: column;
-            background-color: #f0fff0;
-            padding: 1.5em; /* Reduced padding */
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-        
-        /* Dashboard button and title alignment */
-        .dashboard-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 20px; /* Reduced margin */
-        }
-
-        .dashboard-button {
-            padding: 8px 16px; /* Reduced padding */
-            background-color: #81c784;
-            border: 1px solid #81c784;
-            border-radius: 5px;
-            text-decoration: none;
-            color: white;
-            font-weight: bold;
-            transition: background-color 0.3s ease;
-            font-size: 13px; /* Smaller font size for button */
-        }
-
-        .dashboard-button:hover {
-            background-color: #66bb6a;
-        }
-        
-        h1 {
-            color: #1b5e20;
-            text-align: center;
-            flex-grow: 1;
-            font-size: 22px; /* Reduced heading font size */
-        }
-
-        .return-button {
-            padding: 8px 16px; /* Reduced padding */
-            background-color: #81c784;
-            border: 1px solid #81c784;
-            border-radius: 5px;
-            text-decoration: none;
-            color: white;
-            transition: background-color 0.3s ease;
-            font-size: 13px; /* Smaller font size for button */
-        }
-
-        .return-button:hover {
-            background-color: #66bb6a;
-        }
-
-        .profile-layout {
-            display: flex;
-            gap: 15px; /* Reduced gap */
-            flex: 1;
-            min-height: 0;
-        }
-        
-        /* Tabs Style (Vertical) */
-        .tab-nav {
-            list-style-type: none;
-            padding: 0;
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            width: 180px; /* Reduced width */
-            border-right: 2px solid #aed581;
-            overflow-y: auto;
-        }
-        
-        .tab-nav li {
-            padding: 10px 15px; /* Reduced padding */
-            cursor: pointer;
-            background-color: #81c784; 
-            border: 1px solid #81c784;
-            border-right: none;
-            color: white;
-            margin-bottom: 4px; /* Reduced margin */
-            border-radius: 5px 0 0 5px;
-            white-space: nowrap;
-            text-align: right;
-            transition: all 0.2s ease;
-            font-size: 13px; /* Smaller font size for tab text */
-        }
-
-        .tab-nav li.active {
-            background-color: #f0fff0;
-            color: #1b5e20;
-            border-top: 2px solid #43a047;
-            border-bottom: 2px solid #43a047;
-            border-left: 2px solid #43a047;
-            font-weight: bold;
-            transform: translateX(2px);
-            z-index: 1;
-        }
-
-        .tab-nav li:hover {
-            background-color: #66bb6a; 
-        }
-
-        .tab-content {
-            flex: 1;
-            background-color: #f0fff0;
-            padding: 15px; /* Reduced padding */
-            border: 1px solid #aed581;
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-            overflow-y: auto;
-        }
-        
-        .tab-pane {
-            display: none;
-        }
-        
-        .tab-pane.active {
-            display: block;
-        }
-
-        /* Table Styles for data display */
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px; /* Reduced margin */
-        }
-
-        th, td {
-            padding: 8px 12px; /* Reduced padding */
-            text-align: left;
-            border-bottom: 1px solid #aed581;
-            font-size: 13px; /* Smaller font size for table cells */
-        }
-        
-        th {
-            background-color: #e6ffe6;
-            color: #1b5e20;
-            font-weight: bold;
-        }
-
-        tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
-
-        .return-button-bottom {
-            margin-top: 20px;
-            padding: 10px 20px;
-            background-color: #81c784;
-            border: 1px solid #81c784;
-            border-radius: 5px;
-            text-decoration: none;
-            color: white;
-            font-weight: bold;
-            transition: background-color 0.3s ease;
-            text-align: center;
-        }
-
-        .return-button-bottom:hover {
-            background-color: #66bb6a;
-        }
-
-        /* New styles for the notes section */
-        .note-list {
-            border: 1px solid #c3e6cb;
-            border-radius: 5px;
-            padding: 15px;
-            margin-bottom: 20px;
-            background-color: #e6ffe6;
-            max-height: 400px;
-            overflow-y: auto;
-        }
-
-        .note-item {
-            border-bottom: 1px solid #aed581;
-            padding-bottom: 10px;
-            margin-bottom: 15px;
-        }
-
-        .note-item:last-child {
-            border-bottom: none;
-            margin-bottom: 0;
-            padding-bottom: 0;
-        }
-
-        .note-meta {
-            font-size: 0.8em;
-            color: #666;
-            display: flex;
-            justify-content: space-between;
-            margin-top: 5px;
-        }
-        
-        .note-meta .user {
-            font-weight: bold;
-            color: #1b5e20;
-        }
-        
-        .note-form {
-            margin-top: 20px;
-            padding: 15px;
-            border: 1px solid #c3e6cb;
-            border-radius: 5px;
-        }
-        
-        .note-form textarea {
-            width: 100%;
-            min-height: 100px;
-            padding: 10px;
-            box-sizing: border-box;
-            border: 1px solid #aed581;
-            border-radius: 5px;
-            font-size: 1em;
-            resize: vertical;
-        }
-        
-        .note-form button {
-            display: block;
-            margin-top: 10px;
-            padding: 10px 20px;
-            background-color: #43a047;
-            border: none;
-            border-radius: 5px;
-            color: white;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-        
-        .note-form button:hover {
-            background-color: #388e3c;
-        }
-        
-        .messages {
-            list-style: none;
-            padding: 0;
-            margin: 0 0 15px 0;
-        }
-
-        .messages li {
-            padding: 10px;
-            margin-bottom: 10px;
-            border-radius: 5px;
-            font-size: 0.9em;
-        }
-
-        .messages .success {
-            background-color: #c8e6c9;
-            color: #1b5e20;
-            border: 1px solid #aed581;
-        }
-
-        .messages .error {
-            background-color: #ffcdd2;
-            color: #b71c1c;
-            border: 1px solid #ef9a9a;
-        }
+        /* Email Specific Styles */
+        .btn-thread { background: #1976d2; color: white; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; text-decoration: none; }
+        .type-cell { display: flex; align-items: center; gap: 8px; }
+        .rich-text-editor { min-height: 200px; border: 1px solid #ccc; padding: 10px; border-radius: 4px; background-color: white; outline: none; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="dashboard-header">
             <a href="{% url 'acvv_list' %}" class="dashboard-button">Return to List</a>
-            <h1>ACVV Information for {{ acvv_record.mip_names }}</h1>
-            <div></div>
+            <h1>ACVV Management: {{ acvv_record.mip_names }}</h1>
+            <div class="w-24"></div>
         </div>
 
         <div class="profile-layout">
             <ul class="tab-nav">
                 <li class="active" data-tab-target="#acvv-info">ACVV Info</li>
-                <li data-tab-target="#notes-tab">Notes</li>
-                <li data-tab-target="#button2">PDF Upload</li>
-                <li data-tab-target="#button3">BUTTON 3</li>
-                <li data-tab-target="#button4">BUTTON 4</li>
-                <li data-tab-target="#button5">BUTTON 5</li>
+                <li data-tab-target="#notes-tab">Internal Notes</li>
+                <li data-tab-target="#company-claims">Member Claims</li>
+                <li data-tab-target="#email-log">Email Log</li>
+                <li data-tab-target="#pdf-upload">PDF Upload</li>
             </ul>
 
             <div class="tab-content">
-                {% if messages %}
-                <ul class="messages">
-                    {% for message in messages %}
-                    <li{% if message.tags %} class="{{ message.tags }}"{% endif %}>{{ message }}</li>
-                    {% endfor %}
-                </ul>
-                {% endif %}
                 <div id="acvv-info" class="tab-pane active">
                     <table>
-                        <tr><th>MIP Names</th><td>{{ acvv_record.mip_names }}</td></tr>
-                        <tr><th>Branch Code</th><td>{{ acvv_record.branch_code }}</td></tr>
+                        <tr><th>Member Group Name</th><td>{{ acvv_record.mip_names }}</td></tr>
+                        <tr><th>Member Group Code</th><td>{{ acvv_record.branch_code }}</td></tr>
                         <tr><th>Member</th><td>{{ acvv_record.member }}</td></tr>
                         <tr><th>Status</th><td>{{ acvv_record.status }}</td></tr>
                         <tr><th>Contribution Amount</th><td>{{ acvv_record.contribution_amount }}</td></tr>
@@ -326,64 +71,539 @@
                         <tr><th>Tel</th><td>{{ acvv_record.tel }}</td></tr>
                     </table>
                 </div>
-                
-                <!-- Correctly added Notes Tab -->
-                <div id="notes-tab" class="tab-pane">
-                    <h2>Notes</h2>
-                    <div class="note-list">
-                        {% for note in notes %}
-                        <div class="note-item">
-                            <div class="note-meta">
-                                <span class="user">Posted by: {{ note.user }}</span>
-                                <span class="date">{{ note.date|date:"Y-m-d H:i:s" }}</span>
+
+                <div class="internal-note-container" style="background-color: #f9fff9; padding: 20px; border-radius: 8px; border: 1px solid #e0e0e0; margin-top: 20px;">
+                    <form method="POST" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        
+                        <div style="display: flex; gap: 20px; margin-bottom: 15px;">
+                            <div class="form-group" style="flex: 1;">
+                                <label style="color: #2e7d32; font-weight: bold; display: block; margin-bottom: 5px;">Communication Type:</label>
+                                <select name="communication_type" class="input-field" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                                    <option value="">Select Communication Type</option>
+                                    <option value="Incoming Call">Incoming Call</option>
+                                    <option value="Outgoing Call">Outgoing Call</option>
+                                    <option value="Notes Log">Notes Log</option>
+                                    <option value="Teams Meeting">Teams Meeting</option>
+                                </select>
                             </div>
-                            <p>{{ note.notes }}</p>
+
+                            <div class="form-group" style="flex: 1;">
+                                <label style="color: #2e7d32; font-weight: bold; display: block; margin-bottom: 5px;">Action Notes:</label>
+                                <select name="action_note_type" class="input-field" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                                    <option value="">Select Action Note</option>
+                                    <option value="Feedback to Sanlam">Feedback to Sanlam</option>
+                                    <option value="Feedback to Employer">Feedback to Employer</option>
+                                    <option value="Feedback to Member">Feedback to Member</option>
+                                    <option value="Feedback to CBC">Feedback to CBC</option>
+                                    <option value="Enquiry to FO">Enquiry to FO</option>
+                                    <option value="Enquiry to Sanlam">Enquiry to Sanlam</option>
+                                    <option value="Enquiry to Employer">Enquiry to Employer</option>
+                                    <option value="Enquiry to CBC">Enquiry to CBC</option>
+                                    <option value="Sent to Employer">Sent to Employer</option>
+                                    <option value="Sent to Sanlam">Sent to Sanlam</option>
+                                    <option value="Sent to CBC">Sent to CBC</option>
+                                    <option value="Sent to FO">Sent to FO</option>
+                                </select>
+                            </div>
                         </div>
-                        {% empty %}
-                            <p>No notes found for this record.</p>
-                        {% endfor %}
+
+                        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                            <textarea name="internal_note_text" placeholder="Add internal note here..." style="flex: 1; height: 100px; padding: 10px; border-radius: 4px; border: 1px solid #ccc;"></textarea>
+                            <button type="submit" name="add_note" style="background-color: #43a047; color: white; border: none; padding: 0 25px; border-radius: 4px; font-weight: bold; cursor: pointer;">
+                                Add Note
+                            </button>
+                        </div>
+
+                        <div style="padding: 10px; border: 1px dashed #43a047; border-radius: 4px; background-color: white;">
+                            <label style="color: #2e7d32; font-weight: bold; margin-right: 10px;">
+                                <i class="fas fa-paperclip"></i> Attach PDF/Document:
+                            </label>
+                            <input type="file" name="note_attachment">
+                        </div>
+                    </form>
+                </div>
+
+                <div id="company-claims" class="tab-pane">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <h2 class="text-xl font-bold text-emerald-800">Member Claims Register</h2>
+                        <button type="button" class="dashboard-button" onclick="openClaimModal()">➕ New Claim</button>
                     </div>
-                    <div class="note-form">
-                        <h3>Add New Note</h3>
-                        <form method="post">
+
+                    {% if company_claims %}
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Member Name</th>
+                                    <th>Created</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for claim in company_claims %}
+                                <tr>
+                                    <td><strong>{{ claim.member_surname }}, {{ claim.member_name|slice:":1" }}</strong></td>
+                                    <td>{{ claim.claim_created_date|date:"Y-m-d" }}</td>
+                                    <td>
+                                        <span class="status-badge {% if claim.claim_type == 'Two Pot' %}status-two-pot{% endif %}">
+                                            {{ claim.claim_type }}
+                                        </span>
+                                    </td>
+                                    <td>{{ claim.claim_status }}</td>
+                                    <td>
+                                        <button class="dashboard-button bg-orange-400 hover:bg-orange-500" style="padding: 4px 10px;"
+                                            onclick="editClaim(this)"
+                                            data-id="{{ claim.id }}"
+                                            data-id_number="{{ claim.id_number }}"
+                                            data-member_name="{{ claim.member_name }}"
+                                            data-member_surname="{{ claim.member_surname }}"
+                                            data-mip_number="{{ claim.mip_number|default:'' }}" 
+                                            data-claim_type="{{ claim.claim_type }}"
+                                            data-exit_reason="{{ claim.exit_reason|default:'' }}"
+                                            data-claim_allocation="{{ claim.claim_allocation }}"
+                                            data-claim_status="{{ claim.claim_status }}"
+                                            data-payment_option="{{ claim.payment_option }}"
+                                            data-claim_amount="{{ claim.claim_amount|default:'' }}" 
+                                            data-claim_created_date="{{ claim.claim_created_date|date:'Y-m-d' }}"
+                                            data-last_contribution_date="{{ claim.last_contribution_date|date:'Y-m-d' }}"
+                                            data-date_submitted="{{ claim.date_submitted|date:'Y-m-d' }}"
+                                            data-date_paid="{{ claim.date_paid|date:'Y-m-d' }}"
+                                            data-vested_pot_available="{{ claim.vested_pot_available }}"
+                                            data-vested_pot_paid_date="{{ claim.vested_pot_paid_date|date:'Y-m-d' }}"
+                                            data-savings_pot_available="{{ claim.savings_pot_available }}"
+                                            data-savings_pot_paid_date="{{ claim.savings_pot_paid_date|date:'Y-m-d' }}"
+                                            data-infund_cert_date="{{ claim.infund_cert_date|date:'Y-m-d' }}"
+                                            data-linked_email_id="{{ claim.linked_email_id|default:'' }}">Edit</button>
+
+                                        <template id="notes-data-{{ claim.id }}">
+                                            {% for note in claim.notes.all %}
+                                            <tr>
+                                                <td>{{ note.note_description }}</td>
+                                                <td>{{ note.note_selection }}</td>
+                                                <td>{{ note.created_at|date:"Y-m-d H:i" }}</td>
+                                                <td>{{ note.created_by.username }}</td>
+                                            </tr>
+                                            {% empty %}
+                                            <tr><td colspan="4" class="text-center py-4 text-gray-400">No notes recorded for this claim.</td></tr>
+                                            {% endfor %}
+                                        </template>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <div class="text-center py-10 bg-white rounded border border-dashed border-green-300 text-gray-500">
+                            No member claims found for this branch. Click "New Claim" to begin.
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div id="email-log" class="tab-pane">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #aed581; padding-bottom: 10px;">
+                        <div>
+                            <h2 style="margin: 0; font-size: 1.5em; color: #1565c0;">Delegated & Sent Emails</h2>
+                            <p style="font-size: 0.9em; color: #555; margin: 5px 0 0 0;">Tracking delegated emails, replies, and direct outgoing mail.</p>
+                        </div>
+                        <button type="button" class="dashboard-button" style="background-color: #ff9800; border-color: #f57c00;" onclick="toggleStandaloneEmailForm()">📧 Compose New Email</button>
+                    </div>
+
+                    <div id="standalone-email-container" style="display: none; margin-bottom: 20px;">
+                        <form method="post" action="{% url 'save_acvv_claim' company_code=acvv_record.mip_names %}" id="standalone_email_master_form" enctype="multipart/form-data" style="background-color: #fffaf5; border: 2px dashed #ff9800; border-radius: 8px; padding: 20px;">
                             {% csrf_token %}
-                            <textarea name="note_content" placeholder="Type your note here..."></textarea>
-                            <button type="submit">Add Note</button>
+                            <h3 style="color: #ff9800; margin-top: 0;">Compose Outgoing Email</h3>
+                            <input type="hidden" name="action" value="send_outgoing_email">
+                            <input type="hidden" name="email_body_html_content" id="standalone_email_html_content">
+
+                            <div class="form-group" style="margin-bottom: 10px;">
+                                <label style="font-weight: bold; display: block; margin-bottom: 5px;">To:</label>
+                                <input type="text" name="member_recipient_email" value="{{ acvv_record.mg_email_address }}" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" required>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label style="font-weight: bold; display: block; margin-bottom: 5px;">Subject:</label>
+                                <input type="text" name="member_email_subject_reply" value="[MIP: {{ acvv_record.mip_names }}] New Communication" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 15px;">
+                                <label style="font-weight: bold; display: block; margin-bottom: 5px;">Email Body:</label>
+                                <div id="standalone_email_body_editor" class="rich-text-editor" contenteditable="true">
+                                    <p>Dear Sir/Madam,</p><p>Regarding Member Group Code {{ acvv_record.mip_names }},</p><p><br></p><p>Kind regards,</p><p>{{ request.user.username }}</p>
+                                </div>
+                            </div>
+                            <div style="text-align: right;">
+                                <button type="button" class="cancel-btn" style="margin-right: 10px;" onclick="toggleStandaloneEmailForm()">Cancel</button>
+                                <button type="submit" onclick="syncStandaloneEditor()" style="padding: 10px 20px; background-color: #f7931e; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Send Email & Log</button>
+                            </div>
                         </form>
                     </div>
+
+                    {% if combined_email_log %}
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 160px;">Email Type</th>
+                                    <th>Subject</th>
+                                    <th>Received Date</th>
+                                    <th>Delegated Date</th>
+                                    <th>Assigned To / Recipient</th>
+                                    <th style="width: 120px;">Action / Status</th>
+                                    <th>Actioned Date</th>
+                                    <th style="text-align: center;">Thread</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in combined_email_log %}
+                                <tr>
+                                    <td>
+                                        <div class="type-cell">
+                                            <span style="font-size: 1.2em;">{{ log.icon }}</span>
+                                            <span style="font-weight:bold; color: {{ log.badge_color }};">{{ log.type }}</span>
+                                        </div>
+                                    </td>
+                                    <td>{{ log.subject|truncatechars:50 }}</td>
+                                    <td>{{ log.received_at|date:"Y-m-d H:i"|default:"-" }}</td>
+                                    <td>{{ log.delegated_at|date:"Y-m-d H:i"|default:"-" }}</td>
+                                    <td><strong>{{ log.assigned_to|default:"-" }}</strong></td>
+                                    <td>
+                                        <span class="status-badge" style="background-color: {{ log.badge_color }}; color: white;">
+                                            {{ log.display_type|upper }}
+                                        </span>
+                                    </td>
+                                    <td>{{ log.actioned_at|date:"Y-m-d H:i"|default:"-" }}</td>
+                                    <td style="text-align: center;">
+                                        {% if log.email_id %}
+                                            <a href="{% url 'outlook_view_thread' delegation_id=log.email_id %}" class="btn-thread">View Thread</a>
+                                        {% else %}-{% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <p style="background: white; border-radius: 8px; margin-top: 15px; padding: 20px; text-align: center; color: #666;">No email history found for this record.</p>
+                    {% endif %}
+                </div>
+                
+                <div id="pdf-upload" class="tab-pane">
+                    <p class="text-center py-10 text-gray-400 italic">PDF Document Management section.</p>
                 </div>
             </div>
         </div>
     </div>
-    
+
+    <div id="claimModal" class="modal-overlay">
+        <div class="modal-content">
+            <h2 style="color: #1b5e20; border-bottom: 2px solid #aed581; padding-bottom: 10px; margin-top: 0;">Manage Claim</h2>
+            
+            <form id="main_claim_form" method="POST" action="{% url 'save_acvv_claim' company_code=acvv_record.mip_names %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <input type="hidden" name="claim_id" id="modal_claim_id">
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div><label style="font-weight:bold;">MIP Name</label><input type="text" value="{{ acvv_record.mip_names }}" class="form-input bg-gray-100" readonly></div>
+                    <div><label style="font-weight:bold;">Logged By</label><input type="text" value="{{ request.user.username }}" class="form-input bg-gray-100" readonly></div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div><label style="font-weight:bold;">ID / Passport *</label><input type="text" name="id_number" class="form-input" required></div>
+                    <div id="div_mip_number" style="display:none;"><label style="font-weight:bold; color:#d32f2f;">MIP Number *</label><input type="text" name="mip_number" class="form-input"></div>
+                    <div><label style="font-weight:bold;">First Name *</label><input type="text" name="member_name" class="form-input" required></div>
+                    <div><label style="font-weight:bold;">Surname *</label><input type="text" name="member_surname" class="form-input" required></div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <label style="font-weight:bold;">Claim Type</label>
+                        <select name="claim_type" id="claim_type_select" class="form-select" onchange="toggleTwoPotLogic()">
+                            <option value="Withdrawal">Withdrawal</option>
+                            <option value="Retirement">Retirement</option>
+                            <option value="Death">Death</option>
+                            <option value="Two Pot">Two Pot</option> 
+                        </select>
+                    </div>
+                    <div id="div_exit_reason">
+                        <label style="font-weight:bold;">Reason For Exit</label>
+                        <select name="exit_reason" class="form-select">
+                            <option value="">-- Select --</option>
+                            <option value="Resignation">Resignation</option>
+                            <option value="Retirement">Retirement</option>
+                            <option value="Death">Death</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-weight:bold;">Claim Allocation</label>
+                        <select name="claim_allocation" class="form-select">
+                            <option value="New Claim">New Claim</option>
+                            <option value="Claim Paid">Claim Paid</option>
+                            <option value="Claim Query">Claim Query</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <label style="font-weight:bold;">Claim Status</label>
+                        <select name="claim_status" id="claim_status_select" class="form-select" onchange="toggleWithdrawalSubFields()">
+                            <option value="Claim Docs Requested">Claim Docs Requested</option>
+                            <option value="Paid">Paid</option>
+                            <option value="Submitted">Submitted</option>
+                            <option value="Incomplete">Incomplete</option>
+                            <option value="Withdraw - Not Allowed">Withdraw - Not Allowed</option>
+                        </select>
+                        <div id="div_two_pot_withdrawal_details" style="display:none; margin-top: 10px; padding: 10px; background: #fffde7; border-left: 3px solid #fbc02d;">
+                            <label style="font-size: 0.85em; font-weight: bold; color: #bc5100;">Note Helper: Reason</label>
+                            <select id="two_pot_withdrawal_status" class="form-select" onchange="handleWithdrawalStatusChange()">
+                                <option value="">-- Select Status --</option>
+                                <option value="Withdrawal - Not Allowed">Withdrawal - Not Allowed</option>
+                                <option value="Withdrawal - Already claim in current financial year">Withdrawal - Already claim in current financial year</option>
+                            </select>
+                            <div id="div_prev_claim_date" style="display:none; margin-top: 8px;">
+                                <label style="font-size: 0.85em; font-weight: bold;">Previous Claim Date</label>
+                                <input type="date" id="prev_claim_date_input" class="form-input" onchange="handleWithdrawalStatusChange()">
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label style="font-weight:bold;">Payment Option</label>
+                        <select name="payment_option" id="payment_option_select" class="form-select">
+                            <option value="Pay Full Benefit">Pay Full Benefit</option>
+                            <option value="Leave Benefit in Fund">Leave Benefit in Fund</option>
+                        </select>
+                    </div>
+                    <div id="div_claim_amount" style="display:none;">
+                        <label style="font-weight:bold; color:#d32f2f;">Amount (R) *</label>
+                        <input type="number" step="0.01" name="claim_amount" class="form-input" placeholder="0.00">
+                    </div>
+                </div>
+
+                <div id="pot_availability_section" style="margin-top: 15px; padding: 15px; border: 1px solid #1e88e5; border-radius: 8px; background-color: #f1f8ff; margin-bottom: 15px;">
+                    <h4 style="margin-top: 0; color: #1565c0; border-bottom: 1px solid #1e88e5; padding-bottom: 5px;">Pot Availability & Certificates</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div style="background: white; padding: 10px; border: 1px solid #bbdefb;">
+                            <label style="font-weight: bold;"><input type="checkbox" name="vested_pot_available" id="id_vested_pot_available" onchange="togglePotVisibility()"> Vested Pot Available</label>
+                            <div id="div_vested_paid" style="display: none; margin-top: 5px;"><input type="date" name="vested_pot_paid_date" id="id_vested_pot_paid_date" class="form-input"></div>
+                        </div>
+                        <div style="background: white; padding: 10px; border: 1px solid #bbdefb;">
+                            <label style="font-weight: bold;"><input type="checkbox" name="savings_pot_available" id="id_savings_pot_available" onchange="togglePotVisibility()"> Savings Pot Available</label>
+                            <div id="div_savings_paid" style="display: none; margin-top: 5px;"><input type="date" name="savings_pot_paid_date" id="id_savings_pot_paid_date" class="form-input"></div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <label style="font-weight:bold;">In-Fund Preservation Cert Date:</label>
+                        <input type="date" name="infund_cert_date" id="id_infund_cert_date" class="form-input" style="width: 200px;">
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin: 15px 0;">
+                    <div><label style="font-weight:bold;">Claim Created *</label><input type="date" name="claim_created_date" class="form-input" required value="{% now 'Y-m-d' %}"></div>
+                    <div><label style="font-weight:bold;">Last Contribution</label><input type="date" name="last_contribution_date" class="form-input"></div>
+                    <div><label style="font-weight:bold;">Date Submitted</label><input type="date" name="date_submitted" class="form-input"></div>
+                    <div><label style="font-weight:bold;">Date Paid</label><input type="date" name="date_paid" class="form-input"></div>
+                </div>
+
+                <div style="margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 15px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <label style="font-weight: bold; color: #1e88e5;">🔗 Linked Email (Optional)</label>
+                        <button type="button" onclick="toggleEmailForm()" style="background-color: #ff9800; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">✉️ Compose Email</button>
+                    </div>
+                    <select name="linked_email_id" class="form-select mb-2">
+                        <option value="">-- Select an email to link --</option>
+                        {% for email in my_delegated_emails %}
+                            <option value="{{ email.email_id }}">📅 {{ email.received_at|date:"Y-m-d" }} | {{ email.subject }}</option>
+                        {% empty %}
+                            <option disabled>No delegated emails found for you.</option>
+                        {% endfor %}
+                    </select>
+
+                    <div id="email-composition-container" style="display: none; margin-top: 10px; background: #fffaf5; border: 1px dashed #ff9800; padding: 15px; border-radius: 8px;">
+                        <input type="hidden" name="email_body_html_content" id="email_body_html_content">
+                        <label class="text-xs font-bold">To:</label><input type="text" name="member_recipient_email" class="form-input mb-2" placeholder="Recipient email...">
+                        <label class="text-xs font-bold">Subject:</label><input type="text" name="member_email_subject_reply" class="form-input mb-2">
+                        <label class="text-xs font-bold">Body:</label>
+                        <textarea id="member_email_body_editor" class="form-input" rows="5">Dear Sir/Madam,&#10;&#10;Kind regards,&#10;{{ request.user.username }}</textarea>
+                    </div>
+                </div>
+
+                <hr style="border: 1px solid #aed581; margin: 20px 0;">
+
+                <h3 style="color: #38761d; font-weight: bold;">Add Claim Note</h3>
+                <div style="background-color: #f9f9f9; padding: 15px; border: 1px solid #ccc; border-radius: 4px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;">
+                        <div>
+                            <label class="text-xs font-bold">Note Selection</label>
+                            <select name="note_selection" class="form-select">
+                                <option value="">-- Select Note Type (Optional) --</option>
+                                <option value="BANK DETAILS FOLLOW UP WITH MEMBER/EMPLOYER">BANK DETAILS FOLLOW UP WITH MEMBER/EMPLOYER</option>
+                                <option value="BANK VERIFICATION FAILED – SANLAM">BANK VERIFICATION FAILED – SANLAM</option>
+                                <option value="CLAIM DOCUMENTS REQUESTED">CLAIM DOCUMENTS REQUESTED</option>
+                                <option value="SUBMITTED VIA E-MAIL">SUBMITTED VIA E-MAIL</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold">Attachment:</label>
+                            <input type="file" name="claim_attachment" class="form-input">
+                        </div>
+                    </div>
+                    <label class="text-xs font-bold">Note Description</label>
+                    <textarea name="note_description" id="note_description" rows="3" class="form-input mb-2" placeholder="Add specific details..."></textarea>
+                </div>
+
+                <h3 style="color: #38761d; margin-top: 20px; font-weight: bold;">Claim Notes History</h3>
+                <div style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; background: white; border-radius: 4px;">
+                    <table style="margin: 0; font-size: 11px; width: 100%;">
+                        <thead style="background: #eee; position: sticky; top: 0; z-index: 5;">
+                            <tr><th>Note Description</th><th>Note Selection</th><th>Created On</th><th>User</th></tr>
+                        </thead>
+                        <tbody id="claim_notes_tbody">
+                            <tr><td colspan="4" class="text-center py-4 text-gray-400">Save claim to add new notes.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div style="text-align: right; margin-top: 25px; border-top: 1px solid #eee; padding-top: 15px;">
+                    <button type="button" class="cancel-btn" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="save-info-btn">Save Claim Record</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const tabs = document.querySelectorAll('.tab-nav li');
-            const panes = document.querySelectorAll('.tab-pane');
-
-            function showTab(targetId) {
-                tabs.forEach(t => t.classList.remove('active'));
-                panes.forEach(p => p.classList.remove('active'));
-
-                const targetTab = document.querySelector(`.tab-nav li[data-tab-target="${targetId}"]`);
-                const targetPane = document.querySelector(targetId);
-
-                if (targetTab) targetTab.classList.add('active');
-                if (targetPane) targetPane.classList.add('active');
-            }
-
-            tabs.forEach(tab => {
-                tab.addEventListener('click', () => {
-                    showTab(tab.dataset.tabTarget);
-                });
+        // Tab Management
+        document.querySelectorAll('.tab-nav li').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab-nav li').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+                tab.classList.add('active');
+                document.querySelector(tab.dataset.tabTarget).classList.add('active');
             });
-
-            // Check for URL fragment and show the corresponding tab
-            const fragment = window.location.hash;
-            if (fragment && fragment.startsWith('#')) {
-                showTab(fragment);
-            }
         });
+
+        function toggleStandaloneEmailForm() {
+            const container = document.getElementById('standalone-email-container');
+            container.style.display = (container.style.display === 'none') ? 'block' : 'none';
+        }
+
+        function syncStandaloneEditor() {
+            const editor = document.getElementById('standalone_email_body_editor');
+            document.getElementById('standalone_email_html_content').value = editor.innerHTML;
+        }
+
+        let originalStatuses = [];
+        let originalPayments = [];
+        const twoPotStatuses = ['2 pot forms submitted to ER', 'Incomplete', 'Submitted', 'Withdraw - Not Allowed'];
+        const twoPotPayments = ['Full Payment', 'Partially Taken'];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const statusSel = document.getElementById('claim_status_select');
+            const paymentSel = document.getElementById('payment_option_select');
+            if(statusSel) originalStatuses = Array.from(statusSel.options).map(opt => opt.cloneNode(true));
+            if(paymentSel) originalPayments = Array.from(paymentSel.options).map(opt => opt.cloneNode(true));
+        });
+
+        function toggleEmailForm() {
+            const container = document.getElementById('email-composition-container');
+            container.style.display = (container.style.display === 'none') ? 'block' : 'none';
+        }
+
+        function openClaimModal() {
+            document.getElementById('main_claim_form').reset();
+            document.getElementById('modal_claim_id').value = '';
+            document.getElementById('claim_notes_tbody').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-400">Save claim to add new notes.</td></tr>';
+            toggleTwoPotLogic();
+            document.getElementById('claimModal').style.display = 'block';
+        }
+
+        function closeModal() { document.getElementById('claimModal').style.display = 'none'; }
+
+        function toggleTwoPotLogic() {
+            const type = document.getElementById('claim_type_select').value;
+            const statusSelect = document.getElementById('claim_status_select');
+            const paymentSelect = document.getElementById('payment_option_select');
+            
+            const isTwoPot = (type === 'Two Pot');
+            document.getElementById('div_mip_number').style.display = isTwoPot ? 'block' : 'none';
+            document.getElementById('div_claim_amount').style.display = isTwoPot ? 'block' : 'none';
+            document.getElementById('div_exit_reason').style.display = isTwoPot ? 'none' : 'block';
+            document.getElementById('pot_availability_section').style.display = isTwoPot ? 'none' : 'block';
+
+            if (isTwoPot) {
+                updateOptions(statusSelect, twoPotStatuses);
+                updateOptions(paymentSelect, twoPotPayments);
+            } else {
+                restoreOptions(statusSelect, originalStatuses);
+                restoreOptions(paymentSelect, originalPayments);
+            }
+        }
+
+        function updateOptions(select, values) {
+            select.innerHTML = '';
+            values.forEach(v => {
+                let opt = new Option(v, v);
+                select.add(opt);
+            });
+        }
+
+        function restoreOptions(select, originals) {
+            select.innerHTML = '';
+            originals.forEach(opt => select.add(opt.cloneNode(true)));
+        }
+
+        function togglePotVisibility() {
+            document.getElementById('div_vested_paid').style.display = document.getElementById('id_vested_pot_available').checked ? 'block' : 'none';
+            document.getElementById('div_savings_paid').style.display = document.getElementById('id_savings_pot_available').checked ? 'block' : 'none';
+        }
+
+        function toggleWithdrawalSubFields() {
+            const status = document.getElementById('claim_status_select').value;
+            document.getElementById('div_two_pot_withdrawal_details').style.display = (status === "Withdraw - Not Allowed") ? 'block' : 'none';
+        }
+
+        function handleWithdrawalStatusChange() {
+            const reason = document.getElementById('two_pot_withdrawal_status').value;
+            const dateDiv = document.getElementById('div_prev_claim_date');
+            dateDiv.style.display = (reason.includes('Already claim')) ? 'block' : 'none';
+        }
+
+        function editClaim(btn) {
+            const form = document.getElementById('main_claim_form');
+            document.getElementById('modal_claim_id').value = btn.dataset.id;
+            
+            form.elements['id_number'].value = btn.dataset.id_number;
+            form.elements['member_name'].value = btn.dataset.member_name;
+            form.elements['member_surname'].value = btn.dataset.member_surname;
+            form.elements['mip_number'].value = btn.dataset.mip_number;
+            form.elements['claim_type'].value = btn.dataset.claim_type;
+            
+            toggleTwoPotLogic();
+
+            form.elements['claim_status'].value = btn.dataset.claim_status;
+            form.elements['payment_option'].value = btn.dataset.payment_option;
+            form.elements['claim_amount'].value = btn.dataset.claim_amount;
+            form.elements['claim_created_date'].value = btn.dataset.claim_created_date;
+            form.elements['last_contribution_date'].value = btn.dataset.last_contribution_date;
+            form.elements['date_submitted'].value = btn.dataset.date_submitted;
+            form.elements['date_paid'].value = btn.dataset.date_paid;
+            
+            document.getElementById('id_vested_pot_available').checked = (btn.dataset.vested_pot_available === 'True');
+            document.getElementById('id_savings_pot_available').checked = (btn.dataset.savings_pot_available === 'True');
+
+            if (btn.dataset.linked_email_id) {
+                form.elements['linked_email_id'].value = btn.dataset.linked_email_id;
+            }
+
+            const notesSource = document.getElementById('notes-data-' + btn.dataset.id);
+            if (notesSource) {
+                document.getElementById('claim_notes_tbody').innerHTML = notesSource.innerHTML;
+            }
+
+            togglePotVisibility();
+            toggleWithdrawalSubFields();
+            document.getElementById('claimModal').style.display = 'block';
+        }
+
+        window.onclick = (e) => { if (e.target == document.getElementById('claimModal')) closeModal(); }
     </script>
 </body>
 </html>

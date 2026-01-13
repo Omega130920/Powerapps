@@ -1,6 +1,6 @@
 {% load static %}
 
-{% block title %}Managed Outlook Inbox{% endblock %}
+{% block title %}UNITY INTERNAL{% endblock %}
 
 {% block content %}
 <style>
@@ -136,18 +136,16 @@
 
 <div class="Dashboard" style="margin-top: 25px;">
     <a href="{% url 'dashboard' %}" class="return-button">Back to Dashboard</a>
-    <a href="{% url 'outlook_delegated_box' %}" class="return-button">My Delegated Tasks</a>
-    <a href="{% url 'email_list' %}" class="archive-link"><i class="fas fa-archive"></i> Master Email Archive</a>
 </div>
 
 <div class="log-container">
     <div class="log-header">
         <h1><i class="fas fa-envelope"></i> New Incoming Tasks</h1>
-        <div class="log-controls">
+        <!--<div class="log-controls">
             <a href="{% url 'send_email' %}?email={{ target_email }}" class="delegate-btn">
                 <i class="fas fa-paper-plane"></i> Send New Email
             </a>
-        </div>
+        </div>-->
     </div>
     
     <p class="text-muted">Currently showing undelegated items for: <strong>{{ target_email }}</strong></p>

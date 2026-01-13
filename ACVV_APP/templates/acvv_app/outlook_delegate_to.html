@@ -63,6 +63,9 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
 .attachment-list { margin-top: 10px; padding: 10px; background-color: #f0fff0; border-top: 1px solid #eee; }
 .attachment-link { display: inline-block; margin-right: 15px; color: #1e88e5; text-decoration: underline; font-size: 13px; }
 .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+
+/* Help text style */
+.help-text { font-size: 11px; color: #666; font-weight: normal; margin-top: 2px; display: block; }
 </style>
 
 <div class="delegate-container">
@@ -92,7 +95,6 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
                 </div>
             </div>
             <div class="card-body-content">
-                {# Render content safely; use safe for HTML, or a styled textarea if it's plain text #}
                 <div style="white-space: pre-wrap;">{{ email_content|safe }}</div>
             </div>
             
@@ -119,20 +121,29 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
         <div id="classification_fields_wrapper">
             <div class="form-grid">
                 <div class="form-group">
-                    <label for="mip_names">MIP Names (Group Code):</label>
-                    <input type="text" id="mip_names" name="mip_names" placeholder="Enter MIP or Group Code">
+                    <label for="mip_names">Member Group / Branch:*</label>
+                    <input type="text" id="mip_names" name="mip_names" list="acvv_list" placeholder="Type Branch Name or Code (e.g. PF001)" required>
+                    <datalist id="acvv_list">
+                        {% for record in acvv_records %}
+                            <option value="{{ record.mip_names }}">Code: {{ record.branch_code }}</option>
+                        {% endfor %}
+                    </datalist>
+                    <span class="help-text">Select full name from the list to link to branch log.</span>
                 </div>
                 
                 <div class="form-group">
                     <label for="email_category">Classification:</label>
                     <select id="email_category" name="email_category">
                         <option value="">-- Select --</option>
-                        <option value="Schedule">Schedule</option>
-                        <option value="Claim">Claim</option>
-                        <option value="Query">Query</option>
-                        <option value="Bank">Bank</option>
-                        <option value="Info Only">Info Only</option>
-                        <option value="LPI">LPI</option>
+                        <option value="Normal Withdrawal Claim">Normal Withdrawal Claim</option>
+                        <option value="Two-Pot withdrawal Request">Two-Pot withdrawal Request</option>
+                        <option value="Schedule - Current Month">Schedule - Current Month</option>
+                        <option value="Schedule - Following Month">Schedule - Following Month</option>
+                        <option value="New Member Doc.">New Member Doc.</option>
+                        <option value="Enquiry from Sanlam">Enquiry from Sanlam</option>
+                        <option value="Enquiry from Broker">Enquiry from Broker</option>
+                        <option value="Enquiry from MG">Enquiry from MG</option>
+                        <option value="Succesfull submission">Succesfull submission</option>
                     </select>
                 </div>
                 
@@ -156,7 +167,6 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
         </div>
 
         <input type="hidden" name="email_id" value="{{ email_id }}">
-        {# Keep the Email Status as a hidden default if required by your backend #}
         <input type="hidden" name="New" value="New">
 
         <div class="button-container">
@@ -177,27 +187,27 @@ document.addEventListener('DOMContentLoaded', function(){
     const btnIcon = document.getElementById('btn-icon');
     const btnText = document.getElementById('btn-text');
     const agentSelect = document.getElementById('agent_name');
+    const mipInput = document.getElementById('mip_names');
 
     function toggleFormSections(){
         if(workRelatedSelect.value === 'No'){
-            // Archive State (Recycle Bin)
             classificationWrapper.style.display = 'none';
-            submitButton.style.backgroundColor = '#d32f2f'; // Red
+            submitButton.style.backgroundColor = '#d32f2f'; 
             btnIcon.textContent = '🗑️'; 
             btnText.textContent = 'Archive to Recycle Bin';
             agentSelect.removeAttribute('required');
+            mipInput.removeAttribute('required');
         } else {
-            // Assign State (Delegate)
             classificationWrapper.style.display = 'block';
-            submitButton.style.backgroundColor = '#81c784'; // Green
+            submitButton.style.backgroundColor = '#81c784'; 
             btnIcon.textContent = '👤'; 
             btnText.textContent = 'Assign Task';
             agentSelect.setAttribute('required', 'required');
+            mipInput.setAttribute('required', 'required');
         }
     }
 
     workRelatedSelect.addEventListener('change', toggleFormSections);
-    // Initialize correct state on load
     toggleFormSections();
 });
 </script>

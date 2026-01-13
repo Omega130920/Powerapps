@@ -102,4 +102,7 @@ urlpatterns = [
     path('bank/global/', views.global_bank_view, name='global_bank'),
     path('bank/global/export/', views.export_global_bank_excel, name='export_global_bank_excel'),
     path('outlook/download/<str:message_id>/<str:attachment_id>/', views.download_attachment_view, name='download_attachment'),
+    
+    path('emails/archive/', views.email_list_view, name='email_list'), # The HTML view
+    path('emails/export/', views.export_email_list, name='export_email_list'),
 ]

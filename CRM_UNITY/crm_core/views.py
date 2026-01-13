@@ -17,7 +17,7 @@ from django.contrib.auth import authenticate, login, logout, get_user_model
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.db.models import Q, Count, Sum
+from django.db.models import Q, Count, Sum, Max
 from django.http import FileResponse, Http404, HttpResponse, HttpRequest, JsonResponse
 from django.utils import timezone
 from django.utils.html import strip_tags
@@ -213,7 +213,36 @@ def login_view(request):
 
 @login_required
 def dashboard(request):
-    return render(request, 'dashboard.html', {'username': request.user.username})
+    """Displays the CRM dashboard with specific notification badges."""
+    username = request.user.username
+    
+    # Initialize counts
+    new_emails_count = 0
+    recycled_count = 0
+    my_pending_tasks_count = 0
+
+    # 1. Manager Logic (Only for omega)
+    if username.lower() == 'omega' or request.user.is_superuser:
+        # New emails in CrmInbox that haven't been processed yet
+        new_emails_count = CrmInbox.objects.filter(status='Pending').count()
+        
+        # Recycle Bin: Based on your recycle_bin_view logic (status='Recycled')
+        recycled_count = CrmDelegateTo.objects.filter(status='Recycled').count()
+
+    # 2. Agent Logic: My Assigned Tasks
+    # Based on your tasks_view logic (delegated_to = username)
+    my_pending_tasks_count = CrmDelegateTo.objects.filter(
+        delegated_to=request.user.username, 
+        status='Delegated'
+    ).count()
+
+    context = {
+        'username': username,
+        'new_emails_count': new_emails_count,           # For 'Delegations' button
+        'my_pending_delegations_count': my_pending_tasks_count, # For 'Dashboard' button
+        'recycled_count': recycled_count,               # For 'Recycle Bin' button
+    }
+    return render(request, 'dashboard.html', context)
 
 def logout_view(request):
     logout(request)
@@ -233,7 +262,7 @@ def fetch_emails_view(request):
         messages.error(request, "Access restricted.")
         return redirect('tasks')
 
-    inbox_data = OutlookGraphService.fetch_inbox_messages(top_count=15)
+    inbox_data = OutlookGraphService.fetch_inbox_messages(top_count=100)
     
     if 'error' in inbox_data:
         messages.error(request, f"Outlook Error: {inbox_data['error']}")
@@ -408,6 +437,9 @@ def delegate_email_view(request, email_id):
 @login_required
 def send_task_email_view(request, email_id):
     if request.method == 'POST':
+        # Get the task record
+        task = get_object_or_404(CrmDelegateTo, email_id=email_id)
+        
         recipient = request.POST.get('recipient_email')
         subject = request.POST.get('email_subject_reply') 
         message_body = request.POST.get('email_body_reply')
@@ -416,6 +448,7 @@ def send_task_email_view(request, email_id):
              messages.error(request, "Email body cannot be empty.")
              return redirect('delegate_action', email_id=email_id)
 
+        # 1. Send the actual email via Outlook
         response = OutlookGraphService.send_outlook_email(
             recipient=recipient, 
             subject=subject, 
@@ -423,10 +456,19 @@ def send_task_email_view(request, email_id):
         )
         
         if response.get('success'):
-            messages.success(request, f"Email sent successfully to {recipient}!")
+            # 2. LOG TO DELEGATE ACTIONS (The Thread Table)
+            # This makes it show up in the "View Thread" timeline
+            CrmDelegateAction.objects.create(
+                task_email_id=email_id,
+                action_type='REPLY_SENT', # Specific type to distinguish from notes
+                action_user=request.user.username,
+                note_content=message_body, # Stores the actual email content
+                related_subject=subject     # Stores the reply subject
+            )
+            
+            messages.success(request, f"Reply sent and logged in thread.")
         else:
-            error_msg = response.get('error', 'Unknown Outlook Error')
-            messages.error(request, f"Failed to send email: {error_msg}")
+            messages.error(request, f"Failed: {response.get('error')}")
             
         return redirect('delegate_action', email_id=email_id)
     
@@ -438,14 +480,37 @@ def send_task_email_view(request, email_id):
 
 @login_required
 def global_members_list(request):
+    # 1. Get all members initially
     members = GlobalFundContact.objects.all().order_by('member_group_code')
+    
+    # 2. Get the unique statuses for the dropdown menu
+    # This ensures your dropdown always matches what is actually in the database
+    fund_statuses = GlobalFundContact.objects.values_list('fund_status', flat=True).distinct().order_by('fund_status')
+
+    # 3. Get filter values from the URL
     search_query = request.GET.get('search_query')
+    status_filter = request.GET.get('fund_status_filter')
+
+    # 4. Apply Search Filter (Text box)
     if search_query:
         members = members.filter(
             Q(member_group_code__icontains=search_query) |
             Q(member_group_name__icontains=search_query)
         )
-    return render(request, 'global_members_list.html', {'members': members})
+
+    # 5. Apply Fund Status Filter (Dropdown)
+    # We only filter if a status is selected and it's not "all"
+    if status_filter and status_filter != 'all':
+        members = members.filter(fund_status=status_filter)
+
+    context = {
+        'members': members,
+        'fund_statuses': fund_statuses,
+        'search_query': search_query,
+        'fund_status_filter': status_filter,
+    }
+
+    return render(request, 'global_members_list.html', context)
 
 RELATED_FORMS = [
     ('cbc_form', CbcForm, Cbc), 
@@ -466,52 +531,29 @@ from django.core.mail import EmailMessage
 def member_information(request, member_group_code):
     contact_info = get_object_or_404(GlobalFundContact, member_group_code=member_group_code)
     
-    # --- 0. HANDLE FILE DOWNLOAD (NEW LOGIC) ---
+    # --- 0. HANDLE FILE DOWNLOAD ---
     if request.method == 'GET' and 'download_id' in request.GET:
         doc_id = request.GET.get('download_id')
-        # Securely fetch the document ensuring it belongs to this member group
         document = get_object_or_404(MemberDocument, id=doc_id, related_member_group_code=member_group_code)
-        
         if document.document_file:
             try:
-                # Serve the file as an attachment (triggers browser download)
                 return FileResponse(document.document_file.open('rb'), as_attachment=True, filename=document.document_file.name)
             except FileNotFoundError:
                 messages.error(request, "File not found on server storage.")
         else:
             messages.error(request, "Database record exists, but no file is attached.")
 
-    # --- START OF EXISTING POST LOGIC ---
+    # --- START OF POST LOGIC ---
     if request.method == 'POST':
         action = request.POST.get('action')
         user_display = request.user.username 
         
-        # --- 1. HANDLE PERSONNEL UPDATES ---
-        PERSONNEL_MAP = {
-            'update_cbc': Cbc, 'update_cbc_admin': CbcAdminPerson,
-            'update_cbc_consultancy': CbcConsultancyPerson,
-            'update_cfa': Cfa, 'update_cfa_admin': CfaAdminPerson,
-            'update_cfa2': Cfa2, 'update_cfa3': Cfa3,
-            'update_communications': CommunicationsPerson,
-            'update_hr': HumanResources, 'update_section13a': Section13a
-        }
-        
-        if action in PERSONNEL_MAP:
-            obj, _ = PERSONNEL_MAP[action].objects.get_or_create(member_group_code=member_group_code)
-            for f in request.POST:
-                if hasattr(obj, f) and f not in ['csrfmiddlewaretoken', 'action']:
-                    setattr(obj, f, request.POST.get(f) or None)
-            obj.save()
-            messages.success(request, 'Profile updated successfully.')
-
-        # --- 2. HANDLE DIRECT EMAIL SENDING (VIA SERVICE) ---
-        elif action == 'send_direct_email':
+        if action == 'send_direct_email':
             recipient = request.POST.get('recipient_email')
             subject = request.POST.get('subject')
             body_content = request.POST.get('email_body_html_content')
             attachments = request.FILES.getlist('attachments')
 
-            # Use the Service to send (Handles Auth & Attachments automatically)
             response = OutlookGraphService.send_outlook_email(
                 recipient=recipient,
                 subject=subject,
@@ -520,7 +562,6 @@ def member_information(request, member_group_code):
             )
 
             if response.get('success'):
-                # Log success in DB
                 DirectEmailLog.objects.create(
                     member_group_code=member_group_code,
                     subject=subject,
@@ -531,22 +572,23 @@ def member_information(request, member_group_code):
                 )
                 messages.success(request, f"Email sent successfully to {recipient}")
             else:
-                # Log error from Service
                 messages.error(request, f"Microsoft Error: {response.get('error')}")
 
-        # --- 3. HANDLE NOTES & PDF ATTACHMENT ---
-        elif request.POST.get('note_submission_action') == 'save_member_note' or action == 'save_member_note':
-            # Create the text note
+        elif action == 'save_member_note':
+            # CAPTURE THE LINKED EMAIL ID
+            attached_email_id = request.POST.get('attached_email_id')
+            
+            # If your ClientNotes model has an 'attached_email_id' field, include it here
             ClientNotes.objects.create(
                 related_member_group_code=member_group_code,
                 notes=request.POST.get('note_content'),
                 communication_type=request.POST.get('communication_type'),
                 action_notes=request.POST.get('action_notes'),
+                attached_email_id=attached_email_id, # Added mapping
                 user=user_display, 
                 date=timezone.now()
             )
-
-            # Check for file upload within the note form
+            
             if 'note_file' in request.FILES:
                 uploaded_file = request.FILES['note_file']
                 MemberDocument.objects.create(
@@ -556,26 +598,7 @@ def member_information(request, member_group_code):
                     uploaded_by=user_display,
                     uploaded_at=timezone.now()
                 )
-                messages.success(request, f'Note saved and file "{uploaded_file.name}" uploaded.')
-            else:
-                messages.success(request, 'Note saved successfully.')
-
-        # --- 4. HANDLE STANDALONE DOCUMENT UPLOAD ---
-        elif request.POST.get('upload_document') == '1':
-            if 'document_file' in request.FILES:
-                uploaded_file = request.FILES['document_file']
-                doc_title = request.POST.get('title', 'Untitled Document')
-                
-                MemberDocument.objects.create(
-                    related_member_group_code=member_group_code,
-                    document_file=uploaded_file,
-                    title=doc_title,
-                    uploaded_by=user_display,
-                    uploaded_at=timezone.now()
-                )
-                messages.success(request, f'Document "{uploaded_file.name}" uploaded successfully.')
-            else:
-                messages.error(request, 'No file was selected for upload.')
+            messages.success(request, 'Note saved.')
 
         return redirect('member_information', member_group_code=member_group_code)
 
@@ -593,33 +616,20 @@ def member_information(request, member_group_code):
         'section13a_info': Section13a.objects.filter(member_group_code=member_group_code).first(),
     }
 
-    # --- UPDATED EMAIL LOG LOGIC (Separating Arrival vs Delegation Time) ---
-    
-    # 1. Get the items delegated to this user/group
+    # --- MERGED COMMUNICATION HISTORY ---
+    combined_email_log = []
     delegated_items = CrmDelegateTo.objects.filter(member_group_code=member_group_code)
-    
-    # 2. Get list of related Email IDs (These are the long Outlook strings)
     related_email_ids = [item.email_id for item in delegated_items]
+    thread_status_map = {item.email_id: item.status for item in delegated_items}
     
-    # 3. Fetch the original Inbox records
-    #    FIX: Changed 'id__in' to 'email_id__in' to match the Outlook ID string
     inbox_records = CrmInbox.objects.filter(email_id__in=related_email_ids)
-    
-    #    FIX: Mapped using 'email.email_id' instead of 'email.id'
     inbox_map = {email.email_id: email.received_timestamp for email in inbox_records}
 
-    combined_email_log = []
     for item in delegated_items:
-        # Retrieve the Original Time from our map
-        original_arrival = inbox_map.get(item.email_id)
-        
         combined_email_log.append({
-            # A. Date/Time Received (From CrmInbox map)
-            'arrival_timestamp': original_arrival, 
-            
-            # B. Delegated Date (From CrmDelegateTo model)
-            'delegation_timestamp': item.received_timestamp, 
-            
+            'timestamp': item.received_timestamp,
+            'arrival_timestamp': inbox_map.get(item.email_id), 
+            'delegation_timestamp': item.received_timestamp,
             'type': 'Original',
             'subject': item.subject,
             'assigned_to': item.delegated_to,
@@ -628,7 +638,28 @@ def member_information(request, member_group_code):
             'action_user': item.delegated_by
         })
 
-    # Retrieval for Notes, Emails, and Documents
+    threaded_replies = CrmDelegateAction.objects.filter(
+        task_email_id__in=related_email_ids, 
+        action_type='REPLY_SENT'
+    )
+
+    for reply in threaded_replies:
+        parent_status = thread_status_map.get(reply.task_email_id, 'Replied')
+        combined_email_log.append({
+            'timestamp': reply.action_timestamp,
+            'arrival_timestamp': None,
+            'delegation_timestamp': None,
+            'type': 'Reply',
+            'subject': reply.related_subject or "Reply to Task",
+            'assigned_to': reply.action_user,
+            'status': parent_status, 
+            'email_id': reply.task_email_id,
+            'action_user': reply.action_user
+        })
+
+    combined_email_log.sort(key=lambda x: x['timestamp'], reverse=True)
+
+    # Retrieval for other tabs
     notes = ClientNotes.objects.filter(related_member_group_code=member_group_code).order_by('-date')
     direct_emails = DirectEmailLog.objects.filter(member_group_code=member_group_code).order_by('-sent_at')
     documents = MemberDocument.objects.filter(related_member_group_code=member_group_code).order_by('-uploaded_at')
@@ -638,7 +669,7 @@ def member_information(request, member_group_code):
         **personnel_data,
         'notes': notes,
         'documents': documents,
-        'combined_email_log': combined_email_log,
+        'combined_email_log': combined_email_log, # This drives the dropdown selection
         'direct_emails': direct_emails,
     }
 
@@ -696,7 +727,7 @@ def tasks_view(request):
     Manager (omega) sees ALL delegated tasks (Delegated AND Completed).
     Agents see ONLY tasks assigned to them.
     """
-    # 1. Define the statuses we want to see (Include 'Completed' to fix the missing email issue)
+    # 1. Define the statuses we want to see
     VISIBLE_STATUSES = ['Delegated', 'Completed']
 
     # 2. Fetch the tasks based on user role
@@ -711,21 +742,28 @@ def tasks_view(request):
     # 3. Get list of related Email IDs for the Lookup Map
     related_email_ids = [t.email_id for t in tasks_qs]
     
-    # 4. Fetch the original Inbox records using 'email_id'
-    #    (This allows us to show the Original Arrival Time vs Delegation Time)
+    # 4. Fetch the original Inbox records (Map both Timestamp AND Sender)
     inbox_records = CrmInbox.objects.filter(email_id__in=related_email_ids)
-    inbox_map = {email.email_id: email.received_timestamp for email in inbox_records}
+    
+    # We create a dictionary where the key is the email_id and the value is the whole record
+    inbox_map = {email.email_id: email for email in inbox_records}
 
-    # 5. Build the display list with distinct timestamps
+    # 5. Build the display list
     display_tasks = []
     for t in tasks_qs:
+        # Get the corresponding inbox record if it exists
+        inbox_item = inbox_map.get(t.email_id)
+        
         display_tasks.append({
             'subject': t.subject,
             'email_id': t.email_id,
             'member_group_code': t.member_group_code,
             
             # Timestamp A: When it originally arrived (from Inbox)
-            'arrival_timestamp': inbox_map.get(t.email_id),
+            'arrival_timestamp': inbox_item.received_timestamp if inbox_item else None,
+            
+            # NEW: Sender Email Address (from Inbox)
+            'sender': inbox_item.sender if inbox_item else "Unknown Sender",
             
             # Timestamp B: When it was delegated (from DelegateTo table)
             'delegation_timestamp': t.received_timestamp,
@@ -744,20 +782,15 @@ def delegate_action_view(request, email_id):
     Detailed view for a specific task in CRM_UNITY.
     Matches UNITY_INTERNAL style: Fetches attachment metadata and raw bytes for image previews.
     """
-    # Use the correct model
     task = get_object_or_404(CrmDelegateTo, email_id=email_id)
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     
-    # Matches your model column 'task_email_id'
     action_history = CrmDelegateAction.objects.filter(task_email_id=email_id).order_by('-action_timestamp')
 
     # --- 🚀 FETCH ATTACHMENT METADATA & IMAGE BYTES ---
     attachments_list = []
     try:
-        # 1. Fetch metadata (names, IDs, sizes)
         attachments_list = OutlookGraphService.fetch_attachments(target_email, email_id)
-        
-        # 2. Fetch raw bytes ONLY for images to power thumbnails/previews
         if attachments_list and isinstance(attachments_list, list):
             for att in attachments_list:
                 content_type = att.get('contentType', '').lower()
@@ -765,7 +798,6 @@ def delegate_action_view(request, email_id):
                     raw_att = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
                     if raw_att and isinstance(raw_att, dict) and 'contentBytes' in raw_att:
                         att['contentBytes'] = raw_att['contentBytes']
-                    
     except Exception as e:
         print(f"Error fetching CRM attachment data in delegate_action: {e}")
 
@@ -777,6 +809,10 @@ def delegate_action_view(request, email_id):
             # --- 1. RESTORE TO MAIN INBOX LOGIC ---
             if action_type == 'restore_to_inbox':
                 restore_note = request.POST.get('restore_note', 'Restored from Recycle Bin to Main Inbox.')
+                
+                # Check status before processing to determine where to redirect
+                is_from_recycle_bin = (task.status == 'Recycled')
+
                 try:
                     inbox_item = CrmInbox.objects.get(email_id=email_id)
                     inbox_item.status = 'Pending'    
@@ -792,8 +828,13 @@ def delegate_action_view(request, email_id):
                     action_user=user_display,
                     note_content=restore_note
                 )
+                
                 task.delete()
                 messages.success(request, "Task successfully moved back to the original Inbox queue.")
+                
+                # --- REDIRECTION LOGIC CHANGE ---
+                if is_from_recycle_bin:
+                    return redirect('recycle_bin')  # Redirect back to Recycle Bin
                 return redirect('fetch_emails') 
 
             # --- 2. UPDATE METADATA ---
@@ -820,17 +861,14 @@ def delegate_action_view(request, email_id):
                 comm_type = request.POST.get('communication_type_note')
                 action_note_val = request.POST.get('action_notes_note')
                 
-                # FIXED: Changed task.notes to task.internal_notes to match models.py
                 current_notes_raw = task.internal_notes
                 
-                # Safely handle the JSON list inside the text field
                 if not current_notes_raw or current_notes_raw == "":
                     current_notes = []
                 else:
                     try:
                         current_notes = json.loads(current_notes_raw)
                     except json.JSONDecodeError:
-                        # Fallback if it's currently plain text instead of JSON
                         current_notes = [{"user": "System", "note": current_notes_raw, "timestamp": ""}]
 
                 new_note_entry = {
@@ -840,7 +878,6 @@ def delegate_action_view(request, email_id):
                 }
                 current_notes.append(new_note_entry)
                 
-                # Save back as JSON string
                 task.internal_notes = json.dumps(current_notes)
                 task.save()
                 
@@ -883,33 +920,39 @@ def delegation_report_view(request):
     if request.user.username.lower() != 'omega':
         return redirect('dashboard')
 
+    # Get Date Filters
+    date_query, start_date, end_date = get_date_filters(request)
+    valid_entries_filter = Q(category__isnull=False) & ~Q(category='') & \
+                           Q(type__isnull=False) & ~Q(type='') & ~Q(type='None')
+    
+    # Combined Filter
+    final_filter = date_query & valid_entries_filter
+
     # --- SECTION 1: OVERALL TOTALS ---
-    all_emails_total = CrmDelegateTo.objects.count()
-    work_stats = CrmDelegateTo.objects.values('work_related').annotate(count=Count('email_id'))
+    # Apply date filter to totals too
+    all_emails_total = CrmDelegateTo.objects.filter(date_query).count()
+    work_stats = CrmDelegateTo.objects.filter(date_query).values('work_related').annotate(count=Count('email_id'))
+    
     work_related_data = {'Yes': 0, 'No': 0}
     for item in work_stats:
         status = item['work_related']
         if status in work_related_data:
             work_related_data[status] = item['count']
 
-    # --- SHARED FILTER ---
-    valid_entries_filter = Q(category__isnull=False) & ~Q(category='') & \
-                           Q(type__isnull=False) & ~Q(type='') & ~Q(type='None')
-
-    # --- SECTION 2: ENQUIRY TYPE & SELECTION (With Grouping) ---
-    raw_breakdown = CrmDelegateTo.objects.filter(valid_entries_filter).values('category', 'type').annotate(count=Count('email_id')).order_by('category', 'type')
+    # --- SECTION 2: BREAKDOWN ---
+    raw_breakdown = CrmDelegateTo.objects.filter(final_filter).values('category', 'type').annotate(count=Count('email_id')).order_by('category', 'type')
     
     type_selection_breakdown = []
     for item in raw_breakdown:
         type_selection_breakdown.append({
             'category': CATEGORY_NAMES.get(str(item['category']), item['category']),
             'type': item['type'],
-            'grouping': ENQUIRY_GROUPING_MAP.get(item['type'], "Unmapped Grouping"),
+            'grouping': ENQUIRY_GROUPING_MAP.get(item['type'], "Unmapped"),
             'count': item['count']
         })
 
-    # --- SECTION 3: CATEGORY SUMMARY ---
-    raw_summary = CrmDelegateTo.objects.filter(valid_entries_filter).values('category').annotate(subtotal=Count('email_id')).order_by('-subtotal')
+    # --- SECTION 3: SUMMARY ---
+    raw_summary = CrmDelegateTo.objects.filter(final_filter).values('category').annotate(subtotal=Count('email_id')).order_by('-subtotal')
     
     category_summary = []
     for item in raw_summary:
@@ -923,9 +966,9 @@ def delegation_report_view(request):
         'work_related_data': work_related_data,
         'type_selection_breakdown': type_selection_breakdown,
         'category_summary': category_summary,
-        'report_url_name': 'delegation_report',
+        'start_date': start_date,
+        'end_date': end_date,
     }
-    
     return render(request, 'delegation_summary_report.html', context)
 
 @login_required
@@ -1131,30 +1174,28 @@ def download_attachment_view(request, message_id, attachment_id):
 def export_delegation_report_excel(request):
     import openpyxl
     from django.http import HttpResponse
-    from django.db.models import Count, Q
 
-    wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Delegation Report"
-
-    # Define headers
-    headers = ['Category', 'Selection', 'Grouping', 'Count']
-    ws.append(headers)
-
+    # Apply same date filters
+    date_query, _, _ = get_date_filters(request)
     valid_entries_filter = Q(category__isnull=False) & ~Q(category='') & \
                            Q(type__isnull=False) & ~Q(type='') & ~Q(type='None')
 
-    # Query the same data as the dashboard
-    raw_data = CrmDelegateTo.objects.filter(valid_entries_filter).values('category', 'type').annotate(count=Count('email_id'))
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.append(['Category', 'Selection', 'Grouping', 'Count'])
+
+    raw_data = CrmDelegateTo.objects.filter(date_query & valid_entries_filter).values('category', 'type').annotate(count=Count('email_id'))
 
     for item in raw_data:
-        cat_name = CATEGORY_NAMES.get(str(item['category']), str(item['category']))
-        group_name = ENQUIRY_GROUPING_MAP.get(item['type'], "Unmapped")
-        
-        ws.append([cat_name, item['type'], group_name, item['count']])
+        ws.append([
+            CATEGORY_NAMES.get(str(item['category']), str(item['category'])),
+            item['type'],
+            ENQUIRY_GROUPING_MAP.get(item['type'], "Unmapped"),
+            item['count']
+        ])
 
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = 'attachment; filename="Delegation_Report.xlsx"'
+    response['Content-Disposition'] = f'attachment; filename="Delegation_Report_{timezone.now().date()}.xlsx"'
     wb.save(response)
     return response
 
@@ -1163,70 +1204,50 @@ def final_sla_report_view(request):
     if request.user.username.lower() != 'omega':
         return redirect('dashboard')
 
-    # 1. INBOX EMAILS + QUERIES = crm_delegate_to table
-    # We fetch the total count of all records in CrmDelegateTo
-    delegate_total = CrmDelegateTo.objects.count()
-
-    # 2. CALLS + TEAMS = client_notes (ComplaintLog)
-    # Filter ComplaintLog by nature of complaint or other identifiers if needed
-    # For this logic, we assume all entries in ComplaintLog represent these interactions
-    client_notes_total = ComplaintLog.objects.count()
-
-    # 3. SENT EMAILS = crm_direct_email_log + client_notes
-    direct_email_sent = DirectEmailLog.objects.count()
-    sent_emails_total = direct_email_sent + client_notes_total
-
-    # Mapping to your specific report categories
-    # Note: If you have specific flags for 'CALLS' vs 'TEAMS' within ComplaintLog, 
-    # you can filter them specifically.
-    report_data = {
-        'CALLS': client_notes_total // 2,  # Placeholder split if specific flags aren't used
-        'INBOX_EMAILS': delegate_total // 2, # Placeholder split for Queries
-        'QUERIES': delegate_total - (delegate_total // 2),
-        'SENT_EMAILS': sent_emails_total,
-        'TEAMS': client_notes_total - (client_notes_total // 2),
-    }
-
-    grand_total = (
-        report_data['CALLS'] + 
-        report_data['INBOX_EMAILS'] + 
-        report_data['QUERIES'] + 
-        report_data['SENT_EMAILS'] + 
-        report_data['TEAMS']
-    )
-
-    context = {
-        'report': report_data,
-        'grand_total': grand_total,
-    }
-
-    return render(request, 'final_sla_report.html', context)
-
-@login_required
-def final_sla_report_view(request):
-    if request.user.username.lower() != 'omega':
-        return redirect('dashboard')
-
-    # INBOX EMAILS + QUERIES = total records in crm_delegate_to
-    # To match your screenshot, we divide the total to separate the categories
-    delegate_total = CrmDelegateTo.objects.count()
-    inbox_emails_count = CrmDelegateTo.objects.filter(method='Email').count()
-    queries_count = delegate_total - inbox_emails_count
-
-    # CALLS + TEAMS = total records in crm_complaint_log
-    # You can filter by 'nature_of_complaint' if you have specific keywords for Calls/Teams
-    client_notes_total = ComplaintLog.objects.count()
+    # --- 1. CAPTURE DATE PARAMETERS ---
+    start_str = request.GET.get('start_date')
+    end_str = request.GET.get('end_date')
     
-    # SENT EMAILS = crm_direct_email_log + client_notes
-    direct_email_log_count = DirectEmailLog.objects.count()
+    # Initialize query filters
+    delegate_q = Q()
+    complaint_q = Q()
+    email_log_q = Q()
+
+    # Apply filters only if dates are provided
+    if start_str:
+        start_dt = parse_date(start_str)
+        delegate_q &= Q(received_timestamp__date__gte=start_dt)
+        complaint_q &= Q(created_at__date__gte=start_dt)
+        email_log_q &= Q(sent_at__date__gte=start_dt)
+
+    if end_str:
+        end_dt = parse_date(end_str)
+        delegate_q &= Q(received_timestamp__date__lte=end_dt)
+        complaint_q &= Q(created_at__date__lte=end_dt)
+        email_log_q &= Q(sent_at__date__lte=end_dt)
+
+    # --- 2. AGGREGATE DATA (Filtered by Date) ---
+
+    # INBOX EMAILS + QUERIES (crm_delegate_to)
+    inbox_emails_count = CrmDelegateTo.objects.filter(delegate_q, method='Email').count()
+    total_delegate = CrmDelegateTo.objects.filter(delegate_q).count()
+    queries_count = total_delegate - inbox_emails_count
+
+    # CALLS + TEAMS (crm_complaint_log / client_notes)
+    client_notes_total = ComplaintLog.objects.filter(complaint_q).count()
+    
+    # SENT EMAILS (crm_direct_email_log + client_notes)
+    direct_email_log_count = DirectEmailLog.objects.filter(email_log_q).count()
+    # As per your logic: SENT EMAILS includes the client notes count
     sent_emails_total = direct_email_log_count + client_notes_total
 
+    # --- 3. MAPPING TO CATEGORIES ---
     report_data = {
-        'CALLS': client_notes_total // 2, # Placeholder split
+        'CALLS': client_notes_total // 2, 
         'INBOX_EMAILS': inbox_emails_count,
         'QUERIES': queries_count,
         'SENT_EMAILS': sent_emails_total,
-        'TEAMS': client_notes_total - (client_notes_total // 2), # Placeholder split
+        'TEAMS': client_notes_total - (client_notes_total // 2), 
     }
 
     grand_total = sum(report_data.values())
@@ -1234,6 +1255,140 @@ def final_sla_report_view(request):
     context = {
         'report': report_data,
         'grand_total': grand_total,
+        'start_date': start_str,
+        'end_date': end_str,
     }
 
     return render(request, 'final_sla_report.html', context)
+
+from django.utils.dateparse import parse_date
+
+def get_date_filters(request):
+    """Helper function to extract dates from GET request"""
+    start_str = request.GET.get('start_date')
+    end_str = request.GET.get('end_date')
+    
+    filters = Q()
+    if start_str:
+        filters &= Q(received_timestamp__date__gte=parse_date(start_str))
+    if end_str:
+        filters &= Q(received_timestamp__date__lte=parse_date(end_str))
+    return filters, start_str, end_str
+
+
+def get_unified_email_data(request):
+    """
+    Helper function to merge CrmInbox (New) and CrmDelegateTo (Delegated) 
+    data into a single list for the UI and CSV Export.
+    """
+    # 1. Action Lookup (Check for replies in the Thread table)
+    last_reply_map = CrmDelegateAction.objects.filter(
+        action_type='REPLY_SENT'
+    ).values('task_email_id').annotate(last_replied=Max('action_timestamp'))
+    
+    last_reply_dict = {item['task_email_id']: item['last_replied'] for item in last_reply_map}
+
+    # 2. Setup Filters
+    date_filter = Q()
+    start_date_str = request.GET.get('start_date')
+    end_date_str = request.GET.get('end_date')
+
+    if start_date_str:
+        date_filter &= Q(received_timestamp__date__gte=start_date_str)
+    if end_date_str:
+        date_filter &= Q(received_timestamp__date__lte=end_date_str)
+
+    # 3. Fetch Delegated Emails
+    delegated_qs = CrmDelegateTo.objects.filter(date_filter).order_by('-received_timestamp')
+    delegated_ids = {task.email_id for task in delegated_qs}
+
+    # 4. Fetch New/Pending Emails (exclude those already delegated)
+    new_emails_qs = CrmInbox.objects.filter(date_filter).exclude(
+        email_id__in=delegated_ids
+    ).order_by('-received_timestamp')
+
+    unified_list = []
+
+    # Process Delegated
+    for task in delegated_qs:
+        unified_list.append({
+            'email_id': task.email_id,
+            'subject': task.subject,
+            'sender': task.sender or "Unknown",
+            'status': task.status,  # e.g., 'Delegated' or 'Completed'
+            'delegated_to': task.delegated_to,
+            'member_group_code': task.member_group_code,
+            'category': CATEGORY_NAMES.get(str(task.category), task.category),
+            'received_timestamp': task.received_timestamp,
+            'last_replied_timestamp': last_reply_dict.get(task.email_id),
+            'is_delegated': True
+        })
+
+    # Process New
+    for email in new_emails_qs:
+        unified_list.append({
+            'email_id': email.email_id,
+            'subject': email.subject,
+            'sender': email.sender,
+            'status': 'New',
+            'delegated_to': 'Inbox (Unassigned)',
+            'member_group_code': 'N/A',
+            'category': 'Unclassified',
+            'received_timestamp': email.received_timestamp,
+            'last_replied_timestamp': None,
+            'is_delegated': False
+        })
+
+    # 5. Search Filter (Wildcard)
+    search_text = request.GET.get('search', '').lower()
+    if search_text:
+        unified_list = [
+            row for row in unified_list 
+            if search_text in row['subject'].lower() or 
+               search_text in row['sender'].lower() or 
+               search_text in str(row['member_group_code']).lower()
+        ]
+
+    # Final Sort
+    unified_list.sort(key=lambda x: x['received_timestamp'] if x['received_timestamp'] else datetime.min, reverse=True)
+    return unified_list
+
+@login_required
+def email_workflow_log_view(request):
+    """View to display the unified Email List with Pagination."""
+    if request.user.username.lower() != 'omega':
+        messages.error(request, "Access restricted.")
+        return redirect('dashboard')
+
+    data = get_unified_email_data(request)
+    
+    paginator = Paginator(data, 25) # 25 per page
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    return render(request, 'email_workflow_log.html', {'page_obj': page_obj})
+
+@login_required
+def export_email_workflow_csv(request):
+    """Exports the filtered unified email list to CSV."""
+    data = get_unified_email_data(request)
+    
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="Email_Workflow_{timezone.now().date()}.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(['Received Date', 'Sender', 'Subject', 'Status', 'Assigned To', 'Member Code', 'Category', 'Last Replied'])
+
+    for row in data:
+        writer.writerow([
+            row['received_timestamp'],
+            row['sender'],
+            row['subject'],
+            row['status'],
+            row['delegated_to'],
+            row['member_group_code'],
+            row['category'],
+            row['last_replied_timestamp'] or 'No Reply'
+        ])
+
+    return response

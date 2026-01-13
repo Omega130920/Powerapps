@@ -4,8 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Delegated Tasks Log</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 <style>
-/* ... (Keep all existing CSS styles here, they are fine) ... */
+/* ... (Existing CSS remains the same) ... */
 body {
     font-family: sans-serif;
     background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
@@ -15,10 +16,12 @@ body {
     align-items: center;
     min-height: 100vh;
     padding: 20px;
+    margin: 0;
     box-sizing: border-box;
 }
 .log-container {
-    max-width: 1500px; /* Widened slightly for extra column */
+    width: 95%;
+    max-width: 1600px;
     margin: 40px auto;
     padding: 20px;
     background-color: #ffffff;
@@ -35,7 +38,7 @@ body {
 }
 .log-header h1 {
     margin: 0;
-    color: #43a047; /* Green title color */
+    color: #43a047;
 }
 #search_input {
     padding: 8px 12px;
@@ -43,16 +46,6 @@ body {
     border-radius: 4px;
     width: 300px;
     font-size: 14px;
-    transition: border-color 0.3s;
-}
-#search_input:focus {
-    border-color: #66bb6a;
-    outline: none;
-}
-.log-controls {
-    display: flex;
-    gap: 20px;
-    align-items: center;
 }
 .task-table {
     width: 100%;
@@ -63,7 +56,7 @@ body {
     padding: 12px 15px;
     border-bottom: 1px solid #eee;
     text-align: left;
-    font-size: 14px;
+    font-size: 13px;
     word-wrap: break-word;
 }
 .task-table th {
@@ -71,16 +64,23 @@ body {
     color: white;
     font-weight: 600;
     text-transform: uppercase;
+    cursor: pointer; /* Makes it obvious they are clickable */
+    position: relative;
+    user-select: none;
+}
+.task-table th:hover {
+    background-color: #1565c0;
+}
+.task-table th i {
+    margin-left: 8px;
+    font-size: 0.8em;
+    opacity: 0.7;
 }
 .task-table tr:nth-child(even) { background-color: #e3f2fd; } 
 .task-table tr.clickable-row:hover { 
     background-color: #bbdefb;
     cursor: pointer; 
 }
-.status-not-actioned { color: #1e88e5; font-weight: bold; }
-.status-delegated { color: #2e7d32; font-weight: bold; } 
-.status-recycled { color: #f4511e; font-weight: bold; }
-
 .return-button {
     padding: 10px 20px;
     background-color: #81c784;
@@ -88,11 +88,9 @@ body {
     border-radius: 5px;
     text-decoration: none;
     color: white;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-    text-align: center;
+    font-weight: bold;
+    transition: 0.3s;
 }
-
 .return-button:hover {
     background-color: #66bb6a;
 }
@@ -100,17 +98,17 @@ body {
 </head>
 <body>
 
-    <div class="Dashboard" style="margin-top: 25px;">
+    <div class="Dashboard" style="margin-top: 25px; display: flex; gap: 10px;">
         <a href="{% url 'dashboard' %}" class="return-button">Back to Home Screen</a>
         <a href="{% url 'fetch_emails' %}" class="return-button">Go to Live Inbox</a>
     </div>
 
 <div class="log-container">
     <div class="log-header">
-        <h1>📨 Delegated Tasks Log (Assigned By You)</h1>
+        <h1>📨 Delegated Tasks Log</h1>
         <div class="log-controls">
             <input type="text" id="search_input" placeholder="🔍 Search all columns..." autofocus>
-            <p>Total Tasks: <strong>{{ delegated_tasks|length }}</strong></p>
+            <p>Active Delegated Tasks: <strong id="task_count">0</strong></p>
         </div>
     </div>
 
@@ -118,104 +116,113 @@ body {
     <table class="task-table" id="main_table">
         <thead>
             <tr>
-                <th style="width: 20%;">Subject</th>
-                <th style="width: 8%;">Member Code</th>
-                
-                <th style="width: 10%;">Date Received</th>
-                
-                <th style="width: 10%;">Delegated Date</th>
-                
-                <th style="width: 10%;">Enquiry Category</th>
-                <th style="width: 12%;">Enquiry Type</th>
-                <th style="width: 10%;">Assigned To</th>
-                <th style="width: 8%;">Status</th> 
+                <th style="width: 18%;" onclick="sortTable(0)">Subject <i class="fas fa-sort"></i></th>
+                <th style="width: 15%;" onclick="sortTable(1)">Email Address <i class="fas fa-sort"></i></th>
+                <th style="width: 8%;" onclick="sortTable(2)">Member Code <i class="fas fa-sort"></i></th>
+                <th style="width: 12%;" onclick="sortTable(3)">Date Received <i class="fas fa-sort"></i></th>
+                <th style="width: 12%;" onclick="sortTable(4)">Delegated Date <i class="fas fa-sort"></i></th>
+                <th style="width: 12%;" onclick="sortTable(5)">Category <i class="fas fa-sort"></i></th>
+                <th style="width: 15%;" onclick="sortTable(6)">Type <i class="fas fa-sort"></i></th>
             </tr>
         </thead>
         <tbody id="table_body">
             {% for task in delegated_tasks %}
-            
-            <tr class="clickable-row" 
-                onclick="window.location.href='{% url 'delegate_action' email_id=task.email_id %}';"> 
-                
-                <td title="{{ task.subject }}">
-                    {{ task.subject }}
-                </td>
-                
-                <td>{{ task.member_group_code|default:"N/A" }}</td>
-                
-                <td>
-                    {{ task.arrival_timestamp|date:"d M Y H:i" }}
-                </td>
-
-                <td>
-                    {{ task.delegation_timestamp|date:"d M Y" }}
-                </td>
-
-                <td>{{ task.category|default:"N/A" }}</td>
-                
-                <td title="{{ task.enquiry_type|default:'N/A' }}">
-                    {{ task.enquiry_type|default:"N/A" }}
-                </td>
-                
-                <td>{{ task.delegated_to }}</td>
-
-                <td title="{{ task.status }}">
-                    {% if task.status == 'Completed' %}
-                        <span class="status-delegated" style="color: #2e7d32; font-weight: bold;">Completed</span>
-                    {% else %}
-                        <span class="status-delegated" style="color: #1e88e5; font-weight: bold;">Delegated</span>
-                    {% endif %}
-                </td>
-            </tr>
-            
+                {% if task.status == 'Delegated' %}
+                <tr class="clickable-row" onclick="window.location.href='{% url 'delegate_action' email_id=task.email_id %}';"> 
+                    <td title="{{ task.subject }}">{{ task.subject }}</td>
+                    <td title="{{ task.sender }}">{{ task.sender }}</td>
+                    <td>{{ task.member_group_code|default:"N/A" }}</td>
+                    <td data-sort="{{ task.arrival_timestamp|date:'U' }}">
+                        {{ task.arrival_timestamp|date:"d M Y H:i" }}
+                    </td>
+                    <td data-sort="{{ task.delegation_timestamp|date:'U' }}">
+                        {{ task.delegation_timestamp|date:"d M Y" }}
+                    </td>
+                    <td>{{ task.category|default:"N/A" }}</td>
+                    <td>{{ task.enquiry_type|default:"N/A" }}</td>
+                </tr>
+                {% endif %}
             {% endfor %}
         </tbody>
     </table>
     {% else %}
-    <p>🎉 You have not delegated any tasks yet.</p>
+    <p>🎉 You have no active delegated tasks at the moment.</p>
     {% endif %}
-
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('search_input');
     const tableBody = document.getElementById('table_body');
+    const taskCountDisplay = document.getElementById('task_count');
     
-    if (!searchInput || !tableBody) {
-        return;
-    }
+    if (!searchInput || !tableBody) return;
 
-    // --- Live Search Logic ---
     const rows = tableBody.getElementsByTagName('tr');
 
-    function liveSearch() {
-        const filter = searchInput.value.toLowerCase();
-        
+    function updateVisibleCount() {
+        let visibleCount = 0;
         for (let i = 0; i < rows.length; i++) {
-            const row = rows[i];
-            const cells = row.getElementsByTagName('td');
-            let found = false;
-
-            for (let j = 0; j < cells.length; j++) {
-                const cellText = cells[j].innerText || cells[j].textContent;
-                
-                if (cellText.toLowerCase().indexOf(filter) > -1) {
-                    found = true;
-                    break; 
-                }
-            }
-
-            if (found) {
-                row.style.display = ""; 
-            } else {
-                row.style.display = "none";
+            if (rows[i].style.display !== "none") {
+                visibleCount++;
             }
         }
+        if (taskCountDisplay) taskCountDisplay.innerText = visibleCount;
     }
 
-    searchInput.addEventListener('input', liveSearch);
+    // --- Live Search ---
+    searchInput.addEventListener('input', function() {
+        const filter = searchInput.value.toLowerCase();
+        for (let i = 0; i < rows.length; i++) {
+            const cells = rows[i].getElementsByTagName('td');
+            let found = Array.from(cells).some(td => td.innerText.toLowerCase().includes(filter));
+            rows[i].style.display = found ? "" : "none";
+        }
+        updateVisibleCount();
+    });
+
+    updateVisibleCount();
 });
+
+// --- Sorting Logic ---
+let sortOrder = {}; // Track direction for each column
+
+function sortTable(n) {
+    const table = document.getElementById("main_table");
+    const tbody = document.getElementById("table_body");
+    const rows = Array.from(tbody.rows);
+    
+    // Toggle sort order
+    sortOrder[n] = !sortOrder[n];
+    const isAscending = sortOrder[n];
+
+    rows.sort((rowA, rowB) => {
+        let valA = rowA.cells[n].innerText.trim();
+        let valB = rowB.cells[n].innerText.trim();
+
+        // Check for special data-sort attribute (used for dates)
+        const sortValA = rowA.cells[n].getAttribute('data-sort');
+        const sortValB = rowB.cells[n].getAttribute('data-sort');
+        
+        if (sortValA && sortValB) {
+            return isAscending ? sortValA - sortValB : sortValB - sortValA;
+        }
+
+        // Default string comparison
+        return isAscending 
+            ? valA.localeCompare(valB, undefined, {numeric: true, sensitivity: 'base'})
+            : valB.localeCompare(valA, undefined, {numeric: true, sensitivity: 'base'});
+    });
+
+    // Re-append sorted rows
+    rows.forEach(row => tbody.appendChild(row));
+    
+    // Update Icons
+    const headers = table.querySelectorAll('th i');
+    headers.forEach(icon => icon.className = 'fas fa-sort'); // Reset all
+    const currentIcon = table.rows[0].cells[n].querySelector('i');
+    currentIcon.className = isAscending ? 'fas fa-sort-up' : 'fas fa-sort-down';
+}
 </script>
 
 </body>

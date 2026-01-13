@@ -29,4 +29,15 @@ urlpatterns = [
     path('claims/add_note/', views.create_claim_note, name='create_claim_note'), 
     path('claims/add_reminder/', views.create_claim_reminder, name='create_claim_reminder'),
     path('claims/update_details/', views.update_claim_details, name='update_claim_details'),
+    path('calendar/', views.client_calendar, name='client_calendar'),
+
+    # 2. The action to add a reminder
+    path('calendar/add/', views.add_reminder, name='add_reminder'),
+
+    # 3. The action to dismiss all reminders (from home.html)
+    path('reminders/dismiss-all/', views.dismiss_all_reminders, name='dismiss_all_reminders'),
+
+    # 4. The action to complete a single reminder (from the table view)
+    path('reminders/complete/<int:reminder_id>/', views.dismiss_single_reminder, name='dismiss_single_reminder'),
+    path('reminders/delete/<int:reminder_id>/', views.delete_reminder, name='delete_reminder'),
 ]

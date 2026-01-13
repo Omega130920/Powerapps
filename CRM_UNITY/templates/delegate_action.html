@@ -90,11 +90,50 @@
         .btn-primary { background-color: #007bff; color: white; }
 
         .hidden { display: none; }
+
+        .dashboard-links {
+    margin-bottom: 20px;
+    display: flex;
+    gap: 15px;
+}
+
+.return-button {
+    padding: 10px 20px;
+    background-color: #81c784; /* Unity Green */
+    border: 1px solid #66bb6a;
+    border-radius: 5px;
+    text-decoration: none;
+    color: white;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: inline-flex;
+    align-items: center;
+}
+
+.return-button:hover {
+    background-color: #66bb6a;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    transform: translateY(-1px);
+    color: white; /* Ensures text stays white on hover */
+}
     </style>
 </head>
 <body>
 
+<div class="dashboard-links mt-4">
+    <a href="{% url 'dashboard' %}" class="return-button">
+        <i class="fas fa-home" style="margin-right: 8px;"></i> Back to Home Screen
+    </a>
+    <a href="{% url 'tasks' %}" class="return-button">
+        <i class="fas fa-tasks" style="margin-right: 8px;"></i> My Delegated Tasks
+    </a>
+</div>
+
 <div class="task-container">
+
+
     
     <div class="task-header">
         <h1><i class="fas fa-tasks"></i> Action Task: {{ task.subject }}</h1>
@@ -403,7 +442,7 @@
         </div>
 
         <div class="right-column">
-            <div class="custom-card">
+            <!--<div class="custom-card">
                 <div class="card-header-dark">
                     <i class="fas fa-history"></i> Task Audit Log
                 </div>
@@ -418,7 +457,7 @@
                         {% empty %}
                         <p style="text-align: center; color: #999;">No actions recorded.</p>
                         {% endfor %}
-                    </div>
+                    </div>-->
 
                     <button class="collapse-toggle" style="border-bottom-color: #28a745; margin-top: 15px;" data-target="#collapseNote">
                         <span><i class="fas fa-plus-circle"></i> Add Note</span>
@@ -451,10 +490,6 @@
                     {% endif %}
                 </div>
             </div>
-
-            <a href="{% url 'tasks' %}" class="custom-btn" style="width: 100%; border: 1px solid #333; color: #333;">
-                <i class="fas fa-arrow-left"></i> Back to Task List
-            </a>
         </div>
     </div>
 </div>

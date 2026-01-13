@@ -1,12 +1,54 @@
 {% load static %}
-{% block title %}Delegate Task{% endblock %}
+{% block title %}UNITY INTERNAL{% endblock %}
 {% block content %}
 <style>
 /* -------------------------------------- */
 /* BASE STYLES & DELEGATE FORM STYLES */
 /* -------------------------------------- */
 body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; background-color: #d1e2c4; }
-.delegate-container { max-width: 900px; margin: 40px auto; padding: 30px; background-color: #fff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,.15); border: 1px solid #c3e6cb; }
+
+/* NAVIGATION DASHBOARD - CENTERED ABOVE CONTAINER */
+.Dashboard { 
+    display: flex; 
+    gap: 15px; 
+    margin: 40px auto 10px auto; /* Centered with bottom spacing */
+    justify-content: center; 
+    max-width: 900px; /* Matches delegate-container width */
+}
+
+.btn-nav { 
+    padding: 12px 24px; 
+    background-color: #43a047; 
+    color: white; 
+    text-decoration: none; 
+    border-radius: 6px; 
+    font-weight: bold; 
+    font-size: 15px; 
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+    border: 1px solid #388e3c;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-nav:hover { 
+    background-color: #2e7d32; 
+    box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    transform: translateY(-2px);
+    color: #ffffff;
+}
+
+.delegate-container { 
+    max-width: 900px; 
+    margin: 0 auto 40px auto; /* Removed top margin since Dashboard handles it */
+    padding: 30px; 
+    background-color: #fff; 
+    border-radius: 8px; 
+    box-shadow: 0 4px 12px rgba(0,0,0,.15); 
+    border: 1px solid #c3e6cb; 
+}
+
 .delegate-container h1 { margin-bottom: 20px; color: #43a047; font-size: 28px; border-bottom: 2px solid #e0f2f1; padding-bottom: 15px; }
 
 /* --- PROFESSIONAL EMAIL CARD STYLES --- */
@@ -16,14 +58,14 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     margin-bottom: 30px;
     border: 1px solid #eee;
-    border-left: 5px solid  rgb(105, 187, 85); /* Blue accent */
+    border-left: 5px solid rgb(105, 187, 85); 
 }
 .card-header-main {
     padding: 15px 20px;
     background-color: #fafafa;
     border-bottom: 1px solid #eee;
 }
-.card-header-main h3 { margin: 0 0 5px 0; color:  rgb(105, 187, 85); font-size: 1.1em; }
+.card-header-main h3 { margin: 0 0 5px 0; color: rgb(105, 187, 85); font-size: 1.1em; }
 .card-body-content {
     padding: 20px;
     line-height: 1.7;
@@ -95,6 +137,11 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
 
 .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
 </style>
+
+<div class="Dashboard">
+    <a href="{% url 'dashboard' %}" class="btn-nav">🏠 Back to Home Screen</a>
+    <a href="{% url 'outlook_delegated_box' %}" class="btn-nav">📋 My Delegated Tasks</a>
+</div>
 
 <div class="delegate-container">
     <h1>Delegate Outlook Task</h1>

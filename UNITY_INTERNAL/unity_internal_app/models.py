@@ -315,18 +315,17 @@ class CreditNote(models.Model):
     # Billing/Grouping Information
     ccdates_month = models.DateField(null=True, blank=True)
     fund_code = models.CharField(max_length=50, null=True, blank=True)
-    member_group_code = models.CharField(max_length=50) # The raw string code from import
+    member_group_code = models.CharField(max_length=50) 
     member_group_name = models.CharField(max_length=255, null=True, blank=True)
     active_members = models.IntegerField(null=True, blank=True)
 
-    # --- NEW: Relationship to UnityMgListing ---
-    # This links the raw import to the actual Company in your master list
+    # --- Relationship to UnityMgListing ---
     member_group = models.ForeignKey(
         'UnityMgListing', 
         on_delete=models.SET_NULL, 
         null=True, 
         blank=True,
-        db_column='member_group_id', # Matches the SQL column added manually
+        db_column='member_group_id',
         related_name='company_credits'
     )
     
@@ -370,6 +369,9 @@ class CreditNote(models.Model):
     request_reason = models.TextField(null=True, blank=True)
     authorized_by = models.CharField(max_length=100, null=True, blank=True)
     authorized_at = models.DateTimeField(null=True, blank=True)
+    
+    # Add this line here:
+    note_selection = models.CharField(max_length=100, null=True, blank=True)
 
     # --- FOREIGN KEY TO UNITYBILL ---
     assigned_unity_bill = models.ForeignKey(
@@ -380,9 +382,7 @@ class CreditNote(models.Model):
         related_name='applied_credit_notes'
     )
 
-    # -------------------------------------------------------------------------
-    # --- NEW: LINKING APPROVAL WORKFLOW (Added Here) ---
-    # -------------------------------------------------------------------------
+    # --- LINKING APPROVAL WORKFLOW ---
     LINK_STATUS_CHOICES = (
         ('Unlinked', 'Unlinked'),
         ('Pending', 'Pending Approval'),
@@ -403,7 +403,6 @@ class CreditNote(models.Model):
         db_column='link_request_reason'
     )
     
-    # Stores the Bill ID we WANT to link to, awaiting approval
     pending_linked_bill = models.ForeignKey(
         'UnityBill', 
         on_delete=models.SET_NULL, 
@@ -412,14 +411,27 @@ class CreditNote(models.Model):
         related_name='pending_credits',
         db_column='pending_linked_bill_id'
     )
+
+    # -------------------------------------------------------------------------
+    # --- NEW: OVERS AUDIT TRAIL FIELD ---
+    # -------------------------------------------------------------------------
+    # Links back to the ReconnedBank segment that created this "Overs" amount.
+    source_bank_line = models.ForeignKey(
+        'ReconnedBank', 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        blank=True, 
+        related_name='generated_credits',
+        db_column='source_bank_line_id'
+    )
     # -------------------------------------------------------------------------
 
     class Meta:
         db_table = 'credit_note' 
-        managed = False
+        managed = False # Note: Managed=False means you must add the column manually in SQL
         
     def __str__(self):
-        return f"Credit for {self.member_group_code} (Status: {self.authorization_status})"
+        return f"Credit for {self.member_group_code} (Status: {self.credit_link_status})"
     
 class ScheduleSurplus(models.Model):
     # Note: Using IntegerField for FKs since Django won't manage the constraints

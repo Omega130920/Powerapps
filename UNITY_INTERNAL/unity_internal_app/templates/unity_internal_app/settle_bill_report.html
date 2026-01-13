@@ -44,7 +44,7 @@
 </head>
 <body>
     <div style="margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;">
-    <a href="{% url 'unity_information' company_code=company_code %}" class="btn-back">← Back to Dashboard List</a>
+    <a href="{% url 'export_global_bill_history' %}" class="btn-back">← Back to Section 13A Report</a>
     
     <a href="{% url 'export_settled_bill_csv' company_code=company_code bill_id=bill.id %}" 
         style="background-color: #2e7d32; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold; font-size: 0.9em; display: flex; align-items: center;">

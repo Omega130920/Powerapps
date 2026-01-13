@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Manager Approval Dashboard | Unity Internal</title>
     <style>
-        /* Matches your main dashboard background */
         body { 
             font-family: 'Segoe UI', sans-serif; 
             background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127)); 
@@ -25,7 +24,6 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.15); 
         }
 
-        /* Unity Green Header */
         h2 { 
             color: #1b5e20; 
             border-bottom: 2px solid #aed581; 
@@ -39,7 +37,6 @@
             margin-top: 20px; 
         }
 
-        /* Green Table Header Theme */
         th { 
             background: #f1f8e9; 
             padding: 12px; 
@@ -57,7 +54,6 @@
             font-size: 0.95em;
         }
 
-        /* Success Green Button */
         .btn-approve { 
             background: #81c784; 
             color: white; 
@@ -71,7 +67,6 @@
         }
         .btn-approve:hover { background: #66bb6a; }
 
-        /* Danger Red Button */
         .btn-reject { 
             background: #d32f2f; 
             color: white; 
@@ -85,7 +80,6 @@
         }
         .btn-reject:hover { background: #b71c1c; }
         
-        /* Styled Reason Box */
         .reason-box { 
             background: #fafafa; 
             padding: 10px; 
@@ -108,6 +102,19 @@
             border: 1px solid #c8e6c9;
         }
 
+        /* --- OVERS SOURCE TAG --- */
+        .source-tag {
+            font-size: 0.7em;
+            padding: 2px 6px;
+            border-radius: 3px;
+            text-transform: uppercase;
+            font-weight: bold;
+            display: inline-block;
+            margin-bottom: 5px;
+        }
+        .tag-overs { background: #fff9c4; color: #f57f17; border: 1px solid #fbc02d; }
+        .tag-import { background: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb; }
+
         .back-link {
             text-decoration: none; 
             color: #1b5e20; 
@@ -128,7 +135,7 @@
             <thead>
                 <tr>
                     <th>Date Requested</th>
-                    <th>Group Code</th>
+                    <th>Source / Group</th>
                     <th>Requested Allocation</th>
                     <th>Target Bill</th>
                     <th>Requester's Reason</th>
@@ -139,7 +146,14 @@
                 {% for credit in pending_credits %}
                 <tr>
                     <td>{{ credit.processed_date|date:"Y-m-d" }}</td>
-                    <td><strong style="color: #2e7d32;">{{ credit.member_group_code }}</strong></td>
+                    <td>
+                        {% if credit.note_selection == 'OVERS' or credit.link_request_reason == "Overs credit line" %}
+                            <span class="source-tag tag-overs">Overs Credit</span>
+                        {% else %}
+                            <span class="source-tag tag-import">Excel Import</span>
+                        {% endif %}
+                        <br><strong style="color: #2e7d32;">{{ credit.member_group_code }}</strong>
+                    </td>
                     <td>
                         <span class="amount-tag">R {{ credit.requested_amount|default:credit.schedule_amount|floatformat:2 }}</span>
                         {% if credit.requested_amount < credit.schedule_amount and credit.requested_amount > 0 %}
@@ -148,7 +162,10 @@
                         <br><small style="color: #888;">Note Balance: R {{ credit.schedule_amount|floatformat:2 }}</small>
                     </td>
                     <td>
-                        {% if credit.pending_linked_bill %}
+                        {% if credit.link_request_reason == "Overs credit line" and not credit.pending_linked_bill %}
+                            <span style="color: #f57f17; font-weight: bold;">🏦 Bank Verification</span><br>
+                            <small style="color: #888;">Unassigned Remainder</small>
+                        {% elif credit.pending_linked_bill %}
                             <strong>Bill #{{ credit.pending_linked_bill.id }}</strong><br>
                             <small>{{ credit.pending_linked_bill.A_CCDatesMonth|date:"M Y" }}</small>
                         {% else %}
@@ -165,7 +182,7 @@
                             <a href="{% url 'approve_credit_link' credit.id %}" class="btn-approve">✅ Approve</a>
                             <a href="{% url 'reject_credit_link' credit.id %}" 
                                class="btn-reject" 
-                               onclick="return confirm('Are you sure you want to REJECT this link request? The credit will be returned to the available pool.')">
+                               onclick="return confirm('Are you sure you want to REJECT this link request?')">
                                 ❌ Reject
                             </a>
                         </div>
@@ -183,7 +200,7 @@
         </table>
         
         <div style="margin-top: 30px; border-top: 1px solid #eee; padding-top: 20px;">
-            <a href="{% url 'dashboard' %}" class="back-link">← Back to Main Dashboard</a>
+            <a href="{% url 'dashboard' %}" class="back-link">← Back to Home Screen</a>
         </div>
     </div>
 </body>

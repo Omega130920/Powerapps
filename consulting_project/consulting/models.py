@@ -341,3 +341,26 @@ class Reminders(models.Model):
         
     def __str__(self):
         return f"Reminder for Claim {self.claim.id} (Member {self.member_no}) on {self.reminder_date}"
+    
+class ClientReminder(models.Model):
+    """
+    Unmanaged model for client-specific calendar reminders.
+    Table created manually via SQL referencing 'client_client'.
+    """
+    client = models.ForeignKey(ClientClient, on_delete=models.CASCADE, db_column='client_id')
+    title = models.CharField(max_length=200)
+    note = models.TextField()
+    reminder_date = models.DateField()
+    # Using Django's built-in User table for auth_user reference
+    created_by = models.ForeignKey('auth.User', on_delete=models.CASCADE, db_column='created_by_id')
+    is_dismissed = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = 'client_reminders'
+        verbose_name = 'Client Reminder'
+        verbose_name_plural = 'Client Reminders'
+
+    def __str__(self):
+        return f"{self.title} - {self.client.client_name}"

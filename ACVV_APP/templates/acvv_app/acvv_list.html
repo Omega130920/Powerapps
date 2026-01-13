@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,125 +6,134 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ACVV Records</title>
     <style>
-        body {
-            font-family: sans-serif;
+        /* --- SCALABLE STYLES --- */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
             background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
-            margin: 20px;
+            font-family: sans-serif;
             color: #333;
-            line-height: 1.6;
+        }
+
+        /* Container now uses full width and scales with zoom */
+        .container {
+            width: 98%;           /* 100% logic with small breathing room */
+            max-width: 100%;      /* Ensures no clamping at high zoom */
+            margin: 0 auto;
+            padding: 10px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
         }
 
         h1 {
             color: #1b5e20;
             text-align: center;
-            margin-bottom: 30px;
-            font-size: 2.5em;
-        }
-
-        .container {
-            max-width: 95%;
-            margin: 2em auto;
-            padding: 1em;
+            margin: 20px 0;
+            font-size: clamp(1.5rem, 5vw, 2.5rem); /* Scalable font size */
         }
 
         .controls-container {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
+            flex-wrap: wrap; /* Allows wrapping on high zoom/small screens */
+            gap: 10px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
         }
 
         .return-button {
-            display: inline-block;
             padding: 10px 20px;
             background-color: #81c784;
-            border: 1px solid #81c784;
             border-radius: 5px;
             text-decoration: none;
             color: white;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
+            font-weight: bold;
+            transition: background 0.3s;
+            display: inline-flex;
+            align-items: center;
         }
 
-        .return-button:hover {
-            background-color: #66bb6a;
+        .return-button:hover { background-color: #66bb6a; }
+
+        /* Darker green specifically for the export action */
+        .export-button {
+            background-color: #1b5e20;
+        }
+        .export-button:hover {
+            background-color: #0d3b14;
         }
 
         .search-form {
             display: flex;
             gap: 10px;
-            align-items: center;
+            flex-grow: 1;
+            justify-content: flex-end;
         }
 
         .search-form input[type="text"] {
-            padding: 8px;
+            padding: 10px;
             border-radius: 5px;
             border: 1px solid #ccc;
-            min-width: 250px;
+            width: 100%;
+            max-width: 400px;
         }
 
         .search-form button {
-            padding: 8px 12px;
+            padding: 10px 20px;
             background-color: #43a047;
             color: white;
             border: none;
             border-radius: 5px;
             cursor: pointer;
-            transition: background-color 0.3s ease;
         }
 
-        .search-form button:hover {
-            background-color: #388e3c;
+        /* TABLE WRAPPER: Critical for zoom/mobile scalability */
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto; /* Allows horizontal scroll on narrow screens/high zoom */
+            background-color: #f0fff0;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border: 1px solid #c3e6cb;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-            border-radius: 5px;
-            overflow: hidden;
-            background-color: #f0fff0;
-            border: 1px solid #c3e6cb;
-            margin-bottom: 20px;
-            font-size: 0.9em;
+            table-layout: auto; 
+            min-width: 1000px;  
         }
 
         thead th {
             background-color: #43a047;
             color: white;
-            padding: 12px;
+            padding: 15px;
             text-align: left;
-            font-weight: bold;
-            border-bottom: 2px solid #388e3c;
+            font-size: 14px;
             white-space: nowrap;
-            border-right: 1px solid #388e3c;
-        }
-
-        thead th:last-child {
-            border-right: none;
+            position: sticky; /* Keep headers at top while scrolling */
+            top: 0;
         }
 
         tbody td {
-            padding: 10px 12px;
+            padding: 12px;
             border-bottom: 1px solid #aed581;
-            border-right: 1px solid #aed581;
+            font-size: 13px;
         }
 
-        tbody td:last-child {
-            border-right: none;
-        }
+        tbody tr:nth-child(even) { background-color: #e6ffe6; }
+        tbody tr:hover { background-color: #ccffcc; cursor: pointer; }
 
-        tbody tr:nth-child(even) {
-            background-color: #e6ffe6;
-        }
-        
-        tbody tr {
-            cursor: pointer;
-        }
-
-        tbody tr:hover {
-            background-color: #ccffcc;
-        }
+        /* Status colors */
+        .status-active { color: #2e7d32; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -131,52 +141,57 @@
         <h1>ACVV Records</h1>
 
         <div class="controls-container">
-            <a href="{% url 'dashboard' %}" class="return-button">Back to Dashboard</a>
+            <div class="button-group">
+                <a href="{% url 'dashboard' %}" class="return-button">Back to Dashboard</a>
+                
+                {# Export Button includes the search_query to ensure filtered exports match the view #}
+                <a href="{% url 'export_acvv_excel' %}?search_query={{ search_query|default:'' }}" class="return-button export-button">
+                    Export to Excel
+                </a>
+            </div>
             
             <form method="get" class="search-form">
-                <input type="text" name="search_query" placeholder="Search by MIP Name or Branch Code..." value="{{ search_query }}">
+                <input type="text" name="search_query" placeholder="Search by Member Group Name or Code" value="{{ search_query|default:'' }}">
                 <button type="submit">Search</button>
             </form>
         </div>
 
-        <table>
-            <thead>
-                <tr>
-                    <th>MIP Names</th>
-                    <th>Branch Code</th>
-                    <th>Member</th>
-                    <th>Status</th>
-                    <th>Contribution Amount</th>
-                    <th>Notes</th>
-                    <th>Schedule Date Received</th>
-                    <th>Deb Order Date Confirm</th>
-                    <th>Bank info Upload</th>
-                    <th>Email Address</th>
-                    <th>Tel</th>
-                </tr>
-            </thead>
-            <tbody id="acvv-table-body">
-                {% for record in acvv_records %}
-                <tr data-mip-names="{{ record.mip_names }}">
-                    <td>{{ record.mip_names }}</td>
-                    <td>{{ record.branch_code }}</td>
-                    <td>{{ record.member }}</td>
-                    <td>{{ record.status }}</td>
-                    <td>{{ record.contribution_amount }}</td>
-                    <td>{{ record.notes }}</td>
-                    <td>{{ record.schedule_date_received }}</td>
-                    <td>{{ record.deb_order_date_confirm }}</td>
-                    <td>{{ record.bank_info_upload }}</td>
-                    <td>{{ record.mg_email_address }}</td>
-                    <td>{{ record.tel }}</td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="11">No records found.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Member Group Name</th>
+                        <th>Member Group Code</th>
+                        <th>Member</th>
+                        <th>Member Group Status</th>
+                        <th>Contribution</th>
+                        <th>Notes</th>
+                        <th>Email Address</th>
+                        <th>MG Contact Tel. 1</th>
+                        <th>MG Contact Tel. 2</th>
+                    </tr>
+                </thead>
+                <tbody id="acvv-table-body">
+                    {% for record in acvv_records %}
+                    <tr data-mip-names="{{ record.mip_names }}">
+                        <td><strong>{{ record.mip_names }}</strong></td>
+                        <td>{{ record.branch_code|default:"-" }}</td>
+                        <td>{{ record.member|default:"-" }}</td>
+                        <td>{{ record.status|default:"-" }}</td>
+                        <td>{{ record.contribution_amount|default:"-" }}</td>
+                        <td>{{ record.notes|truncatechars:30 }}</td>
+                        <td>{{ record.mg_email_address|default:"-" }}</td>
+                        <td>{{ record.tel|default:"-" }}</td>
+                        <td>-</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="9" style="text-align: center; padding: 50px;">No records found matching your search.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <script>
@@ -187,8 +202,9 @@
                 const row = event.target.closest('tr');
                 if (row && row.dataset.mipNames) {
                     const mipNames = row.dataset.mipNames;
-                    const url = `{% url 'acvv_information' 'placeholder_code' %}`;
-                    window.location.href = url.replace('placeholder_code', mipNames);
+                    // Use standard Django URL resolution
+                    const url = "{% url 'acvv_information' 'placeholder' %}".replace('placeholder', encodeURIComponent(mipNames));
+                    window.location.href = url;
                 }
             });
         });

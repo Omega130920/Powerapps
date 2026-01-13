@@ -393,6 +393,7 @@ class DirectEmailLog(models.Model):
     body_content = models.TextField()  # Maps to LONGTEXT in MySQL
     sent_by_user = models.ForeignKey(User, on_delete=models.DO_NOTHING, db_column='sent_by_user_id')
     sent_at = models.DateTimeField()
+    outlook_message_id = models.TextField(null=True, blank=True)
 
     class Meta:
         managed = False  # Django will not attempt to create or alter this table

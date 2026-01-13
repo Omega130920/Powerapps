@@ -132,3 +132,8 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# settings.py
+LOGIN_URL = '/' # Root is now login
+LOGIN_REDIRECT_URL = '/consulting/' # Send to dashboard after login
+LOGOUT_REDIRECT_URL = '/' # Send back to login after logout

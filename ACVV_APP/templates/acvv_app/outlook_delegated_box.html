@@ -23,9 +23,9 @@ body {
     box-sizing: border-box;
 }
 .log-container {
-    max-width: 1400px;
-    width: 100%;
-    margin: 40px auto;
+    max-width: 1500px; /* Increased to accommodate extra columns */
+    width: 98%;
+    margin: 30px auto;
     padding: 20px;
     background-color: #ffffff;
     border-radius: 8px;
@@ -41,19 +41,19 @@ body {
 }
 .log-header h1 {
     margin: 0;
-    color: #43a047; /* Green title color */
+    color: #43a047;
     font-size: 28px;
 }
 .task-table {
     width: 100%;
     border-collapse: collapse;
-    table-layout: fixed;
+    table-layout: fixed; /* Ensures column widths stay proportional */
 }
 .task-table th, .task-table td {
-    padding: 12px 15px;
+    padding: 10px 12px;
     border-bottom: 1px solid #eee;
     text-align: left;
-    font-size: 14px;
+    font-size: 13px; /* Slightly smaller to fit more data */
     word-wrap: break-word;
 }
 .task-table th {
@@ -67,11 +67,11 @@ body {
     background-color: #e8f5e9;
     cursor: pointer;
 }
-/* Custom Status Colors from Sample */
-.status-delegated { color: #2e7d32; font-weight: bold; }
-.status-new { color: #1e88e5; font-weight: bold; } /* Using this for non-DEL statuses */
 
-/* Custom Button Styles (For "Back" link) */
+/* Custom Status Colors */
+.status-delegated { color: #2e7d32; font-weight: bold; }
+.status-new { color: #1e88e5; font-weight: bold; }
+
 .return-button {
     padding: 10px 20px;
     background-color: #81c784;
@@ -82,28 +82,28 @@ body {
     cursor: pointer;
     transition: background-color 0.3s ease;
     text-align: center;
-    display: inline-block; /* Essential for anchors */
+    display: inline-block;
 }
 .return-button:hover { background-color: #66bb6a; }
-.btn-action { /* Styling for the View/Action button */
-    padding: 8px 12px;
+
+.btn-action {
+    padding: 6px 10px;
     background-color: #f7931e;
     color: white;
     border: none;
     border-radius: 4px;
     text-decoration: none;
-    font-size: 14px;
+    font-size: 12px;
     cursor: pointer;
+    font-weight: bold;
 }
 </style>
 
-{# --- Global Links (Adapted from your sample's style) --- #}
 <div class="Dashboard" style="margin-top: 25px;">
     <a href="{% url 'dashboard' %}" class="return-button">Back to Dashboard</a>
 </div>
 
 <div class="log-container">
-    
     <div class="log-header">
         <h1><i class="fas fa-tasks"></i> My Delegated Outlook Tasks</h1>
         <p>Total Tasks: <strong>{{ tasks|length }}</strong></p>
@@ -111,11 +111,8 @@ body {
     
     {% if messages %}
         {% for message in messages %}
-        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        <div class="alert alert-{{ message.tags }}" style="padding: 10px; margin-bottom: 20px; border-radius: 4px; background-color: #e8f5e9; color: #2e7d32;">
             {{ message }}
-            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                <span aria-hidden="true">&times;</span>
-            </button>
         </div>
         {% endfor %}
     {% endif %}
@@ -124,11 +121,14 @@ body {
     <table class="task-table">
         <thead>
             <tr>
-                <th style="width: 15%;">Status</th>
-                <th style="width: 15%;">Received</th>
-                <th style="width: 35%;">Subject</th>
-                <th style="width: 20%;">From</th>
-                <th style="width: 15%;">Action</th>
+                <th style="width: 8%;">Status</th>
+                <th style="width: 11%;">Received</th>
+                <th style="width: 11%;">Delegated</th>
+                <th style="width: 25%;">Subject</th>
+                <th style="width: 15%;">From Email</th>
+                <th style="width: 10%;">MG Code</th>
+                <th style="width: 12%;">Email Type</th>
+                <th style="width: 8%;">Action</th>
             </tr>
         </thead>
         <tbody>
@@ -141,14 +141,17 @@ body {
                 
                 <td>{{ task.received|date:"Y-m-d H:i" }}</td>
                 
+                <td>{{ task.delegated_at|date:"Y-m-d H:i" }}</td>
+                
                 <td>
-                    {# Linking the subject for easy access #}
-                    <a href="{% url 'outlook_delegated_action' delegation_id=task.delegation_id %}" style="text-decoration: none; color: inherit;">
-                        {{ task.subject|default:"(No Subject)" }}
-                    </a>
+                    <b>{{ task.subject|default:"(No Subject)" }}</b>
                 </td>
                 
-                <td>{{ task.from }}</td>
+                <td style="font-size: 12px; color: #555;">{{ task.from|default:"-" }}</td>
+                
+                <td><strong>{{ task.mg_code|default:"-" }}</strong></td>
+                
+                <td>{{ task.email_type|default:"-" }}</td>
                 
                 <td>
                     <a href="{% url 'outlook_delegated_action' delegation_id=task.delegation_id %}" class="btn-action">
@@ -160,10 +163,17 @@ body {
         </tbody>
     </table>
     {% else %}
-    <div class="alert alert-info" role="alert" style="margin-top: 20px;">
-        You currently have no active tasks delegated to you.
+    <div style="background-color: #e3f2fd; color: #0d47a1; padding: 20px; border-radius: 4px; text-align: center;">
+        <i class="fas fa-info-circle"></i> You currently have no active tasks delegated to you.
     </div>
     {% endif %}
-
 </div>
+
+<script>
+    // Refresh page every 60 seconds to keep task list current
+    setTimeout(function(){
+       window.location.reload();
+    }, 60000);
+</script>
+
 {% endblock %}

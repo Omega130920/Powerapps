@@ -21,8 +21,6 @@ h1{color:#1b5e20;text-align:center;flex-grow:1;font-size:22px}
 table { width:100%; border-collapse:collapse; margin-top:15px; margin-bottom:20px; table-layout: fixed;}
 th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #aed581; font-size: 13px; word-wrap: break-word;}
 th { background-color: #e6ffe6; color: #1b5e20; font-weight: 700; cursor: pointer; }
-/* Sorter Styling */
-th.sortable:after { content: ' \21c5'; font-size: 1.2em; color: #81c784; }
 tr:nth-child(even){background-color:#f9f9f9}
 tr:hover {background-color: #e8f5e9;}
 
@@ -56,14 +54,17 @@ tr:hover {background-color: #e8f5e9;}
 .header-meta-item strong { color: #202124; width: 80px; display: inline-block; }
 .email-body-container { padding: 40px 50px; background: #ffffff; max-height: 55vh; overflow-y: auto; color: #3c4043; font-size: 1.05rem; line-height: 1.6; all: revert; }
 .preview-footer { padding: 15px 35px; background: #f8f9fa; text-align: right; border-top: 1px solid #eee; }
+
+/* Pagination Styles */
+.pagination-nav { display: flex; justify-content: center; align-items: center; gap: 20px; margin: 10px 0; padding: 10px; background: #e8f5e9; border-radius: 8px; }
 </style>
 </head>
 <body>
 
 <div class="container">
     <div class="dashboard-header">
-        <a href="{% url 'dashboard' %}" class="dashboard-button">Back to Home Screen</a>
-        <h1>Global Withdrawal Claims Register</h1>
+        <a href="{% url 'dashboard' %}" class="dashboard-button">Back to Dashboard</a>
+        <h1>{% if is_two_pot_view %}Two-Pot National Monitor{% else %}Global Claims Register{% endif %}</h1>
         <button type="button" class="dashboard-button" onclick="openGlobalClaimModal()">➕ New Claim</button>
     </div>
 
@@ -73,7 +74,7 @@ tr:hover {background-color: #e8f5e9;}
         <button type="button" class="dashboard-button" style="background-color: #217346;" onclick="triggerGlobalExport()">📊 Export Excel</button>
         <button type="submit" class="dashboard-button">Search</button>
         {% if request.GET.q %}
-            <a href="{% url 'global_claims' %}" class="dashboard-button" style="background-color: #757575; border-color: #757575;">Clear</a>
+            <a href="." class="dashboard-button" style="background-color: #757575; border-color: #757575;">Clear</a>
         {% endif %}
     </form>
     
@@ -92,15 +93,13 @@ tr:hover {background-color: #e8f5e9;}
         <table id="claimsTable">
             <thead>
                 <tr>
-                    <th style="width: 7%;">Code</th>
-                    <th style="width: 15%;">Surname, Name</th>
-                    <th style="width: 13%;">ID Number</th>
-                    <th style="width: 10%;" class="sortable" onclick="sortTable(3)">Last Contrib.</th>
-                    <th style="width: 10%;">Exit Reason</th>
-                    <th style="width: 12%;">Allocation</th>
-                    
-                    <th style="width: 12%;">Type</th>
-                    <th style="width: 7%;">Status</th>
+                    <th style="width: 8%;">Code</th>
+                    <th style="width: 10%;">Agent</th>
+                    <th style="width: 12%;">ID Number</th>
+                    <th style="width: 20%;">Surname, Name</th>
+                    <th style="width: 10%;">Created</th>
+                    <th style="width: 15%;">Type</th>
+                    <th style="width: 15%;">Status</th>
                     <th style="text-align: right; width: 10%;">Action</th>
                 </tr>
             </thead>
@@ -108,13 +107,10 @@ tr:hover {background-color: #e8f5e9;}
                 {% for claim in claims %}
                 <tr data-sort-idnumber="{{ claim.id_number }}">
                     <td><strong>{{ claim.company_code }}</strong></td>
-                    <td>{{ claim.member_surname }}, {{ claim.member_name }}</td>
+                    <td>{{ claim.agent|default:"-" }}</td>
                     <td>{{ claim.id_number }}</td>
-                    
-                    <td>{{ claim.last_contribution_date|date:"Y-m-d"|default:"-" }}</td>
-                    <td>{{ claim.exit_reason|default:"-" }}</td>
-                    <td><small>{{ claim.claim_allocation }}</small></td>
-
+                    <td>{{ claim.member_surname }}, {{ claim.member_name }}</td>
+                    <td>{{ claim.claim_created_date|date:"Y-m-d" }}</td>
                     <td>
                         {{ claim.claim_type }}
                         {% if claim.linked_email_id %}
@@ -153,7 +149,7 @@ tr:hover {background-color: #e8f5e9;}
                                 data-vested_pot_paid_date="{{ claim.vested_pot_paid_date|date:'Y-m-d' }}"
                                 data-savings_pot_available="{{ claim.savings_pot_available }}"
                                 data-savings_pot_paid_date="{{ claim.savings_pot_paid_date|date:'Y-m-d' }}"
-                                data-infund_cert_date="{{ claim.infund_preservation_cert_received_date|date:'Y-m-d' }}"
+                                data-infund_cert_date="{{ claim.infund_cert_date|date:'Y-m-d' }}"
                                 >Edit</button>
                         
                         <template id="notes-data-{{ claim.id }}">
@@ -177,6 +173,19 @@ tr:hover {background-color: #e8f5e9;}
                 {% endfor %}
             </tbody>
         </table>
+
+        {% if page_obj.has_other_pages %}
+        <div class="pagination-nav">
+            {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="dashboard-button" style="background-color: #757575;">&laquo; Previous</a>
+            {% endif %}
+            <span style="font-weight: bold; color: #1b5e20;">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="dashboard-button" style="background-color: #757575;">Next &raquo;</a>
+            {% endif %}
+        </div>
+        {% endif %}
+
         {% else %}
             <p style="text-align: center; padding: 20px;">No claims found.</p>
         {% endif %}
@@ -196,7 +205,7 @@ tr:hover {background-color: #e8f5e9;}
                         <input list="company_list" name="company_code" id="company_code_input" class="form-input" required autocomplete="off">
                         <datalist id="company_list">
                             {% for c in all_companies %}
-                                <option value="{{ c.a_company_code }}" data-agent="{{ c.c_agent }}">{{ c.a_company_code }} - {{ c.b_company_name }}</option>
+                                <option value="{{ c.mip_names }}" data-agent="{{ c.branch_code }}">{{ c.mip_names }}</option>
                             {% endfor %}
                         </datalist>
                     </div>
@@ -228,8 +237,6 @@ tr:hover {background-color: #e8f5e9;}
                             <option value="Resignation">Resignation</option>
                             <option value="Retirement">Retirement</option>
                             <option value="Death">Death</option>
-                            <option value="Dismissal">Dismissal</option>
-                            <option value="Retrenchment">Retrenchment</option>
                         </select>
                     </div>
                     <div>
@@ -237,9 +244,7 @@ tr:hover {background-color: #e8f5e9;}
                         <select name="claim_allocation" class="form-select">
                             <option value="New Claim">New Claim</option>
                             <option value="Dealing With Claim">Dealing With Claim</option>
-                            <option value="Claim Query">Claim Query</option>
                             <option value="Claim Paid">Claim Paid</option>
-                            <option value="Exit Processed">Exit Processed</option>
                         </select>
                     </div>
                 </div>
@@ -424,10 +429,6 @@ tr:hover {background-color: #e8f5e9;}
     const twoPotStatuses = ['Submitted', 'Paid', 'Withdraw - Not Allowed', 'Withdraw – Already Claimed in Current Tax Year'];
     const twoPotPayments = ['Full Payment', 'Partially Taken'];
 
-    // TABLE SORTER STATE
-    let currentSortCol = -1;
-    let sortAsc = true;
-
     document.addEventListener('DOMContentLoaded', () => {
         const sSelect = document.getElementById('claim_status_select');
         const pSelect = document.getElementById('payment_option_select');
@@ -435,46 +436,6 @@ tr:hover {background-color: #e8f5e9;}
         if(pSelect) originalPayments = Array.from(pSelect.options).map(opt => opt.cloneNode(true));
     });
 
-    /**
-     * UPDATED Client-side Table Sorter
-     * @param {number} colIndex
-     */
-    function sortTable(colIndex) {
-        const tbody = document.getElementById("claimsTableBody");
-        const rows = Array.from(tbody.rows);
-
-        if (currentSortCol === colIndex) {
-            sortAsc = !sortAsc;
-        } else {
-            currentSortCol = colIndex;
-            sortAsc = true;
-        }
-
-        rows.sort((a, b) => {
-            let valA = a.cells[colIndex].innerText.toLowerCase().trim();
-            let valB = b.cells[colIndex].innerText.toLowerCase().trim();
-
-            // Date sorting logic for "Last Contrib." (Column index 3)
-            if (colIndex === 3) {
-                // If "-" treat as empty
-                if (valA === '-') valA = '1900-01-01';
-                if (valB === '-') valB = '1900-01-01';
-                
-                let dateA = new Date(valA);
-                let dateB = new Date(valB);
-                
-                return sortAsc ? dateA - dateB : dateB - dateA;
-            }
-
-            // Default string sorting
-            return sortAsc ? valA.localeCompare(valB) : valB.localeCompare(valA);
-        });
-
-        // Re-append rows to the tbody
-        rows.forEach(row => tbody.appendChild(row));
-    }
-
-    // --- TRIGGER EXPORT ---
     function triggerGlobalExport() {
         const urlParams = new URLSearchParams(window.location.search);
         const q = document.querySelector('input[name="q"]').value || (urlParams.get('q') || '');
@@ -642,10 +603,11 @@ tr:hover {background-color: #e8f5e9;}
 
     document.getElementById('company_code_input').addEventListener('input', function() {
         const val = this.value;
-        const opts = document.getElementById('company_list').childNodes;
-        for (let i = 0; i < opts.length; i++) {
-            if (opts[i].value === val) {
-                document.getElementById('agent_input').value = opts[i].getAttribute('data-agent') || '';
+        const datalist = document.getElementById('company_list');
+        const options = datalist.options;
+        for (let i = 0; i < options.length; i++) {
+            if (options[i].value === val) {
+                document.getElementById('agent_input').value = options[i].getAttribute('data-agent') || '';
                 break;
             }
         }
