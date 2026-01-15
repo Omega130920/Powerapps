@@ -121,8 +121,8 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
         <div id="classification_fields_wrapper">
             <div class="form-grid">
                 <div class="form-group">
-                    <label for="mip_names">Member Group / Branch:*</label>
-                    <input type="text" id="mip_names" name="mip_names" list="acvv_list" placeholder="Type Branch Name or Code (e.g. PF001)" required>
+                    <label for="mip_names">Member Group Code</label>
+                    <input type="text" id="mip_names" name="mip_names" list="acvv_list" placeholder="Enter Member Group Code" required>
                     <datalist id="acvv_list">
                         {% for record in acvv_records %}
                             <option value="{{ record.mip_names }}">Code: {{ record.branch_code }}</option>

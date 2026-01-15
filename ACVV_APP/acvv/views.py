@@ -18,7 +18,7 @@ from django.contrib.auth.models import User
 import openpyxl 
 
 # Local Model Imports
-from .models import AcvvClaim, ClaimNote, Globalacvv, ClientNotes, EmailDelegation, DelegationNote, DelegationTransactionLog, ReconciliationRecord, ReconciliationWorksheet
+from .models import AcvvClaim, BranchDocument, ClaimNote, Globalacvv, ClientNotes, EmailDelegation, DelegationNote, DelegationTransactionLog, ReconciliationRecord, ReconciliationWorksheet
 
 
 # Import the new Graph API service functions
@@ -415,42 +415,63 @@ from django.db.models import Q # For flexible filtering
 def acvv_information(request, mip_names):
     """
     Detailed view for a specific ACVV record.
-    UPDATED: Handles file uploads, Communication Type, and Action Note Type.
+    UPDATED: Handles Internal Notes, Member Claims, and now PDF Folder Uploads.
     """
     acvv_record = get_object_or_404(Globalacvv, mip_names=mip_names)
     
     if request.method == 'POST':
-        # Retrieve text and dropdown data
-        note_content = request.POST.get('internal_note_text')
-        comm_type = request.POST.get('communication_type')
-        action_note = request.POST.get('action_note_type')
-        uploaded_file = request.FILES.get('note_attachment')
+        # --- 1. HANDLE INTERNAL NOTES ---
+        if 'add_note' in request.POST:
+            note_content = request.POST.get('internal_note_text')
+            comm_type = request.POST.get('communication_type')
+            action_note = request.POST.get('action_note_type')
+            uploaded_file = request.FILES.get('note_attachment')
 
-        if note_content or uploaded_file:
-            # Handle the file attachment
-            file_url = None
-            if uploaded_file:
+            if note_content or uploaded_file:
+                file_url = None
+                if uploaded_file:
+                    fs = FileSystemStorage()
+                    filename = fs.save(f"notes/{uploaded_file.name}", uploaded_file)
+                    file_url = fs.url(filename)
+
+                ClientNotes.objects.create(
+                    acvv_record=acvv_record,
+                    notes=note_content,
+                    user=request.user.username,
+                    date=datetime.now(),
+                    communication_type=comm_type,
+                    action_note_type=action_note,
+                    attachment=file_url
+                )
+                messages.success(request, "Internal note added successfully!")
+                return redirect(f'/acvv-records/{acvv_record.mip_names}/#notes-tab')
+
+        # --- 2. NEW: HANDLE PDF FOLDER UPLOADS ---
+        elif 'upload_pdf' in request.POST:
+            pdf_file = request.FILES.get('branch_pdf')
+            if pdf_file:
                 fs = FileSystemStorage()
-                # Saves to MEDIA_ROOT/notes/ folder
-                filename = fs.save(f"notes/{uploaded_file.name}", uploaded_file)
+                # Store in a branch-specific folder structure for organization
+                path = f"branch_docs/{acvv_record.mip_names}/{pdf_file.name}"
+                filename = fs.save(path, pdf_file)
                 file_url = fs.url(filename)
 
-            # Create the note in the unmanaged table
-            ClientNotes.objects.create(
-                acvv_record=acvv_record,
-                notes=note_content,
-                user=request.user.username,
-                date=datetime.now(),
-                communication_type=comm_type,  # New Field
-                action_note_type=action_note,  # New Field
-                attachment=file_url            # New Field for file path
-            )
-            messages.success(request, "Internal note added successfully!")
-            return redirect(f'/acvv-records/{acvv_record.mip_names}/#notes-tab')
+                # Save metadata to our unmanaged document table
+                BranchDocument.objects.create(
+                    branch_name=acvv_record.mip_names,
+                    file_name=pdf_file.name,
+                    file_path=file_url,
+                    uploaded_by=request.user.username
+                )
+                messages.success(request, f"'{pdf_file.name}' added to branch folder.")
+                return redirect(f'/acvv-records/{acvv_record.mip_names}/#pdf-upload')
 
     # --- Fetching data for the page display ---
     notes = ClientNotes.objects.filter(acvv_record=acvv_record).order_by('-date')
     company_claims = AcvvClaim.objects.filter(company_code=mip_names).order_by('-claim_created_date')
+    
+    # NEW: Fetch documents stored for this specific branch
+    branch_docs = BranchDocument.objects.filter(branch_name=mip_names).order_by('-uploaded_at')
 
     # Combined Email Log Logic
     delegated_logs = EmailDelegation.objects.filter(
@@ -510,6 +531,7 @@ def acvv_information(request, mip_names):
         'company_claims': company_claims,
         'combined_email_log': combined_email_log, 
         'my_delegated_emails': my_delegated_emails,
+        'branch_docs': branch_docs,  # Added to context
     }
     return render(request, 'acvv_app/acvv_information.html', context)
 

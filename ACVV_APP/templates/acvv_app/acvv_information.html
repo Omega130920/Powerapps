@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ACVV Information - {{ acvv_record.mip_names }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
         html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; font-family: 'Inter', sans-serif; }
@@ -31,8 +32,6 @@
         .save-info-btn { background: #1b5e20; color: white; padding: 10px 20px; border-radius: 5px; font-weight: bold; }
         .status-badge { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; }
         .status-two-pot { background-color: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb; }
-        
-        /* Email Specific Styles */
         .btn-thread { background: #1976d2; color: white; padding: 4px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; text-decoration: none; }
         .type-cell { display: flex; align-items: center; gap: 8px; }
         .rich-text-editor { min-height: 200px; border: 1px solid #ccc; padding: 10px; border-radius: 4px; background-color: white; outline: none; }
@@ -56,72 +55,85 @@
             </ul>
 
             <div class="tab-content">
+                
                 <div id="acvv-info" class="tab-pane active">
                     <table>
                         <tr><th>Member Group Name</th><td>{{ acvv_record.mip_names }}</td></tr>
                         <tr><th>Member Group Code</th><td>{{ acvv_record.branch_code }}</td></tr>
                         <tr><th>Member</th><td>{{ acvv_record.member }}</td></tr>
-                        <tr><th>Status</th><td>{{ acvv_record.status }}</td></tr>
                         <tr><th>Contribution Amount</th><td>{{ acvv_record.contribution_amount }}</td></tr>
-                        <tr><th>Notes</th><td>{{ acvv_record.notes }}</td></tr>
-                        <tr><th>Schedule Date Received</th><td>{{ acvv_record.schedule_date_received }}</td></tr>
-                        <tr><th>Deb Order Date Confirm</th><td>{{ acvv_record.deb_order_date_confirm }}</td></tr>
                         <tr><th>Bank info Upload</th><td>{{ acvv_record.bank_info_upload }}</td></tr>
                         <tr><th>Email Address</th><td>{{ acvv_record.mg_email_address }}</td></tr>
                         <tr><th>Tel</th><td>{{ acvv_record.tel }}</td></tr>
                     </table>
                 </div>
 
-                <div class="internal-note-container" style="background-color: #f9fff9; padding: 20px; border-radius: 8px; border: 1px solid #e0e0e0; margin-top: 20px;">
-                    <form method="POST" enctype="multipart/form-data">
-                        {% csrf_token %}
-                        
-                        <div style="display: flex; gap: 20px; margin-bottom: 15px;">
-                            <div class="form-group" style="flex: 1;">
-                                <label style="color: #2e7d32; font-weight: bold; display: block; margin-bottom: 5px;">Communication Type:</label>
-                                <select name="communication_type" class="input-field" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
-                                    <option value="">Select Communication Type</option>
-                                    <option value="Incoming Call">Incoming Call</option>
-                                    <option value="Outgoing Call">Outgoing Call</option>
-                                    <option value="Notes Log">Notes Log</option>
-                                    <option value="Teams Meeting">Teams Meeting</option>
-                                </select>
+                <div id="notes-tab" class="tab-pane">
+                    <div class="internal-note-container" style="background-color: #f9fff9; padding: 20px; border-radius: 8px; border: 1px solid #e0e0e0; margin-top: 10px;">
+                        <form method="POST" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <div style="display: flex; gap: 20px; margin-bottom: 15px;">
+                                <div class="form-group" style="flex: 1;">
+                                    <label style="color: #2e7d32; font-weight: bold; display: block; margin-bottom: 5px;">Communication Type:</label>
+                                    <select name="communication_type" class="form-select">
+                                        <option value="">Select Communication Type</option>
+                                        <option value="Incoming Call">Incoming Call</option>
+                                        <option value="Outgoing Call">Outgoing Call</option>
+                                        <option value="Notes Log">Notes Log</option>
+                                        <option value="Teams Meeting">Teams Meeting</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="flex: 1;">
+                                    <label style="color: #2e7d32; font-weight: bold; display: block; margin-bottom: 5px;">Action Notes:</label>
+                                    <select name="action_note_type" class="form-select">
+                                        <option value="">Select Action Note</option>
+                                        <option value="Feedback to Sanlam">Feedback to Sanlam</option>
+                                        <option value="Feedback to Employer">Feedback to Employer</option>
+                                        <option value="Feedback to Member">Feedback to Member</option>
+                                        <option value="Feedback to CBC">Feedback to CBC</option>
+                                        <option value="Enquiry to FO">Enquiry to FO</option>
+                                        <option value="Enquiry to Sanlam">Enquiry to Sanlam</option>
+                                        <option value="Enquiry to Employer">Enquiry to Employer</option>
+                                        <option value="Enquiry to CBC">Enquiry to CBC</option>
+                                        <option value="Sent to Employer">Sent to Employer</option>
+                                        <option value="Sent to Sanlam">Sent to Sanlam</option>
+                                        <option value="Sent to CBC">Sent to CBC</option>
+                                        <option value="Sent to FO">Sent to FO</option>
+                                    </select>
+                                </div>
                             </div>
-
-                            <div class="form-group" style="flex: 1;">
-                                <label style="color: #2e7d32; font-weight: bold; display: block; margin-bottom: 5px;">Action Notes:</label>
-                                <select name="action_note_type" class="input-field" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
-                                    <option value="">Select Action Note</option>
-                                    <option value="Feedback to Sanlam">Feedback to Sanlam</option>
-                                    <option value="Feedback to Employer">Feedback to Employer</option>
-                                    <option value="Feedback to Member">Feedback to Member</option>
-                                    <option value="Feedback to CBC">Feedback to CBC</option>
-                                    <option value="Enquiry to FO">Enquiry to FO</option>
-                                    <option value="Enquiry to Sanlam">Enquiry to Sanlam</option>
-                                    <option value="Enquiry to Employer">Enquiry to Employer</option>
-                                    <option value="Enquiry to CBC">Enquiry to CBC</option>
-                                    <option value="Sent to Employer">Sent to Employer</option>
-                                    <option value="Sent to Sanlam">Sent to Sanlam</option>
-                                    <option value="Sent to CBC">Sent to CBC</option>
-                                    <option value="Sent to FO">Sent to FO</option>
-                                </select>
+                            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                                <textarea name="internal_note_text" placeholder="Add internal note here..." style="flex: 1; height: 100px; padding: 10px; border-radius: 4px; border: 1px solid #ccc;"></textarea>
+                                <button type="submit" name="add_note" style="background-color: #43a047; color: white; border: none; padding: 0 25px; border-radius: 4px; font-weight: bold; cursor: pointer;">Add Note</button>
                             </div>
-                        </div>
-
-                        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                            <textarea name="internal_note_text" placeholder="Add internal note here..." style="flex: 1; height: 100px; padding: 10px; border-radius: 4px; border: 1px solid #ccc;"></textarea>
-                            <button type="submit" name="add_note" style="background-color: #43a047; color: white; border: none; padding: 0 25px; border-radius: 4px; font-weight: bold; cursor: pointer;">
-                                Add Note
-                            </button>
-                        </div>
-
-                        <div style="padding: 10px; border: 1px dashed #43a047; border-radius: 4px; background-color: white;">
-                            <label style="color: #2e7d32; font-weight: bold; margin-right: 10px;">
-                                <i class="fas fa-paperclip"></i> Attach PDF/Document:
-                            </label>
-                            <input type="file" name="note_attachment">
-                        </div>
-                    </form>
+                            <div style="padding: 10px; border: 1px dashed #43a047; border-radius: 4px; background-color: white;">
+                                <label style="color: #2e7d32; font-weight: bold; margin-right: 10px;"><i class="fas fa-paperclip"></i> Attach PDF/Document:</label>
+                                <input type="file" name="note_attachment">
+                            </div>
+                        </form>
+                    </div>
+                    <h3 class="mt-6 font-bold text-emerald-800">Note History</h3>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th><th>User</th><th>Comm Type</th><th>Action Type</th><th>Note</th><th>File</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for note in notes %}
+                            <tr>
+                                <td>{{ note.date|date:"Y-m-d H:i" }}</td>
+                                <td>{{ note.user }}</td>
+                                <td><span class="status-badge bg-emerald-100 text-emerald-800">{{ note.communication_type }}</span></td>
+                                <td><span class="status-badge bg-orange-100 text-orange-800">{{ note.action_note_type }}</span></td>
+                                <td>{{ note.notes }}</td>
+                                <td>{% if note.attachment %}<a href="{{ note.attachment }}" target="_blank" class="text-blue-600 hover:underline"><i class="fas fa-file-pdf"></i> View</a>{% else %}-{% endif %}</td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="6" class="text-center py-4 text-gray-400">No internal notes yet.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
 
                 <div id="company-claims" class="tab-pane">
@@ -129,75 +141,62 @@
                         <h2 class="text-xl font-bold text-emerald-800">Member Claims Register</h2>
                         <button type="button" class="dashboard-button" onclick="openClaimModal()">➕ New Claim</button>
                     </div>
-
                     {% if company_claims %}
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Member Name</th>
-                                    <th>Created</th>
-                                    <th>Type</th>
-                                    <th>Status</th>
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for claim in company_claims %}
-                                <tr>
-                                    <td><strong>{{ claim.member_surname }}, {{ claim.member_name|slice:":1" }}</strong></td>
-                                    <td>{{ claim.claim_created_date|date:"Y-m-d" }}</td>
-                                    <td>
-                                        <span class="status-badge {% if claim.claim_type == 'Two Pot' %}status-two-pot{% endif %}">
-                                            {{ claim.claim_type }}
-                                        </span>
-                                    </td>
-                                    <td>{{ claim.claim_status }}</td>
-                                    <td>
-                                        <button class="dashboard-button bg-orange-400 hover:bg-orange-500" style="padding: 4px 10px;"
-                                            onclick="editClaim(this)"
-                                            data-id="{{ claim.id }}"
-                                            data-id_number="{{ claim.id_number }}"
-                                            data-member_name="{{ claim.member_name }}"
-                                            data-member_surname="{{ claim.member_surname }}"
-                                            data-mip_number="{{ claim.mip_number|default:'' }}" 
-                                            data-claim_type="{{ claim.claim_type }}"
-                                            data-exit_reason="{{ claim.exit_reason|default:'' }}"
-                                            data-claim_allocation="{{ claim.claim_allocation }}"
-                                            data-claim_status="{{ claim.claim_status }}"
-                                            data-payment_option="{{ claim.payment_option }}"
-                                            data-claim_amount="{{ claim.claim_amount|default:'' }}" 
-                                            data-claim_created_date="{{ claim.claim_created_date|date:'Y-m-d' }}"
-                                            data-last_contribution_date="{{ claim.last_contribution_date|date:'Y-m-d' }}"
-                                            data-date_submitted="{{ claim.date_submitted|date:'Y-m-d' }}"
-                                            data-date_paid="{{ claim.date_paid|date:'Y-m-d' }}"
-                                            data-vested_pot_available="{{ claim.vested_pot_available }}"
-                                            data-vested_pot_paid_date="{{ claim.vested_pot_paid_date|date:'Y-m-d' }}"
-                                            data-savings_pot_available="{{ claim.savings_pot_available }}"
-                                            data-savings_pot_paid_date="{{ claim.savings_pot_paid_date|date:'Y-m-d' }}"
-                                            data-infund_cert_date="{{ claim.infund_cert_date|date:'Y-m-d' }}"
-                                            data-linked_email_id="{{ claim.linked_email_id|default:'' }}">Edit</button>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Member Name</th><th>Created</th><th>Type</th><th>Status</th><th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for claim in company_claims %}
+                            <tr>
+                                <td><strong>{{ claim.member_surname }}, {{ claim.member_name|slice:":1" }}</strong></td>
+                                <td>{{ claim.claim_created_date|date:"Y-m-d" }}</td>
+                                <td><span class="status-badge {% if claim.claim_type == 'Two Pot' %}status-two-pot{% endif %}">{{ claim.claim_type }}</span></td>
+                                <td>{{ claim.claim_status }}</td>
+                                <td>
+                                    <button class="dashboard-button bg-orange-400 hover:bg-orange-500" style="padding: 4px 10px;"
+                                        onclick="editClaim(this)"
+                                        data-id="{{ claim.id }}"
+                                        data-id_number="{{ claim.id_number }}"
+                                        data-member_name="{{ claim.member_name }}"
+                                        data-member_surname="{{ claim.member_surname }}"
+                                        data-mip_number="{{ claim.mip_number|default:'' }}" 
+                                        data-claim_type="{{ claim.claim_type }}"
+                                        data-exit_reason="{{ claim.exit_reason|default:'' }}"
+                                        data-claim_allocation="{{ claim.claim_allocation }}"
+                                        data-claim_status="{{ claim.claim_status }}"
+                                        data-payment_option="{{ claim.payment_option }}"
+                                        data-claim_amount="{{ claim.claim_amount|default:'' }}" 
+                                        data-claim_created_date="{{ claim.claim_created_date|date:'Y-m-d' }}"
+                                        data-last_contribution_date="{{ claim.last_contribution_date|date:'Y-m-d' }}"
+                                        data-date_submitted="{{ claim.date_submitted|date:'Y-m-d' }}"
+                                        data-date_paid="{{ claim.date_paid|date:'Y-m-d' }}"
+                                        data-vested_pot_available="{{ claim.vested_pot_available }}"
+                                        data-vested_pot_paid_date="{{ claim.vested_pot_paid_date|date:'Y-m-d' }}"
+                                        data-savings_pot_available="{{ claim.savings_pot_available }}"
+                                        data-savings_pot_paid_date="{{ claim.savings_pot_paid_date|date:'Y-m-d' }}"
+                                        data-infund_cert_date="{{ claim.infund_cert_date|date:'Y-m-d' }}"
+                                        data-linked_email_id="{{ claim.linked_email_id|default:'' }}">Edit</button>
 
-                                        <template id="notes-data-{{ claim.id }}">
-                                            {% for note in claim.notes.all %}
-                                            <tr>
-                                                <td>{{ note.note_description }}</td>
-                                                <td>{{ note.note_selection }}</td>
-                                                <td>{{ note.created_at|date:"Y-m-d H:i" }}</td>
-                                                <td>{{ note.created_by.username }}</td>
-                                            </tr>
-                                            {% empty %}
-                                            <tr><td colspan="4" class="text-center py-4 text-gray-400">No notes recorded for this claim.</td></tr>
-                                            {% endfor %}
-                                        </template>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
+                                    <template id="notes-data-{{ claim.id }}">
+                                        {% for note in claim.notes.all %}
+                                        <tr>
+                                            <td>{{ note.note_description }}</td>
+                                            <td>{{ note.note_selection }}</td>
+                                            <td>{{ note.created_at|date:"Y-m-d H:i" }}</td>
+                                            <td>{{ note.created_by.username }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </template>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                     {% else %}
-                        <div class="text-center py-10 bg-white rounded border border-dashed border-green-300 text-gray-500">
-                            No member claims found for this branch. Click "New Claim" to begin.
-                        </div>
+                    <div class="text-center py-10 bg-white rounded border border-dashed border-green-300 text-gray-500">No member claims found.</div>
                     {% endif %}
                 </div>
 
@@ -205,25 +204,23 @@
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #aed581; padding-bottom: 10px;">
                         <div>
                             <h2 style="margin: 0; font-size: 1.5em; color: #1565c0;">Delegated & Sent Emails</h2>
-                            <p style="font-size: 0.9em; color: #555; margin: 5px 0 0 0;">Tracking delegated emails, replies, and direct outgoing mail.</p>
+                            <p style="font-size: 0.9em; color: #555; margin: 5px 0 0 0;">Tracking history.</p>
                         </div>
-                        <button type="button" class="dashboard-button" style="background-color: #ff9800; border-color: #f57c00;" onclick="toggleStandaloneEmailForm()">📧 Compose New Email</button>
+                        <button type="button" class="dashboard-button" style="background-color: #ff9800;" onclick="toggleStandaloneEmailForm()">📧 Compose New Email</button>
                     </div>
 
                     <div id="standalone-email-container" style="display: none; margin-bottom: 20px;">
                         <form method="post" action="{% url 'save_acvv_claim' company_code=acvv_record.mip_names %}" id="standalone_email_master_form" enctype="multipart/form-data" style="background-color: #fffaf5; border: 2px dashed #ff9800; border-radius: 8px; padding: 20px;">
                             {% csrf_token %}
-                            <h3 style="color: #ff9800; margin-top: 0;">Compose Outgoing Email</h3>
                             <input type="hidden" name="action" value="send_outgoing_email">
                             <input type="hidden" name="email_body_html_content" id="standalone_email_html_content">
-
                             <div class="form-group" style="margin-bottom: 10px;">
                                 <label style="font-weight: bold; display: block; margin-bottom: 5px;">To:</label>
-                                <input type="text" name="member_recipient_email" value="{{ acvv_record.mg_email_address }}" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" required>
+                                <input type="text" name="member_recipient_email" value="{{ acvv_record.mg_email_address }}" class="form-input" required>
                             </div>
                             <div class="form-group" style="margin-bottom: 15px;">
                                 <label style="font-weight: bold; display: block; margin-bottom: 5px;">Subject:</label>
-                                <input type="text" name="member_email_subject_reply" value="[MIP: {{ acvv_record.mip_names }}] New Communication" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                                <input type="text" name="member_email_subject_reply" value="[MIP: {{ acvv_record.mip_names }}] New Communication" class="form-input">
                             </div>
                             <div class="form-group" style="margin-bottom: 15px;">
                                 <label style="font-weight: bold; display: block; margin-bottom: 5px;">Email Body:</label>
@@ -239,54 +236,58 @@
                     </div>
 
                     {% if combined_email_log %}
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th style="width: 160px;">Email Type</th>
-                                    <th>Subject</th>
-                                    <th>Received Date</th>
-                                    <th>Delegated Date</th>
-                                    <th>Assigned To / Recipient</th>
-                                    <th style="width: 120px;">Action / Status</th>
-                                    <th>Actioned Date</th>
-                                    <th style="text-align: center;">Thread</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for log in combined_email_log %}
-                                <tr>
-                                    <td>
-                                        <div class="type-cell">
-                                            <span style="font-size: 1.2em;">{{ log.icon }}</span>
-                                            <span style="font-weight:bold; color: {{ log.badge_color }};">{{ log.type }}</span>
-                                        </div>
-                                    </td>
-                                    <td>{{ log.subject|truncatechars:50 }}</td>
-                                    <td>{{ log.received_at|date:"Y-m-d H:i"|default:"-" }}</td>
-                                    <td>{{ log.delegated_at|date:"Y-m-d H:i"|default:"-" }}</td>
-                                    <td><strong>{{ log.assigned_to|default:"-" }}</strong></td>
-                                    <td>
-                                        <span class="status-badge" style="background-color: {{ log.badge_color }}; color: white;">
-                                            {{ log.display_type|upper }}
-                                        </span>
-                                    </td>
-                                    <td>{{ log.actioned_at|date:"Y-m-d H:i"|default:"-" }}</td>
-                                    <td style="text-align: center;">
-                                        {% if log.email_id %}
-                                            <a href="{% url 'outlook_view_thread' delegation_id=log.email_id %}" class="btn-thread">View Thread</a>
-                                        {% else %}-{% endif %}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    {% else %}
-                        <p style="background: white; border-radius: 8px; margin-top: 15px; padding: 20px; text-align: center; color: #666;">No email history found for this record.</p>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 160px;">Type</th><th>Subject</th><th>Assigned</th><th>Status</th><th>Thread</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in combined_email_log %}
+                            <tr>
+                                <td><div class="type-cell"><span>{{ log.icon }}</span><span style="color: {{ log.badge_color }};">{{ log.type }}</span></div></td>
+                                <td>{{ log.subject|truncatechars:50 }}</td>
+                                <td>{{ log.assigned_to|default:"-" }}</td>
+                                <td><span class="status-badge" style="background-color: {{ log.badge_color }}; color: white;">{{ log.display_type|upper }}</span></td>
+                                <td style="text-align: center;">{% if log.email_id %}<a href="{% url 'outlook_view_thread' delegation_id=log.email_id %}" class="btn-thread">View</a>{% else %}-{% endif %}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                     {% endif %}
                 </div>
-                
+
                 <div id="pdf-upload" class="tab-pane">
-                    <p class="text-center py-10 text-gray-400 italic">PDF Document Management section.</p>
+                    <div style="background-color: #ffffff; padding: 20px; border-radius: 8px; border: 1px solid #aed581;">
+                        <h2 style="color: #1b5e20; font-weight: bold; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                            <i class="fas fa-folder-open text-yellow-500"></i> Branch Document Folder
+                        </h2>
+                        <form method="POST" enctype="multipart/form-data" style="background-color: #f1f8e9; padding: 15px; border-radius: 6px; border: 1px dashed #43a047; margin-bottom: 20px;">
+                            {% csrf_token %}
+                            <div style="display: flex; align-items: center; gap: 15px;">
+                                <label style="font-weight: bold; font-size: 13px;">Upload New Document:</label>
+                                <input type="file" name="branch_pdf" accept=".pdf,.doc,.docx" required class="text-sm">
+                                <button type="submit" name="upload_pdf" class="dashboard-button" style="background-color: #43a047;"><i class="fas fa-upload"></i> Add to Folder</button>
+                            </div>
+                        </form>
+                        <div style="max-height: 400px; overflow-y: auto;">
+                            <table>
+                                <thead><tr><th>File Name</th><th>Uploaded By</th><th>Date Added</th><th>Action</th></tr></thead>
+                                <tbody>
+                                    {% for doc in branch_docs %}
+                                    <tr>
+                                        <td><i class="far fa-file-pdf text-red-500 mr-2"></i><strong>{{ doc.file_name }}</strong></td>
+                                        <td>{{ doc.uploaded_by }}</td>
+                                        <td>{{ doc.uploaded_at|date:"Y-m-d H:i" }}</td>
+                                        <td><a href="{{ doc.file_path }}" target="_blank" class="btn-thread" style="background-color: #1976d2;"><i class="fas fa-eye"></i> View</a></td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr><td colspan="4" class="text-center py-4 text-gray-400">No documents in this folder.</td></tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -295,7 +296,6 @@
     <div id="claimModal" class="modal-overlay">
         <div class="modal-content">
             <h2 style="color: #1b5e20; border-bottom: 2px solid #aed581; padding-bottom: 10px; margin-top: 0;">Manage Claim</h2>
-            
             <form id="main_claim_form" method="POST" action="{% url 'save_acvv_claim' company_code=acvv_record.mip_names %}" enctype="multipart/form-data">
                 {% csrf_token %}
                 <input type="hidden" name="claim_id" id="modal_claim_id">
@@ -316,27 +316,19 @@
                     <div>
                         <label style="font-weight:bold;">Claim Type</label>
                         <select name="claim_type" id="claim_type_select" class="form-select" onchange="toggleTwoPotLogic()">
-                            <option value="Withdrawal">Withdrawal</option>
-                            <option value="Retirement">Retirement</option>
-                            <option value="Death">Death</option>
-                            <option value="Two Pot">Two Pot</option> 
+                            <option value="Withdrawal">Withdrawal</option><option value="Retirement">Retirement</option><option value="Death">Death</option><option value="Two Pot">Two Pot</option> 
                         </select>
                     </div>
                     <div id="div_exit_reason">
                         <label style="font-weight:bold;">Reason For Exit</label>
                         <select name="exit_reason" class="form-select">
-                            <option value="">-- Select --</option>
-                            <option value="Resignation">Resignation</option>
-                            <option value="Retirement">Retirement</option>
-                            <option value="Death">Death</option>
+                            <option value="">-- Select --</option><option value="Resignation">Resignation</option><option value="Retirement">Retirement</option><option value="Death">Death</option>
                         </select>
                     </div>
                     <div>
                         <label style="font-weight:bold;">Claim Allocation</label>
                         <select name="claim_allocation" class="form-select">
-                            <option value="New Claim">New Claim</option>
-                            <option value="Claim Paid">Claim Paid</option>
-                            <option value="Claim Query">Claim Query</option>
+                            <option value="New Claim">New Claim</option><option value="Claim Paid">Claim Paid</option><option value="Claim Query">Claim Query</option>
                         </select>
                     </div>
                 </div>
@@ -345,11 +337,7 @@
                     <div>
                         <label style="font-weight:bold;">Claim Status</label>
                         <select name="claim_status" id="claim_status_select" class="form-select" onchange="toggleWithdrawalSubFields()">
-                            <option value="Claim Docs Requested">Claim Docs Requested</option>
-                            <option value="Paid">Paid</option>
-                            <option value="Submitted">Submitted</option>
-                            <option value="Incomplete">Incomplete</option>
-                            <option value="Withdraw - Not Allowed">Withdraw - Not Allowed</option>
+                            <option value="Claim Docs Requested">Claim Docs Requested</option><option value="Paid">Paid</option><option value="Submitted">Submitted</option><option value="Incomplete">Incomplete</option><option value="Withdraw - Not Allowed">Withdraw - Not Allowed</option>
                         </select>
                         <div id="div_two_pot_withdrawal_details" style="display:none; margin-top: 10px; padding: 10px; background: #fffde7; border-left: 3px solid #fbc02d;">
                             <label style="font-size: 0.85em; font-weight: bold; color: #bc5100;">Note Helper: Reason</label>
@@ -367,8 +355,7 @@
                     <div>
                         <label style="font-weight:bold;">Payment Option</label>
                         <select name="payment_option" id="payment_option_select" class="form-select">
-                            <option value="Pay Full Benefit">Pay Full Benefit</option>
-                            <option value="Leave Benefit in Fund">Leave Benefit in Fund</option>
+                            <option value="Pay Full Benefit">Pay Full Benefit</option><option value="Leave Benefit in Fund">Leave Benefit in Fund</option>
                         </select>
                     </div>
                     <div id="div_claim_amount" style="display:none;">
@@ -411,53 +398,39 @@
                         <option value="">-- Select an email to link --</option>
                         {% for email in my_delegated_emails %}
                             <option value="{{ email.email_id }}">📅 {{ email.received_at|date:"Y-m-d" }} | {{ email.subject }}</option>
-                        {% empty %}
-                            <option disabled>No delegated emails found for you.</option>
                         {% endfor %}
                     </select>
-
                     <div id="email-composition-container" style="display: none; margin-top: 10px; background: #fffaf5; border: 1px dashed #ff9800; padding: 15px; border-radius: 8px;">
                         <input type="hidden" name="email_body_html_content" id="email_body_html_content">
                         <label class="text-xs font-bold">To:</label><input type="text" name="member_recipient_email" class="form-input mb-2" placeholder="Recipient email...">
                         <label class="text-xs font-bold">Subject:</label><input type="text" name="member_email_subject_reply" class="form-input mb-2">
-                        <label class="text-xs font-bold">Body:</label>
                         <textarea id="member_email_body_editor" class="form-input" rows="5">Dear Sir/Madam,&#10;&#10;Kind regards,&#10;{{ request.user.username }}</textarea>
                     </div>
                 </div>
 
                 <hr style="border: 1px solid #aed581; margin: 20px 0;">
-
+                
                 <h3 style="color: #38761d; font-weight: bold;">Add Claim Note</h3>
                 <div style="background-color: #f9f9f9; padding: 15px; border: 1px solid #ccc; border-radius: 4px;">
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;">
                         <div>
                             <label class="text-xs font-bold">Note Selection</label>
                             <select name="note_selection" class="form-select">
-                                <option value="">-- Select Note Type (Optional) --</option>
-                                <option value="BANK DETAILS FOLLOW UP WITH MEMBER/EMPLOYER">BANK DETAILS FOLLOW UP WITH MEMBER/EMPLOYER</option>
-                                <option value="BANK VERIFICATION FAILED – SANLAM">BANK VERIFICATION FAILED – SANLAM</option>
-                                <option value="CLAIM DOCUMENTS REQUESTED">CLAIM DOCUMENTS REQUESTED</option>
-                                <option value="SUBMITTED VIA E-MAIL">SUBMITTED VIA E-MAIL</option>
+                                <option value="">-- Select Note Type --</option>
+                                <option value="BANK DETAILS FOLLOW UP WITH MEMBER/EMPLOYER">BANK DETAILS FOLLOW UP</option>
+                                <option value="CLAIM DOCUMENTS REQUESTED">DOCS REQUESTED</option>
+                                <option value="SUBMITTED VIA E-MAIL">SUBMITTED VIA EMAIL</option>
                             </select>
                         </div>
-                        <div>
-                            <label class="text-xs font-bold">Attachment:</label>
-                            <input type="file" name="claim_attachment" class="form-input">
-                        </div>
+                        <div><label class="text-xs font-bold">Attachment:</label><input type="file" name="claim_attachment" class="form-input"></div>
                     </div>
-                    <label class="text-xs font-bold">Note Description</label>
-                    <textarea name="note_description" id="note_description" rows="3" class="form-input mb-2" placeholder="Add specific details..."></textarea>
+                    <textarea name="note_description" id="note_description" rows="3" class="form-input" placeholder="Add details..."></textarea>
                 </div>
 
-                <h3 style="color: #38761d; margin-top: 20px; font-weight: bold;">Claim Notes History</h3>
-                <div style="max-height: 150px; overflow-y: auto; border: 1px solid #ddd; background: white; border-radius: 4px;">
-                    <table style="margin: 0; font-size: 11px; width: 100%;">
-                        <thead style="background: #eee; position: sticky; top: 0; z-index: 5;">
-                            <tr><th>Note Description</th><th>Note Selection</th><th>Created On</th><th>User</th></tr>
-                        </thead>
-                        <tbody id="claim_notes_tbody">
-                            <tr><td colspan="4" class="text-center py-4 text-gray-400">Save claim to add new notes.</td></tr>
-                        </tbody>
+                <div style="max-height: 150px; overflow-y: auto; margin-top: 15px; border: 1px solid #ddd; background: white;">
+                    <table style="margin: 0; font-size: 11px;">
+                        <thead style="background: #eee; position: sticky; top: 0;"><tr><th>Note</th><th>Type</th><th>Date</th><th>User</th></tr></thead>
+                        <tbody id="claim_notes_tbody"></tbody>
                     </table>
                 </div>
 
@@ -470,26 +443,32 @@
     </div>
 
     <script>
-        // Tab Management
+        // TAB LOGIC
         document.querySelectorAll('.tab-nav li').forEach(tab => {
             tab.addEventListener('click', () => {
                 document.querySelectorAll('.tab-nav li').forEach(t => t.classList.remove('active'));
                 document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
                 tab.classList.add('active');
-                document.querySelector(tab.dataset.tabTarget).classList.add('active');
+                const target = document.querySelector(tab.dataset.tabTarget);
+                if(target) target.classList.add('active');
             });
         });
 
+        // EMAIL LOGIC
         function toggleStandaloneEmailForm() {
             const container = document.getElementById('standalone-email-container');
             container.style.display = (container.style.display === 'none') ? 'block' : 'none';
         }
-
         function syncStandaloneEditor() {
             const editor = document.getElementById('standalone_email_body_editor');
             document.getElementById('standalone_email_html_content').value = editor.innerHTML;
         }
+        function toggleEmailForm() {
+            const container = document.getElementById('email-composition-container');
+            container.style.display = (container.style.display === 'none') ? 'block' : 'none';
+        }
 
+        // CLAIM MODAL LOGIC
         let originalStatuses = [];
         let originalPayments = [];
         const twoPotStatuses = ['2 pot forms submitted to ER', 'Incomplete', 'Submitted', 'Withdraw - Not Allowed'];
@@ -502,27 +481,21 @@
             if(paymentSel) originalPayments = Array.from(paymentSel.options).map(opt => opt.cloneNode(true));
         });
 
-        function toggleEmailForm() {
-            const container = document.getElementById('email-composition-container');
-            container.style.display = (container.style.display === 'none') ? 'block' : 'none';
-        }
-
         function openClaimModal() {
             document.getElementById('main_claim_form').reset();
             document.getElementById('modal_claim_id').value = '';
-            document.getElementById('claim_notes_tbody').innerHTML = '<tr><td colspan="4" class="text-center py-4 text-gray-400">Save claim to add new notes.</td></tr>';
+            document.getElementById('claim_notes_tbody').innerHTML = '<tr><td colspan="4" class="text-center py-4">Save claim to add notes.</td></tr>';
             toggleTwoPotLogic();
             document.getElementById('claimModal').style.display = 'block';
         }
-
         function closeModal() { document.getElementById('claimModal').style.display = 'none'; }
 
         function toggleTwoPotLogic() {
             const type = document.getElementById('claim_type_select').value;
             const statusSelect = document.getElementById('claim_status_select');
             const paymentSelect = document.getElementById('payment_option_select');
-            
             const isTwoPot = (type === 'Two Pot');
+            
             document.getElementById('div_mip_number').style.display = isTwoPot ? 'block' : 'none';
             document.getElementById('div_claim_amount').style.display = isTwoPot ? 'block' : 'none';
             document.getElementById('div_exit_reason').style.display = isTwoPot ? 'none' : 'block';
@@ -539,12 +512,8 @@
 
         function updateOptions(select, values) {
             select.innerHTML = '';
-            values.forEach(v => {
-                let opt = new Option(v, v);
-                select.add(opt);
-            });
+            values.forEach(v => { select.add(new Option(v, v)); });
         }
-
         function restoreOptions(select, originals) {
             select.innerHTML = '';
             originals.forEach(opt => select.add(opt.cloneNode(true)));
@@ -562,8 +531,7 @@
 
         function handleWithdrawalStatusChange() {
             const reason = document.getElementById('two_pot_withdrawal_status').value;
-            const dateDiv = document.getElementById('div_prev_claim_date');
-            dateDiv.style.display = (reason.includes('Already claim')) ? 'block' : 'none';
+            document.getElementById('div_prev_claim_date').style.display = (reason.includes('Already claim')) ? 'block' : 'none';
         }
 
         function editClaim(btn) {
@@ -585,18 +553,17 @@
             form.elements['last_contribution_date'].value = btn.dataset.last_contribution_date;
             form.elements['date_submitted'].value = btn.dataset.date_submitted;
             form.elements['date_paid'].value = btn.dataset.date_paid;
+            form.elements['infund_cert_date'].value = btn.dataset.infund_cert_date;
+            form.elements['vested_pot_paid_date'].value = btn.dataset.vested_pot_paid_date;
+            form.elements['savings_pot_paid_date'].value = btn.dataset.savings_pot_paid_date;
             
             document.getElementById('id_vested_pot_available').checked = (btn.dataset.vested_pot_available === 'True');
             document.getElementById('id_savings_pot_available').checked = (btn.dataset.savings_pot_available === 'True');
 
-            if (btn.dataset.linked_email_id) {
-                form.elements['linked_email_id'].value = btn.dataset.linked_email_id;
-            }
+            if (btn.dataset.linked_email_id) form.elements['linked_email_id'].value = btn.dataset.linked_email_id;
 
             const notesSource = document.getElementById('notes-data-' + btn.dataset.id);
-            if (notesSource) {
-                document.getElementById('claim_notes_tbody').innerHTML = notesSource.innerHTML;
-            }
+            if (notesSource) document.getElementById('claim_notes_tbody').innerHTML = notesSource.innerHTML;
 
             togglePotVisibility();
             toggleWithdrawalSubFields();

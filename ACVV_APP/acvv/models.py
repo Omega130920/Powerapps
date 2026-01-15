@@ -23,16 +23,38 @@ class Globalacvv(models.Model):
 
 class ClientNotes(models.Model):
     id = models.AutoField(db_column='ID', primary_key=True)
-    # Change this field to a ForeignKey
+    # Mapping to 'MIP Names' column
     acvv_record = models.ForeignKey(
         'Globalacvv', 
         on_delete=models.CASCADE, 
         db_column='MIP Names', 
         to_field='mip_names'
     )
-    date = models.DateTimeField(db_column='Date', null=True, blank=True)
+    date = models.DateTimeField(db_column='date', null=True, blank=True)
     user = models.TextField(db_column='User', null=True, blank=True)
-    notes = models.TextField(db_column='Notes', null=True, blank=True)
+    notes = models.TextField(db_column='notes', null=True, blank=True)
+
+    # New columns matching your schema
+    communication_type = models.CharField(
+        db_column='communication_type', 
+        max_length=100, 
+        null=True, 
+        blank=True
+    )
+    action_note_type = models.CharField(
+        db_column='action_note_type', 
+        max_length=100, 
+        null=True, 
+        blank=True
+    )
+    # Using FileField to manage the varchar(255) path
+    attachment = models.FileField(
+        db_column='attachment', 
+        upload_to='notes_attachments/', 
+        max_length=255, 
+        null=True, 
+        blank=True
+    )
 
     class Meta:
         managed = False
@@ -240,3 +262,14 @@ class ReconciliationWorksheet(models.Model):
     class Meta:
         managed = False
         db_table = 'reconciliation_worksheet'
+        
+class BranchDocument(models.Model):
+    branch_name = models.CharField(max_length=255)
+    file_name = models.CharField(max_length=255)
+    file_path = models.CharField(max_length=500)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+    uploaded_by = models.CharField(max_length=100)
+
+    class Meta:
+        managed = False
+        db_table = 'branch_documents'

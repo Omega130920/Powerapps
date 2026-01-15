@@ -5,132 +5,157 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CRM Delegation Summary Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #f3f4f6; }
-        .summary-table { width: 100%; border-collapse: collapse; margin-bottom: 2rem; }
-        .summary-table th, .summary-table td { padding: 0.75rem 1rem; border: 1px solid #e5e7eb; }
-        .summary-table th { background-color: #f9fafb; text-align: left; font-weight: 600; color: #1f2937; }
-        .header-row th { background-color: #10b981; color: white; text-align: center; }
-        .total-row th, .total-row td { background-color: #d1fae5; font-weight: 700; }
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: linear-gradient(to bottom, #d1e2c4, #8fcf7f); 
+            min-height: 100vh;
+        }
+
+        .summary-table { width: 100%; border-collapse: collapse; margin-bottom: 2rem; background: white; }
+        .summary-table th, .summary-table td { padding: 0.75rem 1rem; border: 1px solid #aed581; }
+        
+        /* Table Header logic */
+        .summary-table th { background-color: #f0fff0; text-align: left; font-weight: 600; color: #1b5e20; }
+        .header-row th { background-color: #1b5e20; color: white; text-align: center; border-color: #1b5e20; }
+        
+        /* Highlight row for totals */
+        .total-row th, .total-row td { background-color: #e6ffe6; font-weight: 800; color: #1b5e20; border-top: 2px solid #1b5e20; }
+        
         .export-btn { 
-            @apply inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 ease-in-out;
+            @apply inline-flex items-center px-4 py-2 border border-transparent text-sm font-bold rounded-md shadow-md text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition duration-150 ease-in-out;
+        }
+
+        input[type="date"] {
+            @apply border border-emerald-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all bg-white;
         }
     </style>
 </head>
 <body class="p-4 sm:p-8">
 
-    <div class="max-w-6xl mx-auto bg-white rounded-xl shadow-2xl overflow-hidden">
-        <div class="p-6 bg-indigo-700 rounded-t-xl flex justify-between items-center">
+    <div class="max-w-6xl mx-auto bg-[#f0fff0] rounded-xl shadow-2xl overflow-hidden border border-emerald-200">
+        <div class="p-6 bg-emerald-800 rounded-t-xl flex justify-between items-center border-b-4 border-emerald-600">
             <div>
-                <h1 class="text-3xl font-bold text-white">Delegation Dashboard Report</h1>
-                <p class="text-indigo-300 mt-1 text-sm">Detailed summary including Enquiry Groupings and categorisation.</p>
+                <h1 class="text-3xl font-extrabold text-white">Delegation Dashboard Report</h1>
+                <p class="text-emerald-100 mt-1 text-sm font-medium">Detailed summary including Enquiry Groupings and categorisation.</p>
             </div>
             <div class="flex gap-3">
                 <a href="{% url 'export_delegation_report_excel' %}?start_date={{ start_date }}&end_date={{ end_date }}" class="export-btn">
-                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                    </svg>
+                    <i class="fas fa-file-excel mr-2"></i>
                     Export to Excel
                 </a>
             </div>
         </div>
 
         <div class="p-6">
-            <form method="GET" class="mb-8 bg-gray-50 p-4 rounded-lg border border-gray-200 flex flex-wrap gap-4 items-end">
+            <form method="GET" class="mb-8 bg-white p-6 rounded-xl border border-emerald-200 flex flex-wrap gap-4 items-end shadow-sm">
                 <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Start Date</label>
-                    <input type="date" name="start_date" value="{{ start_date }}" class="border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <label class="block text-xs font-bold text-emerald-700 uppercase tracking-wider mb-1">Start Date</label>
+                    <input type="date" name="start_date" value="{{ start_date }}">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">End Date</label>
-                    <input type="date" name="end_date" value="{{ end_date }}" class="border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <label class="block text-xs font-bold text-emerald-700 uppercase tracking-wider mb-1">End Date</label>
+                    <input type="date" name="end_date" value="{{ end_date }}">
                 </div>
                 <div class="flex gap-2">
-                    <button type="submit" class="bg-indigo-600 text-white px-6 py-2 rounded text-sm font-bold hover:bg-indigo-700 transition">Filter Report</button>
-                    <a href="{% url 'delegation_report' %}" class="bg-gray-200 text-gray-700 px-4 py-2 rounded text-sm font-bold hover:bg-gray-300 transition">Clear</a>
+                    <button type="submit" class="bg-emerald-600 text-white px-6 py-2 rounded text-sm font-bold hover:bg-emerald-700 shadow-md transition active:scale-95">Filter Report</button>
+                    <a href="{% url 'delegation_report' %}" class="bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-2 rounded text-sm font-bold hover:bg-emerald-100 transition">Clear</a>
                 </div>
             </form>
 
-            <a href="{% url 'dashboard' %}" class="text-indigo-600 hover:text-indigo-800 mb-6 inline-block font-medium">← Return to Home Screen</a>
+            <a href="{% url 'dashboard' %}" class="text-emerald-700 hover:text-emerald-900 mb-6 inline-block font-bold flex items-center gap-2">
+                <i class="fas fa-arrow-left"></i> Return to Home Screen
+            </a>
 
-            <table class="summary-table">
-                <thead>
-                    <tr class="header-row">
-                        <th colspan="2" class="text-lg">Overall Email Statistics</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <th class="w-2/3">All Emails (Total)</th>
-                        <td class="text-right font-bold text-lg">{{ all_emails_total|default:0 }}</td>
-                    </tr>
-                    <tr>
-                        <th>Work Related</th>
-                        <td class="text-right text-green-700">{{ work_related_data.Yes|default:0 }}</td>
-                    </tr>
-                    <tr>
-                        <th>Not Work Related</th>
-                        <td class="text-right text-red-600">{{ work_related_data.No|default:0 }}</td>
-                    </tr>
-                </tbody>
-            </table>
+            <div class="overflow-hidden rounded-lg border-2 border-emerald-800 mb-8 shadow-sm">
+                <table class="summary-table mb-0">
+                    <thead>
+                        <tr class="header-row">
+                            <th colspan="2" class="text-lg py-3">Overall Email Statistics</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <th class="w-2/3">All Emails (Total)</th>
+                            <td class="text-right font-black text-xl text-emerald-900">{{ all_emails_total|default:0 }}</td>
+                        </tr>
+                        <tr>
+                            <th class="font-semibold text-emerald-800">Work Related</th>
+                            <td class="text-right font-bold text-emerald-600">{{ work_related_data.Yes|default:0 }}</td>
+                        </tr>
+                        <tr>
+                            <th class="font-semibold text-emerald-800">Not Work Related</th>
+                            <td class="text-right font-bold text-red-600">{{ work_related_data.No|default:0 }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
 
-            <table class="summary-table">
-                <thead>
-                    <tr class="header-row">
-                        <th class="text-lg">Enquiry Type (Category)</th>
-                        <th class="text-lg">Enquiry Selection</th>
-                        <th class="text-lg">Grouping</th>
-                        <th class="text-lg text-center">Count</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in type_selection_breakdown %}
-                    <tr>
-                        <td class="font-semibold text-indigo-900">{{ item.category }}</td>
-                        <td class="text-gray-700">{{ item.type }}</td>
-                        <td class="text-gray-500 italic text-sm">{{ item.grouping }}</td>
-                        <td class="text-right font-mono">{{ item.count }}</td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="4" class="text-center text-gray-500 py-8 italic">No detailed selection data found for this period.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
+            <div class="overflow-hidden rounded-lg border-2 border-emerald-800 mb-8 shadow-sm">
+                <table class="summary-table mb-0">
+                    <thead>
+                        <tr class="header-row">
+                            <th class="text-sm uppercase">Enquiry Type (Category)</th>
+                            <th class="text-sm uppercase">Enquiry Selection</th>
+                            <th class="text-sm uppercase">Grouping</th>
+                            <th class="text-sm uppercase text-center">Count</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-gray-700">
+                        {% for item in type_selection_breakdown %}
+                        <tr class="hover:bg-emerald-50 transition-colors">
+                            <td class="font-bold text-emerald-900 border-r border-emerald-100">{{ item.category }}</td>
+                            <td class="text-gray-700 border-r border-emerald-100">{{ item.type }}</td>
+                            <td class="text-emerald-600 italic text-sm border-r border-emerald-100">{{ item.grouping }}</td>
+                            <td class="text-right font-mono font-bold">{{ item.count }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="4" class="text-center text-emerald-400 py-12 italic bg-white">
+                                <i class="fas fa-search-minus mb-2 block text-2xl"></i>
+                                No detailed selection data found for this period.
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
 
-            <table class="summary-table">
-                <thead>
-                    <tr class="header-row">
-                        <th class="text-lg">Category Summary</th>
-                        <th class="text-lg text-center">Subtotal</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for item in category_summary %}
-                    <tr>
-                        <th>{{ item.category }}</th>
-                        <td class="text-right">{{ item.subtotal }}</td>
-                    </tr>
-                    {% empty %}
-                    <tr>
-                        <td colspan="2" class="text-center text-gray-500">No categorised data found.</td>
-                    </tr>
-                    {% endfor %}
-                    <tr class="total-row">
-                        <th>Total Categorised Entries</th>
-                        <td class="text-right">
-                            {% if category_summary %}
-                                {{ type_selection_breakdown|length }} Selections Recorded
-                            {% else %}
-                                0
-                            {% endif %}
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+            <div class="overflow-hidden rounded-lg border-2 border-emerald-800 shadow-lg">
+                <table class="summary-table mb-0">
+                    <thead>
+                        <tr class="header-row">
+                            <th class="text-lg py-3">Category Summary</th>
+                            <th class="text-lg py-3 text-center">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in category_summary %}
+                        <tr>
+                            <th class="bg-white font-bold text-emerald-800">{{ item.category }}</th>
+                            <td class="text-right font-mono font-bold">{{ item.subtotal }}</td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="2" class="text-center text-emerald-400 py-6">No categorised data found.</td>
+                        </tr>
+                        {% endfor %}
+                        <tr class="total-row">
+                            <td class="text-lg uppercase tracking-tight">Total Categorised Entries</td>
+                            <td class="text-right text-2xl">
+                                {% if category_summary %}
+                                    {{ type_selection_breakdown|length }}
+                                {% else %}
+                                    0
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
 
         </div>
     </div>
