@@ -1,0 +1,301 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Delegate PSSUBF Task</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.25);
+            --glass-border: rgba(255, 255, 255, 0.3);
+            --text-dark: #1b5e20;
+            --accent-green: #43a047;
+        }
+
+        body { 
+            font-family: 'Segoe UI', Roboto, sans-serif; 
+            margin: 0; 
+            color: var(--text-dark); 
+            line-height: 1.6; 
+            background: linear-gradient(135deg, #d1e2c4 0%, #8fcf7f 100%); 
+            min-height: 100vh; 
+            padding: 40px 20px;
+        }
+
+        /* --- GLASS CONTAINER --- */
+        .delegate-container { 
+            max-width: 1000px; 
+            margin: 0 auto; 
+            padding: 40px; 
+            background: var(--glass-bg); 
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border-radius: 24px; 
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1); 
+            border: 1px solid var(--glass-border); 
+        }
+
+        .delegate-container h1 { 
+            margin-bottom: 25px; 
+            color: var(--text-dark); 
+            font-size: 28px; 
+            font-weight: 300;
+            border-bottom: 1px solid var(--glass-border); 
+            padding-bottom: 15px; 
+        }
+
+        /* --- EMAIL CONTENT CARD --- */
+        .email-thread-card { 
+            background: rgba(255, 255, 255, 0.4); 
+            border-radius: 16px; 
+            margin-bottom: 30px; 
+            border: 1px solid var(--glass-border); 
+            border-left: 6px solid var(--accent-green); 
+            overflow: hidden;
+        }
+
+        .card-header-main { 
+            padding: 15px 20px; 
+            background: rgba(255, 255, 255, 0.2); 
+            border-bottom: 1px solid var(--glass-border); 
+        }
+
+        .card-header-main h3 { 
+            margin: 0; 
+            color: var(--text-dark); 
+            font-size: 1.1em; 
+            font-weight: 600;
+        }
+        
+        .card-body-content { 
+            padding: 25px; 
+            height: 400px; 
+            overflow-y: auto; 
+            background: rgba(255, 255, 255, 0.5); 
+            font-size: 14px; 
+        }
+
+        /* --- ATTACHMENTS --- */
+        .attachment-list { 
+            padding: 15px 20px; 
+            background: rgba(67, 160, 71, 0.1); 
+        }
+
+        .attachment-item { 
+            display: inline-flex; 
+            align-items: center; 
+            background: rgba(255, 255, 255, 0.6); 
+            padding: 6px 14px; 
+            border: 1px solid var(--glass-border); 
+            border-radius: 20px; 
+            margin: 0 10px 10px 0; 
+            transition: 0.2s; 
+        }
+
+        .attachment-link { 
+            color: var(--text-dark); 
+            text-decoration: none; 
+            font-size: 13px; 
+            font-weight: 600; 
+        }
+
+        /* --- FORM CONTROLS --- */
+        .form-group { margin-bottom: 20px; }
+        .form-group label { 
+            display: block; 
+            margin-bottom: 8px; 
+            font-weight: 600; 
+            color: var(--text-dark); 
+            font-size: 14px; 
+        }
+
+        .form-control-custom { 
+            width: 100%; 
+            padding: 12px; 
+            background: rgba(255, 255, 255, 0.5);
+            border: 1px solid var(--glass-border); 
+            border-radius: 12px; 
+            color: var(--text-dark);
+            font-size: 14px; 
+            transition: 0.2s;
+        }
+
+        .form-control-custom:focus {
+            background: rgba(255, 255, 255, 0.8);
+            outline: none;
+            border-color: var(--accent-green);
+        }
+
+        .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
+
+        /* --- BUTTONS --- */
+        .button-container { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-top: 30px; 
+            padding-top: 20px;
+            border-top: 1px solid var(--glass-border);
+        }
+
+        .btn-cancel { 
+            padding: 10px 20px; 
+            background: rgba(0, 0, 0, 0.1); 
+            color: var(--text-dark); 
+            border: 1px solid var(--glass-border);
+            border-radius: 12px; 
+            text-decoration: none; 
+            font-weight: 600;
+        }
+
+        .btn-delegate { 
+            display: flex; 
+            align-items: center; 
+            gap: 10px; 
+            padding: 12px 30px; 
+            background: var(--accent-green); 
+            color: white; 
+            border: none; 
+            border-radius: 12px; 
+            cursor: pointer; 
+            font-size: 16px; 
+            font-weight: bold; 
+            transition: 0.3s;
+            box-shadow: 0 4px 15px rgba(67, 160, 71, 0.3);
+        }
+
+        .btn-delegate:hover { 
+            background: #2e7d32; 
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(67, 160, 71, 0.4);
+        }
+    </style>
+</head>
+<body>
+
+<div class="delegate-container">
+    <h1><i class="bi bi-send-check-fill me-2"></i> Delegate PSSUBF Task</h1>
+    
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-warning border-0 shadow-sm py-2 mb-4" style="border-radius: 12px;">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <form method="post">
+        {% csrf_token %}
+        
+        <div class="form-group">
+            <label>Email Subject:</label>
+            <input type="text" class="form-control-custom" style="background: rgba(255,255,255,0.3);" value="{{ email_subject }}" readonly>
+        </div>
+        
+        <div class="email-thread-card shadow-sm">
+            <div class="card-header-main">
+                <h3>Original Communication Content</h3>
+            </div>
+            <div class="card-body-content">
+                {% if email_content %}
+                    {{ email_content|safe }}
+                {% else %}
+                    <p class="text-muted fst-italic">No email body content found.</p>
+                {% endif %}
+            </div>
+            
+            {% if attachments %}
+            <div class="attachment-list">
+                <strong class="d-block mb-2 text-success small text-uppercase"><i class="bi bi-paperclip"></i> Attachments:</strong>
+                <div class="d-flex flex-wrap">
+                    {% for att in attachments %}
+                    <div class="attachment-item">
+                        <a href="{% url 'download_pssubf_attachment' message_id=email_id attachment_id=att.id %}" class="attachment-link">
+                            <i class="bi bi-cloud-download me-1"></i> {{ att.name }}
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="form-group">
+            <label for="work_related">Is this task Work Related?*</label>
+            <select id="work_related" name="work_related" class="form-control-custom" required>
+                <option value="Yes" selected>Yes (Assign to Agent)</option>
+                <option value="No">No (Move to Recycle Bin)</option>
+            </select>
+        </div>
+
+        <div id="classification_fields_wrapper">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Member Group Code:</label>
+                    <input type="text" name="member_group_code" class="form-control-custom" placeholder="e.g. GS001">
+                </div>
+                
+                <div class="form-group">
+                    <label>Classification:</label>
+                    <select name="email_category" class="form-control-custom">
+                        <option value="Query">Query</option>
+                        <option value="Claim">Claim</option>
+                        <option value="Schedule">Schedule</option>
+                        <option value="Info Only">Info Only</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="assigned_agent">Delegate To Agent:*</label>
+                <select id="assigned_agent" name="assigned_agent" class="form-control-custom">
+                    <option value="">-- Select Agent --</option>
+                    {% for user in available_users %}
+                        <option value="{{ user.username }}">{{ user.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div class="button-container">
+            <a href="{% url 'pssubf_dashboard' %}" class="btn-cancel">Cancel</a>
+            <button type="submit" id="submit_button" class="btn-delegate">
+                <span id="btn-icon"><i class="bi bi-person-plus-fill"></i></span> 
+                <span id="btn-text">Assign Task</span>
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function(){
+        const workRelatedSelect = document.getElementById('work_related');
+        const classificationWrapper = document.getElementById('classification_fields_wrapper');
+        const submitButton = document.getElementById('submit_button');
+        const btnText = document.getElementById('btn-text');
+        const btnIcon = document.getElementById('btn-icon');
+        const agentSelect = document.getElementById('assigned_agent');
+
+        workRelatedSelect.addEventListener('change', function(){
+            if(this.value === 'No'){
+                classificationWrapper.style.display = 'none';
+                submitButton.style.backgroundColor = '#ef5350';
+                submitButton.style.boxShadow = '0 4px 15px rgba(239, 83, 80, 0.3)';
+                btnText.textContent = 'Move to Recycle Bin';
+                btnIcon.innerHTML = '<i class="bi bi-trash3-fill"></i>';
+                agentSelect.removeAttribute('required');
+                submitButton.setAttribute('name', 'recycle');
+            } else {
+                classificationWrapper.style.display = 'block';
+                submitButton.style.backgroundColor = '#43a047';
+                submitButton.style.boxShadow = '0 4px 15px rgba(67, 160, 71, 0.3)';
+                btnText.textContent = 'Assign Task';
+                btnIcon.innerHTML = '<i class="bi bi-person-plus-fill"></i>';
+                agentSelect.setAttribute('required', 'required');
+                submitButton.removeAttribute('name');
+            }
+        });
+    });
+</script>
+</body>
+</html>

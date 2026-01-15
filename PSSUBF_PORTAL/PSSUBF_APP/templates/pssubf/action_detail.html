@@ -1,0 +1,262 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Action Task #{{ task.id }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.25);
+            --glass-border: rgba(255, 255, 255, 0.3);
+            --text-dark: #1b5e20;
+            --accent-green: #43a047;
+        }
+
+        body { 
+            font-family: 'Segoe UI', Roboto, sans-serif; 
+            background: linear-gradient(135deg, #d1e2c4 0%, #8fcf7f 100%); 
+            min-height: 100vh; 
+            padding: 30px; 
+            color: var(--text-dark);
+        }
+
+        .task-container { 
+            max-width: 1500px; 
+            margin: 0 auto; 
+            background: var(--glass-bg); 
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border-radius: 24px; 
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1); 
+            padding: 35px; 
+            border: 1px solid var(--glass-border);
+        }
+        
+        /* Glass Cards */
+        .glass-card {
+            background: rgba(255, 255, 255, 0.3);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            overflow: hidden;
+            margin-bottom: 25px;
+        }
+
+        .glass-card-header {
+            padding: 12px 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border-bottom: 1px solid var(--glass-border);
+            font-weight: 700;
+            font-size: 0.85rem;
+            letter-spacing: 0.5px;
+        }
+
+        /* Timeline Styles */
+        .timeline { border-left: 3px solid var(--glass-border); padding-left: 20px; position: relative; max-height: 350px; overflow-y: auto; }
+        .timeline-item { position: relative; margin-bottom: 1.2rem; padding: 12px; background: rgba(255,255,255,0.4); border-radius: 12px; border: 1px solid var(--glass-border); }
+        .timeline-item::before { 
+            content: ""; position: absolute; left: -27.5px; top: 15px; 
+            width: 12px; height: 12px; background: var(--accent-green); border-radius: 50%; 
+            box-shadow: 0 0 0 4px rgba(67, 160, 71, 0.2);
+        }
+
+        /* Email Content Area */
+        .email-body-scroll { height: 450px; overflow-y: auto; padding: 25px; background: rgba(255,255,255,0.6); line-height: 1.7; font-size: 0.95rem; }
+
+        .attachment-pill { 
+            background: rgba(67, 160, 71, 0.1); border: 1px solid var(--glass-border); 
+            border-radius: 50px; padding: 6px 16px; display: inline-flex; align-items: center; 
+            text-decoration: none; color: var(--text-dark); margin: 0 8px 8px 0; font-size: 0.8rem; font-weight: 600; 
+        }
+        .attachment-pill:hover { background: rgba(255,255,255,0.5); transform: translateY(-1px); }
+        
+        /* Reply Section */
+        .reply-card { border: 2px solid var(--accent-green); border-radius: 16px; background: rgba(255,255,255,0.2); }
+        .reply-header { background: var(--accent-green); color: white; padding: 12px 20px; cursor: pointer; border-radius: 12px 12px 0 0; }
+
+        .form-control-glass {
+            background: rgba(255,255,255,0.5) !important;
+            border: 1px solid var(--glass-border) !important;
+            border-radius: 10px !important;
+            color: var(--text-dark) !important;
+        }
+    </style>
+</head>
+<body>
+
+<div class="task-container">
+    <div class="d-flex justify-content-between align-items-center mb-4 border-bottom border-white border-opacity-25 pb-3">
+        <h2 class="mb-0 fw-light"><i class="bi bi-gear-wide-connected me-2"></i> Task <strong>Action</strong></h2>
+        <div class="d-flex gap-2">
+            <a href="{% url 'pssubf_thread' email_id %}" class="btn btn-light btn-sm border-white bg-opacity-50"><i class="bi bi-chat-dots"></i> Full History</a>
+            <a href="{% url 'pssubf_delegations_list' %}" class="btn btn-dark btn-sm rounded-pill px-3"><i class="bi bi-house-door"></i> Back to Queue</a>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} border-0 shadow-sm alert-dismissible fade show mb-4" style="border-radius: 12px;">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="row g-4">
+        <div class="col-md-4">
+            <div class="glass-card shadow-sm">
+                <div class="glass-card-header bg-dark text-white">TASK MANAGEMENT</div>
+                <div class="card-body p-4">
+                    <form method="POST">
+                        {% csrf_token %}
+                        <input type="hidden" name="action_type" value="update_metadata">
+                        
+                        <div class="mb-2">
+                            <label class="small fw-bold opacity-75">Member Group Code:</label>
+                            <input type="text" name="member_group_code" class="form-control form-control-sm form-control-glass" value="{{ task.member_group_code|default:'' }}">
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="small fw-bold opacity-75">Category:</label>
+                            <select name="email_category" class="form-select form-select-sm form-control-glass">
+                                <option value="Query" {% if task.email_category == 'Query' %}selected{% endif %}>Query</option>
+                                <option value="Claim" {% if task.email_category == 'Claim' %}selected{% endif %}>Claim</option>
+                                <option value="Schedule" {% if task.email_category == 'Schedule' %}selected{% endif %}>Schedule</option>
+                                <option value="Info Only" {% if task.email_category == 'Info Only' %}selected{% endif %}>Info Only</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="small fw-bold opacity-75">Status:</label>
+                            <select name="status" class="form-select form-select-sm form-control-glass">
+                                <option value="In Progress" {% if task.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                                <option value="On Hold" {% if task.status == 'On Hold' %}selected{% endif %}>On Hold</option>
+                                <option value="Completed" {% if task.status == 'Completed' %}selected{% endif %}>Completed</option>
+                            </select>
+                        </div>
+                        <button type="submit" class="btn btn-success btn-sm w-100 fw-bold rounded-pill">Update Metadata</button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="glass-card shadow-sm">
+                <div class="glass-card-header bg-success text-white">ACTION HISTORY & NOTES</div>
+                <div class="card-body p-4">
+                    <div class="timeline mb-4">
+                        {% for action in history %}
+                        <div class="timeline-item shadow-sm">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="badge bg-success bg-opacity-75" style="font-size: 10px;">{{ action.action_type }}</span>
+                                <span class="text-muted" style="font-size: 10px;">{{ action.action_timestamp|date:"d M H:i" }}</span>
+                            </div>
+                            <div class="small fw-bold">{{ action.note_content }}</div>
+                            <div class="text-muted fst-italic mt-1" style="font-size: 10px;">User: {{ action.action_user }}</div>
+                        </div>
+                        {% empty %}
+                        <p class="text-muted small text-center">No notes recorded yet.</p>
+                        {% endfor %}
+                    </div>
+
+                    <form method="POST" class="border-top border-white border-opacity-25 pt-3">
+                        {% csrf_token %}
+                        <input type="hidden" name="action_type" value="add_note">
+                        <textarea name="note_content" class="form-control form-control-sm form-control-glass mb-2" rows="3" placeholder="Add internal note..." required></textarea>
+                        <button type="submit" class="btn btn-primary btn-sm w-100 rounded-pill shadow-sm">Save Note</button>
+                    </form>
+
+                    <form method="POST" class="mt-4">
+                        {% csrf_token %}
+                        <input type="hidden" name="action_type" value="mark_complete">
+                        <button type="submit" class="btn btn-outline-success w-100 fw-bold rounded-pill shadow-sm bg-white bg-opacity-50"><i class="bi bi-check2-all"></i> MARK COMPLETE</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="glass-card shadow-sm mb-4">
+                <div class="glass-card-header bg-white bg-opacity-50">
+                    <h5 class="mb-1 text-primary fw-bold">{{ email_subject }}</h5>
+                    <div class="d-flex justify-content-between align-items-center">
+                        <span class="small opacity-75"><strong>From:</strong> {{ task.sender }}</span>
+                        <span class="badge bg-dark rounded-pill">Agent: {{ task.assigned_agent }}</span>
+                    </div>
+                </div>
+                
+                <div class="email-body-scroll">
+                    {% if email_content %}
+                        {{ email_content|safe }}
+                    {% else %}
+                        <div class="text-center py-5 opacity-50">
+                            <i class="bi bi-cloud-slash fs-1"></i>
+                            <p>Live content unavailable.</p>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="p-3 bg-white bg-opacity-25 border-top border-white border-opacity-25">
+                    <h6 class="small fw-bold text-success mb-2"><i class="bi bi-paperclip"></i> Attachments:</h6>
+                    <div class="d-flex flex-wrap">
+                        {% for att in attachments %}
+                        <a href="{% url 'download_pssubf_attachment' message_id=email_id attachment_id=att.id %}" class="attachment-pill">
+                            <i class="bi bi-file-earmark-arrow-down me-2"></i> {{ att.name|truncatechars:30 }}
+                        </a>
+                        {% empty %}
+                        <span class="text-muted small">No attachments detected.</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="reply-card shadow-sm overflow-hidden">
+                <div class="reply-header d-flex justify-content-between align-items-center" data-bs-toggle="collapse" data-bs-target="#replyForm">
+                    <span class="fw-bold"><i class="bi bi-reply-fill me-2"></i> External Email Reply</span>
+                    <i class="bi bi-chevron-down"></i>
+                </div>
+                <div id="replyForm" class="collapse">
+                    <div class="card-body p-4 bg-white bg-opacity-50">
+                        <form method="POST" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <input type="hidden" name="action_type" value="send_reply">
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-bold">To:</label>
+                                    <input type="email" name="reply_recipient" class="form-control form-control-sm form-control-glass" value="{{ task.sender }}" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-bold">Subject:</label>
+                                    <input type="text" name="reply_subject" class="form-control form-control-sm form-control-glass" value="RE: {{ email_subject }}" required>
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold"><i class="bi bi-paperclip"></i> Add Files:</label>
+                                <input type="file" name="reply_attachments" class="form-control form-control-sm form-control-glass" multiple>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label small fw-bold">Email Body:</label>
+                                <textarea name="reply_body" class="form-control form-control-glass" rows="8" placeholder="Type your reply..." required></textarea>
+                            </div>
+
+                            <div class="d-flex justify-content-end">
+                                <button type="submit" class="btn btn-success fw-bold px-4 rounded-pill shadow-sm">
+                                    <i class="bi bi-send-fill me-2"></i> Send Reply
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

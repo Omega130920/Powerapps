@@ -1,0 +1,197 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Master Audit Logs | PSSUBF</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.25);
+            --glass-border: rgba(255, 255, 255, 0.3);
+            --text-dark: #1b5e20;
+            --accent-green: #43a047;
+        }
+
+        body { 
+            font-family: 'Segoe UI', Roboto, sans-serif; 
+            background: linear-gradient(135deg, #d1e2c4 0%, #8fcf7f 100%); 
+            min-height: 100vh; 
+            padding: 30px; 
+            color: var(--text-dark);
+        }
+
+        .log-container { 
+            max-width: 1400px; 
+            margin: 0 auto; 
+            background: var(--glass-bg); 
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border-radius: 24px; 
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1); 
+            padding: 35px; 
+            border: 1px solid var(--glass-border);
+        }
+
+        /* --- GLASS FILTER BAR --- */
+        .filter-section { 
+            background: rgba(255, 255, 255, 0.3); 
+            border-radius: 16px; 
+            padding: 25px; 
+            margin-bottom: 30px; 
+            border: 1px solid var(--glass-border); 
+            box-shadow: inset 0 2px 4px rgba(255,255,255,0.3);
+        }
+
+        .form-control-glass {
+            background: rgba(255, 255, 255, 0.5) !important;
+            border: 1px solid var(--glass-border) !important;
+            border-radius: 10px !important;
+            color: var(--text-dark) !important;
+        }
+
+        /* --- TABLE STYLING --- */
+        .task-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 10px;
+        }
+
+        .task-table th {
+            background: rgba(27, 94, 32, 0.1);
+            color: var(--text-dark);
+            padding: 15px;
+            text-transform: uppercase;
+            font-size: 12px;
+            font-weight: 700;
+            border: none;
+        }
+
+        .task-table td {
+            background: rgba(255, 255, 255, 0.4);
+            padding: 18px 15px;
+            border-top: 1px solid var(--glass-border);
+            border-bottom: 1px solid var(--glass-border);
+            font-size: 14px;
+            vertical-align: middle;
+        }
+
+        .task-table td:first-child { border-left: 1px solid var(--glass-border); border-radius: 12px 0 0 12px; }
+        .task-table td:last-child { border-right: 1px solid var(--glass-border); border-radius: 0 12px 12px 0; }
+
+        .task-table tr:hover td {
+            background: rgba(255, 255, 255, 0.7);
+            transform: scale(1.002);
+            transition: all 0.2s ease;
+        }
+
+        /* --- ACTION BADGES --- */
+        .badge-glass {
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: bold;
+            color: white;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        .badge-delegation { background-color: #0d6efd; }
+        .badge-note { background-color: #6c757d; }
+        .badge-reply { background-color: #198754; }
+        .badge-complete { background-color: #212529; }
+
+        /* --- BUTTONS --- */
+        .btn-glass {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            color: var(--text-dark);
+            border-radius: 10px;
+            font-weight: 600;
+            transition: 0.2s;
+        }
+        .btn-glass:hover { background: rgba(255,255,255,0.4); }
+    </style>
+</head>
+<body>
+
+<div class="log-container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0 fw-light"><i class="bi bi-journal-text me-2"></i> Master <strong>Audit Logs</strong></h2>
+        <a href="{% url 'pssubf_switchboard' %}" class="btn btn-glass px-3">
+            <i class="bi bi-house-door me-1"></i> Back to Menu
+        </a>
+    </div>
+
+    <div class="filter-section shadow-sm">
+        <form method="GET" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label small fw-bold opacity-75">Search Keywords:</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-white bg-opacity-50 border-0"><i class="bi bi-search"></i></span>
+                    <input type="text" name="q" class="form-control form-control-glass" placeholder="User, Action, or Notes..." value="{{ query|default:'' }}">
+                </div>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold opacity-75">Start Date:</label>
+                <input type="date" name="start_date" class="form-control form-control-glass" value="{{ start_date|default:'' }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold opacity-75">End Date:</label>
+                <input type="date" name="end_date" class="form-control form-control-glass" value="{{ end_date|default:'' }}">
+            </div>
+            <div class="col-md-2 d-flex gap-2">
+                <button type="submit" class="btn btn-success w-100 rounded-pill fw-bold">Filter</button>
+                <a href="{% url 'pssubf_audit_logs' %}" class="btn btn-glass" title="Reset Filters"><i class="bi bi-arrow-clockwise"></i></a>
+            </div>
+        </form>
+    </div>
+
+    <table class="task-table">
+        <thead>
+            <tr>
+                <th style="width: 15%;">Timestamp</th>
+                <th style="width: 15%;">User</th>
+                <th style="width: 15%;">Action Type</th>
+                <th style="width: 15%;">Task ID</th>
+                <th style="width: 30%;">Details / Notes</th>
+                <th style="width: 10%;" class="text-end">View</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td class="small opacity-75 fw-bold">{{ log.action_timestamp|date:"d M Y H:i:s" }}</td>
+                <td><strong class="text-primary">{{ log.action_user }}</strong></td>
+                <td>
+                    <span class="badge-glass 
+                        {% if log.action_type == 'Delegation' %}badge-delegation
+                        {% elif log.action_type == 'NOTE' %}badge-note
+                        {% elif log.action_type == 'EMAIL_REPLY' %}badge-reply
+                        {% elif log.action_type == 'COMPLETED' %}badge-complete
+                        {% else %}bg-secondary{% endif %}">
+                        {{ log.action_type }}
+                    </span>
+                </td>
+                <td class="small"><code class="text-dark bg-white bg-opacity-50 p-1 px-2 rounded">{{ log.task_email_id|truncatechars:12 }}</code></td>
+                <td class="small fw-bold opacity-75">{{ log.note_content }}</td>
+                <td class="text-end">
+                    <a href="{% url 'pssubf_action' log.task_email_id %}" class="btn btn-sm btn-glass px-2" title="View Task Detail">
+                        <i class="bi bi-eye-fill"></i>
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" class="text-center py-5">
+                    <i class="bi bi-search fs-1 opacity-25"></i>
+                    <p class="text-muted mt-3">No work-related logs found matching your filters.</p>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

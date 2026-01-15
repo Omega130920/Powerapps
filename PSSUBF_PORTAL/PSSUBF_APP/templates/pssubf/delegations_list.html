@@ -1,0 +1,206 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Active Delegations | PSSUBF</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.25);
+            --glass-border: rgba(255, 255, 255, 0.3);
+            --text-dark: #1b5e20;
+            --accent-green: #43a047;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #d1e2c4 0%, #8fcf7f 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+            color: var(--text-dark);
+        }
+
+        /* --- GLASS CONTAINER --- */
+        .container-custom {
+            max-width: 1300px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 35px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        .header-section {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            border-bottom: 1px solid var(--glass-border);
+            padding-bottom: 20px;
+        }
+
+        .header-title {
+            color: var(--text-dark);
+            font-weight: 300;
+            letter-spacing: 1px;
+            margin: 0;
+        }
+
+        /* --- MODERN TABLE STYLING --- */
+        .task-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 10px;
+        }
+
+        .task-table th {
+            background: rgba(27, 94, 32, 0.1);
+            color: var(--text-dark);
+            padding: 15px;
+            text-transform: uppercase;
+            font-size: 12px;
+            font-weight: 700;
+            border: none;
+        }
+
+        .task-table td {
+            background: rgba(255, 255, 255, 0.4);
+            padding: 18px 15px;
+            border-top: 1px solid var(--glass-border);
+            border-bottom: 1px solid var(--glass-border);
+            font-size: 14px;
+            vertical-align: middle;
+        }
+
+        /* Rounded corners for the rows */
+        .task-table td:first-child { border-left: 1px solid var(--glass-border); border-radius: 12px 0 0 12px; }
+        .task-table td:last-child { border-right: 1px solid var(--glass-border); border-radius: 0 12px 12px 0; }
+
+        .task-table tr:hover td {
+            background: rgba(255, 255, 255, 0.7);
+            transform: scale(1.002);
+            transition: all 0.2s ease;
+        }
+
+        /* --- STATUS BADGES --- */
+        .badge-status {
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+
+        /* --- BUTTONS --- */
+        .btn-open-task {
+            background-color: var(--accent-green);
+            color: white;
+            padding: 8px 16px;
+            text-decoration: none !important;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: 600;
+            box-shadow: 0 4px 10px rgba(67, 160, 71, 0.2);
+            transition: 0.2s;
+            display: inline-block;
+        }
+
+        .btn-open-task:hover {
+            background-color: #2e7d32;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(67, 160, 71, 0.3);
+            color: white;
+        }
+
+        .btn-menu {
+            background: var(--glass-bg);
+            border: 1px solid var(--glass-border);
+            color: var(--text-dark);
+            border-radius: 10px;
+            font-weight: 600;
+            padding: 8px 16px;
+            text-decoration: none;
+            transition: 0.2s;
+        }
+
+        .btn-menu:hover {
+            background: rgba(255,255,255,0.4);
+            color: var(--text-dark);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container-custom">
+    
+    <div class="header-section">
+        <div>
+            <h2 class="header-title"><i class="bi bi-person-workspace me-2"></i> Active Delegations</h2>
+            <small class="text-muted opacity-75">Tracking operational tasks and agent progress</small>
+        </div>
+        <a href="{% url 'pssubf_switchboard' %}" class="btn-menu">
+            <i class="bi bi-house-door me-1"></i> Back to Menu
+        </a>
+    </div>
+
+    <table class="task-table">
+        <thead>
+            <tr>
+                <th style="width: 18%;">Assigned To</th>
+                <th style="width: 40%;">Subject</th>
+                <th style="width: 15%;">Group Code</th>
+                <th style="width: 12%;">Status</th>
+                <th style="width: 15%;" class="text-end">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for task in delegations %}
+            <tr>
+                <td>
+                    <div class="fw-bold text-success">{{ task.assigned_agent }}</div>
+                    <small class="text-muted" style="font-size: 0.75rem;">Started: {{ task.created_at|date:"d M H:i" }}</small>
+                </td>
+                <td>
+                    <div class="text-truncate fw-bold" style="max-width: 450px;" title="{{ task.subject }}">
+                        {{ task.subject|default:"(No Subject)" }}
+                    </div>
+                    <small class="text-muted">From: {{ task.sender }}</small>
+                </td>
+                <td>
+                    <span class="badge bg-white text-dark border shadow-sm" style="border-radius: 6px;">
+                        {{ task.member_group_code|default:"--" }}
+                    </span>
+                </td>
+                <td>
+                    <span class="badge-status {% if task.status == 'Completed' %}bg-success text-white{% elif task.status == 'In Progress' %}bg-warning text-dark{% else %}bg-info text-white{% endif %}">
+                        {{ task.status }}
+                    </span>
+                </td>
+                <td class="text-end">
+                    <a href="{% url 'pssubf_action' task.email_id %}" class="btn-open-task">
+                        <i class="bi bi-folder2-open me-1"></i> Open Task
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" class="text-center py-5">
+                    <i class="bi bi-clipboard-x fs-1 opacity-25"></i>
+                    <p class="text-muted mt-3">No active work tasks found in the queue.</p>
+                    <a href="{% url 'pssubf_dashboard' %}" class="btn btn-sm btn-success rounded-pill px-4">Delegate from Inbox</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

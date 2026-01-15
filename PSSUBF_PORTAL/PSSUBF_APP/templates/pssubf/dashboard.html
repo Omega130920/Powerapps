@@ -1,0 +1,230 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PSSUBF Management Portal</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.2);
+            --glass-border: rgba(255, 255, 255, 0.3);
+            --text-dark: #1b5e20;
+            --accent-green: #43a047;
+        }
+
+        html, body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #d1e2c4 0%, #8fcf7f 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-sizing: border-box;
+            padding: 2vh 2vw;
+        }
+
+        h1 {
+            font-size: clamp(1.8rem, 3.5vh, 2.8rem);
+            text-align: center;
+            margin: 2vh 0 1vh 0;
+            color: var(--text-dark);
+            font-weight: 300;
+            letter-spacing: 1px;
+        }
+
+        .subtitle {
+            color: var(--text-dark);
+            opacity: 0.7;
+            margin-bottom: 4vh;
+            font-size: 1.1rem;
+        }
+
+        .button-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 25px;
+            width: 100%;
+            max-width: 1200px;
+            flex: 1;
+            min-height: 0;
+            padding-bottom: 40px;
+            align-content: center;
+        }
+
+        /* --- MODERN GLASS CARD STYLING --- */
+        .button-block {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            text-decoration: none;
+            color: var(--text-dark);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 30px 20px;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            position: relative;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            text-align: center;
+        }
+
+        .button-block:hover {
+            background: rgba(255, 255, 255, 0.4);
+            transform: translateY(-10px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .button-block i {
+            font-size: 3rem;
+            margin-bottom: 15px;
+            color: var(--text-dark);
+            opacity: 0.8;
+        }
+
+        .button-text {
+            font-size: 1.2rem;
+            font-weight: 600;
+            line-height: 1.2;
+            margin-bottom: 8px;
+        }
+
+        .button-desc {
+            font-size: 0.85rem;
+            opacity: 0.7;
+            padding: 0 10px;
+        }
+
+        /* --- BADGE STYLING --- */
+        .badge {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background-color: #ef5350;
+            color: white;
+            border-radius: 10px;
+            padding: 5px 10px;
+            font-size: 0.8rem;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(239, 83, 80, 0.4);
+            border: 1px solid rgba(255,255,255,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .badge.blue-badge { background-color: #42a5f5; box-shadow: 0 2px 8px rgba(66, 165, 245, 0.4); }
+        .badge.orange-badge { background-color: #ffa726; box-shadow: 0 2px 8px rgba(255, 167, 38, 0.4); }
+        .badge.dark-badge { background-color: #455a64; box-shadow: 0 2px 8px rgba(69, 90, 100, 0.4); }
+
+        /* --- LOGOUT & FOOTER --- */
+        .logout-wrapper { position: absolute; top: 20px; right: 20px; }
+        .logout-button {
+            background: var(--glass-bg);
+            backdrop-filter: blur(5px);
+            color: var(--text-dark);
+            padding: 8px 16px;
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        .logout-button:hover { background: rgba(255,255,255,0.4); }
+
+        .footer-info {
+            margin-top: auto;
+            margin-bottom: 20px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-dark);
+            opacity: 0.6;
+        }
+
+        /* --- RESPONSIVE --- */
+        @media (max-width: 1100px) { .button-container { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 600px) { 
+            .button-container { grid-template-columns: 1fr; overflow-y: auto; }
+            body { overflow-y: auto; height: auto; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="logout-wrapper">
+        <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="logout-button"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        </form>
+    </div>
+
+    <h1>PSSUBF <strong>Switchboard</strong></h1>
+    <p class="subtitle">Welcome back, {{ user.username }}</p>
+
+    <div class="button-container">
+        <a href="{% url 'pssubf_dashboard' %}" class="button-block">
+            <i class="fas fa-envelope-open-text"></i>
+            <span class="button-text">Service Inbox</span>
+            <span class="button-desc">Live email feed and delegation</span>
+            <span id="badge-new-emails" class="badge blue-badge" {% if not new_emails_count %}style="display:none;"{% endif %}>{{ new_emails_count }}</span>
+        </a>
+
+        <a href="{% url 'pssubf_delegations_list' %}" class="button-block">
+            <i class="fas fa-tasks"></i>
+            <span class="button-text">Delegations</span>
+            <span class="button-desc">Manage active agent tasks</span>
+            <span id="badge-my-delegations" class="badge orange-badge" {% if not my_pending_delegations_count %}style="display:none;"{% endif %}>{{ my_pending_delegations_count }}</span>
+        </a>
+
+        <a href="{% url 'pssubf_audit_logs' %}" class="button-block">
+            <i class="fas fa-clipboard-list"></i>
+            <span class="button-text">Audit Logs</span>
+            <span class="button-desc">System-wide interaction history</span>
+        </a>
+
+        <a href="{% url 'pssubf_recycle_bin' %}" class="button-block">
+            <i class="fas fa-trash-can"></i>
+            <span class="button-text">Recycle Bin</span>
+            <span class="button-desc">Review and restore deleted items</span>
+            <span id="badge-recycled" class="badge dark-badge" {% if not recycled_count %}style="display:none;"{% endif %}>{{ recycled_count }}</span>
+        </a>
+    </div>
+
+    <div class="footer-info">
+        Connected: <span style="font-weight:bold;">{{ settings.OUTLOOK_EMAIL_ADDRESS }}</span>
+    </div>
+
+    <script>
+        function refreshDashboardStats() {
+            fetch('/dashboard-stats/') 
+                .then(response => response.json())
+                .then(data => {
+                    updateBadge('badge-new-emails', data.new_emails_count);
+                    updateBadge('badge-recycled', data.recycled_count);
+                    updateBadge('badge-my-delegations', data.my_pending_delegations_count);
+                });
+        }
+
+        function updateBadge(id, count) {
+            const badge = document.getElementById(id);
+            if (!badge) return;
+            badge.innerText = count;
+            badge.style.display = count > 0 ? 'flex' : 'none';
+        }
+        setInterval(refreshDashboardStats, 30000);
+    </script>
+</body>
+</html>
