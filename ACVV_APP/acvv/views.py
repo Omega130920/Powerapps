@@ -39,6 +39,8 @@ from django.utils.safestring import mark_safe # for the email body & signature
 
 from django.http import HttpResponse
 
+from django.db.models import OuterRef, Subquery, Q
+
 # --------------------------------------------------------------------- #
 # AUTHENTICATION VIEWS (REMAINS THE SAME)
 # --------------------------------------------------------------------- #
@@ -1143,52 +1145,66 @@ def reconciliation_worksheet(request):
     else:
         fiscal_start = today.replace(day=8)
 
-    # 2. Allow viewing historical months via GET parameter
-    selected_month = request.GET.get('month', fiscal_start.strftime('%Y-%m-%d'))
-    try:
-        current_fiscal = datetime.strptime(selected_month, '%Y-%m-%d').date()
-    except ValueError:
+    # 2. Handle GET parameters for Year/Month navigation
+    req_year = request.GET.get('year')
+    req_month = request.GET.get('month')
+    
+    if req_year and req_month:
+        try:
+            current_fiscal = datetime.strptime(f"{req_year}-{req_month}-08", '%Y-%m-%d').date()
+        except ValueError:
+            current_fiscal = fiscal_start
+    else:
         current_fiscal = fiscal_start
 
-    # 3. Handle POST Actions (Save Changes or Close Off)
+    # 3. Handle POST Actions
     if request.method == 'POST':
-        # --- SAVE PROGRESS LOGIC ---
         if 'save_changes' in request.POST:
-            # Loop through all items in the POST data to find row IDs
             for key, value in request.POST.items():
-                if key.startswith('arrears_'):
-                    row_id = key.split('_')[1]
+                if key.startswith('payment_method_'):
+                    row_id = key.split('_')[2]
                     
-                    # Get values using the unique row ID
-                    arrears = request.POST.get(f'arrears_{row_id}')
-                    count = request.POST.get(f'count_{row_id}', 0)
-                    amount = request.POST.get(f'amount_{row_id}', 0.00)
-                    status = request.POST.get(f'status_{row_id}')
-                    schedule = request.POST.get(f'schedule_{row_id}')
-                    
-                    # Update the specific row
                     ReconciliationWorksheet.objects.filter(pk=row_id).update(
-                        arrears=arrears,
-                        member_count_reconciled=count or 0,
-                        contribution_amount_reconciled=amount or 0.00,
-                        reconciled_status=status,
-                        date_schedule_received=schedule if schedule else None
+                        company_status=request.POST.get(f'company_status_{row_id}'),
+                        payment_method=request.POST.get(f'payment_method_{row_id}'),
+                        arrears=request.POST.get(f'arrears_{row_id}', ''), # Updated Arrears
+                        contribution_amount_reconciled=request.POST.get(f'amount_{row_id}', 0.00) or 0.00,
+                        reconciled_status=request.POST.get(f'recon_status_{row_id}'),
+                        date_schedule_received=request.POST.get(f'schedule_{row_id}') or None,
+                        date_confirmed_on_step=request.POST.get(f'confirmed_{row_id}') or None,
+                        debit_order_date=request.POST.get(f'debit_{row_id}') or None
                     )
             messages.success(request, "Progress saved successfully.")
 
-        # --- CLOSE OFF LOGIC ---
         elif 'close_month' in request.POST:
             ReconciliationWorksheet.objects.filter(fiscal_month=current_fiscal).update(
                 is_closed=True, 
                 closed_at=timezone.now()
             )
+            
+            # Update Global ACVV 'NOTES' (Jan will now show Dec was the last date)
+            records_to_update = ReconciliationWorksheet.objects.filter(fiscal_month=current_fiscal)
+            for rec in records_to_update:
+                Globalacvv.objects.filter(mip_names=rec.mg_name).update(
+                    notes=current_fiscal.strftime("%B %Y")
+                )
+
             messages.success(request, f"Fiscal month {current_fiscal.strftime('%B %Y')} closed.")
             return redirect('reconciliation_worksheet')
 
-    # 4. Auto-generate rows if they don't exist
-    records = ReconciliationWorksheet.objects.filter(fiscal_month=current_fiscal)
+    # 4. Fetch Records with Subqueries
+    acvv_status_sub = Globalacvv.objects.filter(mip_names=OuterRef('mg_name')).values('status')[:1]
+    acvv_member_sub = Globalacvv.objects.filter(mip_names=OuterRef('mg_name')).values('member')[:1]
+    acvv_notes_sub = Globalacvv.objects.filter(mip_names=OuterRef('mg_name')).values('notes')[:1]
+
+    records = ReconciliationWorksheet.objects.filter(fiscal_month=current_fiscal).annotate(
+        acvv_status=Subquery(acvv_status_sub),
+        acvv_member_count=Subquery(acvv_member_sub),
+        pulled_last_fiscal=Subquery(acvv_notes_sub) 
+    )
     
-    if not records.exists() and current_fiscal == fiscal_start:
+    # 5. Auto-generate rows if they don't exist
+    if not records.exists() and not request.GET.get('year'):
         base_data = Globalacvv.objects.all() 
         for item in base_data:
             ReconciliationWorksheet.objects.get_or_create(
@@ -1196,9 +1212,26 @@ def reconciliation_worksheet(request):
                 mg_name=item.mip_names,
                 mg_code=item.branch_code
             )
-        records = ReconciliationWorksheet.objects.filter(fiscal_month=current_fiscal)
+        records = ReconciliationWorksheet.objects.filter(fiscal_month=current_fiscal).annotate(
+            acvv_status=Subquery(acvv_status_sub),
+            acvv_member_count=Subquery(acvv_member_sub),
+            pulled_last_fiscal=Subquery(acvv_notes_sub)
+        )
 
-    # 5. History and Context
+    # 6. Apply 2-Month Arrears Aging Logic
+    for r in records:
+        if r.pulled_last_fiscal:
+            try:
+                # Convert "Month Year" string back to date for comparison
+                last_date = datetime.strptime(r.pulled_last_fiscal, "%B %Y").date()
+                # Calculate difference in months
+                diff = (current_fiscal.year - last_date.year) * 12 + (current_fiscal.month - last_date.month)
+                r.is_overdue = diff >= 2
+            except (ValueError, TypeError):
+                r.is_overdue = True  # Show input if date is missing or corrupted
+        else:
+            r.is_overdue = True  # Show input if never reconciled
+
     history = ReconciliationWorksheet.objects.values('fiscal_month').distinct().order_by('-fiscal_month')
 
     return render(request, 'acvv_app/reconciliation_worksheet.html', {
@@ -1207,26 +1240,35 @@ def reconciliation_worksheet(request):
         'history': history,
         'is_closed': records.filter(is_closed=True).exists(),
         'can_close': today.day >= 8 and not records.filter(is_closed=True).exists(),
-        'current_fiscal': current_fiscal # 🛑 FIX: Passes variable to fix NoReverseMatch
+        'current_fiscal': current_fiscal
     })
 
 @login_required
 def export_reconciliation_worksheet(request, date_str):
     """
     Exports the reconciliation data to Excel with all 12 required columns.
+    Applies the 2-month aging logic to the Arrears column.
     """
     try:
         fiscal_date = datetime.strptime(date_str, '%Y-%m-%d').date()
     except ValueError:
         return HttpResponse("Invalid date format", status=400)
 
-    records = ReconciliationWorksheet.objects.filter(fiscal_month=fiscal_date)
+    # 1. Pull data with Subqueries for read-only fields
+    acvv_status_sub = Globalacvv.objects.filter(mip_names=OuterRef('mg_name')).values('status')[:1]
+    acvv_member_sub = Globalacvv.objects.filter(mip_names=OuterRef('mg_name')).values('member')[:1]
+    acvv_notes_sub = Globalacvv.objects.filter(mip_names=OuterRef('mg_name')).values('notes')[:1]
+
+    records = ReconciliationWorksheet.objects.filter(fiscal_month=fiscal_date).annotate(
+        acvv_status=Subquery(acvv_status_sub),
+        acvv_member_count=Subquery(acvv_member_sub),
+        pulled_last_fiscal=Subquery(acvv_notes_sub)
+    )
     
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = f"Recon {fiscal_date.strftime('%b %Y')}"
     
-    # Updated Headers based on your specific requirements (image_644bc3.png)
     headers = [
         "MG Name", "MG Code", "Company Status", "Payment Method", 
         "Last Fiscal Reconciled", "Arrears", "Member Count Reconciled", 
@@ -1235,19 +1277,35 @@ def export_reconciliation_worksheet(request, date_str):
     ]
     ws.append(headers)
 
-    # Bold the headers
     for cell in ws[1]:
         cell.font = openpyxl.styles.Font(bold=True)
 
+    # 2. Append rows with aging logic for the Arrears column
     for r in records:
+        # --- ARREARS AGING LOGIC ---
+        display_arrears = ""
+        if r.pulled_last_fiscal:
+            try:
+                last_date = datetime.strptime(r.pulled_last_fiscal, "%B %Y").date()
+                # Difference in months
+                diff = (fiscal_date.year - last_date.year) * 12 + (fiscal_date.month - last_date.month)
+                
+                # Only show arrears if it's 2 or more months old
+                if diff >= 2:
+                    display_arrears = r.arrears
+            except (ValueError, TypeError):
+                display_arrears = r.arrears  # Fallback to showing if date is invalid
+        else:
+            display_arrears = r.arrears  # Show if never reconciled
+
         ws.append([
             r.mg_name, 
             r.mg_code, 
-            r.company_status, 
+            r.acvv_status,
             r.payment_method,
-            r.last_fiscal_reconciled, 
-            r.arrears, 
-            r.member_count_reconciled,
+            r.pulled_last_fiscal, 
+            display_arrears,                # <--- Applied Logic
+            r.acvv_member_count,
             r.contribution_amount_reconciled, 
             r.reconciled_status,
             r.date_schedule_received, 
@@ -1255,27 +1313,41 @@ def export_reconciliation_worksheet(request, date_str):
             r.debit_order_date
         ])
         
-    response = HttpResponse(
-        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    # Auto-adjust column width
+    for col in ws.columns:
+        max_length = 0
+        column = col[0].column_letter
+        for cell in col:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except: pass
+        ws.column_dimensions[column].width = max_length + 2
+
+    response = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     response['Content-Disposition'] = f'attachment; filename="Reconciliation_Worksheet_{date_str}.xlsx"'
     wb.save(response)
     return response
-    
+
 @login_required
 def export_reconciliation(request, date_str):
-    fiscal_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    """
+    Standard Reconciliation Export for basic summaries.
+    """
+    try:
+        fiscal_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        return HttpResponse("Invalid date format", status=400)
+
     records = ReconciliationRecord.objects.filter(fiscal_month=fiscal_date)
     
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = f"Recon {fiscal_date.strftime('%b %Y')}"
+    ws.title = f"Summary {fiscal_date.strftime('%b %Y')}"
     
-    # Set headers
     headers = ["Member Group", "Branch Code", "Billed", "Paid", "Outstanding", "Note"]
     ws.append(headers)
     
-    # Style headers
     for cell in ws[1]:
         cell.font = openpyxl.styles.Font(bold=True)
 
@@ -1283,7 +1355,7 @@ def export_reconciliation(request, date_str):
         ws.append([r.mip_name, r.branch_code, r.billed_amount, r.paid_amount, r.outstanding_amount, r.note])
         
     response = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    response['Content-Disposition'] = f'attachment; filename="Reconciliation_{date_str}.xlsx"'
+    response['Content-Disposition'] = f'attachment; filename="Reconciliation_Summary_{date_str}.xlsx"'
     wb.save(response)
     return response
 
