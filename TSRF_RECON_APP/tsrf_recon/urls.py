@@ -18,16 +18,16 @@ urlpatterns = [
     path('org/table/info/<str:levy_number>/', views.org_table_info, name='org_table_info'),
     
     # --- BANK LINE VIEWS ---
-    path('banklines/', views.bank_line_list, name='bank_line_list'),
-    path('banklines/allocated/', views.allocated_bank_line_list, name='allocated_bank_line_list'),
-    path('banklines/reconciled/', views.assigned_bank_line_list, name='reconciled_bank_line_list'),
+    path('banklines/unreconciled/', views.unreconciled_banklines, name='unreconciled_banklines'),
+    path('banklines/global-bank/', views.global_bank_view, name='global_bank'),
     
     # --- OTHER VIEWS ---
     path('org-table/', views.org_table_view, name='org_table'),
     path('org-table/', views.org_table_view, name='org_table_view'),
-    path('levy/add/', views.add_levy_view, name='add_levy'),
+    path('levy/add/', views.add_levy_view, name='add_levy_view'),
     path('banklines/allocate/<int:bank_line_id>/', views.bankline_allocation, name='bankline_allocation'),
-    path('levy-data/<str:levy_number>/bankline_edits.html', views.bankline_edits_view, name='bankline_edits'),
+    path('levy-data/<path:levy_number>/bankline_edits.html', views.bankline_edits_view, name='bankline_edits'),
+    path('add-levy/', views.add_levy_view, name='add_levy'),
 
     # ==============================================================================
     # 📧 MICROSOFT GRAPH API & DELEGATION ROUTES (TRANSPLANTED)
@@ -55,4 +55,8 @@ urlpatterns = [
     path('outlook/recycle-bin/restore/<int:delegation_id>/', views.restore_from_recycle_bin, name='restore_from_recycle_bin'),
     
     path('outlook/compose/', views.outlook_compose, name='outlook_compose'),
+    path('banklines/export-csv/', views.export_bank_csv, name='export_bank_csv'),
+    path('import-levy/', views.import_levy_data, name='import_levy_excel'),
+    path('billing-summary/', views.billing_summary, name='billing_summary'),
+    path('levy-info/thread/<int:delegation_id>/', views.view_email_thread, name='view_email_thread'),
 ]

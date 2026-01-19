@@ -92,32 +92,32 @@
         .hidden { display: none; }
 
         .dashboard-links {
-    margin-bottom: 20px;
-    display: flex;
-    gap: 15px;
-}
+            margin-bottom: 20px;
+            display: flex;
+            gap: 15px;
+        }
 
-.return-button {
-    padding: 10px 20px;
-    background-color: #81c784; /* Unity Green */
-    border: 1px solid #66bb6a;
-    border-radius: 5px;
-    text-decoration: none;
-    color: white;
-    font-weight: bold;
-    font-size: 14px;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    display: inline-flex;
-    align-items: center;
-}
+        .return-button {
+            padding: 10px 20px;
+            background-color: #81c784; /* Unity Green */
+            border: 1px solid #66bb6a;
+            border-radius: 5px;
+            text-decoration: none;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+        }
 
-.return-button:hover {
-    background-color: #66bb6a;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-    transform: translateY(-1px);
-    color: white; /* Ensures text stays white on hover */
-}
+        .return-button:hover {
+            background-color: #66bb6a;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transform: translateY(-1px);
+            color: white; /* Ensures text stays white on hover */
+        }
     </style>
 </head>
 <body>
@@ -126,15 +126,10 @@
     <a href="{% url 'dashboard' %}" class="return-button">
         <i class="fas fa-home" style="margin-right: 8px;"></i> Back to Home Screen
     </a>
-    <a href="{% url 'tasks' %}" class="return-button">
-        <i class="fas fa-tasks" style="margin-right: 8px;"></i> My Delegated Tasks
-    </a>
 </div>
 
 <div class="task-container">
 
-
-    
     <div class="task-header">
         <h1><i class="fas fa-tasks"></i> Action Task: {{ task.subject }}</h1>
         <div style="margin-top: 5px;">
@@ -409,12 +404,21 @@
                             <div>
                                 <label class="form-label">Action Log Type:</label>
                                 <select name="action_notes_email" class="form-control">
-                                    <option value="Feedback to Member">Feedback to Member</option>
-                                    <option value="Feedback to Employer">Feedback to Employer</option>
-                                    <option value="Enquiry to Sanlam">Enquiry to Sanlam</option>
-                                    <option value="Feedback to Broker">Feedback to Broker</option>
-                                </select>
-                            </div>
+                                <option value="">Select Action Note</option>
+                                <option value="Feedback to Sanlam">Feedback to Sanlam</option>
+                                <option value="Feedback to Employer">Feedback to Employer</option>
+                                <option value="Feedback to Member">Feedback to Member</option>
+                                <option value="Feedback to CBC">Feedback to CBC</option>
+                                <option value="Enquiry to FO">Enquiry to FO</option>
+                                <option value="Enquiry to Sanlam">Enquiry to Sanlam</option>
+                                <option value="Enquiry to Employer">Enquiry to Employer</option>
+                                <option value="Enquiry to CBC">Enquiry to CBC</option>
+                                <option value="Sent to Employer">Sent to Employer</option>
+                                <option value="Sent to Sanlam">Sent to Sanlam</option>
+                                <option value="Sent to CBC">Sent to CBC</option>
+                                <option value="Sent to FO">Sent to FO</option>
+                            </select>
+                        </div>
                         </div>
 
                         {# --- AUTO-NUMBERING SUBJECT LINE --- #}
@@ -442,53 +446,70 @@
         </div>
 
         <div class="right-column">
-            <!--<div class="custom-card">
-                <div class="card-header-dark">
-                    <i class="fas fa-history"></i> Task Audit Log
-                </div>
-                <div class="card-body-content">
-                    <div class="notes-history-container">
-                        {% for action in action_history %}
-                        <div class="note-item">
-                            <small><strong>{{ action.action_user }}</strong> | {{ action.action_type }}</small>
-                            <p style="margin: 5px 0;">{{ action.note_content|truncatewords:50 }}</p>
-                            <small style="color: #999;">{{ action.action_timestamp|date:"Y-m-d H:i:s" }}</small>
+            <div class="custom-card">
+                <button class="collapse-toggle" style="border-bottom-color: #28a745;" data-target="#collapseNote">
+                    <span><i class="fas fa-plus-circle"></i> Add Note</span>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </button>
+                <div class="collapse-content" id="collapseNote">
+                    <form method="POST">
+                        {% csrf_token %}
+                        <input type="hidden" name="action_type" value="add_note">
+                        
+                        <div style="margin-bottom: 12px;">
+                            <label class="form-label">Communication Type:</label>
+                            <select name="communication_type" class="form-control">
+                                <option value="">Select Communication Type</option>
+                                <option value="Incoming Call">Incoming Call</option>
+                                <option value="Outgoing Call">Outgoing Call</option>
+                                <option value="Notes Log">Notes Log</option>
+                                <option value="Teams Meeting">Teams Meeting</option>
+                            </select>
                         </div>
-                        {% empty %}
-                        <p style="text-align: center; color: #999;">No actions recorded.</p>
-                        {% endfor %}
-                    </div>-->
 
-                    <button class="collapse-toggle" style="border-bottom-color: #28a745; margin-top: 15px;" data-target="#collapseNote">
-                        <span><i class="fas fa-plus-circle"></i> Add Note</span>
-                        <i class="fas fa-chevron-down toggle-icon"></i>
-                    </button>
-                    <div class="collapse-content" id="collapseNote">
-                        <form method="POST">
-                            {% csrf_token %}
-                            <input type="hidden" name="action_type" value="add_note">
-                            <label class="form-label">Note Content:</label>
-                            <textarea name="internal_note" class="form-control" required></textarea>
-                            <button type="submit" class="custom-btn btn-success">Save Note</button>
-                        </form>
-                    </div>
+                        <div style="margin-bottom: 12px;">
+                            <label class="form-label">Action Log Type:</label>
+                            <select name="action_notes_email" class="form-control">
+                                <option value="">Select Action Note</option>
+                                <option value="Feedback to Sanlam">Feedback to Sanlam</option>
+                                <option value="Feedback to Employer">Feedback to Employer</option>
+                                <option value="Feedback to Member">Feedback to Member</option>
+                                <option value="Feedback to CBC">Feedback to CBC</option>
+                                <option value="Enquiry to FO">Enquiry to FO</option>
+                                <option value="Enquiry to Sanlam">Enquiry to Sanlam</option>
+                                <option value="Enquiry to Employer">Enquiry to Employer</option>
+                                <option value="Enquiry to CBC">Enquiry to CBC</option>
+                                <option value="Sent to Employer">Sent to Employer</option>
+                                <option value="Sent to Sanlam">Sent to Sanlam</option>
+                                <option value="Sent to CBC">Sent to CBC</option>
+                                <option value="Sent to FO">Sent to FO</option>
+                            </select>
+                        </div>
 
-                    {% if task.status != 'Recycled' %}
-                    <button class="collapse-toggle" style="border-bottom-color: #2e7d32; margin-top: 15px;" data-target="#collapseFinal">
-                        <span><i class="fas fa-check-circle"></i> Finalize Task</span>
-                        <i class="fas fa-chevron-down toggle-icon"></i>
-                    </button>
-                    <div class="collapse-content" id="collapseFinal">
-                        <form method="POST">
-                            {% csrf_token %}
-                            <input type="hidden" name="action_type" value="complete">
-                            <label class="form-label">Resolution Summary:</label>
-                            <textarea name="completion_notes" class="form-control" placeholder="Briefly explain the outcome..."></textarea>
-                            <button type="submit" class="custom-btn btn-success" style="background:#2e7d32;">Complete Task</button>
-                        </form>
-                    </div>
-                    {% endif %}
+                        <label class="form-label">Note Content:</label>
+                        <textarea name="internal_note" class="form-control" rows="4" required></textarea>
+                        
+                        <button type="submit" class="custom-btn btn-success" style="margin-top: 10px;">
+                            <i class="fas fa-save"></i> Save Note
+                        </button>
+                    </form>
                 </div>
+
+                {% if task.status != 'Recycled' %}
+                <button class="collapse-toggle" style="border-bottom-color: #2e7d32; margin-top: 15px;" data-target="#collapseFinal">
+                    <span><i class="fas fa-check-circle"></i> Finalize Task</span>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </button>
+                <div class="collapse-content" id="collapseFinal">
+                    <form method="POST">
+                        {% csrf_token %}
+                        <input type="hidden" name="action_type" value="complete">
+                        <label class="form-label">Resolution Summary:</label>
+                        <textarea name="completion_notes" class="form-control" placeholder="Briefly explain the outcome..."></textarea>
+                        <button type="submit" class="custom-btn btn-success" style="background:#2e7d32;">Complete Task</button>
+                    </form>
+                </div>
+                {% endif %}
             </div>
         </div>
     </div>

@@ -1310,7 +1310,7 @@
                         <th style="padding: 12px; border-bottom: 2px solid #aed581;">Assigned To</th>
                         <th style="padding: 12px; border-bottom: 2px solid #aed581;">Status</th>
                         <th style="padding: 12px; border-bottom: 2px solid #aed581;">Actioned Date</th>
-                        <th style="padding: 12px; border-bottom: 2px solid #aed581; text-align: center;">Thread</th>
+                        <th style="padding: 12px; border-bottom: 2px solid #aed581; text-align: center;">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1326,12 +1326,10 @@
                         </td>
                         <td style="padding: 10px;">
                             {% if email.status == 'Completed' %}
-                                {# Locked view for both Originals and Replies #}
                                 <span style="color: #666; font-weight: 500; cursor: not-allowed;" title="Thread is completed and locked">
                                     <i class="fas fa-lock" style="font-size: 0.8em; margin-right: 5px; color: #999;"></i> {{ email.subject|truncatechars:45 }}
                                 </span>
                             {% else %}
-                                {# Active Link - Only available if not Completed #}
                                 <a href="{% url 'delegate_action' email_id=email.email_id %}" style="color: #2e7d32; text-decoration: none; font-weight: 500;">
                                     {{ email.subject|truncatechars:45 }}
                                 </a>
@@ -1355,10 +1353,18 @@
                             {% else %}-{% endif %}
                         </td>
                         <td style="padding: 10px; text-align: center;">
-                            <a href="{% url 'view_email_thread' email_id=email.email_id %}" 
-                               style="background-color: #81c784; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 0.85em;">
-                                View Thread
-                            </a>
+                            <div style="display: flex; gap: 5px; justify-content: center;">
+                                <a href="{% url 'view_email_thread' email_id=email.email_id %}" 
+                                   style="background-color: #81c784; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 0.85em;"
+                                   title="View Audit Trail">
+                                    <i class="fas fa-stream"></i>
+                                </a>
+                                <a href="{% url 'download_actual_email' email_id=email.email_id %}" 
+                                   style="background-color: #1976d2; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 0.85em;"
+                                   title="Download .eml File">
+                                    <i class="fas fa-file-download"></i>
+                                </a>
+                            </div>
                         </td>
                     </tr>
                     {% empty %}
@@ -1377,7 +1383,19 @@
                         <td style="padding: 10px;">{{ email.recipient_email }}</td>
                         <td style="padding: 10px;"><span style="color: #e91e63; font-weight: bold;">SENT</span></td>
                         <td style="padding: 10px;">{{ email.sent_at|date:"Y-m-d H:i" }}</td>
-                        <td style="padding: 10px; text-align: center; color: #ccc;">-</td>
+                        <td style="padding: 10px; text-align: center;">
+                            <div style="display: flex; gap: 5px; justify-content: center;">
+                                {% if email.outlook_message_id %}
+                                    <a href="{% url 'download_actual_email' email_id=email.outlook_message_id %}" 
+                                    style="background-color: #1976d2; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 0.85em;"
+                                    title="Download Sent .eml">
+                                        <i class="fas fa-file-download"></i>
+                                    </a>
+                                {% else %}
+                                    <span style="color: #ccc;" title="No ID available for older logs">-</span>
+                                {% endif %}
+                            </div>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>

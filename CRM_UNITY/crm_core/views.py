@@ -10,6 +10,8 @@ from base64 import urlsafe_b64decode, urlsafe_b64encode
 from decimal import Decimal
 from datetime import datetime, date, timezone as py_timezone
 from dateutil import parser
+import openpyxl
+from openpyxl.styles import Font, Alignment, PatternFill
 
 from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
@@ -554,6 +556,7 @@ def member_information(request, member_group_code):
             body_content = request.POST.get('email_body_html_content')
             attachments = request.FILES.getlist('attachments')
 
+            # 1. Send via Outlook
             response = OutlookGraphService.send_outlook_email(
                 recipient=recipient,
                 subject=subject,
@@ -562,12 +565,15 @@ def member_information(request, member_group_code):
             )
 
             if response.get('success'):
+                # 2. CAPTURE OUTLOOK ID FOR DOWNLOADS
+                # Ensure your DirectEmailLog model has an 'outlook_message_id' field
                 DirectEmailLog.objects.create(
                     member_group_code=member_group_code,
                     subject=subject,
                     recipient_email=recipient,
                     body_content=body_content,
                     sent_by_user=request.user,
+                    outlook_message_id=response.get('outlook_id'), # Captured from service
                     sent_at=timezone.now()
                 )
                 messages.success(request, f"Email sent successfully to {recipient}")
@@ -575,16 +581,14 @@ def member_information(request, member_group_code):
                 messages.error(request, f"Microsoft Error: {response.get('error')}")
 
         elif action == 'save_member_note':
-            # CAPTURE THE LINKED EMAIL ID
             attached_email_id = request.POST.get('attached_email_id')
             
-            # If your ClientNotes model has an 'attached_email_id' field, include it here
             ClientNotes.objects.create(
                 related_member_group_code=member_group_code,
                 notes=request.POST.get('note_content'),
                 communication_type=request.POST.get('communication_type'),
                 action_notes=request.POST.get('action_notes'),
-                attached_email_id=attached_email_id, # Added mapping
+                attached_email_id=attached_email_id,
                 user=user_display, 
                 date=timezone.now()
             )
@@ -669,7 +673,7 @@ def member_information(request, member_group_code):
         **personnel_data,
         'notes': notes,
         'documents': documents,
-        'combined_email_log': combined_email_log, # This drives the dropdown selection
+        'combined_email_log': combined_email_log, 
         'direct_emails': direct_emails,
     }
 
@@ -1204,75 +1208,183 @@ def final_sla_report_view(request):
     if request.user.username.lower() != 'omega':
         return redirect('dashboard')
 
-    # --- 1. CAPTURE DATE PARAMETERS ---
     start_str = request.GET.get('start_date')
     end_str = request.GET.get('end_date')
     
-    # Initialize query filters
+    # 1. Setup Date Filters
     delegate_q = Q()
-    complaint_q = Q()
+    notes_q = Q()
     email_log_q = Q()
 
-    # Apply filters only if dates are provided
     if start_str:
         start_dt = parse_date(start_str)
         delegate_q &= Q(received_timestamp__date__gte=start_dt)
-        complaint_q &= Q(created_at__date__gte=start_dt)
+        notes_q &= Q(date__gte=start_dt)
         email_log_q &= Q(sent_at__date__gte=start_dt)
-
     if end_str:
         end_dt = parse_date(end_str)
         delegate_q &= Q(received_timestamp__date__lte=end_dt)
-        complaint_q &= Q(created_at__date__lte=end_dt)
+        notes_q &= Q(date__lte=end_dt)
         email_log_q &= Q(sent_at__date__lte=end_dt)
 
-    # --- 2. AGGREGATE DATA (Filtered by Date) ---
+    # 2. Handle Excel Export Request
+    if request.GET.get('export') == 'excel':
+        return export_sla_excel(delegate_q, notes_q, email_log_q)
 
-    # INBOX EMAILS + QUERIES (crm_delegate_to)
-    inbox_emails_count = CrmDelegateTo.objects.filter(delegate_q, method='Email').count()
-    total_delegate = CrmDelegateTo.objects.filter(delegate_q).count()
-    queries_count = total_delegate - inbox_emails_count
+    # 3. Aggregate Grouped Totals
+    calls_breakdown = ClientNotes.objects.filter(
+        notes_q, 
+        communication_type__in=['Incoming Call', 'Outgoing Call']
+    ).values('communication_type', 'action_notes').annotate(total=Count('id')).order_by('communication_type')
 
-    # CALLS + TEAMS (crm_complaint_log / client_notes)
-    client_notes_total = ComplaintLog.objects.filter(complaint_q).count()
-    
-    # SENT EMAILS (crm_direct_email_log + client_notes)
-    direct_email_log_count = DirectEmailLog.objects.filter(email_log_q).count()
-    # As per your logic: SENT EMAILS includes the client notes count
-    sent_emails_total = direct_email_log_count + client_notes_total
+    inbox_breakdown = CrmDelegateTo.objects.filter(delegate_q).values(
+        'type', 'status'
+    ).annotate(total=Count('email_id')).order_by('type')
 
-    # --- 3. MAPPING TO CATEGORIES ---
+    queries_breakdown = ClientNotes.objects.filter(
+        notes_q, 
+        communication_type='Notes Log'
+    ).values('action_notes').annotate(total=Count('id')).order_by('action_notes')
+
+    sent_emails_breakdown = DirectEmailLog.objects.filter(email_log_q).values(
+        'subject' 
+    ).annotate(total=Count('id'))
+
+    teams_breakdown = ClientNotes.objects.filter(
+        notes_q, 
+        communication_type='Teams Meeting'
+    ).values('action_notes').annotate(total=Count('id')).order_by('action_notes')
+
+    # 4. Final Data Structure with Badge Totals
     report_data = {
-        'CALLS': client_notes_total // 2, 
-        'INBOX_EMAILS': inbox_emails_count,
-        'QUERIES': queries_count,
-        'SENT_EMAILS': sent_emails_total,
-        'TEAMS': client_notes_total - (client_notes_total // 2), 
+        'CALLS': calls_breakdown,
+        'CALLS_TOTAL': sum(item['total'] for item in calls_breakdown),
+        
+        'INBOX_EMAILS': inbox_breakdown,
+        'INBOX_TOTAL': sum(item['total'] for item in inbox_breakdown),
+        
+        'QUERIES': queries_breakdown,
+        'QUERIES_TOTAL': sum(item['total'] for item in queries_breakdown),
+        
+        'SENT_EMAILS': sent_emails_breakdown,
+        'SENT_TOTAL': sum(item['total'] for item in sent_emails_breakdown),
+        
+        'TEAMS': teams_breakdown,
+        'TEAMS_TOTAL': sum(item['total'] for item in teams_breakdown),
     }
 
-    grand_total = sum(report_data.values())
+    grand_total = (
+        report_data['CALLS_TOTAL'] + 
+        report_data['INBOX_TOTAL'] + 
+        report_data['QUERIES_TOTAL'] + 
+        report_data['SENT_TOTAL'] + 
+        report_data['TEAMS_TOTAL']
+    )
+
+    details = ClientNotes.objects.filter(notes_q).order_by('-date')[:50]
 
     context = {
         'report': report_data,
         'grand_total': grand_total,
         'start_date': start_str,
         'end_date': end_str,
+        'details': details,
     }
-
     return render(request, 'final_sla_report.html', context)
+
+def export_sla_excel(delegate_q, notes_q, email_log_q):
+    """Enhanced helper to generate the detailed SLA Excel file matching live totals"""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "SLA Detailed Breakdown"
+    
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="1B5E20", end_color="1B5E20", fill_type="solid")
+
+    headers = ['Date', 'Main Category', 'Enquiry Type', 'Action Type', 'User', 'Reference', 'Content Preview']
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+
+    # 1. Add Communication Logs (Calls, Teams, Queries)
+    for note in ClientNotes.objects.filter(notes_q):
+        ws.append([
+            note.date.replace(tzinfo=None),
+            'Communication Log',
+            note.communication_type,
+            note.action_notes,
+            note.user,
+            note.related_member_group_code,
+            note.notes[:100]
+        ])
+
+    # 2. ADD MISSING DATA: Inbox Emails & Task Queries
+    # This pulls the 9 Inbox Emails and 2 Queries missing from your previous export
+    for task in CrmDelegateTo.objects.filter(delegate_q):
+        ws.append([
+            task.received_timestamp.replace(tzinfo=None),
+            'Inbox Delegation',
+            task.type or 'Incoming Email',
+            task.status,
+            task.delegated_by,
+            task.member_group_code,
+            task.subject
+        ])
+
+    # 3. ADD MISSING DATA: Sent Email Replies (SLA Category: Sent Emails)
+    # This pulls the 'REPLY_SENT' actions logged in the thread table
+    for action in CrmDelegateAction.objects.filter(task_email_id__isnull=False, action_type='REPLY_SENT'):
+        ws.append([
+            action.action_timestamp.replace(tzinfo=None),
+            'Sent Email (Thread Reply)',
+            'Email Response',
+            'REPLY_SENT',
+            action.action_user,
+            'N/A',
+            action.related_subject
+        ])
+
+    # 4. Add Direct Emails
+    for email in DirectEmailLog.objects.filter(email_log_q):
+        ws.append([
+            email.sent_at.replace(tzinfo=None),
+            'Direct Email',
+            'Outgoing Email',
+            'Sent',
+            email.sent_by_user.username,
+            email.member_group_code,
+            email.subject
+        ])
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename="Detailed_SLA_Report_{date.today()}.xlsx"'
+    wb.save(response)
+    return response
 
 from django.utils.dateparse import parse_date
 
 def get_date_filters(request):
-    """Helper function to extract dates from GET request"""
+    """Helper function to extract dates safely from GET request"""
     start_str = request.GET.get('start_date')
     end_str = request.GET.get('end_date')
     
+    # Check if the string is empty or literally the string "None"
+    def is_valid(val):
+        return val and val != "None" and val != ""
+
     filters = Q()
-    if start_str:
-        filters &= Q(received_timestamp__date__gte=parse_date(start_str))
-    if end_str:
-        filters &= Q(received_timestamp__date__lte=parse_date(end_str))
+    
+    if is_valid(start_str):
+        parsed_start = parse_date(start_str)
+        if parsed_start:
+            filters &= Q(received_timestamp__date__gte=parsed_start)
+            
+    if is_valid(end_str):
+        parsed_end = parse_date(end_str)
+        if parsed_end:
+            filters &= Q(received_timestamp__date__lte=parsed_end)
+            
     return filters, start_str, end_str
 
 
@@ -1280,22 +1392,32 @@ def get_unified_email_data(request):
     """
     Helper function to merge CrmInbox (New) and CrmDelegateTo (Delegated) 
     data into a single list for the UI and CSV Export.
+    Includes safety checks for 'None' strings and Agent lookups.
     """
-    # 1. Action Lookup (Check for replies in the Thread table)
+    # 1. Action Lookup (Check for replies and original delegation actions)
+    # We get the last reply timestamp
     last_reply_map = CrmDelegateAction.objects.filter(
         action_type='REPLY_SENT'
     ).values('task_email_id').annotate(last_replied=Max('action_timestamp'))
-    
     last_reply_dict = {item['task_email_id']: item['last_replied'] for item in last_reply_map}
 
-    # 2. Setup Filters
+    # We also look for the original delegation action to see WHO did it (the Agent)
+    delegation_user_map = CrmDelegateAction.objects.filter(
+        action_type='restore_to_inbox' # or any specific action that marks a user interaction
+    ).values('task_email_id', 'action_user')
+    user_dict = {item['task_email_id']: item['action_user'] for item in delegation_user_map}
+
+    # 2. Setup Filters with Safety for "None" strings
     date_filter = Q()
     start_date_str = request.GET.get('start_date')
     end_date_str = request.GET.get('end_date')
 
-    if start_date_str:
+    def is_valid_date(val):
+        return val and val != "None" and val != ""
+
+    if is_valid_date(start_date_str):
         date_filter &= Q(received_timestamp__date__gte=start_date_str)
-    if end_date_str:
+    if is_valid_date(end_date_str):
         date_filter &= Q(received_timestamp__date__lte=end_date_str)
 
     # 3. Fetch Delegated Emails
@@ -1315,8 +1437,8 @@ def get_unified_email_data(request):
             'email_id': task.email_id,
             'subject': task.subject,
             'sender': task.sender or "Unknown",
-            'status': task.status,  # e.g., 'Delegated' or 'Completed'
-            'delegated_to': task.delegated_to,
+            'status': task.status,
+            'delegated_to': task.delegated_to or user_dict.get(task.email_id, "System"),
             'member_group_code': task.member_group_code,
             'category': CATEGORY_NAMES.get(str(task.category), task.category),
             'received_timestamp': task.received_timestamp,
@@ -1355,10 +1477,6 @@ def get_unified_email_data(request):
 
 @login_required
 def email_workflow_log_view(request):
-    """View to display the unified Email List with Pagination."""
-    if request.user.username.lower() != 'omega':
-        messages.error(request, "Access restricted.")
-        return redirect('dashboard')
 
     data = get_unified_email_data(request)
     
@@ -1370,25 +1488,86 @@ def email_workflow_log_view(request):
 
 @login_required
 def export_email_workflow_csv(request):
-    """Exports the filtered unified email list to CSV."""
+    """Exports the filtered unified email list to CSV with Agent and Reply Date."""
+    # This pulls the data using the helper you provided earlier
     data = get_unified_email_data(request)
     
     response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = f'attachment; filename="Email_Workflow_{timezone.now().date()}.csv"'
+    filename = f"Email_Workflow_{timezone.now().strftime('%Y-%m-%d')}.csv"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
 
     writer = csv.writer(response)
-    writer.writerow(['Received Date', 'Sender', 'Subject', 'Status', 'Assigned To', 'Member Code', 'Category', 'Last Replied'])
+    
+    # Define Column Headers
+    writer.writerow([
+        'Received Date', 
+        'Sender', 
+        'Subject', 
+        'Status', 
+        'Agent (Assigned)',  # The User
+        'Member Code', 
+        'Category', 
+        'Date Replied'       # The Reply Date
+    ])
 
     for row in data:
+        # Format Received Date
+        received_dt = row['received_timestamp'].strftime('%Y-%m-%d %H:%M') if row['received_timestamp'] else 'N/A'
+        
+        # Format Last Replied Date (The logic you were missing)
+        reply_dt = 'No Reply'
+        if row.get('last_replied_timestamp'):
+            # Convert the datetime object to a clean string for Excel
+            reply_dt = row['last_replied_timestamp'].strftime('%Y-%m-%d %H:%M')
+
+        # Map the Agent name
+        # If 'delegated_to' is a User object, we use .username, otherwise use the string
+        agent_name = row.get('delegated_to', 'Inbox (Unassigned)')
+
+        # WRITE THE ROW
         writer.writerow([
-            row['received_timestamp'],
-            row['sender'],
-            row['subject'],
-            row['status'],
-            row['delegated_to'],
-            row['member_group_code'],
-            row['category'],
-            row['last_replied_timestamp'] or 'No Reply'
+            received_dt,
+            row.get('sender', 'Unknown'),
+            row.get('subject', 'No Subject'),
+            row.get('status', 'New'),
+            agent_name,  # This maps to 'Agent (Assigned)'
+            row.get('member_group_code', 'N/A'),
+            row.get('category', 'Unclassified'),
+            reply_dt     # This maps to 'Date Replied'
         ])
 
     return response
+
+@login_required
+def download_actual_email(request, email_id):
+    """
+    Fetches the raw MIME content from Outlook and serves it as a .eml file.
+    This can be called from the Thread view OR the Member Information Email Log.
+    """
+    try:
+        # 1. Get raw bytes from our updated service
+        raw_mime = OutlookGraphService.get_email_mime_content(email_id)
+
+        if isinstance(raw_mime, dict) and 'error' in raw_mime:
+            messages.error(request, f"Microsoft Error: {raw_mime['error']}")
+            return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
+
+        # 2. Try to find a subject for the filename
+        # We check CrmDelegateTo first, then CrmInbox
+        subject_source = CrmDelegateTo.objects.filter(email_id=email_id).first() or \
+                         CrmInbox.objects.filter(email_id=email_id).first()
+        
+        filename = "email_record.eml"
+        if subject_source and subject_source.subject:
+            # Clean filename: remove non-alphanumeric characters
+            clean_subject = "".join([c for c in subject_source.subject if c.isalnum() or c in (' ', '-', '_')]).strip()
+            filename = f"{clean_subject[:50]}.eml"
+
+        # 3. Return as a downloadable message/rfc822 file
+        response = HttpResponse(raw_mime, content_type='message/rfc822')
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+
+    except Exception as e:
+        messages.error(request, f"Download failed: {str(e)}")
+        return redirect(request.META.get('HTTP_REFERER', 'dashboard'))

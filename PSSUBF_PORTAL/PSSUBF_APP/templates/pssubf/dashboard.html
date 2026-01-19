@@ -171,34 +171,30 @@
         </form>
     </div>
 
-    <h1>PSSUBF <strong>Switchboard</strong></h1>
+    <h1>PSSUBF <strong>Home Screen</strong></h1>
     <p class="subtitle">Welcome back, {{ user.username }}</p>
 
     <div class="button-container">
         <a href="{% url 'pssubf_dashboard' %}" class="button-block">
             <i class="fas fa-envelope-open-text"></i>
             <span class="button-text">Service Inbox</span>
-            <span class="button-desc">Live email feed and delegation</span>
             <span id="badge-new-emails" class="badge blue-badge" {% if not new_emails_count %}style="display:none;"{% endif %}>{{ new_emails_count }}</span>
         </a>
 
         <a href="{% url 'pssubf_delegations_list' %}" class="button-block">
             <i class="fas fa-tasks"></i>
             <span class="button-text">Delegations</span>
-            <span class="button-desc">Manage active agent tasks</span>
             <span id="badge-my-delegations" class="badge orange-badge" {% if not my_pending_delegations_count %}style="display:none;"{% endif %}>{{ my_pending_delegations_count }}</span>
         </a>
 
         <a href="{% url 'pssubf_audit_logs' %}" class="button-block">
             <i class="fas fa-clipboard-list"></i>
-            <span class="button-text">Audit Logs</span>
-            <span class="button-desc">System-wide interaction history</span>
+            <span class="button-text">Email List</span>
         </a>
 
         <a href="{% url 'pssubf_recycle_bin' %}" class="button-block">
             <i class="fas fa-trash-can"></i>
             <span class="button-text">Recycle Bin</span>
-            <span class="button-desc">Review and restore deleted items</span>
             <span id="badge-recycled" class="badge dark-badge" {% if not recycled_count %}style="display:none;"{% endif %}>{{ recycled_count }}</span>
         </a>
     </div>

@@ -15,15 +15,28 @@ User = get_user_model()
 class LevyData(models.Model):
     """
     Model representing the 'levy data' table.
+    Updated to include new fields from Excel import.
     """
     levy_number = models.CharField(db_column='Levy_Number', max_length=255, primary_key=True)
     levy_name = models.CharField(db_column='Levy_Name', max_length=255, blank=True, null=True)
     mip_status = models.CharField(db_column='MIP_Status', max_length=255, blank=True, null=True)
     commencement_date = models.DateField(db_column='Commencement_Date', blank=True, null=True)
-    termination_date = models.DateField(db_column='Termination_Date', blank=True, null=True)
+    termination_date = models.CharField(db_column='Termination_Date', max_length=255, blank=True, null=True) # Changed to CharField to handle Excel date variations
+    
+    # Responsible Person Fields
     responsible_person = models.CharField(db_column='Responsible_Person', max_length=255, blank=True, null=True)
+    responsible_person_id = models.CharField(db_column='Responsible Person ID Number', max_length=255, blank=True, null=True)
+    responsible_person_email = models.CharField(db_column='Responsible Person Email Address', max_length=255, blank=True, null=True)
+    responsible_person_cell = models.CharField(db_column='Responsible Person Cell Number', max_length=255, blank=True, null=True)
+    responsible_person_address = models.CharField(db_column='Responsible Person Address', max_length=255, blank=True, null=True)
+    
     registration_number = models.CharField(db_column='Registration_Number', max_length=255, blank=True, null=True)
     fica = models.CharField(db_column='FICA', max_length=255, blank=True, null=True)
+    
+    # Attorney Fields
+    attorney_case = models.CharField(db_column='Attorney_Case', max_length=255, blank=True, null=True)
+    attorneys = models.CharField(db_column='Attorneys', max_length=255, blank=True, null=True)
+    
     levy_user = models.CharField(db_column='Levy_User', max_length=255, blank=True, null=True)
     user_login = models.CharField(db_column='User_Login', max_length=255, blank=True, null=True)
     levy_user_2 = models.CharField(db_column='Levy_User_2', max_length=255, blank=True, null=True)
@@ -32,6 +45,8 @@ class LevyData(models.Model):
     telephone = models.CharField(db_column='Telephone', max_length=255, blank=True, null=True)
     postal_address = models.CharField(db_column='Postal_Address', max_length=255, blank=True, null=True)
     physical_address = models.CharField(db_column='Physical_Address', max_length=255, blank=True, null=True)
+    
+    # Director Fields
     director_name_1 = models.CharField(db_column='Director_Name_1', max_length=255, blank=True, null=True)
     director_mail_1 = models.CharField(db_column='Director_Mail_1', max_length=255, blank=True, null=True)
     director_cell_1 = models.CharField(db_column='Director_Cell_1', max_length=255, blank=True, null=True)
@@ -48,10 +63,18 @@ class LevyData(models.Model):
     director_mail_4 = models.CharField(db_column='Director_Mail_4', max_length=255, blank=True, null=True)
     director_cell_4 = models.CharField(db_column='Director_Cell_4', max_length=255, blank=True, null=True)
     director_address_4 = models.CharField(db_column='Director_Address_4', max_length=255, blank=True, null=True)
+    
+    # Financial/Fiscal Fields
+    fiscal = models.CharField(db_column='Fiscal', max_length=255, blank=True, null=True)
+    due_amount_field = models.DecimalField(db_column='Due Amount', max_digits=15, decimal_places=2, blank=True, null=True)
+    cbr_status_field = models.CharField(db_column='CBR Status', max_length=255, blank=True, null=True)
+    total_lpi_outstanding = models.DecimalField(db_column='Total LPI Outstanding', max_digits=15, decimal_places=2, blank=True, null=True)
+    total_unallocated_deposits = models.DecimalField(db_column='Total Unallocated Deposits', max_digits=15, decimal_places=2, blank=True, null=True)
+    overs_unders_field = models.DecimalField(db_column='Overs & Unders', max_digits=15, decimal_places=2, blank=True, null=True)
+
     administrator = models.CharField(db_column='Administrator', max_length=255, blank=True, null=True)
     termination_reason = models.CharField(db_column='Termination_Reason', max_length=255, blank=True, null=True)
     termination_status = models.CharField(db_column='Termination_Status', max_length=255, blank=True, null=True)
-    attorney_case = models.CharField(db_column='Attorney_Case', max_length=255, blank=True, null=True)
 
     class Meta:
         managed = False
@@ -226,37 +249,32 @@ class BankLine(models.Model):
         return f"{self.Date} - {self.Amount} - {self.Reference_Description}"
     
 class Org(models.Model):
-    """
-    Model representing the ORG Reconciliation Data.
-    """
-    id = models.BigAutoField(primary_key=True) 
+    id = models.BigAutoField(primary_key=True, db_column='id') 
     
-    levy_number = models.CharField(max_length=255, verbose_name="Levy Number", db_column='Levy_Number')
+    # PascalCase fields - EXACTLY as they appear in your DB list
+    levy_number = models.CharField(max_length=255, db_column='Levy_Number')
+    employer_name = models.CharField(max_length=255, db_column='Employer_Name')
+    billing_period = models.CharField(max_length=255, db_column='Billing_Period')
+    cbr_status = models.CharField(max_length=255, null=True, blank=True, db_column='CBR_Status')
     
-    employer_name = models.CharField(max_length=255, verbose_name="Employer Name")
-    billing_period = models.CharField(max_length=255, verbose_name="Billing Period")
-    cbr_status = models.CharField(max_length=255, verbose_name="CBR Status", null=True, blank=True)
+    due_amount = models.DecimalField(max_digits=15, decimal_places=2, db_column='Due_Amount')
+    overs_unders = models.DecimalField(max_digits=15, decimal_places=2, db_column='Overs_Unders')
 
-    member_arrear_total = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Member Arrear Total")
-    member_additional_voluntary_contribution_total = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Member Add. Voluntary Contrib. Total")
-    member_total = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Member Total")
-    employer_arrear_total = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Employer Arrear Total")
-    employer_additional_voluntary_contribution_total = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Employer Add. Voluntary Contrib. Total")
-    employer_total = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Employer Total")
-    due_amount = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Due Amount")
-    overs_unders = models.DecimalField(max_digits=15, decimal_places=2, verbose_name="Overs/Unders")
+    # Totals - PascalCase
+    member_arrear_total = models.DecimalField(max_digits=15, decimal_places=2, db_column='Member_Arrear_Total')
+    member_additional_voluntary_contribution_total = models.DecimalField(max_digits=15, decimal_places=2, db_column='Member_Additional_Voluntary_Contribution_Total')
+    member_total = models.DecimalField(max_digits=15, decimal_places=2, db_column='Member_Total')
+    employer_arrear_total = models.DecimalField(max_digits=15, decimal_places=2, db_column='Employer_Arrear_Total')
+    employer_additional_voluntary_contribution_total = models.DecimalField(max_digits=15, decimal_places=2, db_column='Employer_Additional_Voluntary_Contribution_Total')
+    employer_total = models.DecimalField(max_digits=15, decimal_places=2, db_column='Employer_Total')
 
-    import_date = models.DateField(verbose_name="Import Date") 
-    created_at = models.DateTimeField(verbose_name="Created At", null=True, blank=True)
+    # snake_case fields
+    import_date = models.DateField(db_column='import_date') 
+    created_at = models.DateTimeField(null=True, blank=True, db_column='created_at')
 
     class Meta:
         db_table = 'org'
-        managed = False 
-        verbose_name = "ORG Record"
-        verbose_name_plural = "ORG Records"
-        
-    def __str__(self):
-        return f"{self.levy_number} - {self.billing_period}"
+        managed = False
     
 class TsrfPdfDocument(models.Model):
     related_levy_number = models.CharField(max_length=255, verbose_name="Levy Number") 
@@ -438,3 +456,51 @@ class TSRFReconOutlookToken(models.Model):
     class Meta:
         managed = False
         db_table = 'tsrf_recon_outlooktoken'
+        
+class AttorneySummary(models.Model):
+    a_levy_number = models.CharField(db_column='A_Levy_Number', max_length=255, primary_key=True)
+    b_levy_name = models.CharField(db_column='B_Levy_Name', max_length=255)
+    c_attorney = models.CharField(db_column='C_Attorney', max_length=255)
+    d_aod = models.CharField(db_column='D_AOD', max_length=255)
+    e_pfa = models.CharField(db_column='E_PFA', max_length=255)
+    f_mip_status = models.CharField(db_column='F_MIP_Status', max_length=255)
+    g_default_period = models.CharField(db_column='G_Default_Period', max_length=255)
+    h_previous_default_periods = models.TextField(db_column='H_Previous_Default_Periods', blank=True, null=True)
+    i_administrator = models.CharField(db_column='I_Administrator', max_length=255)
+
+    class Meta:
+        managed = False
+        db_table = 'attorney_summary'
+
+
+class Aod(models.Model):
+    levy_number = models.CharField(db_column='Levy_Number', max_length=255)
+    agent = models.CharField(db_column='Agent', max_length=255)
+    # Fixed the decimal_places argument here
+    aod_amount = models.DecimalField(db_column='AOD_Amount', max_digits=15, decimal_places=2)
+    repay_amount = models.DecimalField(db_column='Repay_Amount', max_digits=15, decimal_places=2)
+    aod_start_date = models.DateField(db_column='AOD_Start_Date', blank=True, null=True)
+    aod_end_date = models.DateField(db_column='AOD_End_Date', blank=True, null=True)
+    repayment_date = models.DateField(db_column='Repayment_Date', blank=True, null=True)
+    aod_number = models.CharField(db_column='AOD_Number', max_length=255, primary_key=True)
+    aod_status = models.CharField(db_column='AOD_Status', max_length=255) # Fixed duplicate db_column mapping
+    current_status = models.CharField(db_column='Current_Status', max_length=255)
+
+    class Meta:
+        managed = False
+        db_table = 'aod'
+
+
+class Pfa(models.Model):
+    levy_number = models.CharField(db_column='Levy_Number', max_length=255)
+    pfa_number = models.CharField(db_column='PFA_Number', max_length=255, primary_key=True)
+    pfa_status = models.CharField(db_column='PFA_Status', max_length=255)
+    pfa_type = models.CharField(db_column='PFA_Type', max_length=255)
+    schedule_status = models.CharField(db_column='Schedule_Status', max_length=255)
+    schedule_due = models.DateField(db_column='Schedule_Due', blank=True, null=True)
+    determination_due_date = models.DateField(db_column='Determination_Due_Date', blank=True, null=True)
+    determination_periods = models.CharField(db_column='Determination_Periods', max_length=255)
+
+    class Meta:
+        managed = False
+        db_table = 'pfa'

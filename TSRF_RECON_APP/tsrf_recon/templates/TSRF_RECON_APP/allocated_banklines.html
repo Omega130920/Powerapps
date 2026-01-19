@@ -23,7 +23,6 @@
         }
     </script>
     <style>
-        /* Your custom CSS styles go here */
         body {
             font-family: sans-serif;
             background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
@@ -93,7 +92,6 @@
         tbody tr { cursor: pointer; } 
         tbody tr:hover { background-color: #ccffcc; }
         
-        /* Pagination styles */
         .pagination-container {
             display: flex;
             justify-content: space-between;
@@ -127,7 +125,6 @@
 
     <div class="controls-container w-full max-w-full mx-auto mb-4 flex justify-between items-center">
         <a href="{% url 'dashboard' %}" class="return-button">Back to Home Screen</a>
-        
         <a href="{% url 'bank_line_list' %}" class="return-button bg-blue-600 hover:bg-blue-700">View Unassigned Lines</a>
     </div>
 
@@ -145,7 +142,6 @@
         <div class="scrollable-table-body shadow-lg rounded-lg border border-accent-border overflow-auto flex-grow">
             
             <table class="min-w-full divide-y divide-accent-border">
-                
                 <thead class="bg-primary-green/80 sticky top-0 z-10">
                     <tr>
                         <th class="table-cell text-left text-xs font-semibold uppercase tracking-wider text-white">Date</th>
@@ -160,7 +156,7 @@
                 <tbody class="divide-y divide-accent-border/50 bg-white">
                     {% for line in bank_lines_page %}
                     <tr class="hover:bg-primary-green/10 transition duration-150 cursor-pointer"
-                        onclick="window.location.href = '{% url 'bankline_edits' levy_number=line.Levy_number %}?line_id={{ line.id }}';">
+                        onclick="window.location.href = '{% url 'bankline_edits' levy_number=line.Levy_number|urlencode %}?line_id={{ line.id }}';">
                         
                         <td class="table-cell text-gray-700">{{ line.Date|date:"Y-m-d" }}</td>
                         <td class="table-cell text-gray-700 max-w-xs truncate" title="{{ line.Reference_Description }}">
@@ -171,8 +167,7 @@
                                 text-red-700
                             {% else %}
                                 text-primary-green
-                            {% endif %}"
-                        >
+                            {% endif %}">
                             {{ line.Amount|floatformat:2 }}
                         </td>
 
@@ -187,7 +182,6 @@
                         <td class="table-cell text-gray-700 text-left">
                             {{ line.Type|default:"-" }}
                         </td>
-                        
                     </tr>
                     {% empty %}
                     <tr>
@@ -200,7 +194,6 @@
         
         {% if bank_lines_page.has_other_pages %}
         <div class="pagination-container rounded-t-none">
-            
             {% if bank_lines_page.has_previous %}
                 <a href="?page={{ bank_lines_page.previous_page_number }}{% if search_query %}&search_query={{ search_query }}{% endif %}" class="pagination-link">
                     &larr; Previous
@@ -224,7 +217,6 @@
         </div>
         {% endif %}
 
-        
         <div class="mt-8 text-center flex-shrink-0">
             <a href="javascript:history.back()" 
                 class="inline-block py-2 px-6 border border-transparent rounded-lg shadow-md text-sm font-semibold text-white 

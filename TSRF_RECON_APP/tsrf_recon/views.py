@@ -1,16 +1,19 @@
+from urllib import response
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
+import pandas as pd
 from .models import LevyData, ClientNotes, User
+from django.utils import timezone
 from django.db.models import Q
 import csv
 import io
 from .models import BankLine
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
-import datetime
+
 from decimal import Decimal,InvalidOperation
 from .models import Org
 from .models import LevyData, ClientNotes, BankLine, Org, TsrfPdfDocument 
@@ -24,6 +27,7 @@ from .services.outlook_graph_service import fetch_inbox_messages, _make_graph_re
 from .models import EmailDelegation, DelegationNote, EmailTransaction
 from dateutil import parser
 from django.conf import settings
+from datetime import datetime
 
 from .services import outlook_graph_service
 # The original 'logger' import was removed to avoid AttributeError
@@ -86,115 +90,60 @@ def index(request):
 
 @login_required
 def levy_list(request):
-    """
-    View to display a list of all levy records with search and filter functionality,
-    annotated with the latest Org data using Subquery.
-    """
     search_query = request.GET.get('search_query', '').strip()
     
-    # 1. Capture Filter Values
     current_filters = {
-        'mip_status_filter': request.GET.get('mip_status_filter', ''),
-        'fica_filter': request.GET.get('fica_filter', ''),
         'billing_period_filter': request.GET.get('billing_period_filter', ''), 
         'cbr_status_filter': request.GET.get('cbr_status_filter', ''),
     }
 
-    # 2. Start with all LevyData records
-    levy_records = LevyData.objects.all()
+    # 1. Optimized Query: Get latest IDs using a single efficient values list
+    latest_id_list = Org.objects.values('levy_number').annotate(
+        latest_id=Max('id')
+    ).values_list('latest_id', flat=True)
 
-    # --- Annotation Logic (REMAINS THE SAME) ---
-    latest_org_queryset = Org.objects.filter(
-        levy_number=OuterRef('levy_number')
-    ).order_by('-billing_period', '-created_at')
-    
-    levy_records = levy_records.annotate(
-        latest_billing_period=Subquery(latest_org_queryset.values('billing_period')[:1]),
-        latest_cbr_status=Subquery(latest_org_queryset.values('cbr_status')[:1]),
-        latest_overs_unders=Subquery(latest_org_queryset.values('overs_unders')[:1]),
-        latest_due_amount=Subquery(latest_org_queryset.values('due_amount')[:1]),
-    )
-    # --- End Annotation ---
-    
-    # 3. Apply Filters based on captured values
-    if current_filters['mip_status_filter']:
-        levy_records = levy_records.filter(mip_status=current_filters['mip_status_filter'])
-        
-    if current_filters['fica_filter']:
-        levy_records = levy_records.filter(fica=current_filters['fica_filter'])
-        
+    # 2. Filter primary records
+    # We remove the name-patching loop from here because it's the bottleneck
+    levy_records_qs = Org.objects.filter(id__in=latest_id_list).only(
+        'levy_number', 'employer_name', 'billing_period', 
+        'cbr_status', 'overs_unders', 'due_amount', 'import_date'
+    ).order_by('levy_number')
+
+    # 3. Apply Filters
     if current_filters['billing_period_filter']:
-        # Filter logic must change to check for the Month/Year part if the billing_period is stored as DD/MM/YYYY
-        
-        # Determine the month/year to filter by, assuming MM/YYYY format from the dropdown
-        month_year_filter = current_filters['billing_period_filter']
-        
-        # Use Q objects to filter the annotated field, checking if it ends with the selected MM/YYYY
-        # Example: latest_billing_period LIKE '%/12/2024'
-        # NOTE: This assumes the Org billing_period format is consistently DD/MM/YYYY
-        levy_records = levy_records.filter(latest_billing_period__endswith=f'/{month_year_filter}')
-        
+        levy_records_qs = levy_records_qs.filter(billing_period__endswith=f"/{current_filters['billing_period_filter']}")
     if current_filters['cbr_status_filter']:
-        # Filter on the annotated field
-        levy_records = levy_records.filter(latest_cbr_status=current_filters['cbr_status_filter'])
-
-
-    # 4. Apply general Search Query
+        levy_records_qs = levy_records_qs.filter(cbr_status=current_filters['cbr_status_filter'])
     if search_query:
-        levy_records = levy_records.filter(
-            Q(levy_number__icontains=search_query) |
-            Q(levy_name__icontains=search_query)
+        levy_records_qs = levy_records_qs.filter(
+            Q(levy_number__icontains=search_query) | Q(employer_name__icontains=search_query)
         )
-    
-    # Order the results
-    levy_records = levy_records.order_by('levy_number')
 
-    
-    # 5. Generate unique options for filter dropdowns (Grouping Billing Period by MM/YYYY)
-    
-    # Get all unique billing period strings from the Org model
-    raw_periods = Org.objects.values_list('billing_period', flat=True).distinct().exclude(billing_period__isnull=True).exclude(billing_period='').order_by('-billing_period')
-    
-    processed_periods = {}
-    
-    for period_str in raw_periods:
-        try:
-            # Parse the date string assuming DD/MM/YYYY format
-            date_obj = datetime.datetime.strptime(period_str, '%d/%m/%Y').date()
-            
-            # Format to the desired MM/YYYY string
-            month_year_key = date_obj.strftime('%m/%Y')
-            
-            # Use a dictionary to keep unique Month/Year values, storing the date object
-            # to help with final sorting later if needed, but here we only care about uniqueness
-            processed_periods[month_year_key] = date_obj 
-            
-        except ValueError:
-            # Skip invalid date strings
-            continue
-            
-    # Sort the unique MM/YYYY strings by their underlying date object (descending)
-    sorted_periods = sorted(
-        processed_periods.keys(),
-        key=lambda k: processed_periods[k],
-        reverse=True
-    )
-    
+    # 4. PAGINATION: Only process 100 records at a time
+    paginator = Paginator(levy_records_qs, 50) 
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    # 5. Patch names ONLY for the 100 records on the current page
+    for record in page_obj:
+        if not record.employer_name or record.employer_name.strip() == "":
+            name_lookup = Org.objects.filter(levy_number=record.levy_number).exclude(
+                Q(employer_name__isnull=True) | Q(employer_name="")
+            ).order_by('-id').values_list('employer_name', flat=True).first()
+            if name_lookup:
+                record.employer_name = name_lookup
+
+    # 6. Dropdown Options (Fast distinct queries)
     filter_options = {
-        'mip_statuses': LevyData.objects.values_list('mip_status', flat=True).distinct().exclude(mip_status__isnull=True).exclude(mip_status='').order_by('mip_status'),
-        'fica_statuses': LevyData.objects.values_list('fica', flat=True).distinct().exclude(fica__isnull=True).exclude(fica='').order_by('fica'),
-        
-        # Use the processed list for the dropdown
-        'billing_periods': sorted_periods, 
-        
-        'cbr_statuses': Org.objects.values_list('cbr_status', flat=True).distinct().exclude(cbr_status__isnull=True).exclude(cbr_status='').order_by('cbr_status'),
+        'billing_periods': sorted(list(set(Org.objects.values_list('billing_period', flat=True).exclude(billing_period=""))), reverse=True), 
+        'cbr_statuses': Org.objects.values_list('cbr_status', flat=True).distinct().exclude(cbr_status__isnull=True),
     }
 
-
     context = {
-        'levy_records': levy_records,
-        'search_query': search_query or '',
+        'levy_records': page_obj, # Pass the paginated object
+        'search_query': search_query,
         'current_filters': current_filters, 
+        'title': 'Employer Management Ledger'
     }
     context.update(filter_options)
     
@@ -205,241 +154,222 @@ def levy_list(request):
 @transaction.atomic 
 def levy_information(request, levy_number):
     """
-    View to display detailed information for a single levy record, its notes,
-    bank lines, latest Org summary, email logs, and handles PDF upload/download.
+    View to display and EDIT detailed information for a single levy record.
+    Supports inline editing of the General Info and Directors tabs.
     """
-    levy_record = get_object_or_404(LevyData, levy_number=levy_number)
+    # 0. NORMALIZE: Ensure levy_number is 5 digits
+    clean_levy_number = str(levy_number).strip().zfill(5)
 
-    org_summary = None
-    try:
-        # Fetch the absolute latest ORG data record for this levy number
-        org_summary = Org.objects.filter(levy_number=levy_record.levy_number).order_by('-id').first()
-    except Exception as e:
-        print(f"Error fetching Org summary: {e}") 
-        pass
+    # 1. Fetch Master Profile record (Table: LevyData)
+    levy_record = LevyData.objects.filter(levy_number=clean_levy_number).first()
+    
+    if not levy_record:
+        levy_record = LevyData(levy_number=clean_levy_number, levy_name="New Record")
+
+    # 2. Fetch Transactional Summary (Table: Org)
+    org_summary = Org.objects.filter(levy_number=clean_levy_number).order_by('-id').first()
+
+    # Name Patching logic
+    if org_summary and (not org_summary.employer_name or org_summary.employer_name.strip() == ""):
+        name_lookup = Org.objects.filter(levy_number=clean_levy_number).exclude(
+            Q(employer_name__isnull=True) | Q(employer_name="")
+        ).order_by('-id').values_list('employer_name', flat=True).first()
+        if name_lookup:
+            org_summary.employer_name = name_lookup
     
     pdf_upload_form = DocumentUploadForm()
 
-    # -----------------------------------------------------------------------
-    # 1. Handle POST Requests
-    # -----------------------------------------------------------------------
     if request.method == 'POST':
-        if 'upload_document' in request.POST:
+        # --- Handle Inline Update from General / Directors Tab ---
+        if 'update_general_info' in request.POST:
+            try:
+                # 1. Update General Info Fields
+                levy_record.responsible_person = request.POST.get('responsible_person')
+                levy_record.registration_number = request.POST.get('registration_number')
+                levy_record.notice_email = request.POST.get('notice_email')
+                levy_record.telephone = request.POST.get('telephone')
+                levy_record.physical_address = request.POST.get('physical_address')
+                levy_record.postal_address = request.POST.get('postal_address')
+                levy_record.levy_user = request.POST.get('levy_user')
+                levy_record.user_login = request.POST.get('user_login')
+                levy_record.levy_user_2 = request.POST.get('levy_user_2')
+                levy_record.user_login_2 = request.POST.get('user_login_2')
+
+                # 2. Update Director 1 Fields
+                levy_record.Director_Name_1 = request.POST.get('Director_Name_1')
+                levy_record.Director_Mail_1 = request.POST.get('Director_Mail_1')
+                levy_record.Director_Cell_1 = request.POST.get('Director_Cell_1')
+                levy_record.Director_Address_1 = request.POST.get('Director_Address_1')
+
+                # 3. Update Director 2 Fields
+                levy_record.Director_Name_2 = request.POST.get('Director_Name_2')
+                levy_record.Director_Mail_2 = request.POST.get('Director_Mail_2')
+                levy_record.Director_Cell_2 = request.POST.get('Director_Cell_2')
+                levy_record.Director_Address_2 = request.POST.get('Director_Address_2')
+
+                # 4. Update Director 3 Fields
+                levy_record.Director_Name_3 = request.POST.get('Director_Name_3')
+                levy_record.Director_Mail_3 = request.POST.get('Director_Mail_3')
+                levy_record.Director_Cell_3 = request.POST.get('Director_Cell_3')
+                levy_record.Director_Address_3 = request.POST.get('Director_Address_3')
+
+                # 5. Update Director 4 Fields
+                levy_record.Director_Name_4 = request.POST.get('Director_Name_4')
+                levy_record.Director_Mail_4 = request.POST.get('Director_Mail_4')
+                levy_record.Director_Cell_4 = request.POST.get('Director_Cell_4')
+                levy_record.Director_Address_4 = request.POST.get('Director_Address_4')
+                
+                # Save to database
+                levy_record.save()
+                messages.success(request, f'Master Profile and Director info for {clean_levy_number} updated!')
+            except Exception as e:
+                messages.error(request, f"Error saving profile: {e}")
+            
+            return redirect(f"{request.path}#general-info")
+
+        # --- Handle PDF Uploads ---
+        elif 'upload_document' in request.POST:
             pdf_upload_form = DocumentUploadForm(request.POST, request.FILES)
             if pdf_upload_form.is_valid():
                 try:
                     document = pdf_upload_form.save(commit=False)
-                    document.related_levy_number = levy_number
-                    document.uploaded_by = request.user.username if request.user.is_authenticated else 'Unknown User'
-                    
-                    submitted_title = document.title
-                    FICA_COLUMN_MAP = {
-                        'Fica_1': 'id_document', 'Fica_2': 'proof_of_address',
-                        'Fica_3': 'bank_statement', 'Fica_4': 'appointment_letter',
-                        'Fica_5': 'vat_number', 'Fica_6': 'mandate_trust_deed',
-                        'Fica_7': 'tax_number',
-                    }
-
-                    if submitted_title in FICA_COLUMN_MAP:
-                        column_name = FICA_COLUMN_MAP[submitted_title]
-                        setattr(document, column_name, '1')
-                        document.title = column_name.replace('_', ' ').title() 
-                    
+                    document.related_levy_number = clean_levy_number
+                    document.uploaded_by = request.user.username
                     document.save() 
-                    messages.success(request, f'Document "{document.document_file.name}" uploaded successfully.')
+                    messages.success(request, 'Document uploaded successfully.')
                     return redirect(f"{request.path}#pdf-documents")
                 except Exception as e:
                     messages.error(request, f"Error saving document: {e}")
-            else:
-                messages.error(request, 'Document upload failed. Please check the selected file and title.')
-                
+
+        # --- Handle Org Notes Submission ---
         elif 'notes_text' in request.POST:
-            notes_text = request.POST.get('notes_text')
-            if notes_text:
-                ClientNotes.objects.create(
-                    levy_number=levy_number,
-                    notes_text=notes_text,
-                    user=request.user.username
+            note_text = request.POST.get('notes_text')
+            if note_text:
+                OrgNotes.objects.create(
+                    Levy_number=clean_levy_number,
+                    Date=datetime.now(), 
+                    User=request.user.username,
+                    Notes=note_text,
                 )
                 messages.success(request, 'Note added successfully!')
-            else:
-                messages.error(request, 'Note cannot be empty.')
             return redirect(f"{request.path}#overview")
 
-    # -----------------------------------------------------------------------
-    # 2. Handle GET Requests (Downloads)
-    # -----------------------------------------------------------------------
-    download_id = request.GET.get('download_id')
-    if download_id:
-        try:
-            document = get_object_or_404(
-                TsrfPdfDocument, 
-                pk=download_id, 
-                related_levy_number=levy_number 
-            )
-            filepath = document.document_file.path
-            if not os.path.exists(filepath):
-                raise Http404("Document file not found on server.")
-
-            return FileResponse(
-                open(filepath, 'rb'), 
-                as_attachment=True, 
-                filename=os.path.basename(filepath)
-            )
-        except Exception as e:
-            messages.error(request, f'Download failed: {e}')
-            return redirect('levy_information', levy_number=levy_number)
-
-    # -----------------------------------------------------------------------
-    # 3. Standard Page Load / Context Setup
-    # -----------------------------------------------------------------------
-    
-    # Client Notes
-    notes = ClientNotes.objects.filter(levy_number=levy_number).order_by('-date')
-    
-    # Bank Line Data
-    bank_lines = BankLine.objects.filter(Levy_number=levy_number).order_by('-Date')
-    
-    # PDF Documents
-    documents = TsrfPdfDocument.objects.filter(related_levy_number=levy_number).order_by('-uploaded_at')
-
-    # Org Notes History
-    org_notes = OrgNotes.objects.filter(Levy_number=levy_number).order_by('-Date')
-    latest_org_note_summary = org_notes.first() 
-
-    # 🟢 UPDATED FILTER: Use __icontains to handle trailing spaces in the DB (e.g., "22117 ")
-    clean_levy = str(levy_number).strip()
-    email_logs = EmailDelegation.objects.filter(company_code__icontains=clean_levy).order_by('-received_at')
-
+    # 3. GET Requests & Context Setup
     context = {
         'levy_record': levy_record,
-        'notes': notes,
-        'bank_lines': bank_lines,
-        'org_summary': org_summary, 
+        'org_summary': org_summary,
+        'notes': ClientNotes.objects.filter(levy_number=clean_levy_number).order_by('-date'),
+        'bank_lines': BankLine.objects.filter(Levy_number=clean_levy_number).order_by('-Date'),
         'pdf_upload_form': pdf_upload_form,
-        'documents': documents,
-        'org_notes': org_notes,
-        'latest_org_note': latest_org_note_summary,
-        'email_logs': email_logs,
+        'documents': TsrfPdfDocument.objects.filter(related_levy_number=clean_levy_number).order_by('-uploaded_at'),
+        'org_notes': OrgNotes.objects.filter(Levy_number=clean_levy_number).order_by('-Date'),
+        'latest_org_note': OrgNotes.objects.filter(Levy_number=clean_levy_number).order_by('-Date').first(),
+        'email_logs': EmailDelegation.objects.filter(company_code__icontains=clean_levy_number).order_by('-received_at'),
     }
     return render(request, 'TSRF_RECON_APP/levy_information.html', context)
+import json # Ensure this is at the top
 
 @transaction.atomic
 def import_data(request):
     """
-    Handles CSV file upload, parsing, validation, and database import for BankLine data.
+    Handles CSV file upload and provides a summary pop-up with a downloadable report.
+    Condition: Auto-reconcile ONLY if Reference contains 'CB' AND Recon column is 'Yes'.
     """
     context = {}
 
-    # 1. Handle POST request (Form Submission)
     if request.method == 'POST':
         if 'import_file' in request.FILES:
             csv_file = request.FILES['import_file']
             
-            # Basic file type check
             if not csv_file.name.endswith('.csv'):
                 context['error_message'] = 'Invalid file type. Please upload a CSV file.'
                 return render(request, 'TSRF_RECON_APP/Import.html', context)
             
-            # Get checkbox value (returns 'on' or None)
             has_header = request.POST.get('header_row') is not None
             
-            # Read the file content
             try:
                 uploaded_file = csv_file.read().decode('latin-1')
+                io_string = io.StringIO(uploaded_file)
+                reader = csv.reader(io_string)
             except Exception as e:
-                context['error_message'] = f"File reading error (encoding issue?): {e}"
+                context['error_message'] = f"File reading error: {e}"
                 return render(request, 'TSRF_RECON_APP/Import.html', context)
             
-            # Use StringIO to treat the string content as a file for the csv module
-            io_string = io.StringIO(uploaded_file)
-            reader = csv.reader(io_string)
-            
-            # Skip the header row if specified
             if has_header:
-                try:
-                    next(reader) 
-                except StopIteration:
-                    context['error_message'] = "File is empty or contains only a header."
-                    return render(request, 'TSRF_RECON_APP/Import.html', context)
+                next(reader, None) 
 
             records_to_create = []
+            import_report_data = [] # List to store data for the downloadable CSV
+            auto_reconciled_count = 0
+            manual_action_count = 0
             
             try:
                 EXPECTED_COLUMNS = 9 
-                successful_count = 0
                 line_count = 0
 
-                # Iterate over the remaining rows
                 for row in reader:
                     line_count += 1
-                    # Filter out completely empty rows
-                    if not any(row):
-                        continue
-                        
-                    # 2. Column Count Check
-                    if len(row) < EXPECTED_COLUMNS:
-                        print(f"Skipping row {line_count} due to insufficient columns ({len(row)} of {EXPECTED_COLUMNS} expected): {row}")
+                    if not any(row) or len(row) < EXPECTED_COLUMNS:
                         continue
                         
                     try:
                         # --- Data Cleansing and Conversion ---
-                        transaction_date = datetime.datetime.strptime(row[0].strip(), '%d/%m/%Y').date() 
+                        transaction_date = datetime.strptime(row[0].strip(), '%d/%m/%Y').date()
                         amount_value = Decimal(row[1].strip().replace(',', ''))
-                        
-                        # --- Model Instantiation and Mapping ---
+                        other_ref = row[3].strip()
+                        recon_csv_value = row[4].strip().lower() 
+
+                        # --- LOGIC TRIGGER ---
+                        if other_ref and 'CB' in other_ref.upper() and recon_csv_value == 'yes':
+                            recon_status = 'Reconciled'
+                            category = "Auto-Reconciled"
+                            auto_reconciled_count += 1
+                        else:
+                            recon_status = 'Unreconciled'
+                            category = "Manual Action Required"
+                            manual_action_count += 1
+
+                        # Store information for the summary report
+                        import_report_data.append({
+                            'Date': row[0].strip(),
+                            'Ref': other_ref,
+                            'Amount': row[1].strip(),
+                            'Status': recon_status,
+                            'Category': category
+                        })
+
                         record = BankLine(
                             Date=transaction_date,
                             Amount=amount_value,
                             Reference_Description=row[2].strip(),
-                            Other_Reference=row[3].strip() or None, 
-                            Recon=row[4].strip() or None,
+                            Other_Reference=other_ref or None, 
+                            Recon=recon_status,
                             Levy_number=row[5].strip() or None,
                             Fisical=row[6].strip() or None,
                             Type=row[7].strip(),
                             Column_5=row[8].strip() or None,
-                            Column_6=None, 
                         )
                         records_to_create.append(record)
                         
                     except ValueError as ve:
-                        # Handles conversion errors for Date or Decimal
-                        print(f"Data Conversion Error in row {line_count}: {ve} -> Row: {row}")
-                        context['warning_message'] = f"Warning: Some rows failed conversion (e.g., date/amount format). Check console for details."
                         continue
                         
-                    except Exception as e:
-                        # Handles other row-specific errors
-                        print(f"Generic Error in row {line_count}: {e} -> Row: {row}")
-                        context['warning_message'] = f"Warning: Some rows failed due to an unexpected error. Check console for details."
-                        continue
-                        
-                # --- Database Bulk Creation for performance ---
-                
                 if records_to_create:
                     BankLine.objects.bulk_create(records_to_create)
-                    successful_count = len(records_to_create)
+                
+                # --- Prepare Context for Pop-up ---
+                context['show_summary'] = True
+                context['auto_count'] = auto_reconciled_count
+                context['manual_count'] = manual_action_count
+                context['total_count'] = len(records_to_create)
+                # Convert list to JSON string for Javascript
+                context['report_json'] = json.dumps(import_report_data)
 
-                
-                context['success_message'] = f'Successfully processed {successful_count} records.'
-                
-            except csv.Error as e:
-                # Handle general CSV formatting errors (e.g., mismatched delimiters)
-                context['error_message'] = f"CSV Parsing Error on line {line_count}: {e}"
-                
-            except IntegrityError:
-                 # Handle database constraint errors
-                 context['error_message'] = "A database integrity error occurred. Check for duplicate entries."
-                 
             except Exception as e:
-                # Catch any unexpected errors during processing
-                print(f"CRITICAL ERROR: {e}")
-                context['error_message'] = f"An unexpected error occurred during import: {e}"
-
+                context['error_message'] = f"Unexpected error: {e}"
         else:
             context['error_message'] = 'No file was submitted.'
             
-    # 3. Handle GET request (Page Load) or re-render after POST
     return render(request, 'TSRF_RECON_APP/Import.html', context)
 
 
@@ -484,64 +414,6 @@ def get_bank_line_queryset(allocated=False, search_query=''):
         )
     return queryset
 
-
-@login_required
-def bank_line_list(request):
-    """
-    View to display UNALLOCATED BankLine records. (Original name retained).
-    Lines are excluded if Levy_number is assigned.
-    """
-    search_query = request.GET.get('search_query', '').strip()
-    
-    # Use the helper function for UNALLOCATED lines
-    bank_lines = get_bank_line_queryset(allocated=False, search_query=search_query)
-        
-    paginator = Paginator(bank_lines, 24)
-    page_number = request.GET.get('page', 1)
-    
-    try:
-        bank_lines_page = paginator.page(page_number)
-    except (PageNotAnInteger, EmptyPage):
-        bank_lines_page = paginator.page(1)
-    
-    context = {
-        'bank_lines_page': bank_lines_page,
-        'search_query': search_query,
-        'title': 'Unassigned Bank Lines', # Title for the new template
-        'is_allocated_view': False,
-    }
-    # Render to the new 'unallocated_banklines.html'
-    return render(request, 'TSRF_RECON_APP/unallocated_banklines.html', context)
-
-
-@login_required
-def allocated_bank_line_list(request):
-    """View to display ALLOCATED bank line records, excluding reconciled ones."""
-    search_query = request.GET.get('search_query', '').strip()
-    
-    # Use the helper function for ALLOCATED lines, which now excludes reconciled Types
-    bank_lines = get_bank_line_queryset(allocated=True, search_query=search_query)
-        
-    paginator = Paginator(bank_lines, 24)
-    page_number = request.GET.get('page', 1)
-    
-    try:
-        bank_lines_page = paginator.page(page_number)
-    except (PageNotAnInteger, EmptyPage):
-        bank_lines_page = paginator.page(1)
-    
-    context = {
-        'bank_lines_page': bank_lines_page,
-        'search_query': search_query,
-        'title': 'Allocated Bank Lines', # Title for the new template
-        'is_allocated_view': True,
-    }
-    # Render to the new 'allocated_banklines.html'
-    return render(request, 'TSRF_RECON_APP/allocated_banklines.html', context)
-
-
-# ... (The remaining views are left as they were in your submission, but the 
-# RECONCILED_TYPES constant and logic in get_bank_line_queryset is the core change.) ...
 
 @login_required
 @transaction.atomic
@@ -750,27 +622,46 @@ def org_table_view(request):
 @login_required
 def add_levy_view(request):
     """
-    Handles adding a new LevyData record to the external 'levy data' table.
+    Handles both adding a new Levy and editing an existing one 
+    in the external 'levy data' table.
     """
+    # 1. Check if we are in 'Edit Mode'
+    edit_id = request.GET.get('edit_id')
+    instance = None
+    
+    if edit_id:
+        # Fetch the existing record to populate the form
+        instance = get_object_or_404(LevyData, levy_number=edit_id)
+
     if request.method == 'POST':
-        form = AddLevyForm(request.POST)
+        # 2. Pass the instance to the form so it updates instead of creating a duplicate
+        form = AddLevyForm(request.POST, instance=instance)
+        
         if form.is_valid():
             try:
-                form.save()
-                messages.success(request, f"New levy '{form.cleaned_data['levy_name']}' added successfully!")
-                return redirect('levy_list')
+                saved_levy = form.save()
+                if edit_id:
+                    messages.success(request, f"Levy '{saved_levy.levy_name}' updated successfully!")
+                    # Redirect back to the info page if we were editing
+                    return redirect('levy_information', levy_number=saved_levy.levy_number)
+                else:
+                    messages.success(request, f"New levy '{saved_levy.levy_name}' added successfully!")
+                    return redirect('levy_list')
+                    
             except IntegrityError:
                 messages.error(request, "Error: A levy with that number already exists. Please use a unique Levy Number.")
             except Exception as e:
                 messages.error(request, f"Error saving levy: {e}")
-                
         else:
             messages.error(request, "Please correct the errors in the form.")
     else:
-        form = AddLevyForm()
+        # 3. For GET requests, if instance exists, the form will be pre-filled
+        form = AddLevyForm(instance=instance)
 
     context = {
         'form': form,
+        'is_edit': bool(edit_id),
+        'levy_number': edit_id
     }
     return render(request, 'TSRF_RECON_APP/add_levy.html', context)
 
@@ -816,198 +707,65 @@ def bankline_allocation(request, bank_line_id):
     return render(request, 'TSRF_RECON_APP/bankline_allocation.html', context)
 
 
+from datetime import datetime
+from django.contrib import messages
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+
 @login_required
 def bankline_edits_view(request, levy_number):
     """
     Handles displaying and saving edits for a specific BankLine entry.
+    Appends new notes to the history log in Column_6 with timestamp/user.
     """
-    # 1. Get the line_id from the query parameters (e.g., ?line_id=301777)
     line_id = request.GET.get('line_id')
     bank_line_entry = None
     
     if line_id:
         try:
-            # 2. Query the database for the specific bank line entry
-            # Assuming BankLine model is accessible here
             bank_line_entry = BankLine.objects.get(id=line_id)
-            
-        except BankLine.DoesNotExist:
-            bank_line_entry = None
-        except ValueError:
+        except (BankLine.DoesNotExist, ValueError):
             bank_line_entry = None
 
-    # Handle POST requests for saving the form changes
     if request.method == 'POST' and bank_line_entry:
+        # 1. Capture form data
+        new_recon_status = request.POST.get('recon_status')
+        new_note_text = request.POST.get('new_note', '').strip()
         
-        # 🛑 Capture the updated Levy Number (from the editable field)
         bank_line_entry.Levy_number = request.POST.get('levy_number')
-        
-        # Capture other editable fields:
-        bank_line_entry.Recon = request.POST.get('recon_status')
-        new_type = request.POST.get('type')
-        bank_line_entry.Type = new_type 
-        
-        # The fiscal year input is a date type, but Django will handle it.
+        bank_line_entry.Recon = new_recon_status
+        bank_line_entry.Type = request.POST.get('type') 
         bank_line_entry.Fisical = request.POST.get('fisical_year')
         bank_line_entry.Column_5 = request.POST.get('note_selection')
         
-        # NOTE: Column_6 (Allocation Notes) is currently read-only in the HTML
-        # and not posted back to the view, so we omit saving it here.
-        # bank_line_entry.Column_6 = request.POST.get('column_6') 
+        # 2. Append to History (Column_6) if a new note was typed
+        if new_note_text:
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M")
+            user = request.user.username # Captures the logged-in administrator
+            formatted_note = f"[{timestamp} - {user}]: {new_note_text}"
+            
+            if bank_line_entry.Column_6:
+                # Add new note to the TOP of the history log
+                bank_line_entry.Column_6 = f"{formatted_note}\n\n{bank_line_entry.Column_6}"
+            else:
+                bank_line_entry.Column_6 = formatted_note
         
         try:
             bank_line_entry.save()
             messages.success(request, f"Bank Line #{bank_line_entry.id} updated successfully!")
-            
-            # *** REDIRECT LOGIC ***
-            # If the line was allocated AND the Type was set to a reconciled value, 
-            # redirect the user back to the main allocated list.
-            if bank_line_entry.Levy_number and new_type in RECONCILED_TYPES:
-                # Assuming 'allocated_bank_line_list' is a defined URL name
-                return redirect('allocated_bank_line_list') 
+            # Always return to the action list after save
+            return redirect('unreconciled_banklines') 
             
         except Exception as e:
             messages.error(request, f"Error saving Bank Line #{bank_line_entry.id}: {e}")
-            
-        # Default redirect: stay on the same edit page and refresh the GET request
-        return redirect(f"{request.path}?line_id={bank_line_entry.id}")
+            return redirect(f"{request.path}?line_id={bank_line_entry.id}")
 
-    # 3. Add the retrieved record to the context
     context = {
         'title': f'Bankline Edits for Levy {levy_number}',
         'levy_number': levy_number,
         'bank_line_entry': bank_line_entry,
     }
-    
-    # Assuming 'TSRF_RECON_APP/bankline_edits.html' is the correct template path
     return render(request, 'TSRF_RECON_APP/bankline_edits.html', context)
-
-@login_required
-def assigned_bank_line_list(request):
-    """View to display fully assigned (reconciled) bank line records with filtering."""
-    
-    # 1. Capture All Filters
-    wildcard_query = request.GET.get('wildcard_query', '').strip()
-    note_selection_filter = request.GET.get('note_selection_filter', '').strip()
-    # --- NEW: Capture Type Filter ---
-    type_filter = request.GET.get('type_filter', '').strip() 
-    
-    fisical_start_date_str = request.GET.get('fisical_start_date', '').strip()
-    fisical_end_date_str = request.GET.get('fisical_end_date', '').strip()
-    
-    # Define the *only* strict format reliable for string date range filtering
-    STRICT_DATE_FORMAT = '%Y-%m-%d' 
-    
-    date_range_valid = False
-    
-    def parse_date_to_string_format(date_str):
-        """Attempts to parse any input date string into a YYYY-MM-DD string."""
-        # Try YYYY-MM-DD format (standard browser output)
-        try:
-            return datetime.datetime.strptime(date_str, '%Y-%m-%d').strftime(STRICT_DATE_FORMAT)
-        except ValueError:
-            pass
-        
-        # Try DD-MM-YYYY format (user input)
-        try:
-            # Note: replacing '/' with '-' to handle common user input variations
-            return datetime.datetime.strptime(date_str.replace('/', '-'), '%d-%m-%Y').strftime(STRICT_DATE_FORMAT)
-        except ValueError:
-            pass
-
-        return None # Parsing failed
-
-    fisical_start_date_db = None
-    fisical_end_date_db = None
-    
-    if fisical_start_date_str and fisical_end_date_str:
-        
-        fisical_start_date_db = parse_date_to_string_format(fisical_start_date_str)
-        fisical_end_date_db = parse_date_to_string_format(fisical_end_date_str)
-
-        if fisical_start_date_db and fisical_end_date_db:
-            # Simple string comparison to check order before filtering (YYYY-MM-DD makes this reliable)
-            if fisical_start_date_db > fisical_end_date_db:
-                messages.error(request, "Start date cannot be after the end date.") 
-            else:
-                date_range_valid = True
-        else:
-            messages.error(request, "Invalid date format submitted. Please use YYYY-MM-DD or DD-MM-YYYY.")
-            
-    
-    # 2. Base Query: Lines that are allocated AND reconciled
-    bank_lines = BankLine.objects.filter(
-        Q(Levy_number__isnull=False) & ~Q(Levy_number=''),
-        Type__in=RECONCILED_TYPES
-    ).order_by('-Date')
-    
-    # 3. Apply Filters
-    
-    # 3a. Note Selection Filter (Column_5)
-    if note_selection_filter:
-        bank_lines = bank_lines.filter(Column_5=note_selection_filter)
-    
-    # --- NEW: Type Filter ---
-    if type_filter:
-        bank_lines = bank_lines.filter(Type=type_filter)
-
-    # 3b. Fisical Date Range Filter (based on Fisical string field)
-    if date_range_valid:
-        bank_lines = bank_lines.filter(
-            Fisical__gte=fisical_start_date_db,
-            Fisical__lte=fisical_end_date_db
-        )
-
-    # 3c. Wildcard Search (Levy, Description, Amount, etc.)
-    if wildcard_query:
-        # Build Q object for a comprehensive search across key display fields
-        bank_lines = bank_lines.filter(
-            Q(Levy_number__icontains=wildcard_query) |
-            Q(Reference_Description__icontains=wildcard_query) |
-            Q(Amount__icontains=wildcard_query) |
-            Q(Fisical__icontains=wildcard_query) |
-            Q(Type__icontains=wildcard_query) |
-            Q(Column_5__icontains=wildcard_query)
-        )
-        
-    # 4. Pagination (UNCHANGED)
-    paginator = Paginator(bank_lines, 24)
-    page_number = request.GET.get('page', 1)
-    
-    try:
-        bank_lines_page = paginator.page(page_number)
-    except (PageNotAnInteger, EmptyPage):
-        bank_lines_page = paginator.page(1)
-    
-    # 5. Generate Options
-    
-    # The list of available types for the dropdown:
-    type_options = RECONCILED_TYPES 
-
-    note_options = [
-        "AOD CONRIBUTIONS", "AOD LPI", 
-        "DEPSOSIT FOR CURRENT FISCAL - PREVIOUS FISCAL NOT RECONCILED", 
-        "DIFFERENCE TO FINALISED BILL AND PAYMENT", "EMPLOYER TO FINALISE", 
-        "EMPLOYER TO FINALISE & FW POP", "EMPLOYER TO FW POP", "LPI - REQUESTED POP", 
-        "LPI - SHORT - PAID LATE", "RECONSILED", "REFUND PAID", 
-        "REFUND REQUESTED", "REQUESTED SUPPORTING DOCUMENTS", 
-        "SINGLE MEMBER PAYMENT", "SYSTEM ISSUE"
-    ]
-    
-    context = {
-        'bank_lines_page': bank_lines_page,
-        'wildcard_query': wildcard_query,
-        'note_selection_filter': note_selection_filter,
-        # --- NEW: Pass Type Context ---
-        'type_filter': type_filter,
-        'type_options': type_options,
-        
-        'fisical_start_date': fisical_start_date_str, 
-        'fisical_end_date': fisical_end_date_str,
-        'note_options': note_options,
-        'title': 'Assigned Bank Lines', 
-    }
-    return render(request, 'TSRF_RECON_APP/reconciled_banklines.html', context)
 
 @login_required
 def org_table_info(request, levy_number):
@@ -1015,45 +773,26 @@ def org_table_info(request, levy_number):
     Displays detail for a single Org record (the latest one) and handles 
     the submission of new OrgNotes for that levy number.
     """
-    # 1. Determine the latest import date across ALL Org records
-    # This aggregate query runs successfully on its own.
-    latest_import_data = Org.objects.aggregate(Max('created_at'))
-    latest_datetime = latest_import_data.get('created_at__max')
+    latest_import_data = Org.objects.aggregate(max_created=Max('created_at'))
+    latest_datetime = latest_import_data.get('max_created')
 
-    # Ensure we have a latest date before proceeding
     if not latest_datetime:
-        messages.error(request, f"No import data found for ORG records.")
+        messages.error(request, "No import data found for ORG records.")
         return redirect('org_table_view')
 
-    # 2. Fetch the specific Org record:
-    #    - Filter by the provided levy_number
-    #    - Filter by the latest import datetime found in step 1
-    #    - Use .get() instead of get_object_or_404(queryset) 
-    #      as .get() is sufficient after filtering and avoids queryset confusion.
-    #    - If multiple records match (unlikely if created_at is exact), .order_by('-id') 
-    #      ensures deterministic selection.
+    org_record = Org.objects.filter(
+        levy_number=levy_number, 
+        created_at=latest_datetime
+    ).order_by('-id').first()
 
-    try:
-        org_record = Org.objects.filter(
-            levy_number=levy_number, 
-            created_at=latest_datetime
-        ).order_by('-id').first() # Use .first() to get the object, or None
+    if not org_record:
+        org_record = Org.objects.filter(levy_number=levy_number).order_by('-created_at', '-id').first()
 
-        if not org_record:
-            # If a record isn't found for the latest import date, 
-            # maybe the latest record is from an older batch, so we fetch the absolute latest
-            org_record = get_object_or_404(
-                Org.objects.filter(levy_number=levy_number).order_by('-created_at', '-id')
-            )
-            
-    except Org.DoesNotExist:
+    if not org_record:
         raise Http404(f"ORG Record not found for Levy {levy_number}.")
 
-
-    # 3. Fetch all existing notes for this levy number, ordered newest first
     org_notes = OrgNotes.objects.filter(Levy_number=levy_number).order_by('-Date')
     
-    # 4. Handle POST request (Note Submission) - remains unchanged
     if request.method == 'POST':
         note_text = request.POST.get('notes_text')
         
@@ -1063,13 +802,15 @@ def org_table_info(request, levy_number):
                 date_obj = None
                 if fiscal_date_str:
                     try:
-                        date_obj = datetime.datetime.strptime(fiscal_date_str, '%d/%m/%Y').date()
+                        # FIXED: changed datetime.datetime.strptime to datetime.strptime
+                        date_obj = datetime.strptime(fiscal_date_str, '%d/%m/%Y').date()
                     except ValueError:
                         pass
                 
+                # FIXED: Use datetime.now() instead of datetime.datetime.now()
                 OrgNotes.objects.create(
                     Levy_number=levy_number,
-                    Date=datetime.datetime.now(), 
+                    Date=datetime.now(), 
                     User=request.user.username,
                     Fiscal_date=date_obj,
                     Notes=note_text,
@@ -1083,7 +824,6 @@ def org_table_info(request, levy_number):
         else:
             messages.error(request, "Note text cannot be empty.")
             
-    # 5. Context for GET request (initial load or after POST failure)
     context = {
         'org_record': org_record,
         'org_notes': org_notes,
@@ -1520,3 +1260,331 @@ def outlook_delegated_action(request, pk):
         'log': log
     }
     return render(request, 'TSRF_RECON_APP/email_detail.html', context)
+
+
+@login_required
+def unreconciled_banklines(request):
+    """
+    Unified Action View: Reflects all unreconciled entries.
+    Entries drop off once 'Recon' status is set to 'Reconciled'.
+    """
+    # 1. Capture Filters and Search
+    search_query = request.GET.get('search_query', '').strip()
+    note_filter = request.GET.get('note_filter', '').strip()
+    deposit_date = request.GET.get('deposit_date', '').strip()
+    type_filter = request.GET.get('type_filter', '').strip()
+
+    # 2. Base Logic: Exclude anything marked as 'Reconciled'
+    # This is the master trigger. Anything 'Unreconciled' or 'Review' stays here.
+    queryset = BankLine.objects.exclude(Recon='Reconciled').order_by('-Date')
+
+    # 3. Apply Multi-Parameter Filtering
+    if search_query:
+        queryset = queryset.filter(
+            Q(Reference_Description__icontains=search_query) |
+            Q(Levy_number__icontains=search_query)
+        )
+    if note_filter:
+        queryset = queryset.filter(Column_5=note_filter)
+    if deposit_date:
+        queryset = queryset.filter(Date=deposit_date)
+    if type_filter:
+        queryset = queryset.filter(Type__icontains=type_filter)
+
+    # 4. Pagination
+    paginator = Paginator(queryset, 25)
+    page_number = request.GET.get('page')
+    bank_lines_page = paginator.get_page(page_number)
+
+    context = {
+        'bank_lines_page': bank_lines_page,
+        'search_query': search_query,
+        'note_filter': note_filter,
+        'type_filter': type_filter,
+        'deposit_date': deposit_date,
+        'title': 'Unreconciled Banklines',
+        'note_options': [
+            "AOD CONRIBUTIONS", "AOD LPI", "DIFFERENCE TO FINALISED BILL AND PAYMENT", 
+            "EMPLOYER TO FINALISE", "RECONSILED", "SYSTEM ISSUE"
+        ]
+    }
+    return render(request, 'TSRF_RECON_APP/unreconciled_banklines.html', context)
+
+@login_required
+def global_bank_view(request):
+    """
+    Master Ledger with Status and Date filtering.
+    """
+    search_query = request.GET.get('search_query', '').strip()
+    status_filter = request.GET.get('status_filter', '').strip()
+    start_date = request.GET.get('start_date', '').strip()
+    end_date = request.GET.get('end_date', '').strip()
+
+    queryset = BankLine.objects.all().order_by('-Date')
+
+    # 1. Status Filter (Reconciled vs Unreconciled)
+    if status_filter == 'Reconciled':
+        queryset = queryset.filter(Recon='Reconciled')
+    elif status_filter == 'Unreconciled':
+        queryset = queryset.exclude(Recon='Reconciled')
+
+    # 2. Date Range Filter (Transaction Date)
+    if start_date and end_date:
+        queryset = queryset.filter(Date__range=[start_date, end_date])
+
+    # 3. Wildcard Search
+    if search_query:
+        queryset = queryset.filter(
+            Q(Reference_Description__icontains=search_query) |
+            Q(Levy_number__icontains=search_query)
+        )
+
+    paginator = Paginator(queryset, 50)
+    page_number = request.GET.get('page')
+    bank_lines_page = paginator.get_page(page_number)
+
+    context = {
+        'bank_lines_page': bank_lines_page,
+        'search_query': search_query,
+        'status_filter': status_filter,
+        'start_date': start_date,
+        'end_date': end_date,
+        'title': 'Global Bank Ledger'
+    }
+    return render(request, 'TSRF_RECON_APP/global_bank.html', context)
+
+@login_required
+def export_bank_csv(request):
+    """
+    Advanced Export: respects status and date filters from the UI.
+    """
+    status_filter = request.GET.get('status_filter', '')
+    start_date = request.GET.get('start_date', '')
+    end_date = request.GET.get('end_date', '')
+
+    queryset = BankLine.objects.all().order_by('-Date')
+
+    # Apply same filters as the view for consistent export
+    if status_filter == 'Reconciled':
+        queryset = queryset.filter(Recon='Reconciled')
+    elif status_filter == 'Unreconciled':
+        queryset = queryset.exclude(Recon='Reconciled')
+    
+    if start_date and end_date:
+        queryset = queryset.filter(Date__range=[start_date, end_date])
+
+    response = HttpResponse(content_type='text/csv')
+    filename = f"Bank_Export_{status_filter if status_filter else 'All'}.csv"
+    from django.utils import timezone
+    response['Content-Disposition'] = f'attachment; filename="Billing_Summary_{timezone.now().date()}.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(['Recon Status', 'Date', 'Amount', 'Reference', 'Levy', 'Fiscal', 'Type', 'Note Selector', 'Admin Note'])
+
+    for line in queryset:
+        status = 'Reconciled' if line.Recon == 'Reconciled' else 'Unreconciled'
+        writer.writerow([
+            status, line.Date, line.Amount, line.Reference_Description,
+            line.Levy_number, line.Fisical, line.Type, line.Column_5, line.Column_6
+        ])
+
+    return response
+
+import numpy as np  # Add this import at the top
+
+@login_required
+def import_levy_data(request):
+    """
+    Standalone view to import/update the Master Levy Data table.
+    Handles duplicates and converts NaN (empty cells) to None for DecimalFields.
+    """
+    if request.method == 'POST' and request.FILES.get('excel_file'):
+        excel_file = request.FILES['excel_file']
+        
+        try:
+            df = pd.read_excel(excel_file, dtype={
+                'Levy_Number': str,
+                'Responsible Person ID Number': str,
+                'Director_Cell_1': str,
+                'Director_Cell_2': str
+            })
+
+            # Helper to handle NaN/Empty values for Decimals and Dates
+            def clean_val(val, is_decimal=False):
+                if pd.isna(val) or str(val).lower() in ['nan', '', 'none', 'null']:
+                    return 0 if is_decimal else None
+                return val
+
+            def parse_date(date_val):
+                if pd.isna(date_val) or str(date_val).lower() in ['nan', '']:
+                    return None
+                try:
+                    return pd.to_datetime(date_val).date()
+                except:
+                    return None
+
+            with transaction.atomic():
+                for index, row in df.iterrows():
+                    levy_num = str(row.get('Levy_Number', '')).strip().zfill(5)
+                    if not levy_num or levy_num == '00000':
+                        continue
+
+                    # --- DUPLICATE CLEANUP ---
+                    existing_qs = LevyData.objects.filter(levy_number=levy_num)
+                    
+                    if existing_qs.exists():
+                        # If more than one exists, keep the first, delete others
+                        obj = existing_qs.first()
+                        if existing_qs.count() > 1:
+                            existing_qs.exclude(pk=obj.pk).delete()
+                    else:
+                        obj = LevyData(levy_number=levy_num)
+
+                    # --- MAPPING WITH CLEANING ---
+                    obj.levy_name = clean_val(row.get('Levy_Name'))
+                    obj.mip_status = clean_val(row.get('MIP_Status'))
+                    obj.commencement_date = parse_date(row.get('Commencement_Date'))
+                    obj.termination_date = clean_val(row.get('Termination_Date'))
+                    
+                    # Contact Info
+                    obj.responsible_person = clean_val(row.get('Responsible_Person'))
+                    obj.responsible_person_id = clean_val(row.get('Responsible Person ID Number'))
+                    obj.responsible_person_email = clean_val(row.get('Responsible Person Email Address'))
+                    
+                    # Financial Fields (Using is_decimal=True to avoid 'nan' error)
+                    obj.due_amount_field = clean_val(row.get('Due Amount'), is_decimal=True)
+                    obj.total_lpi_outstanding = clean_val(row.get('Total LPI Outstanding'), is_decimal=True)
+                    obj.overs_unders_field = clean_val(row.get('Overs & Unders'), is_decimal=True)
+                    obj.total_unallocated_deposits = clean_val(row.get('Total Unallocated Deposits'), is_decimal=True)
+                    
+                    # Status Fields
+                    obj.cbr_status_field = clean_val(row.get('CBR Status'))
+                    obj.administrator = clean_val(row.get('Administrator'))
+                    obj.termination_reason = clean_val(row.get('Termination_Reason'))
+                    obj.termination_status = clean_val(row.get('Termination_Status'))
+                    
+                    # Attorney/Director Info
+                    obj.attorney_case = clean_val(row.get('Attorney_Case'))
+                    obj.attorneys = clean_val(row.get('Attorneys'))
+                    obj.director_name_1 = clean_val(row.get('Director_Name_1'))
+                    
+                    obj.save()
+
+            messages.success(request, f"Import successful! Processed {len(df)} records.")
+            return redirect('dashboard')
+
+        except Exception as e:
+            messages.error(request, f"Import Error: {str(e)}")
+            
+    return render(request, 'TSRF_RECON_APP/import_form.html')
+
+from django.db.models import Max, Sum, Q
+
+@login_required
+def billing_summary(request):
+    # 1. Get latest import IDs per Levy Number
+    latest_ids = Org.objects.values('levy_number').annotate(latest_id=Max('id')).values_list('latest_id', flat=True)
+    queryset = Org.objects.filter(id__in=latest_ids)
+
+    # 2. Setup lookup for metadata (Name and MIP) from LevyData
+    levy_master_info = {
+        item.levy_number: {'name': item.levy_name, 'mip': item.mip_status}
+        for item in LevyData.objects.all().only('levy_number', 'levy_name', 'mip_status')
+    }
+
+    # 3. Apply Filters (Search, Period, CBR)
+    search_query = request.GET.get('search', '')
+    if search_query:
+        queryset = queryset.filter(
+            Q(levy_number__icontains=search_query) | 
+            # Search by Name in the LevyData master lookup via levy_number
+            Q(levy_number__in=LevyData.objects.filter(levy_name__icontains=search_query).values('levy_number'))
+        )
+
+    selected_periods = request.GET.getlist('period')
+    if selected_periods:
+        queryset = queryset.filter(billing_period__in=selected_periods)
+
+    selected_cbr = request.GET.getlist('cbr')
+    if selected_cbr:
+        queryset = queryset.filter(cbr_status__in=selected_cbr)
+
+    # 4. Final Data Assembly & MIP Filtering
+    selected_mip = request.GET.getlist('mip')
+    filtered_data = []
+    for record in queryset:
+        info = levy_master_info.get(record.levy_number, {})
+        record.display_name = info.get('name', "Unknown")
+        record.display_mip = info.get('mip', "N/A")
+        
+        if not selected_mip or record.display_mip in selected_mip:
+            filtered_data.append(record)
+
+# 5. Handle CSV Export
+    if request.GET.get('export') == 'csv':
+        response = HttpResponse(content_type='text/csv')
+        # Use timezone.now().date() to avoid the 'method_descriptor' error
+        filename_date = timezone.now().date()
+        response['Content-Disposition'] = f'attachment; filename="Billing_Summary_{filename_date}.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow(['Levy Number', 'Employer Name', 'Billing Period', 'CBR Status', 'MIP Status', 'Due Amount'])
+        
+        for row in filtered_data:
+            writer.writerow([
+                row.levy_number, 
+                row.display_name, 
+                row.billing_period, 
+                row.cbr_status, 
+                row.display_mip, 
+                row.due_amount
+            ])
+        return response
+
+    # 6. Standard Render
+    total_due = sum(r.due_amount for r in filtered_data)
+    context = {
+        'billing_data': filtered_data,
+        'total_due': total_due,
+        'billing_periods': Org.objects.filter(id__in=latest_ids).values_list('billing_period', flat=True).distinct(),
+        'cbr_statuses': Org.objects.filter(id__in=latest_ids).values_list('cbr_status', flat=True).distinct(),
+        'mip_statuses': LevyData.objects.values_list('mip_status', flat=True).distinct(),
+        'selected_periods': selected_periods,
+        'selected_cbr': selected_cbr,
+        'selected_mip': selected_mip,
+        'search_query': search_query,
+    }
+    return render(request, 'TSRF_RECON_APP/billing_summary.html', context)
+
+
+from itertools import chain
+from operator import attrgetter
+
+
+def view_email_thread(request, delegation_id):
+    # 1. Fetch the main delegation record
+    delegation = get_object_or_404(EmailDelegation, id=delegation_id)
+    
+    # 2. Get internal notes and external transactions
+    notes = DelegationNote.objects.filter(delegation=delegation)
+    transactions = EmailTransaction.objects.filter(delegation=delegation)
+    
+    # 3. Combine into a timeline sorted by date
+    # We unify the 'created_at' and 'sent_at' under a single sortable attribute
+    timeline = sorted(
+        chain(notes, transactions),
+        key=lambda x: getattr(x, 'created_at', getattr(x, 'sent_at', None)),
+        reverse=True
+    )
+    
+    # 4. Fetch the email body from Microsoft Graph 
+    # (Assuming you have a helper function 'get_email_body_from_graph')
+    # email_content = get_email_body_from_graph(delegation.email_id)
+    email_content = "This is the original email content fetched via Graph API using ID: " + delegation.email_id
+
+    context = {
+        'task': delegation,
+        'email_body': email_content,
+        'timeline': timeline,
+    }
+    return render(request, 'email_thread.html', context)

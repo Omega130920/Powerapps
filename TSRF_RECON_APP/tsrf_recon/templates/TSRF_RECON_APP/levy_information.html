@@ -137,9 +137,36 @@
     table { width: 100%; border-collapse: collapse; margin-top: 15px; margin-bottom: 20px;}
     th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #aed581; font-size: 13px; }
     th { background-color: var(--color-background-note); color: var(--color-primary); font-weight: bold; }
-    tr:nth-child(even) { background-color: #f9f9f9; }
-    tr.bank-line-row:hover { background-color: #dcedc8; cursor: pointer; }
-    .bank-line-table-container { max-height: 65vh; overflow-y: auto; border: 1px solid #eee; }
+    
+    /* Inline Editor Styling */
+    .edit-input {
+        width: 98%;
+        padding: 6px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-family: inherit;
+        font-size: 13px;
+        background-color: #f9f9f9;
+    }
+    .edit-input:enabled {
+        background-color: #fff;
+        border: 2px solid var(--color-secondary);
+    }
+    .edit-textarea {
+        width: 98%;
+        height: 50px;
+        padding: 6px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-family: inherit;
+        font-size: 13px;
+        resize: vertical;
+        background-color: #f9f9f9;
+    }
+    .edit-textarea:enabled {
+        background-color: #fff;
+        border: 2px solid var(--color-secondary);
+    }
 
     /* --- OVERVIEW CARDS --- */
     .overview-grid {
@@ -203,7 +230,7 @@
                 <a href="{% url 'levy_list' %}" class="dashboard-button">Return to List</a>
             </div>
             <h1>Levy #{{ levy_record.levy_number }} - {{ levy_record.levy_name }}</h1>
-            <div style="width: 200px;"></div>
+            <div style="width: 100px;"></div>
         </div>
 
         <div class="profile-layout">
@@ -218,7 +245,6 @@
             </ul>
 
             <div class="tab-content">
-                
                 <div id="overview" class="tab-pane active">
                     <div class="overview-grid">
                         <div class="card">
@@ -259,46 +285,84 @@
                     </div>
                 </div>
 
-                <div id="general-info" class="tab-pane">
-                    <h3>Levy Profile Details</h3>
-                    <table>
-                        <tr><th>Responsible Person</th><td>{{ levy_record.responsible_person }}</td></tr>
-                        <tr><th>Registration No.</th><td>{{ levy_record.registration_number }}</td></tr>
-                        <tr><th>Notice Email</th><td>{{ levy_record.notice_email }}</td></tr>
-                        <tr><th>Telephone</th><td>{{ levy_record.telephone }}</td></tr>
-                        <tr><th>Physical Address</th><td>{{ levy_record.physical_address }}</td></tr>
-                        <tr><th>Postal Address</th><td>{{ levy_record.postal_address }}</td></tr>
-                        <tr><th>User Access 1</th><td>{{ levy_record.levy_user }} ({{ levy_record.user_login }})</td></tr>
-                        <tr><th>User Access 2</th><td>{{ levy_record.levy_user_2 }} ({{ levy_record.user_login_2 }})</td></tr>
-                    </table>
-                </div>
+                <form method="post" action="." id="master-profile-form">
+                    {% csrf_token %}
+                    <input type="hidden" name="update_general_info" value="1">
 
-                <div id="levy-directors" class="tab-pane">
-                    <h3>Directors Information</h3>
-                    {% for i in "1234" %}
-                        {% with name_key="director_name_"|add:i email_key="director_mail_"|add:i cell_key="director_cell_"|add:i addr_key="director_address_"|add:i %}
-                        {% if levy_record|dictsort:name_key %}
-                        <div class="card" style="margin-bottom:15px;">
-                            <h4 style="margin:0 0 10px 0; color:var(--color-primary)">Director {{ i }}</h4>
-                            <table style="margin:0;">
-                                <tr><th style="width:20%">Name</th><td>{{ levy_record|dictsort:name_key }}</td></tr>
-                                <tr><th>Email</th><td>{{ levy_record|dictsort:email_key }}</td></tr>
-                                <tr><th>Cell</th><td>{{ levy_record|dictsort:cell_key }}</td></tr>
-                                <tr><th>Address</th><td>{{ levy_record|dictsort:addr_key }}</td></tr>
-                            </table>
+                    <div id="general-info" class="tab-pane">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h3 style="margin:0;">Master Profile Details</h3>
+                            <div>
+                                <button type="button" id="edit-toggle-btn" class="dashboard-button" style="background-color: #f7931e;">✏️ Edit Information</button>
+                                <button type="submit" id="save-general-btn" class="dashboard-button" style="background-color: #2e7d32; display: none;">💾 Save Changes</button>
+                            </div>
                         </div>
-                        {% endif %}
-                        {% endwith %}
-                    {% endfor %}
-                </div>
+
+                        <table>
+                            <tr><th>Responsible Person</th><td><input type="text" name="responsible_person" class="edit-input" value="{{ levy_record.responsible_person|default:'' }}" disabled></td></tr>
+                            <tr><th>Registration No.</th><td><input type="text" name="registration_number" class="edit-input" value="{{ levy_record.registration_number|default:'' }}" disabled></td></tr>
+                            <tr><th>Notice Email</th><td><input type="email" name="notice_email" class="edit-input" value="{{ levy_record.notice_email|default:'' }}" disabled></td></tr>
+                            <tr><th>Telephone</th><td><input type="text" name="telephone" class="edit-input" value="{{ levy_record.telephone|default:'' }}" disabled></td></tr>
+                            <tr><th>Physical Address</th><td><textarea name="physical_address" class="edit-textarea" disabled>{{ levy_record.physical_address|default:'' }}</textarea></td></tr>
+                            <tr><th>Postal Address</th><td><textarea name="postal_address" class="edit-textarea" disabled>{{ levy_record.postal_address|default:'' }}</textarea></td></tr>
+                            <tr><th>Primary User Access</th><td><input type="text" name="levy_user" class="edit-input" value="{{ levy_record.levy_user|default:'' }}" disabled></td></tr>
+                            <tr><th>Primary User Login</th><td><input type="text" name="user_login" class="edit-input" value="{{ levy_record.user_login|default:'' }}" disabled></td></tr>
+                            <tr><th>Secondary User Access</th><td><input type="text" name="levy_user_2" class="edit-input" value="{{ levy_record.levy_user_2|default:'' }}" disabled></td></tr>
+                            <tr><th>Secondary User Login</th><td><input type="text" name="user_login_2" class="edit-input" value="{{ levy_record.user_login_2|default:'' }}" disabled></td></tr>
+                        </table>
+                    </div>
+
+                    <div id="levy-directors" class="tab-pane">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                            <h3 style="margin:0;">Director Details</h3>
+                            <p style="color: #666; font-size: 0.85em;">Note: Use the "Edit" button in <b>General Info</b> to unlock.</p>
+                        </div>
+                        <div class="directors-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div class="card" style="border-top: 3px solid var(--color-secondary);">
+                                <h4 style="margin: 0 0 10px 0;">Director 1</h4>
+                                <table style="margin:0;">
+                                    <tr><th style="width:30%;">Name</th><td><input type="text" name="Director_Name_1" class="edit-input" value="{{ levy_record.director_name_1|default:'' }}" disabled></td></tr>
+                                    <tr><th>Email</th><td><input type="email" name="Director_Mail_1" class="edit-input" value="{{ levy_record.director_mail_1|default:'' }}" disabled></td></tr>
+                                    <tr><th>Cell</th><td><input type="text" name="Director_Cell_1" class="edit-input" value="{{ levy_record.director_cell_1|default:'' }}" disabled></td></tr>
+                                    <tr><th>Address</th><td><textarea name="Director_Address_1" class="edit-textarea" disabled>{{ levy_record.director_address_1|default:'' }}</textarea></td></tr>
+                                </table>
+                            </div>
+                            <div class="card" style="border-top: 3px solid var(--color-secondary);">
+                                <h4 style="margin: 0 0 10px 0;">Director 2</h4>
+                                <table style="margin:0;">
+                                    <tr><th style="width:30%;">Name</th><td><input type="text" name="Director_Name_2" class="edit-input" value="{{ levy_record.director_name_2|default:'' }}" disabled></td></tr>
+                                    <tr><th>Email</th><td><input type="email" name="Director_Mail_2" class="edit-input" value="{{ levy_record.director_mail_2|default:'' }}" disabled></td></tr>
+                                    <tr><th>Cell</th><td><input type="text" name="Director_Cell_2" class="edit-input" value="{{ levy_record.director_cell_2|default:'' }}" disabled></td></tr>
+                                    <tr><th>Address</th><td><textarea name="Director_Address_2" class="edit-textarea" disabled>{{ levy_record.director_address_2|default:'' }}</textarea></td></tr>
+                                </table>
+                            </div>
+                            <div class="card" style="border-top: 3px solid var(--color-secondary);">
+                                <h4 style="margin: 0 0 10px 0;">Director 3</h4>
+                                <table style="margin:0;">
+                                    <tr><th style="width:30%;">Name</th><td><input type="text" name="Director_Name_3" class="edit-input" value="{{ levy_record.director_name_3|default:'' }}" disabled></td></tr>
+                                    <tr><th>Email</th><td><input type="email" name="Director_Mail_3" class="edit-input" value="{{ levy_record.director_mail_3|default:'' }}" disabled></td></tr>
+                                    <tr><th>Cell</th><td><input type="text" name="Director_Cell_3" class="edit-input" value="{{ levy_record.director_cell_3|default:'' }}" disabled></td></tr>
+                                    <tr><th>Address</th><td><textarea name="Director_Address_3" class="edit-textarea" disabled>{{ levy_record.director_address_3|default:'' }}</textarea></td></tr>
+                                </table>
+                            </div>
+                            <div class="card" style="border-top: 3px solid var(--color-secondary);">
+                                <h4 style="margin: 0 0 10px 0;">Director 4</h4>
+                                <table style="margin:0;">
+                                    <tr><th style="width:30%;">Name</th><td><input type="text" name="Director_Name_4" class="edit-input" value="{{ levy_record.director_name_4|default:'' }}" disabled></td></tr>
+                                    <tr><th>Email</th><td><input type="email" name="Director_Mail_4" class="edit-input" value="{{ levy_record.director_mail_4|default:'' }}" disabled></td></tr>
+                                    <tr><th>Cell</th><td><input type="text" name="Director_Cell_4" class="edit-input" value="{{ levy_record.director_cell_4|default:'' }}" disabled></td></tr>
+                                    <tr><th>Address</th><td><textarea name="Director_Address_4" class="edit-textarea" disabled>{{ levy_record.director_address_4|default:'' }}</textarea></td></tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </form>
 
                 <div id="bank-line-data" class="tab-pane">
                     <h3>Bank Line History</h3>
                     <div class="bank-line-table-container">
                         <table>
-                            <thead>
-                                <tr><th>Date</th><th>Amount</th><th>Type</th><th>Reference</th><th>Fiscal</th><th>Import Date</th></tr>
-                            </thead>
+                            <thead><tr><th>Date</th><th>Amount</th><th>Type</th><th>Reference</th><th>Fiscal</th><th>Import Date</th></tr></thead>
                             <tbody>
                                 {% for line in bank_lines %}
                                 <tr class="bank-line-row" onclick="window.location.href = '{% url 'bankline_edits' line.Levy_number %}?line_id={{ line.id }}';">
@@ -330,11 +394,13 @@
                                         <option value="Fica_1">ID Document</option>
                                         <option value="Fica_2">Proof of Address</option>
                                         <option value="Fica_3">Bank Statement</option>
+                                        <option value="Fica_4">Appointment Letter</option>
+                                        <option value="Fica_5">VAT Number</option>
+                                        <option value="Fica_6">Mandate/Trust Deed</option>
+                                        <option value="Fica_7">Tax Number</option>
                                     </select>
                                 </div>
-                                <div style="margin-bottom:15px;">
-                                    {{ pdf_upload_form.document_file }}
-                                </div>
+                                <div style="margin-bottom:15px;">{{ pdf_upload_form.document_file }}</div>
                                 <button type="submit" class="dashboard-button" style="width:100%">Upload PDF</button>
                             </form>
                         </div>
@@ -367,7 +433,7 @@
                         {% for note in org_notes %}
                         <div class="note">
                             <div class="note-header">
-                                <span>Fiscal: {{ note.Fiscal_date|date:"Y-m-d" }}</span>
+                                <span>Fiscal: {{ note.Fiscal_date|date:"Y-m-d"|default:"-" }}</span>
                                 <span>{{ note.User }} @ {{ note.Date|date:"Y-m-d H:i" }}</span>
                             </div>
                             <p>{{ note.Notes }}</p>
@@ -386,21 +452,81 @@
                         </div>
                         <button type="button" class="dashboard-button" style="background-color: #ff9800; border-color: #f57c00;" onclick="toggleEmailForm()">📧 Compose New Email</button>
                     </div>
-
+                    
                     <div id="email-composition-container" style="display: none; margin-bottom: 20px;">
-                        <form method="post" action="{% url 'outlook_compose' %}" id="email_master_form" style="background-color: #fffaf5; border: 2px dashed #ff9800; border-radius: 8px; padding: 20px;">
+                        <form method="post" action="{% url 'outlook_compose' %}" id="email_master_form" enctype="multipart/form-data" style="background-color: #fffaf5; border: 2px dashed #ff9800; border-radius: 8px; padding: 20px;">
                             {% csrf_token %}
                             <input type="hidden" name="company_code" value="{{ levy_record.levy_number }}">
                             <input type="hidden" name="email_body_html_content" id="email_body_html_content">
-                            
+
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 15px;">
+                                <div>
+                                    <label style="font-weight: bold; display: block; margin-bottom: 5px;">Action Note:</label>
+                                    <select name="action_note" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                                        <option value="">-- Select --</option>
+                                        <option>Enquiry to FO</option>
+                                        <option>Enquiry to Sanlam</option>
+                                        <option>Enquiry to Employer</option>
+                                        <option>Enquiry to CBC</option>
+                                        <option>Sent to Employer</option>
+                                        <option>Sent to Sanlam</option>
+                                        <option>Sent to CBC</option>
+                                        <option>Sent to FO</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="font-weight: bold; display: block; margin-bottom: 5px;">Enquiry Type:</label>
+                                    <select name="enquiry_type" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                                        <option value="">-- Select --</option>
+                                        <option>Reconcilation</option>
+                                        <option>Claim</option>
+                                        <option>Section 13A</option>
+                                        <option>New Business</option>
+                                        <option>Amendments</option>
+                                        <option>Section 28</option>
+                                        <option>Section 14</option>
+                                        <option>Section 27</option>
+                                        <option>Complaints</option>
+                                        <option>Two Pot</option>
+                                        <option>Report Back</option>
+                                        <option>Broker Investigations and Rebrokes</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="font-weight: bold; display: block; margin-bottom: 5px;">Enquiry Selection:</label>
+                                    <select name="enquiry_selection" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                                        <option value="">-- Select --</option>
+                                        <option>Reconcilation</option>
+                                        <option>Claim</option>
+                                        <option>Section 13A</option>
+                                        <option>New Business</option>
+                                        <option>Amendments</option>
+                                        <option>Section 28</option>
+                                        <option>Section 14</option>
+                                        <option>Section 27</option>
+                                        <option>Complaints</option>
+                                        <option>Two Pot</option>
+                                        <option>Report Back</option>
+                                        <option>Broker Investigations and Rebrokes</option>
+                                    </select>
+                                </div>
+                            </div>
+
                             <div style="margin-bottom: 10px;">
                                 <label style="font-weight: bold;">To Recipient:</label>
                                 <input type="email" name="to_email" value="{{ levy_record.notice_email }}" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" required>
                             </div>
+                            
                             <div style="margin-bottom: 15px;">
                                 <label style="font-weight: bold;">Subject:</label>
                                 <input type="text" name="subject" value="[MIP: {{ levy_record.levy_number }}] Levy Query" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
                             </div>
+
+                            <div style="margin-bottom: 15px;">
+                                <label style="font-weight: bold;">📎 Attach File:</label>
+                                <input type="file" name="email_attachment" style="width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 4px; background: white;">
+                            </div>
+
                             <div style="margin-bottom: 15px;">
                                 <label style="font-weight: bold;">Email Body:</label>
                                 <div id="member_email_body_editor" contenteditable="true" style="min-height: 200px; border: 1px solid #ccc; padding: 10px; border-radius: 4px; background-color: white; overflow-y: auto;">
@@ -411,55 +537,26 @@
                                     <p>{{ request.user.get_full_name|default:request.user.username }}</p>
                                 </div>
                             </div>
+
                             <div style="text-align: right;">
                                 <button type="button" class="dashboard-button" style="background-color:#999;" onclick="toggleEmailForm()">Cancel</button>
                                 <button type="submit" class="dashboard-button" style="background-color:#f7931e;">Send via Microsoft Graph</button>
                             </div>
                         </form>
                     </div>
-
                     {% if email_logs %}
                         {% for log in email_logs %}
                         <div class="email-row" style="border-left-color: {% if log.email_category == 'Outgoing' %}#4CAF50{% else %}#0288d1{% endif %};">
-                            <div style="flex: 0 0 40px; text-align: center; font-size: 24px;">
-                                {% if log.email_category == 'Outgoing' %}📤{% else %}📩{% endif %}
-                            </div>
+                            <div style="flex: 0 0 40px; text-align: center; font-size: 24px;">{% if log.email_category == 'Outgoing' %}📤{% else %}📩{% endif %}</div>
                             <div style="flex: 1;">
-                                <div style="display: flex; justify-content: space-between;">
-                                    <span style="font-weight: bold; color: #1565c0; font-size: 1.1em;">{{ log.email_id|truncatechars:65 }}</span>
-                                    <span style="color: #777; font-size: 0.9em;">{{ log.received_at|date:"Y-m-d H:i" }}</span>
-                                </div>
-                                <div style="font-size: 0.9em; color: #555; margin-top: 5px;">
-                                    <span class="status-pill {% if log.status == 'NEW' %}status-new{% elif log.status == 'COM' %}status-com{% else %}status-default{% endif %}">{{ log.status }}</span>
-                                    <span style="margin-left: 10px;">Cat: <strong>{{ log.email_category|default:"Delegated" }}</strong></span>
-                                    <span style="margin-left: 10px;">Assigned: {{ log.assigned_user|default:"System" }}</span>
-                                </div>
-                                <div style="margin-top: 10px;">
-                                    <button type="button" class="dashboard-button" style="padding: 5px 10px; font-size: 11px; background-color: #0288d1;"
-                                        onclick="viewEmailThread(this)"
-                                        data-subject="{{ log.email_id }}"
-                                        data-sender="{{ log.assigned_user|default:'System' }}"
-                                        data-recipient="{{ levy_record.notice_email }}"
-                                        data-date="{{ log.received_at|date:'Y-m-d H:i' }}"
-                                        data-body-id="hidden-body-{{ forloop.counter }}">
-                                        👁️ View Message Thread
-                                    </button>
-                                </div>
-                                <div id="hidden-body-{{ forloop.counter }}" style="display:none;">
-                                    {% if log.notes %}
-                                        {{ log.notes|safe|linebreaksbr }}
-                                    {% else %}
-                                        <p style="font-style: italic; color: #888;">No email body content found in the database.</p>
-                                    {% endif %}
-                                </div>
+                                <div style="display: flex; justify-content: space-between;"><span style="font-weight: bold; color: #1565c0; font-size: 1.1em;">{{ log.email_id|truncatechars:65 }}</span><span style="color: #777; font-size: 0.9em;">{{ log.received_at|date:"Y-m-d H:i" }}</span></div>
+                                <div style="font-size: 0.9em; color: #555; margin-top: 5px;"><span class="status-pill {% if log.status == 'NEW' %}status-new{% elif log.status == 'COM' %}status-com{% else %}status-default{% endif %}">{{ log.status }}</span><span style="margin-left: 10px;">Cat: <strong>{{ log.email_category|default:"Delegated" }}</strong></span><span style="margin-left: 10px;">Assigned: {{ log.assigned_user|default:"System" }}</span></div>
+                                <a href="{% url 'view_email_thread' log.id %}" class="dashboard-button" style="padding: 5px 10px; font-size: 11px; background-color: #0288d1; text-decoration: none;">👁️ View Message Thread</a>
+                                <div id="hidden-body-{{ forloop.counter }}" style="display:none;">{% if log.notes %}{{ log.notes|safe|linebreaksbr }}{% else %}<p style="font-style: italic; color: #888;">No email body content found in the database.</p>{% endif %}</div>
                             </div>
                         </div>
                         {% endfor %}
-                    {% else %}
-                        <div style="text-align:center; padding: 50px; background:#f9f9f9; border-radius:8px; border:1px dashed #ccc;">
-                            <p style="color:#888;">No email communication has been logged for this levy.</p>
-                        </div>
-                    {% endif %}
+                    {% else %}<div style="text-align:center; padding: 50px; background:#f9f9f9; border-radius:8px; border:1px dashed #ccc;"><p style="color:#888;">No email communication has been logged for this levy.</p></div>{% endif %}
                 </div>
             </div>
         </div>
@@ -467,26 +564,14 @@
 
     <div id="emailViewModal" class="modal-overlay">
         <div class="modal-content">
-            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #aed581; padding-bottom: 12px; margin-bottom: 15px;">
-                <h3 style="margin: 0; color:var(--color-primary)">Email Message Details</h3>
-                <button type="button" onclick="closeEmailModal()" style="background:none; border:none; font-size:1.8em; cursor:pointer; color:#999;">&times;</button>
-            </div>
-            <table style="margin-bottom: 20px; background: #fefefe;">
-                <tr><td style="font-weight:bold; width: 120px; border:none;">Subject:</td><td id="modal_subject" style="border:none;"></td></tr>
-                <tr><td style="font-weight:bold; border:none;">Date:</td><td id="modal_date" style="border:none;"></td></tr>
-                <tr><td style="font-weight:bold; border:none;">From:</td><td id="modal_sender" style="border:none;"></td></tr>
-                <tr><td style="font-weight:bold; border:none;">To:</td><td id="modal_recipient" style="border:none;"></td></tr>
-            </table>
-            <div style="font-weight:bold; margin-bottom:5px; color:#555;">Message Content:</div>
-            <div id="modal_body" class="email-body-content"></div>
-            <div style="text-align: right; margin-top: 25px;">
-                <button type="button" class="dashboard-button" onclick="closeEmailModal()" style="background-color:#555;">Close Viewer</button>
-            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #aed581; padding-bottom: 12px; margin-bottom: 15px;"><h3 style="margin: 0; color:var(--color-primary)">Email Message Details</h3><button type="button" onclick="closeEmailModal()" style="background:none; border:none; font-size:1.8em; cursor:pointer; color:#999;">&times;</button></div>
+            <table style="margin-bottom: 20px; background: #fefefe;"><tr><td style="font-weight:bold; width: 120px; border:none;">Subject:</td><td id="modal_subject" style="border:none;"></td></tr><tr><td style="font-weight:bold; border:none;">Date:</td><td id="modal_date" style="border:none;"></td></tr><tr><td style="font-weight:bold; border:none;">From:</td><td id="modal_sender" style="border:none;"></td></tr><tr><td style="font-weight:bold; border:none;">To:</td><td id="modal_recipient" style="border:none;"></td></tr></table>
+            <div style="font-weight:bold; margin-bottom:5px; color:#555;">Message Content:</div><div id="modal_body" class="email-body-content"></div>
+            <div style="text-align: right; margin-top: 25px;"><button type="button" class="dashboard-button" onclick="closeEmailModal()" style="background-color:#555;">Close Viewer</button></div>
         </div>
     </div>
 
     <script>
-        /* --- TAB NAVIGATION LOGIC --- */
         document.addEventListener('DOMContentLoaded', function() {
             const tabs = document.querySelectorAll('.tab-nav li');
             const panes = document.querySelectorAll('.tab-pane');
@@ -494,7 +579,6 @@
             const switchTab = (targetId) => {
                 const targetPane = document.querySelector(targetId);
                 const targetTab = document.querySelector(`[data-tab-target="${targetId}"]`);
-                
                 if (targetPane && targetTab) {
                     tabs.forEach(t => t.classList.remove('active'));
                     panes.forEach(p => p.classList.remove('active'));
@@ -511,53 +595,51 @@
                 });
             });
 
-            // Handle URL Hash on load
-            if(window.location.hash) {
-                switchTab(window.location.hash);
+            if(window.location.hash) switchTab(window.location.hash);
+
+            const editToggleBtn = document.getElementById('edit-toggle-btn');
+            if(editToggleBtn) {
+                editToggleBtn.addEventListener('click', function() {
+                    const form = document.getElementById('master-profile-form');
+                    const inputs = form.querySelectorAll('.edit-input, .edit-textarea');
+                    const saveBtn = document.getElementById('save-general-btn');
+                    const isDisabled = inputs[0].disabled;
+                    inputs.forEach(input => input.disabled = !isDisabled);
+                    if (isDisabled) {
+                        this.innerText = '🚫 Cancel Edit';
+                        this.style.backgroundColor = '#d32f2f';
+                        saveBtn.style.display = 'inline-block';
+                    } else {
+                        location.reload();
+                    }
+                });
             }
         });
 
-        /* --- EMAIL COMPOSER LOGIC --- */
         function toggleEmailForm() {
             const form = document.getElementById('email-composition-container');
             form.style.display = form.style.display === 'none' ? 'block' : 'none';
-            if(form.style.display === 'block') {
-                form.scrollIntoView({ behavior: 'smooth' });
-            }
+            if(form.style.display === 'block') form.scrollIntoView({ behavior: 'smooth' });
         }
 
-        // Sync HTML Editor content to hidden input before form submission
         const emailMasterForm = document.getElementById('email_master_form');
         if(emailMasterForm) {
             emailMasterForm.addEventListener('submit', function() {
-                const editor = document.getElementById('member_email_body_editor');
-                const htmlInput = document.getElementById('email_body_html_content');
-                htmlInput.value = editor.innerHTML;
+                document.getElementById('email_body_html_content').value = document.getElementById('member_email_body_editor').innerHTML;
             });
         }
 
-        /* --- MODAL LOGIC --- */
         function viewEmailThread(btn) {
             document.getElementById('modal_subject').innerText = btn.dataset.subject;
             document.getElementById('modal_date').innerText = btn.dataset.date;
             document.getElementById('modal_sender').innerText = btn.dataset.sender;
             document.getElementById('modal_recipient').innerText = btn.dataset.recipient;
-            
-            const sourceBody = document.getElementById(btn.dataset.bodyId);
-            document.getElementById('modal_body').innerHTML = sourceBody.innerHTML;
-            
+            document.getElementById('modal_body').innerHTML = document.getElementById(btn.dataset.bodyId).innerHTML;
             document.getElementById('emailViewModal').style.display = 'flex';
         }
 
-        function closeEmailModal() {
-            document.getElementById('emailViewModal').style.display = 'none';
-        }
-
-        // Close modal if user clicks outside of it
-        window.onclick = function(event) {
-            const modal = document.getElementById('emailViewModal');
-            if (event.target == modal) closeEmailModal();
-        }
+        function closeEmailModal() { document.getElementById('emailViewModal').style.display = 'none'; }
+        window.onclick = function(event) { if (event.target == document.getElementById('emailViewModal')) closeEmailModal(); }
     </script>
 </body>
 </html>
