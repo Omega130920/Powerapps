@@ -1,6 +1,8 @@
 # tsrf_recon/urls.py (app's urls.py)
 
 from django.urls import path
+from django.conf import settings
+from django.conf.urls.static import static
 from . import views
 
 urlpatterns = [
@@ -59,4 +61,20 @@ urlpatterns = [
     path('import-levy/', views.import_levy_data, name='import_levy_excel'),
     path('billing-summary/', views.billing_summary, name='billing_summary'),
     path('levy-info/thread/<int:delegation_id>/', views.view_email_thread, name='view_email_thread'),
+    path('attorney-summary/', views.attorney_list, name='attorney_list'),
+    path('aod-records/', views.aod_list, name='aod_list'),
+    path('pfa-matters/', views.pfa_list, name='pfa_list'),
+    path('lpi-records/', views.lpi_list, name='lpi_list'),
+    path('import-lpi/', views.import_lpi_excel, name='import_lpi'),
+    path('attorney-summary/<str:levy_number>/', views.attorney_case_view, name='attorney_summary_view'),
+    path('attorney-summary/<str:levy_number>/add-aod/', views.create_aod, name='create_aod'),
+    path('get-attorney-detail/<str:levy_number>/', views.get_attorney_detail_ajax, name='get_attorney_detail_ajax'),
+    path('attorney-summary/<str:levy_number>/add-pfa/', views.create_pfa, name='create_pfa'),
+    path('get-aod-detail-ajax/<str:aod_number>/', views.get_aod_detail_ajax, name='get_aod_detail_ajax'),
+    path('get-pfa-detail-ajax/<str:pfa_number>/', views.get_pfa_detail_ajax, name='get_pfa_detail_ajax'),
+    path('export-masterfile/', views.export_masterfile_excel, name='export_masterfile'),
 ]
+
+# This part ensures media files are accessible in your browser
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

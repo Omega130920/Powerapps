@@ -7,6 +7,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Review Bank Line {{ recon_record.pk }}</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 <style>
 /* Basic Styles */
 body{font-family:sans-serif;background:linear-gradient(to bottom,#d1e2c4,#d1e2c4);margin:20px;color:#333;line-height:1.6}
@@ -20,30 +21,28 @@ h3{color:#1b5e20;margin-top:30px}
 .edit-button:hover{background-color:#303f9f}
 .return-button:hover{background-color:#66bb6a}
 .status-badge{padding:5px 10px;border-radius:4px;color:white;font-weight:700;font-size:.8em}
-.status-reviewed{background-color:#4CAF50}
-.status-reconciled{background-color:#FFC107;color:#333}
-.status-pending{background-color:#F44336}
 
-/* Custom Status Colors */
+/* Status Colors */
 .status-partially-recon{background-color:#ff9800;} 
 .status-fully-recon{background-color:#1b5e20;} 
+.status-reconciled{background-color:#FFC107;color:#333}
 
 /* --- MODAL STYLES --- */
 .modal{display:none;position:fixed;z-index:100;left:0;top:0;width:100%;height:100%;overflow:auto;background-color:rgba(0,0,0,.4)}
-.modal-content{background-color:#fefefe;margin:10% auto;padding:20px;border:1px solid #888;width:90%;max-width:500px;border-radius:8px;box-shadow:0 5px 15px rgba(0,0,0,.3)}
+.modal-content{background-color:#fefefe;margin:5% auto;padding:20px;border:1px solid #888;width:90%;max-width:550px;border-radius:8px;box-shadow:0 5px 15px rgba(0,0,0,.3)}
 .modal-content h3{color:#3f51b5;margin-top:0}
 .modal-content label{display:block;margin-top:10px;font-weight:700;color:#1b5e20}
-.modal-content select,.modal-content input[type="date"], .modal-content textarea{width:100%;padding:8px;margin-top:5px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;font-family: inherit;}
+.modal-content select,.modal-content input[type="date"], .modal-content input[type="email"], .modal-content input[type="text"], .modal-content textarea{width:100%;padding:8px;margin-top:5px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;font-family: inherit;}
 .modal-footer{display:flex;justify-content:flex-end;margin-top:20px;gap:10px}
 .modal-save-button{padding:10px 20px;background-color:#4CAF50;color:white;border:none;border-radius:5px;cursor:pointer}
 .modal-save-button:hover{background-color:#43a047}
 .modal-cancel-button{padding:10px 20px;background-color:#f44336;color:white;border:none;border-radius:5px;cursor:pointer}
 .modal-cancel-button:hover{background-color:#d32f2f}
 
-.modal-content textarea {
-    resize: vertical;
-    min-height: 100px;
-}
+.modal-content textarea { resize: vertical; min-height: 80px; }
+
+/* Email Section Styling */
+.email-box { margin-top: 15px; padding: 15px; background-color: #e3f2fd; border-radius: 8px; border: 1px solid #90caf9; }
 </style>
 </head>
 <body>
@@ -106,7 +105,7 @@ h3{color:#1b5e20;margin-top:30px}
         </tr>
     </table>
 
-    <h3>Source Transaction Details (From ImportBank)</h3>
+    <h3>Source Transaction Details</h3>
     <table class="data-table" style="width: 100%;">
         <tr><th>Transaction Date</th><td>{{ bank_record.date|date:"Y-m-d" }}</td></tr>
         <tr><th>Description</th><td>{{ bank_record.transaction_description|default:"N/A" }}</td></tr>
@@ -114,28 +113,32 @@ h3{color:#1b5e20;margin-top:30px}
 
     <div style="margin-top: 20px;">
         {% if is_from_unity_info and recon_record.company_code %}
-            <a href="{% url 'unity_information' company_code=recon_record.company_code %}#bank-lines" class="return-button" style="margin-right: 15px;">
+            <a href="{% url 'unity_information' company_code=recon_record.company_code %}#bank-lines" class="return-button">
                 &larr; Back to {{ recon_record.company_code }} Information
             </a>
+        {% elif source == 'global' %}
+            <a href="{% url 'global_bank' %}" class="return-button" style="background-color: #2e7d32; border-color: #1b5e20;">
+                &larr; Back to Global Bank History
+            </a>
         {% else %}
-            <a href="{% url 'bank_list' %}" class="return-button" style="margin-right: 15px;">
+            <a href="{% url 'bank_list' %}" class="return-button">
                 &larr; Back to Bank Lines List
             </a>
         {% endif %}
         
-        <button id="editBtn" class="edit-button">
-            Edit/Confirm Details
-        </button>
+        <button id="editBtn" class="edit-button">Edit/Confirm Details</button>
     </div>
 </div>
 
 <div id="reviewModal" class="modal">
     <div class="modal-content">
-        <h3>Update Review Details for Line {{ recon_record.pk }}</h3>
+        <h3>Update Review Details: Line {{ recon_record.pk }}</h3>
         
         <form id="reviewForm" method="POST" action="{% url 'update_bankline_details' recon_id=recon_record.pk %}">
             {% csrf_token %}
             
+            <input type="hidden" name="source_param" value="{{ source }}">
+
             <label for="company_code_select">Change Company Code:</label>
             <select id="company_code_select" name="company_code_select">
                 <option value="" {% if not recon_record.company_code %}selected{% endif %}>--- Clear Allocation ---</option>
@@ -148,22 +151,38 @@ h3{color:#1b5e20;margin-top:30px}
             </select>
 
             <label for="fiscal_date">Assign Fiscal Date:</label>
-            <input type="date" id="fiscal_date" name="fiscal_date" 
-                        value="{{ recon_record.fiscal_date|date:'Y-m-d'|default:'' }}">
+            <input type="date" id="fiscal_date" name="fiscal_date" value="{{ recon_record.fiscal_date|date:'Y-m-d'|default:'' }}">
             
             <label for="review_note">Review Note (Category):</label>
             <select id="review_note" name="review_note" required>
                 <option value="" disabled {% if not current_category %}selected{% endif %}>--- Select Note Category ---</option>
                 {% for note in review_notes %}
-                    <option value="{{ note }}" {% if current_category == note %}selected{% endif %}>
-                        {{ note }}
-                    </option>
+                    <option value="{{ note }}" {% if current_category == note %}selected{% endif %}>{{ note }}</option>
                 {% endfor %}
             </select>
 
             <label for="review_note_text">Internal Comments / Details:</label>
-            <textarea id="review_note_text" name="review_note_text" placeholder="Enter specific details about this query or allocation note...">{{ current_custom_text }}</textarea>
-            <small style="color: #666; font-size: 0.85em;">Note: Category and comments will be merged in the database with a ' | ' separator.</small>
+            <textarea id="review_note_text" name="review_note_text" placeholder="Add specific details...">{{ current_custom_text }}</textarea>
+
+            <div class="email-box">
+                <h4 style="margin: 0 0 10px 0; color: #0d47a1;"><i class="fas fa-envelope"></i> Internal Notification</h4>
+                
+                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                    <input type="checkbox" name="send_email_toggle" id="sendEmailToggle" style="width: 18px; height: 18px;">
+                    <span style="font-weight: bold; color: #333;">Notify Team via Outlook?</span>
+                </label>
+
+                <div id="emailFields" style="display: none; margin-top: 10px; border-top: 1px solid #90caf9; padding-top: 10px;">
+                    <label for="recipient_email">Recipient (To):</label>
+                    <input type="email" name="recipient_email" placeholder="agent@futurasa.co.za">
+                    
+                    <label for="cc_email">CC:</label>
+                    <input type="email" name="cc_email" placeholder="manager@futurasa.co.za">
+
+                    <label for="email_subject">Subject:</label>
+                    <input type="text" name="email_subject" value="Bank Line Update: {{ recon_record.company_code|default:'Unallocated' }} - R {{ recon_record.transaction_amount|floatformat:2 }}">
+                </div>
+            </div>
 
             <div class="modal-footer">
                 <button type="button" class="modal-cancel-button" id="closeBtn">Cancel</button>
@@ -179,29 +198,24 @@ document.addEventListener('DOMContentLoaded', function() {
     const btn = document.getElementById('editBtn');
     const closeBtn = document.getElementById('closeBtn');
     const form = document.getElementById('reviewForm');
+    const emailToggle = document.getElementById('sendEmailToggle');
+    const emailFields = document.getElementById('emailFields');
     
-    if (btn) {
-        btn.onclick = function() {
-            modal.style.display = "block";
-        }
+    if (btn) btn.onclick = () => modal.style.display = "block";
+    closeBtn.onclick = () => modal.style.display = "none";
+    
+    window.onclick = (event) => {
+        if (event.target == modal) modal.style.display = "none";
     }
 
-    closeBtn.onclick = function() {
-        modal.style.display = "none";
-    }
-
-    window.onclick = function(event) {
-        if (event.target == modal) {
-            modal.style.display = "none";
-        }
-    }
+    emailToggle.addEventListener('change', function() {
+        emailFields.style.display = this.checked ? 'block' : 'none';
+    });
     
     form.onsubmit = function(e) {
         e.preventDefault(); 
-        const isConfirmed = confirm("Are you sure you want to POST these changes? Click 'OK' to proceed or 'Cancel' to stop.");
-        if (isConfirmed) {
-            form.submit();
-        }
+        const isConfirmed = confirm("Are you sure you want to POST these changes? If email notification is checked, it will be sent via Microsoft Graph.");
+        if (isConfirmed) form.submit();
     }
 });
 </script>

@@ -1,0 +1,272 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACVV Records | Temp Exists</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* --- YOUR SCALABLE STYLES --- */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
+            font-family: sans-serif;
+            color: #333;
+        }
+
+        .container {
+            width: 98%;
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 10px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        h1 {
+            color: #1b5e20;
+            text-align: center;
+            margin: 20px 0;
+            font-size: clamp(1.5rem, 5vw, 2.5rem);
+        }
+
+        .controls-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .return-button {
+            padding: 10px 20px;
+            background-color: #81c784;
+            border-radius: 5px;
+            text-decoration: none;
+            color: white;
+            font-weight: bold;
+            transition: background 0.3s;
+            display: inline-flex;
+            align-items: center;
+            border: none;
+            cursor: pointer;
+        }
+
+        .return-button:hover { background-color: #66bb6a; }
+
+        /* Darker green for Export and Add actions */
+        .export-button {
+            background-color: #1b5e20;
+        }
+        .export-button:hover {
+            background-color: #0d3b14;
+        }
+
+        /* --- TABLE STYLES --- */
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            background-color: #f0fff0;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border: 1px solid #c3e6cb;
+            margin-bottom: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: auto; 
+            min-width: 1000px;  
+        }
+
+        thead th {
+            background-color: #43a047;
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-size: 14px;
+            white-space: nowrap;
+            position: sticky;
+            top: 0;
+        }
+
+        tbody td {
+            padding: 12px;
+            border-bottom: 1px solid #aed581;
+            font-size: 13px;
+        }
+
+        tbody tr:nth-child(even) { background-color: #e6ffe6; }
+        tbody tr:hover { background-color: #ccffcc; }
+
+        /* --- FORM STYLES --- */
+        .form-container {
+            background-color: #f0fff0;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #c3e6cb;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: none; /* Hidden by default */
+        }
+
+        .grid-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: bold;
+            color: #1b5e20;
+            margin-bottom: 5px;
+        }
+
+        .input-field {
+            width: 100%;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Temp Exists Management</h1>
+
+    <div class="controls-container">
+        <div class="button-group">
+            <a href="{% url 'dashboard' %}" class="return-button">
+                <i class="fas fa-arrow-left" style="margin-right: 8px;"></i> Return to Home Screen
+            </a>
+            <button onclick="toggleAddForm()" class="return-button">
+                <i class="fas fa-user-plus" style="margin-right: 8px;"></i> Add New Exit
+            </button>
+        </div>
+        
+        <div class="button-group">
+            <a href="{% url 'export_temp_exists_excel' %}" class="return-button export-button">
+                <i class="fas fa-file-excel" style="margin-right: 8px;"></i> Export Excel
+            </a>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th>MG Code</th>
+                    <th>Surname</th>
+                    <th>Initials</th>
+                    <th>MIP No.</th>
+                    <th>ID No.</th>
+                    <th>Reason</th>
+                    <th>BIS From</th>
+                    <th>BIS End</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for exit in exits %}
+                <tr>
+                    <td><strong>{{ exit.mg_code }}</strong></td>
+                    <td>{{ exit.surname }}</td>
+                    <td>{{ exit.initials }}</td>
+                    <td>{{ exit.mip_no }}</td>
+                    <td>{{ exit.id_no }}</td>
+                    <td>{{ exit.reason }}</td>
+                    <td>{{ exit.bis_from_date|date:"d.m.Y" }}</td>
+                    <td>{{ exit.bis_end_date|date:"d.m.Y" }}</td>
+                    <td>{{ exit.note|default:"-" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="9" style="text-align: center; padding: 30px; color: #666;">
+                        No temporary exits found in the database.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div id="addFormContainer" class="form-container">
+        <h2 style="color: #1b5e20; margin-top: 0;">Enter Exit Details</h2>
+        <form method="post">
+            {% csrf_token %}
+            <div class="grid-form">
+                <div class="input-group">
+                    <label>MG Code</label>
+                    <input type="text" name="mg_code" class="input-field" required>
+                </div>
+                <div class="input-group">
+                    <label>Surname</label>
+                    <input type="text" name="surname" class="input-field" required>
+                </div>
+                <div class="input-group">
+                    <label>Initials</label>
+                    <input type="text" name="initials" class="input-field">
+                </div>
+                <div class="input-group">
+                    <label>MIP No.</label>
+                    <input type="text" name="mip_no" class="input-field">
+                </div>
+                <div class="input-group">
+                    <label>ID No.</label>
+                    <input type="text" name="id_no" class="input-field">
+                </div>
+                <div class="input-group">
+                    <label>Reason</label>
+                    <input type="text" name="reason" class="input-field">
+                </div>
+                <div class="input-group">
+                    <label>BIS From Date</label>
+                    <input type="date" name="bis_from" class="input-field">
+                </div>
+                <div class="input-group">
+                    <label>BIS End Date</label>
+                    <input type="date" name="bis_end" class="input-field">
+                </div>
+                <div class="input-group" style="grid-column: 1 / -1;">
+                    <label>Notes</label>
+                    <input type="text" name="note" class="input-field" placeholder="Additional information...">
+                </div>
+            </div>
+            
+            <div style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" onclick="toggleAddForm()" class="return-button" style="background-color: #9e9e9e;">Cancel</button>
+                <button type="submit" class="return-button export-button">Save Exit Record</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function toggleAddForm() {
+        const form = document.getElementById('addFormContainer');
+        if (form.style.display === 'none' || form.style.display === '') {
+            form.style.display = 'block';
+            form.scrollIntoView({ behavior: 'smooth' });
+        } else {
+            form.style.display = 'none';
+        }
+    }
+</script>
+
+</body>
+</html>

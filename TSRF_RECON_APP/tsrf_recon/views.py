@@ -10,6 +10,7 @@ from django.utils import timezone
 from django.db.models import Q
 import csv
 import io
+from .models import AttorneySummary, Aod, Pfa, Lpi, LevyData
 from .models import BankLine
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
@@ -18,7 +19,7 @@ from decimal import Decimal,InvalidOperation
 from .models import Org
 from .models import LevyData, ClientNotes, BankLine, Org, TsrfPdfDocument 
 from .forms import AddLevyForm, DocumentUploadForm 
-from django.http import Http404, FileResponse, HttpRequest, HttpResponse
+from django.http import Http404, FileResponse, HttpRequest, HttpResponse, JsonResponse
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import Q, Max, Subquery, OuterRef, F
 import os
@@ -1588,3 +1589,611 @@ def view_email_thread(request, delegation_id):
         'timeline': timeline,
     }
     return render(request, 'email_thread.html', context)
+
+def attorney_list(request):
+    """List view with filtering, search, pagination, and export."""
+    
+    # 1. Base Queryset
+    records = AttorneySummary.objects.all().order_by('a_levy_number')
+
+    # 2. Get Filter and Search Parameters
+    f_aod = request.GET.get('aod')
+    f_pfa = request.GET.get('pfa')
+    f_mip = request.GET.get('mip')
+    f_admin = request.GET.get('admin')
+    f_search = request.GET.get('search') # For Levy or Levy Name
+
+    # 3. Apply Filters
+    if f_aod:
+        records = records.filter(d_aod__icontains=f_aod)
+    if f_pfa:
+        records = records.filter(e_pfa__icontains=f_pfa)
+    if f_mip:
+        records = records.filter(f_mip_status__icontains=f_mip)
+    if f_admin:
+        records = records.filter(i_administrator__icontains=f_admin)
+        
+    # SEARCH LOGIC: Check Levy Number OR Levy Name
+    if f_search:
+        records = records.filter(
+            Q(a_levy_number__icontains=f_search) | 
+            Q(b_levy_name__icontains=f_search)
+        )
+
+    # 4. Handle Excel Export (Exports filtered/searched results)
+    if 'export' in request.GET:
+        return export_filtered_attorneys(records)
+
+    # 5. Pagination (25 per page)
+    paginator = Paginator(records, 25)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    # Dropdown data
+    admins = AttorneySummary.objects.values_list('i_administrator', flat=True).distinct()
+    mip_statuses = AttorneySummary.objects.values_list('f_mip_status', flat=True).distinct()
+
+    context = {
+        'page_obj': page_obj,
+        'admins': admins,
+        'mip_statuses': mip_statuses,
+    }
+    return render(request, 'attorney_summary_detail.html', context)
+
+def export_filtered_attorneys(queryset):
+    """Exports the filtered attorney queryset to Excel."""
+    data = list(queryset.values(
+        'a_levy_number', 'b_levy_name', 'c_attorney', 'd_aod', 
+        'e_pfa', 'f_mip_status', 'g_default_period', 'i_administrator'
+    ))
+    df = pd.DataFrame(data)
+    
+    # Rename columns for Excel
+    df.columns = [
+        'Levy Number', 'Levy Name', 'Attorney', 'AOD Status', 
+        'PFA Status', 'MIP Status', 'Default Period', 'Administrator'
+    ]
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename=Filtered_Attorney_Summary.xlsx'
+    
+    with pd.ExcelWriter(response, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Summary')
+    
+    return response
+
+def attorney_case_view(request, levy_number):
+    """Detailed view for a specific Attorney Case with sub-tables."""
+    # Fetch core data
+    levy = get_object_or_404(LevyData, levy_number=levy_number)
+    attorney = get_object_or_404(AttorneySummary, a_levy_number=levy_number)
+    
+    # Fetch related records for the sub-tables
+    aod_records = Aod.objects.filter(levy_number=levy_number)
+    pfa_records = Pfa.objects.filter(levy_number=levy_number)
+    
+    # Fetch notes
+    billing_notes = ClientNotes.objects.filter(levy_number=levy_number).order_by('-date')
+    
+    context = {
+        'levy': levy,
+        'attorney': attorney,
+        'aod_records': aod_records,
+        'pfa_records': pfa_records,
+        'billing_notes': billing_notes,
+    }
+    return render(request, 'attorney_summary_detail.html', context)
+
+def get_attorney_detail_ajax(request, levy_number):
+    """AJAX endpoint to fetch specific case data and live Org financials."""
+    # 1. Fetch Core Data
+    attorney = get_object_or_404(AttorneySummary, a_levy_number=levy_number)
+    levy_master = LevyData.objects.filter(levy_number=levy_number).first()
+    
+    # 2. Fetch LATEST financial data from Org table
+    # We order by -import_date and -id to get the most recent record
+    latest_org = Org.objects.filter(levy_number=levy_number).order_by('-import_date', '-id').first()
+
+    # 3. Fetch Sub-table data
+    aods = list(Aod.objects.filter(levy_number=levy_number).values(
+        'aod_number', 'aod_amount', 'repay_amount', 'current_status'
+    ))
+    pfas = list(Pfa.objects.filter(levy_number=levy_number).values(
+        'pfa_number', 'pfa_status', 'pfa_type', 'determination_due_date'
+    ))
+    notes = list(ClientNotes.objects.filter(levy_number=levy_number).order_by('-date').values(
+        'date', 'notes_text', 'user'
+    ))
+
+    # 4. Construct Data Package
+    data = {
+        'levy_number': attorney.a_levy_number,
+        'levy_name': attorney.b_levy_name,
+        'attorney_name': attorney.c_attorney,
+        'aod_status': attorney.d_aod,
+        'pfa_status': attorney.e_pfa,
+        'default_period': attorney.g_default_period,
+        'admin': attorney.i_administrator,
+        
+        # Financials from Org Table
+        'fiscal': latest_org.billing_period if latest_org else "N/A",
+        'cbr': latest_org.cbr_status if latest_org else "T.M.P.",
+        'due_amount': str(latest_org.due_amount) if latest_org else "0.00",
+        'overs_unders': str(latest_org.overs_unders) if latest_org else "0.00",
+        
+        'aods': aods,
+        'pfas': pfas,
+        'notes': notes
+    }
+    return JsonResponse(data)
+
+def aod_list(request):
+    """AOD Master List with filtering, date range, pagination, and export."""
+    
+    # 1. Base Queryset
+    records = Aod.objects.all().order_by('-aod_start_date')
+
+    # 2. Get Filter Parameters
+    f_search = request.GET.get('search')
+    f_status = request.GET.get('status')
+    f_start_date = request.GET.get('start_date')
+    f_end_date = request.GET.get('end_date')
+
+    # 3. Apply Filters
+    if f_status:
+        records = records.filter(aod_status__icontains=f_status)
+    
+    if f_search:
+        # Search Levy Number or AOD Number
+        records = records.filter(
+            Q(levy_number__icontains=f_search) | 
+            Q(aod_number__icontains=f_search)
+        )
+
+    # Date Range Filter on AOD Start Date
+    if f_start_date and f_end_date:
+        records = records.filter(aod_start_date__range=[f_start_date, f_end_date])
+
+    # 4. Handle Export
+    if 'export' in request.GET:
+        return export_aod_list(records)
+
+    # 5. Pagination (25 per page)
+    paginator = Paginator(records, 25)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    # Efficiently map Levy Names to the current page only
+    levy_nums = [r.levy_number for r in page_obj]
+    levy_names = {l.levy_number: l.levy_name for l in LevyData.objects.filter(levy_number__in=levy_nums)}
+    
+    for r in page_obj:
+        r.levy_name = levy_names.get(r.levy_number, "Unknown")
+
+    # Get unique statuses for dropdown
+    statuses = Aod.objects.values_list('aod_status', flat=True).distinct()
+
+    context = {
+        'page_obj': page_obj,
+        'statuses': statuses,
+    }
+    return render(request, 'aod_detail.html', context)
+
+def export_aod_list(queryset):
+    """Excel export for filtered AOD records."""
+    # Create list of dicts for DataFrame
+    levy_names = {l.levy_number: l.levy_name for l in LevyData.objects.all()}
+    
+    data = []
+    for r in queryset:
+        data.append({
+            'Levy Number': r.levy_number,
+            'Levy Name': levy_names.get(r.levy_number, "Unknown"),
+            'AOD Amount': r.aod_amount,
+            'AOD Number': r.aod_number,
+            'AOD Status': r.aod_status,
+            'Start Date': r.aod_start_date,
+            'Repay Day': r.repayment_date.strftime('%d') if r.repayment_date else '20'
+        })
+
+    df = pd.DataFrame(data)
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename=AOD_Export_{datetime.now().strftime("%Y%m%d")}.xlsx'
+    
+    with pd.ExcelWriter(response, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='AOD Master List')
+    
+    return response
+
+def get_aod_detail_ajax(request, aod_number):
+    """Fetches full AOD details and REAL installment schedule from Org table."""
+    aod = get_object_or_404(Aod, aod_number=aod_number)
+    levy = LevyData.objects.filter(levy_number=aod.levy_number).first()
+
+    # Query the 'Org' table for real billing data linked to this levy
+    # Filtering by levy_number to show the financial breakdown
+    org_billing = Org.objects.filter(levy_number=aod.levy_number).order_by('-billing_period')
+
+    installments = []
+    for item in org_billing:
+        # Calculating balance: Due Amount + Overs/Unders
+        # Adjust this logic if you have a specific 'Paid' column in your DB
+        balance = float(item.due_amount or 0) + float(item.overs_unders or 0)
+        
+        installments.append({
+            'ref': item.billing_period, # Using Billing Period as the reference
+            'fiscal': item.import_date.strftime('%d/%m/%Y') if item.import_date else 'N/A', 
+            'amount': float(item.due_amount or 0), 
+            'deposit': float(item.member_total or 0) + float(item.employer_total or 0), 
+            'bal': balance, 
+            'rec': "Yes" if balance <= 0 else "No"
+        })
+
+    data = {
+        'aod_number': aod.aod_number,
+        'levy_number': aod.levy_number,
+        'levy_name': levy.levy_name if levy else "Unknown",
+        'aod_type': "Contributions", 
+        'start_date': aod.aod_start_date.strftime('%d/%m/%Y') if aod.aod_start_date else 'N/A',
+        'end_date': aod.aod_end_date.strftime('%d/%m/%Y') if aod.aod_end_date else 'N/A',
+        'repay_day': aod.repayment_date.strftime('%d') if aod.repayment_date else '20',
+        'aod_amount': str(aod.aod_amount),
+        'repay_amount': str(aod.repay_amount),
+        'aod_status': aod.aod_status,
+        'current_status': aod.current_status,
+        'installments': installments
+    }
+    return JsonResponse(data)
+
+def pfa_list(request):
+    """PFA Master List with multi-column filtering, pagination, and export."""
+    
+    # 1. Base Queryset
+    records = Pfa.objects.all().order_by('-determination_due_date')
+
+    # 2. Get Filter Parameters
+    f_pfa_no = request.GET.get('pfa_no')
+    f_status = request.GET.get('status')
+    f_type = request.GET.get('type')
+    f_sched_status = request.GET.get('sched_status')
+    f_sched_due = request.GET.get('sched_due')
+    f_pfa_due = request.GET.get('pfa_due')
+
+    # 3. Apply Filters
+    if f_pfa_no:
+        records = records.filter(pfa_number__icontains=f_pfa_no)
+    if f_status:
+        records = records.filter(pfa_status__icontains=f_status)
+    if f_type:
+        records = records.filter(pfa_type__icontains=f_type)
+    if f_sched_status:
+        records = records.filter(schedule_status__icontains=f_sched_status)
+    if f_sched_due:
+        records = records.filter(schedule_due=f_sched_due)
+    if f_pfa_due:
+        records = records.filter(determination_due_date=f_pfa_due)
+
+    # 4. Handle Excel Export
+    if 'export' in request.GET:
+        return export_pfa_list(records)
+
+    # 5. Pagination (25 per page)
+    paginator = Paginator(records, 25)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    # Efficiently map Levy Names to the current page only
+    levy_nums = [r.levy_number for r in page_obj]
+    levy_names = {l.levy_number: l.levy_name for l in LevyData.objects.filter(levy_number__in=levy_nums)}
+    
+    for r in page_obj:
+        r.levy_name = levy_names.get(r.levy_number, "Unknown")
+
+    # Get unique statuses/types for dropdowns
+    pfa_statuses = Pfa.objects.values_list('pfa_status', flat=True).distinct()
+    sched_statuses = Pfa.objects.values_list('schedule_status', flat=True).distinct()
+
+    context = {
+        'page_obj': page_obj,
+        'pfa_statuses': pfa_statuses,
+        'sched_statuses': sched_statuses,
+    }
+    return render(request, 'pfa_detail.html', context)
+
+def export_pfa_list(queryset):
+    """Excel export for filtered PFA records."""
+    levy_names = {l.levy_number: l.levy_name for l in LevyData.objects.all()}
+    
+    data = []
+    for r in queryset:
+        data.append({
+            'Levy Number': r.levy_number,
+            'Levy Name': levy_names.get(r.levy_number, "Unknown"),
+            'PFA Number': r.pfa_number,
+            'PFA Status': r.pfa_status,
+            'PFA Type': r.pfa_type,
+            'Schedule Status': r.schedule_status,
+            'Schedule Due': r.schedule_due.strftime('%d/%m/%Y') if r.schedule_due else '',
+            'PFA Due Date': r.determination_due_date.strftime('%d/%m/%Y') if r.determination_due_date else ''
+        })
+
+    df = pd.DataFrame(data)
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename=PFA_Master_Export_{datetime.now().strftime("%Y%m%d")}.xlsx'
+    
+    with pd.ExcelWriter(response, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='PFA List')
+    
+    return response
+
+def get_pfa_detail_ajax(request, pfa_number):
+    """Fetches PFA details safely even if multiple records exist with the same PFA number."""
+    # Use filter().first() instead of get() to prevent the MultipleObjectsReturned error
+    pfa = Pfa.objects.filter(pfa_number=pfa_number).first()
+    
+    if not pfa:
+        return JsonResponse({'error': 'PFA not found'}, status=404)
+
+    levy = LevyData.objects.filter(levy_number=pfa.levy_number).first()
+
+    # Fetch notes
+    notes = list(ClientNotes.objects.filter(levy_number=pfa.levy_number).values(
+        'notes_text', 'user', 'date'
+    ))
+
+    data = {
+        'pfa_number': pfa.pfa_number,
+        'levy_number': pfa.levy_number,
+        'levy_name': levy.levy_name if levy else "Unknown",
+        'determination_period': pfa.determination_periods,
+        # Using getattr to handle potential missing fields in unmanaged models
+        'signed_date': pfa.determination_signed_date.strftime('%d/%m/%Y') if hasattr(pfa, 'determination_signed_date') and pfa.determination_signed_date else 'N/A',
+        'due_date': pfa.determination_due_date.strftime('%d/%m/%Y') if pfa.determination_due_date else 'N/A',
+        'pfa_status': pfa.pfa_status,
+        'pfa_type': pfa.pfa_type,
+        'schedule_status': pfa.schedule_status,
+        'schedule_due': pfa.schedule_due.strftime('%d/%m/%Y') if hasattr(pfa, 'schedule_due') and pfa.schedule_due else 'N/A',
+        'amount': str(getattr(pfa, 'determination_amount', '0.00')),
+        'lpi_amount': str(getattr(pfa, 'determination_lpi_amount', '0.00')),
+        'notes': notes
+    }
+    return JsonResponse(data)
+
+def lpi_list(request):
+    """LPI list with search, pagination, and export."""
+    
+    # 1. Base Queryset
+    records = Lpi.objects.all().order_by('-lpi_create_date')
+
+    # 2. Get Filter Parameters
+    f_levy = request.GET.get('levy')
+    f_ref = request.GET.get('reference')
+
+    # 3. Apply Filters
+    if f_levy:
+        records = records.filter(employer_number__icontains=f_levy)
+    if f_ref:
+        records = records.filter(reference__icontains=f_ref)
+
+    # 4. Handle Export (Before Pagination)
+    if 'export' in request.GET:
+        return export_lpi_list(records)
+
+    # 5. Pagination (25 per page)
+    paginator = Paginator(records, 25)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    return render(request, 'lpi_detail.html', {
+        'page_obj': page_obj
+    })
+
+def export_lpi_list(queryset):
+    """Excel export for filtered LPI records."""
+    data = list(queryset.values(
+        'employer_number', 'reference', 'fiscal_date', 
+        'lpi_raised_amount', 'contribution_amount', 
+        'late_payment_contribution_amount', 'lpi_calculation_date', 'lpi_create_date'
+    ))
+    df = pd.DataFrame(data)
+    
+    # Rename for professional Excel output
+    df.columns = [
+        'Levy Number', 'LPI Reference', 'Fiscal Date', 
+        'LPI Raised', 'Total Contribution', 'Late Contribution', 
+        'LPI Calc Date', 'LPI Create Date'
+    ]
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename=LPI_Export_{datetime.now().strftime("%Y%m%d")}.xlsx'
+    
+    with pd.ExcelWriter(response, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False)
+    
+    return response
+
+def import_lpi_excel(request):
+    if request.method == 'POST' and request.FILES.get('excel_file'):
+        excel_file = request.FILES['excel_file']
+        
+        try:
+            # Read Excel file
+            df = pd.read_excel(excel_file)
+
+            # Clean column names (strip whitespace)
+            df.columns = df.columns.str.strip()
+
+            lpi_instances = []
+            for _, row in df.iterrows():
+                # Helper function to strip single quotes and whitespace
+                def clean(val):
+                    if pd.isna(val): return None
+                    return str(val).lstrip("'").strip()
+
+                # Helper to handle date conversion (DD/MM/YYYY)
+                def parse_date(date_val):
+                    if pd.isna(date_val) or not date_val: return None
+                    if isinstance(date_val, datetime): return date_val.date()
+                    try:
+                        return datetime.strptime(clean(date_val), '%d/%m/%Y').date()
+                    except (ValueError, TypeError):
+                        return None
+
+                # Create LPI instance
+                lpi_instances.append(Lpi(
+                    employer_number=clean(row.get('Employer Number')),
+                    employer_name=clean(row.get('Employer Name')),
+                    fiscal_date=parse_date(row.get('Fiscal Date')),
+                    reference=clean(row.get('Reference')),
+                    lpi_raised_amount=row.get('Lpi Raised Amount', 0),
+                    contribution_amount=row.get('Contribution Amount', 0),
+                    late_payment_contribution_amount=row.get('Late Payment Contribution Amount', 0),
+                    lpi_calculation_date=parse_date(row.get('Lpi Calculation Date')),
+                    lpi_end_date=parse_date(row.get('Lpi End Date')),
+                    lpi_create_date=parse_date(row.get('Lpi Create Date')),
+                ))
+
+            # Bulk create for performance
+            if lpi_instances:
+                Lpi.objects.bulk_create(lpi_instances)
+                messages.success(request, f"Successfully imported {len(lpi_instances)} LPI records.")
+            
+            return redirect('lpi_list')
+
+        except Exception as e:
+            messages.error(request, f"Error processing file: {str(e)}")
+            
+    return render(request, 'import_lpi.html')
+
+def create_aod(request, levy_number):
+    levy = get_object_or_404(LevyData, levy_number=levy_number)
+    
+    if request.method == 'POST':
+        Aod.objects.create(
+            levy_number=levy_number,
+            aod_number=request.POST.get('aod_number'),
+            aod_amount=request.POST.get('aod_amount'),
+            repay_amount=request.POST.get('repay_amount'),
+            aod_status=request.POST.get('aod_status'),
+            current_status=request.POST.get('current_status'),
+            repayment_date=request.POST.get('repayment_day'),
+            aod_start_date=request.POST.get('start_date') or None,
+            aod_end_date=request.POST.get('end_date') or None,
+            # Process the file upload here
+            attachment=request.FILES.get('attachment') 
+        )
+        return redirect('attorney_list')
+
+    return render(request, 'create_aod.html', {'levy': levy})
+
+def create_pfa(request, levy_number):
+    levy = get_object_or_404(LevyData, levy_number=levy_number)
+    
+    if request.method == 'POST':
+        Pfa.objects.create(
+            levy_number=levy_number,
+            pfa_number=request.POST.get('pfa_number'),
+            pfa_status=request.POST.get('pfa_status'),
+            pfa_type=request.POST.get('pfa_type'),
+            determination_periods=request.POST.get('periods'),
+            determination_due_date=request.POST.get('due_date') or None,
+            schedule_status=request.POST.get('schedule_status'),
+            # Process the file upload here
+            attachment=request.FILES.get('attachment')
+        )
+        return redirect('attorney_list')
+
+    return render(request, 'create_pfa.html', {'levy': levy})
+
+def export_masterfile_excel(request):
+    # 1. Fetch Base Levy Data
+    levy_qs = LevyData.objects.all().values()
+    df_levy = pd.DataFrame(list(levy_qs))
+
+    if df_levy.empty:
+        return HttpResponse("No data found in LevyData table.")
+
+    # 2. Aggregations (Subqueries for latest status)
+    latest_org_subquery = Org.objects.filter(
+        levy_number=OuterRef('levy_number')
+    ).order_by('-import_date')
+    
+    org_agg = Org.objects.values('levy_number').annotate(
+        total_due=Sum('due_amount'),
+        total_overs=Sum('overs_unders'),
+        latest_fiscal=Max('billing_period'),
+        current_cbr=Subquery(latest_org_subquery.values('cbr_status')[:1])
+    )
+    df_org = pd.DataFrame(list(org_agg))
+
+    lpi_agg = Lpi.objects.values('employer_number').annotate(
+        total_lpi=Sum('lpi_raised_amount')
+    )
+    df_lpi = pd.DataFrame(list(lpi_agg))
+
+    bank_agg = BankLine.objects.filter(Recon='No').values('Levy_number').annotate(
+        unallocated=Sum('Amount')
+    )
+    df_bank = pd.DataFrame(list(bank_agg))
+
+    # 3. Merging and Mapping
+    df_levy['levy_number'] = df_levy['levy_number'].astype(str)
+    
+    if not df_org.empty:
+        df_org['levy_number'] = df_org['levy_number'].astype(str)
+        df_levy = pd.merge(df_levy, df_org, on='levy_number', how='left')
+    
+    if not df_lpi.empty:
+        df_lpi['employer_number'] = df_lpi['employer_number'].astype(str)
+        df_levy = pd.merge(df_levy, df_lpi, left_on='levy_number', right_on='employer_number', how='left')
+        
+    if not df_bank.empty:
+        df_bank['Levy_number'] = df_bank['Levy_number'].astype(str)
+        df_levy = pd.merge(df_levy, df_bank, left_on='levy_number', right_on='Levy_number', how='left')
+
+    df_levy['Fiscal'] = df_levy.get('latest_fiscal', '')
+    df_levy['Due Amount'] = df_levy.get('total_due', 0)
+    df_levy['CBR Status'] = df_levy.get('current_cbr', 'T.M.P.') 
+    df_levy['Total LPI Outstanding'] = df_levy.get('total_lpi', 0)
+    df_levy['Total Unallocated Deposits'] = df_levy.get('unallocated', 0)
+    df_levy['Overs & Unders'] = df_levy.get('total_overs', 0)
+
+    # 4. Final Column Selection (Corrected levy_user typo)
+    cols_to_export = [
+        'levy_number', 'levy_name', 'mip_status', 'commencement_date', 'termination_date',
+        'responsible_person', 'responsible_person_id', 'responsible_person_email',
+        'responsible_person_cell', 'responsible_person_address', 'registration_number',
+        'fica', 'levy_user', 'user_login', 'levy_user_2', 'user_login_2', 'notice_email',
+        'telephone', 'postal_address', 'physical_address', 'director_name_1', 'director_mail_1',
+        'director_cell_1', 'director_address_1', 'director_name_2', 'director_mail_2',
+        'director_cell_2', 'director_address_2', 'director_name_3', 'director_mail_3',
+        'director_cell_3', 'director_address_3', 'director_name_4', 'director_mail_4',
+        'director_cell_4', 'director_address_4', 'Fiscal', 'Due Amount', 'CBR Status',
+        'Total LPI Outstanding', 'Total Unallocated Deposits', 'Overs & Unders',
+        'administrator', 'termination_reason', 'termination_status', 'attorney_case', 'attorneys'
+    ]
+
+    final_df = df_levy[cols_to_export].fillna(0)
+
+    # 5. Create Excel Response with Date Header
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename=TSRF_Masterfile_{datetime.now().strftime("%Y%m%d")}.xlsx'
+    
+    with pd.ExcelWriter(response, engine='openpyxl') as writer:
+        # Write the dataframe starting from row 2 (index 1) to leave room for the header
+        final_df.to_excel(writer, index=False, sheet_name='Masterfile', startrow=1)
+        
+        # Access the openpyxl worksheet object to add the header
+        workbook = writer.book
+        worksheet = writer.sheets['Masterfile']
+        
+        # Add the custom header in cell A1
+        gen_time = datetime.now().strftime("%Y-%m-%d %H:%M")
+        header_text = f"TSRF Masterfile - Generated on: {gen_time}"
+        worksheet['A1'] = header_text
+        
+        # Optional: Bold the header
+        from openpyxl.styles import Font
+        worksheet['A1'].font = Font(bold=True, size=12)
+
+    return response

@@ -223,6 +223,7 @@ tr:hover {background-color: #e8f5e9;}
                     <div>
                         <label style="font-weight:bold;">Claim Type</label>
                         <select name="claim_type" id="claim_type_select" class="form-select" onchange="toggleTwoPotLogic()">
+                            <option value="New">New</option>
                             <option value="Withdrawal">Withdrawal</option>
                             <option value="Retirement">Retirement</option>
                             <option value="Death">Death</option>
@@ -249,15 +250,17 @@ tr:hover {background-color: #e8f5e9;}
                     </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-                    <div>
-                        <label style="font-weight:bold;">Claim Status</label>
-                        <select name="claim_status" id="claim_status_select" class="form-select" onchange="toggleWithdrawalSubFields()">
-                            <option value="Submitted">Submitted</option>
-                            <option value="Paid">Paid</option>
-                            <option value="Withdraw - Not Allowed">Withdraw - Not Allowed</option>
-                            <option value="Withdraw – Already Claimed in Current Tax Year">Withdraw – Already Claimed in Current Tax Year</option>
-                        </select>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                            <div>
+                                <label style="font-weight:bold;">Claim Status</label>
+                                <select name="claim_status" id="claim_status_select" class="form-select" onchange="toggleWithdrawalSubFields()">
+                                    <option value="New" selected>New</option>
+                                    <option value="Paid">Paid</option>
+                                    <option value="Submitted">Submitted</option>
+                                    <option value="Incomplete">Incomplete</option>
+                                    <option value="Withdraw - Not Allowed">Withdraw - Not Allowed</option>
+                                    <option value="Withdraw – Already Claimed in Current Tax Year">Withdraw – Already Claimed in Current Tax Year</option>
+                                </select>
 
                         <div id="div_two_pot_withdrawal_details" style="display:none; margin-top: 10px; padding: 10px; border-left: 3px solid #fbc02d; background: #fffde7; border-radius: 4px;">
                             <label style="font-size: 0.85em; font-weight: bold; color: #bc5100;">Note Helper: Reason</label>
@@ -426,7 +429,7 @@ tr:hover {background-color: #e8f5e9;}
 <script>
     let originalStatuses = [];
     let originalPayments = [];
-    const twoPotStatuses = ['Submitted', 'Paid', 'Withdraw - Not Allowed', 'Withdraw – Already Claimed in Current Tax Year'];
+    const twoPotStatuses = ['New', 'Submitted', 'Paid', 'Withdraw - Not Allowed', 'Withdraw – Already Claimed in Current Tax Year'];
     const twoPotPayments = ['Full Payment', 'Partially Taken'];
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -463,7 +466,7 @@ tr:hover {background-color: #e8f5e9;}
         togglePotVisibility();
         
         const sSel = document.getElementById('claim_status_select');
-        if(sSel && sSel.options.length > 0) sSel.value = "Submitted";
+        if(sSel && sSel.options.length > 0) sSel.value = "New";
         document.getElementById('claimModal').style.display = 'block';
     }
 

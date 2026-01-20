@@ -1150,7 +1150,11 @@ def generate_recon_statement(request, recon_id):
 @login_required
 def display_bankline_review(request, recon_id):
     """Displays a single reconciled bank line for review, unpacking the note field."""
-    is_from_unity_info = request.GET.get('source') == 'unity'
+    # --- CAPTURE NAVIGATION SOURCE ---
+    # We check if it's from Unity Information or Global Bank Archive
+    source_param = request.GET.get('from')
+    is_from_unity_info = request.GET.get('source') == 'unity' or source_param == 'unity'
+    
     recon_record = get_object_or_404(ReconnedBank.objects.select_related('bank_line'), pk=recon_id)
     
     # --- UNPACK THE NOTE FIELD ---
@@ -1177,65 +1181,107 @@ def display_bankline_review(request, recon_id):
         'current_category': unpacked_category,        # Separate variable for dropdown
         'current_custom_text': unpacked_custom_text,  # Separate variable for textarea
         'is_from_unity_info': is_from_unity_info,
+        'source': source_param,                       # Pass 'global' to template for the back button
     }
     return render(request, 'unity_internal_app/display_bankline_review.html', context)
 
 @login_required
 @transaction.atomic
 def update_bankline_details(request, recon_id):
-    """Updates ReconnedBank by packing Category and Text into the single review_note field."""
-    recon_record = get_object_or_404(ReconnedBank, pk=recon_id)
+    """Updates ReconnedBank and sends email using the verified OutlookGraphService signature."""
+    recon_record = get_object_or_404(ReconnedBank.objects.select_related('bank_line'), pk=recon_id)
     
     if request.method == 'POST':
         new_company_code = request.POST.get('company_code_select')
         new_fiscal_date = request.POST.get('fiscal_date')
+        source_param = request.POST.get('source_param')
         
-        # 1. Capture fields separately from the form
         category = request.POST.get('review_note', '').strip()
         custom_text = request.POST.get('review_note_text', '').strip()
 
-        # 2. Pack them into the single available field using a separator
-        # Format saved to DB: "Category Name | Custom detailed note text"
         if category and custom_text:
             combined_note = f"{category} | {custom_text}"
         else:
             combined_note = category or custom_text
 
-        # 3. Update fields
         allocation_cleared = (new_company_code in [None, '', 'None'])
         recon_record.company_code = new_company_code if new_company_code else None
         recon_record.fiscal_date = new_fiscal_date if new_fiscal_date else None
-        recon_record.review_note = combined_note # Store the packed string
+        recon_record.review_note = combined_note 
         
-        old_status = recon_record.recon_status
-        new_status = old_status
-
-        # --- STATUS LOGIC ---
+        # Status Logic
+        new_status = recon_record.recon_status
         if allocation_cleared:
-            new_status = None
+            new_status = ''
         elif recon_record.company_code:
             new_status = 'Unreconciled - Allocated' if recon_record.fiscal_date else 'Unreconciled - Assigned'
         
-        # Check the 'category' part specifically for status override
         if category and "Query required" in category:
             new_status = 'Review Pending'
         
-        if new_status != old_status:
-            messages.info(request, f"Status updated to '{new_status or 'Unidentified'}'.")
-
-        recon_record.recon_status = new_status if new_status is not None else ''
+        recon_record.recon_status = new_status
         recon_record.save()
 
-        # 4. Sync to original bank line comments
+        # Sync to bank line
         bank_line = recon_record.bank_line
         bank_line.comments = f"Reviewed: {combined_note} (Code: {recon_record.company_code or 'N/A'})"
         bank_line.save()
-        
-        messages.success(request, f"Bank Line {recon_id} details saved.")
-        return redirect('display_bankline_review', recon_id=recon_id)
+
+        # --- EMAIL NOTIFICATION LOGIC (FIXED SIGNATURE) ---
+        if request.POST.get('send_email_toggle') == 'on':
+            recipient = request.POST.get('recipient_email')
+            cc_email = request.POST.get('cc_email')
+            subject = request.POST.get('email_subject')
+
+            # Combine To and CC if CC exists (Graph API often accepts comma-separated strings)
+            full_recipients = recipient
+            if cc_email:
+                full_recipients = f"{recipient},{cc_email}"
+
+            email_body_html = f"""
+            <html>
+            <body style="font-family: sans-serif; line-height: 1.6; color: #333;">
+                <div style="background-color: #1b5e20; color: white; padding: 15px; border-radius: 8px 8px 0 0;">
+                    <h2 style="margin:0;">Bank Line Review Update</h2>
+                </div>
+                <div style="padding: 20px; border: 1px solid #aed581; border-top: none; border-radius: 0 0 8px 8px;">
+                    <p>Hello,</p>
+                    <p>The following bank line has been updated by <strong>{request.user.username}</strong>:</p>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Company:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">{recon_record.company_code or 'N/A'}</td></tr>
+                        <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Amount:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">R {recon_record.transaction_amount}</td></tr>
+                        <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Category:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">{category}</td></tr>
+                        <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Notes:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">{custom_text}</td></tr>
+                    </table>
+                    <p style="margin-top: 20px; font-size: 12px; color: #777;">System: Unity_Internal | Ref: {recon_id}</p>
+                </div>
+            </body>
+            </html>
+            """
+            
+            # Using the positional arguments from your working 'unity_information' view
+            # Signature: (sender, recipient, subject, body, type)
+            result = OutlookGraphService.send_outlook_email(
+                settings.OUTLOOK_EMAIL_ADDRESS, 
+                full_recipients, 
+                subject, 
+                email_body_html, 
+                'HTML'
+            )
+
+            if result.get('success'):
+                messages.success(request, f"Details saved and email sent to {recipient}.")
+            else:
+                messages.error(request, f"Changes saved, but Graph API failed: {result.get('error')}")
+        else:
+            messages.success(request, f"Bank Line {recon_id} details saved.")
+
+        # --- CONDITIONAL REDIRECT ---
+        if source_param == 'global':
+            return redirect('global_bank')
+        return redirect('bank_list')
     
     return redirect('display_bankline_review', recon_id=recon_id)
-
 # --- BILLING HELPER FUNCTION (NOW OBSOLETE/OVERWRITTEN) ---
 # KEPT FOR CONTEXT, BUT WILL BE OVERWRITTEN BY NEW LOGIC
 # def calculate_bill_debt(...)

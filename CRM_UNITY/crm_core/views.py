@@ -12,6 +12,7 @@ from datetime import datetime, date, timezone as py_timezone
 from dateutil import parser
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill
+from datetime import timedelta
 
 from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
@@ -924,16 +925,14 @@ def delegation_report_view(request):
     if request.user.username.lower() != 'omega':
         return redirect('dashboard')
 
-    # Get Date Filters
+    # 1. Get Date Filters
     date_query, start_date, end_date = get_date_filters(request)
     valid_entries_filter = Q(category__isnull=False) & ~Q(category='') & \
                            Q(type__isnull=False) & ~Q(type='') & ~Q(type='None')
     
-    # Combined Filter
     final_filter = date_query & valid_entries_filter
 
     # --- SECTION 1: OVERALL TOTALS ---
-    # Apply date filter to totals too
     all_emails_total = CrmDelegateTo.objects.filter(date_query).count()
     work_stats = CrmDelegateTo.objects.filter(date_query).values('work_related').annotate(count=Count('email_id'))
     
@@ -943,9 +942,8 @@ def delegation_report_view(request):
         if status in work_related_data:
             work_related_data[status] = item['count']
 
-    # --- SECTION 2: BREAKDOWN ---
+    # --- SECTION 2: BREAKDOWN & SUMMARY (Existing Logic) ---
     raw_breakdown = CrmDelegateTo.objects.filter(final_filter).values('category', 'type').annotate(count=Count('email_id')).order_by('category', 'type')
-    
     type_selection_breakdown = []
     for item in raw_breakdown:
         type_selection_breakdown.append({
@@ -955,9 +953,7 @@ def delegation_report_view(request):
             'count': item['count']
         })
 
-    # --- SECTION 3: SUMMARY ---
     raw_summary = CrmDelegateTo.objects.filter(final_filter).values('category').annotate(subtotal=Count('email_id')).order_by('-subtotal')
-    
     category_summary = []
     for item in raw_summary:
         category_summary.append({
@@ -965,11 +961,43 @@ def delegation_report_view(request):
             'subtotal': item['subtotal']
         })
 
+    # --- SECTION 4: DETAILED FLOW & SLA CALCULATION ---
+    # This section feeds your new popup/modal
+    detailed_records = []
+    records_qs = CrmDelegateTo.objects.filter(date_query).order_by('-received_timestamp')
+
+    for item in records_qs:
+        # Get Original Arrival Time
+        inbox_item = CrmInbox.objects.filter(email_id=item.email_id).first()
+        received_date = inbox_item.received_timestamp if inbox_item else item.received_timestamp
+        
+        # Get the Manager/User who performed the action
+        first_action = CrmDelegateAction.objects.filter(task_email_id=item.email_id).order_by('action_timestamp').first()
+        actioned_by = first_action.action_user if first_action else "System"
+
+        # SLA Logic: If (Delegation Date - Received Date) > 2 Days
+        # Note: item.received_timestamp is the time it was delegated
+        sla_flag = "Within SLA"
+        if received_date:
+            time_diff = item.received_timestamp - received_date
+            if time_diff > timedelta(days=2):
+                sla_flag = "Out of SLA"
+
+        detailed_records.append({
+            'received_date': received_date,
+            'actioned_by': actioned_by,
+            'action_date': item.received_timestamp,
+            'delegated_to': item.delegated_to or "Unassigned",
+            'member_code': item.member_group_code or "N/A",
+            'sla_status': sla_flag
+        })
+
     context = {
         'all_emails_total': all_emails_total,
         'work_related_data': work_related_data,
         'type_selection_breakdown': type_selection_breakdown,
         'category_summary': category_summary,
+        'detailed_records': detailed_records, # Pass to popup
         'start_date': start_date,
         'end_date': end_date,
     }
@@ -1177,30 +1205,90 @@ def download_attachment_view(request, message_id, attachment_id):
 @login_required
 def export_delegation_report_excel(request):
     import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
     from django.http import HttpResponse
+    from django.utils import timezone
 
-    # Apply same date filters
+    # 1. Apply date filters using the helper
     date_query, _, _ = get_date_filters(request)
+    
+    # Filter for valid entries (Categorized/Work-related)
     valid_entries_filter = Q(category__isnull=False) & ~Q(category='') & \
                            Q(type__isnull=False) & ~Q(type='') & ~Q(type='None')
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.append(['Category', 'Selection', 'Grouping', 'Count'])
+    ws.title = "Delegation Flow Report"
 
-    raw_data = CrmDelegateTo.objects.filter(date_query & valid_entries_filter).values('category', 'type').annotate(count=Count('email_id'))
+    # 2. NEW COLUMN FLOW: Split and Reordered for clear visibility of the "Flow"
+    headers = [
+        'Email Received Date',      # Original Arrival
+        'Actioned By',               # The User who delegated (Manager)
+        'Date of Action',            # When delegation happened
+        'Delegated To',              # Assigned Agent
+        'Member Group Code', 
+        'Main Category', 
+        'Enquiry Selection', 
+        'Grouping',
+        'Status'
+    ]
+    ws.append(headers)
 
-    for item in raw_data:
+    # Apply Green Styling to Header Row
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="1B5E20", end_color="1B5E20", fill_type="solid")
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+
+    # 3. Fetch Records
+    raw_records = CrmDelegateTo.objects.filter(
+        date_query & valid_entries_filter
+    ).order_by('-received_timestamp')
+
+    # 4. Fill Excel Rows
+    for item in raw_records:
+        # Workflow Logic:
+        # A. Get "Actioned By" from the first log entry in CrmDelegateAction
+        first_action = CrmDelegateAction.objects.filter(
+            task_email_id=item.email_id
+        ).order_by('action_timestamp').first()
+        actioned_by_user = first_action.action_user if first_action else "System"
+
+        # B. Get original Arrival Date from CrmInbox
+        inbox_record = CrmInbox.objects.filter(email_id=item.email_id).first()
+        received_date = inbox_record.received_timestamp.replace(tzinfo=None) if inbox_record and inbox_record.received_timestamp else "N/A"
+
         ws.append([
-            CATEGORY_NAMES.get(str(item['category']), str(item['category'])),
-            item['type'],
-            ENQUIRY_GROUPING_MAP.get(item['type'], "Unmapped"),
-            item['count']
+            received_date,                                              # Email Received Date
+            actioned_by_user,                                           # Actioned By
+            item.received_timestamp.replace(tzinfo=None),               # Date of Action
+            item.delegated_to or "Unassigned",                          # Delegated To
+            item.member_group_code or "N/A",                            # Member Group Code
+            CATEGORY_NAMES.get(str(item.category), str(item.category)), # Main Category
+            item.type,                                                  # Enquiry Selection
+            ENQUIRY_GROUPING_MAP.get(item.type, "Unmapped"),            # Grouping
+            item.status                                                 # Status
         ])
 
+    # 5. Auto-adjust column widths
+    for column in ws.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        ws.column_dimensions[column_letter].width = max_length + 3
+
+    # 6. Create the Response
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = f'attachment; filename="Delegation_Report_{timezone.now().date()}.xlsx"'
+    response['Content-Disposition'] = f'attachment; filename="Delegation_Flow_Report_{timezone.now().date()}.xlsx"'
     wb.save(response)
+    
     return response
 
 @login_required

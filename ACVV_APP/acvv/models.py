@@ -273,3 +273,20 @@ class BranchDocument(models.Model):
     class Meta:
         managed = False
         db_table = 'branch_documents'
+        
+class TempExit(models.Model):
+    mg_code = models.CharField(max_length=50)
+    surname = models.CharField(max_length=255)
+    initials = models.CharField(max_length=50, null=True, blank=True)
+    mip_no = models.CharField(max_length=100, null=True, blank=True)
+    id_no = models.CharField(max_length=13, null=True, blank=True)
+    reason = models.CharField(max_length=255, null=True, blank=True)
+    bis_from_date = models.DateField(null=True, blank=True)
+    bis_end_date = models.DateField(null=True, blank=True)
+    full_contributions_start_date = models.DateField(null=True, blank=True)
+    note = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False  # Tells Django not to touch the schema
+        db_table = 'temp_exit'

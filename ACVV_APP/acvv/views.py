@@ -18,7 +18,7 @@ from django.contrib.auth.models import User
 import openpyxl 
 
 # Local Model Imports
-from .models import AcvvClaim, BranchDocument, ClaimNote, Globalacvv, ClientNotes, EmailDelegation, DelegationNote, DelegationTransactionLog, ReconciliationRecord, ReconciliationWorksheet
+from .models import AcvvClaim, BranchDocument, ClaimNote, Globalacvv, ClientNotes, EmailDelegation, DelegationNote, DelegationTransactionLog, ReconciliationRecord, ReconciliationWorksheet, TempExit
 
 
 # Import the new Graph API service functions
@@ -1101,37 +1101,62 @@ def outlook_view_thread(request, delegation_id):
 @login_required
 def export_temp_exists(request):
     """
-    Generates and exports an Excel file with the headers:
-    MG Code, Surname, Initials, MIP No., ID No., Reason, 
-    BIS From Date, BIS End Date, Full Contributions Start Date, Note
+    Generates and exports an Excel file by pulling data from the temp_exit table.
     """
     # Create a new workbook and select the active sheet
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Temp Exists"
 
-    # Define headers based on reference image image_63c381.png
+    # Define headers
     headers = [
         "MG Code", "Surname", "Initials", "MIP No.", "ID No.", 
         "Reason", "BIS From Date", "BIS End Date", 
         "Full Contributions Start Date", "Note"
     ]
 
-    # Write headers to the first row
+    # Write headers and format them
     for col_num, header_title in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col_num)
         cell.value = header_title
-        # Optional: Make headers bold
         cell.font = openpyxl.styles.Font(bold=True)
 
+    # --- NEW: PULL DATA FROM DATABASE ---
+    # Query all records from the manually created temp_exit table
+    records = TempExit.objects.all().order_by('-created_at')
+
+    # Write data rows
+    for row_num, obj in enumerate(records, 2):
+        ws.cell(row=row_num, column=1).value = obj.mg_code
+        ws.cell(row=row_num, column=2).value = obj.surname
+        ws.cell(row=row_num, column=3).value = obj.initials
+        ws.cell(row=row_num, column=4).value = obj.mip_no
+        ws.cell(row=row_num, column=5).value = obj.id_no
+        ws.cell(row=row_num, column=6).value = obj.reason
+        ws.cell(row=row_num, column=7).value = obj.bis_from_date
+        ws.cell(row=row_num, column=8).value = obj.bis_end_date
+        ws.cell(row=row_num, column=9).value = obj.full_contributions_start_date
+        ws.cell(row=row_num, column=10).value = obj.note
+
+    # Auto-adjust column widths for better readability
+    for col in ws.columns:
+        max_length = 0
+        column = col[0].column_letter
+        for cell in col:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except:
+                pass
+        ws.column_dimensions[column].width = max_length + 2
+
     # Prepare the response
-    filename = f"Temp_Exists_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    filename = f"Temp_Exists_Export_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
     response = HttpResponse(
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     
-    # Save workbook to the response
     wb.save(response)
     return response
 
@@ -1388,3 +1413,26 @@ def outlook_email_list(request):
         'del_count': del_count,
     }
     return render(request, 'acvv_app/outlook_email_list.html', context)
+
+@login_required
+def temp_exists_list(request):
+    # Handle New Entry Submission
+    if request.method == 'POST':
+        TempExit.objects.create(
+            mg_code=request.POST.get('mg_code'),
+            surname=request.POST.get('surname'),
+            initials=request.POST.get('initials'),
+            mip_no=request.POST.get('mip_no'),
+            id_no=request.POST.get('id_no'),
+            reason=request.POST.get('reason'),
+            bis_from_date=request.POST.get('bis_from') or None,
+            bis_end_date=request.POST.get('bis_end') or None,
+            full_contributions_start_date=request.POST.get('full_start') or None,
+            note=request.POST.get('note')
+        )
+        messages.success(request, "Temp Exit added successfully.")
+        return redirect('temp_exists_list')
+
+    # Display existing entries
+    exits = TempExit.objects.all().order_by('-created_at')
+    return render(request, 'acvv_app/temp_exists.html', {'exits': exits})

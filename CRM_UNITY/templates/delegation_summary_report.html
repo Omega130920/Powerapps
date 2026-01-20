@@ -45,7 +45,7 @@
             <div class="flex gap-3">
                 <a href="{% url 'export_delegation_report_excel' %}?start_date={{ start_date }}&end_date={{ end_date }}" class="export-btn">
                     <i class="fas fa-file-excel mr-2"></i>
-                    Export to Excel
+                    Export Detailed Excel
                 </a>
             </div>
         </div>
@@ -147,7 +147,8 @@
                             <td class="text-lg uppercase tracking-tight">Total Categorised Entries</td>
                             <td class="text-right text-2xl">
                                 {% if category_summary %}
-                                    {{ type_selection_breakdown|length }}
+                                    {# Logic to show total sum of counts #}
+                                    {{ all_emails_total|default:0 }}
                                 {% else %}
                                     0
                                 {% endif %}

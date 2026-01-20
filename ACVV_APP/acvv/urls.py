@@ -50,4 +50,7 @@ urlpatterns = [
          views.export_reconciliation_worksheet, 
          name='export_reconciliation_worksheet'),
     path('outlook/email-list/', views.outlook_email_list, name='outlook_email_list'),
+    
+    path('temp-exists/', views.temp_exists_list, name='temp_exists_list'),
+    path('temp-exists/export/', views.export_temp_exists, name='export_temp_exists_excel'),
 ]

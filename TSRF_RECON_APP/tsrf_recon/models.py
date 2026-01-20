@@ -485,6 +485,7 @@ class Aod(models.Model):
     aod_number = models.CharField(db_column='AOD_Number', max_length=255, primary_key=True)
     aod_status = models.CharField(db_column='AOD_Status', max_length=255) # Fixed duplicate db_column mapping
     current_status = models.CharField(db_column='Current_Status', max_length=255)
+    attachment = models.FileField(upload_to='aod_attachments/', null=True, blank=True)
 
     class Meta:
         managed = False
@@ -500,7 +501,26 @@ class Pfa(models.Model):
     schedule_due = models.DateField(db_column='Schedule_Due', blank=True, null=True)
     determination_due_date = models.DateField(db_column='Determination_Due_Date', blank=True, null=True)
     determination_periods = models.CharField(db_column='Determination_Periods', max_length=255)
+    attachment = models.FileField(upload_to='pfa_attachments/', null=True, blank=True)
 
     class Meta:
         managed = False
         db_table = 'pfa'
+        
+class Lpi(models.Model):
+    # Added explicit ID field to match MySQL auto-increment
+    id = models.BigAutoField(primary_key=True)
+    employer_number = models.CharField(db_column='Employer_Number', max_length=255)
+    employer_name = models.CharField(db_column='Employer_Name', max_length=255, blank=True, null=True)
+    fiscal_date = models.DateField(db_column='Fiscal_Date', blank=True, null=True)
+    reference = models.CharField(db_column='Reference', max_length=255, blank=True, null=True)
+    lpi_raised_amount = models.DecimalField(db_column='Lpi_Raised_Amount', max_digits=15, decimal_places=2)
+    contribution_amount = models.DecimalField(db_column='Contribution_Amount', max_digits=15, decimal_places=2)
+    late_payment_contribution_amount = models.DecimalField(db_column='Late_Payment_Contribution_Amount', max_digits=15, decimal_places=2)
+    lpi_calculation_date = models.DateField(db_column='Lpi_Calculation_Date', blank=True, null=True)
+    lpi_end_date = models.DateField(db_column='Lpi_End_Date', blank=True, null=True)
+    lpi_create_date = models.DateField(db_column='Lpi_Create_Date', blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'lpi_data'

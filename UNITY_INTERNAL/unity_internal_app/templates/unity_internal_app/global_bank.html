@@ -114,7 +114,7 @@
                     <td><small>{{ item.note_selection|default:"--" }}</small></td>
                     <td>{{ item.agent }}</td>
                     <td style="text-align: center;">
-                        <a href="{% url 'display_bankline_review' item.id %}" class="action-button view-btn">Review</a>
+                        <a href="{% url 'display_bankline_review' item.id %}?from=global" class="action-button view-btn">Review</a>
                     </td>
                 </tr>
                 {% empty %}

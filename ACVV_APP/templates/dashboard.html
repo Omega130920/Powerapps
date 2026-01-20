@@ -152,7 +152,7 @@
         <!--<a href="{% url 'send_email' %}" class="button-block">Send Email</a>-->
         
         <a href="{% url 'outlook_delegated_box' %}" class="button-block">
-            Delegated Box
+            Dashboard
             {% if my_tasks_count > 0 %}
                 <span class="badge orange-badge">{{ my_tasks_count }}</span>
             {% endif %}
@@ -160,7 +160,7 @@
         
         <a href="{% url 'global_claims' %}" class="button-block">Global Claims</a>
         <a href="{% url 'two_pot_claims' %}" class="button-block">Two-Pot Claims</a>
-        <a href="{% url 'export_temp_exists' %}" class="button-block">
+        <a href="{% url 'temp_exists_list' %}" class="button-block">
             Temp Exists
             <span style="display:block; font-size: 0.4em; margin-top: 5px;"></span>
         </a>

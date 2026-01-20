@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Create PFA | {{ levy.levy_number }}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { font-family: sans-serif; background: #d1e2c4; padding: 20px; }
+        .form-container { background-color: #e0e0e0; padding: 25px; border-radius: 8px; max-width: 1200px; margin: 0 auto; position: relative; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+        .field-group { display: flex; flex-direction: column; }
+        .field-group label { font-size: 12px; font-weight: bold; margin-bottom: 5px; }
+        input, select { padding: 10px; border: 1px solid #ccc; border-radius: 4px; background: white; }
+
+        /* Button Styling */
+        .button-row { 
+            display: flex; 
+            justify-content: center; 
+            gap: 20px; 
+            margin-top: 30px; 
+            padding-top: 20px; 
+            border-top: 1px solid #bbb; 
+        }
+        .btn { 
+            padding: 12px 40px; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            font-weight: bold; 
+            font-size: 14px; 
+            border: none; 
+            transition: 0.2s; 
+            text-decoration: none; 
+            display: inline-block; 
+            text-align: center; 
+        }
+        .btn-save { background-color: #e65100; color: white; }
+        .btn-save:hover { background-color: #bf360c; }
+        .btn-back { background-color: #757575; color: white; }
+        .btn-back:hover { background-color: #555; }
+    </style>
+</head>
+<body>
+
+<div class="form-container">
+    <div class="header">
+        <h1 style="font-weight: normal; margin: 0;">Create New PFA for Levy {{ levy.levy_number }}</h1>
+    </div>
+
+    <form method="POST" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        <div class="grid">
+            <div class="field-group">
+                <label>* PFA Number</label>
+                <select name="pfa_number" required>
+                    <option value="PFA01">PFA01</option>
+                    <option value="PFA02">PFA02</option>
+                    <option value="PFA03">PFA03</option>
+                </select>
+            </div>
+            <div class="field-group" style="grid-column: span 3;">
+                <label>* Determination Periods</label>
+                <input type="text" name="periods" placeholder="e.g. 2023/01 - 2023/12" required>
+            </div>
+            
+            <div class="field-group">
+                <label>* Determination Signed Date</label>
+                <input type="date" name="signed_date" required>
+            </div>
+            <div class="field-group">
+                <label>* Determination Type</label>
+                <select name="pfa_type" required>
+                    <option value="Contributions">Contributions</option>
+                    <option value="Late Payment Interest">Late Payment Interest</option>
+                </select>
+            </div>
+            <div class="field-group" style="grid-column: span 2;">
+                <label>Additional Info</label>
+                <input type="text" name="additional_info">
+            </div>
+            
+            <div class="field-group">
+                <label>* Determination Status</label>
+                <select name="pfa_status" required>
+                    <option value="Non-Compliant">Non-Compliant</option>
+                    <option value="Compliant">Compliant</option>
+                </select>
+            </div>
+            <div class="field-group">
+                <label>* Schedule Status</label>
+                <select name="schedule_status" required>
+                    <option value="Not Received">Not Received</option>
+                    <option value="Requested">Requested</option>
+                    <option value="Received">Received</option>
+                </select>
+            </div>
+            <div class="field-group">
+                <label>Payroll Schedules Received</label>
+                <select name="schedules_received">
+                    <option value="No">No</option>
+                    <option value="Yes">Yes</option>
+                </select>
+            </div>
+            <div class="field-group">
+                <label>Date Schedules Due</label>
+                <input type="date" name="schedules_due_date">
+            </div>
+
+            <div class="field-group">
+                <label>Determination Amount</label>
+                <input type="number" step="0.01" name="det_amount" placeholder="0.00">
+            </div>
+            <div class="field-group">
+                <label>Date Sent to Employer</label>
+                <input type="date" name="date_sent_employer">
+            </div>
+            <div class="field-group">
+                <label>Determination Due Date</label>
+                <input type="date" name="due_date">
+            </div>
+            <div class="field-group">
+                <label>Determination LPI Amount</label>
+                <input type="number" step="0.01" name="det_lpi_amount" placeholder="0.00">
+            </div>
+        </div>
+
+        <div class="button-row">
+            <button type="submit" class="btn btn-save">Save PFA</button>
+            <a href="javascript:history.back()" class="btn btn-back">Back</a>
+        </div>
+    </form>
+</div>
+
+</body>
+</html>
