@@ -7,7 +7,8 @@ SECRET_KEY = 'django-insecure-eqv3)lf)ob3%mvhf8$h#ow+7ya3zzq0$2c4lkl=yh9)jdixt-q
 
 DEBUG = True
 
-ALLOWED_HOSTS = ['*'] # Modified for development flexibility
+ALLOWED_HOSTS = ['*','pssubf.futurasa.co.za']
+# Modified for development flexibility
 
 
 # --- Application definition ---
