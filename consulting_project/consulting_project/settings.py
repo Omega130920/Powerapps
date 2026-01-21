@@ -25,8 +25,20 @@ SECRET_KEY = 'django-insecure-xxa=q@ocu$@553tcb$!u)ggycj1^k*rpz^f)ap(3ad%2_l48xu
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*','consulting.futurasa.co.za']
+ALLOWED_HOSTS = ['*','consulting.futurasa.co.za','consulting.futura.co.za']
 
+# 1. Trust the secure domain for form submissions
+CSRF_TRUSTED_ORIGINS = [
+    'https://consulting.futurasa.co.za',
+    'https://consulting.futura.co.za', # Added both variants just in case
+]
+
+# 2. Handle the Proxy headers from your hoster (Critical for SSL)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# 3. Security tweaks for HTTPS
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
 
 # Application definition
 

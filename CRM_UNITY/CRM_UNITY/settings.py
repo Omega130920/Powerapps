@@ -15,7 +15,20 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['*', 'crmunity.futurasa.co.za', 'crmunity.futura.co.za']
+
+# 1. Trust the secure domain for form submissions
+CSRF_TRUSTED_ORIGINS = [
+    'https://crmunity.futurasa.co.za',
+    'https://crmunity.futura.co.za', # Added both variants just in case
+]
+
+# 2. Handle the Proxy headers from your hoster (Critical for SSL)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# 3. Security tweaks for HTTPS
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
 
 # Explicitly set OAUTHLIB_INSECURE_TRANSPORT for local HTTP testing
 if os.getenv('DJANGO_ENV', 'development') == 'development' or DEBUG:

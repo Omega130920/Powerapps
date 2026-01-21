@@ -30,8 +30,20 @@ SECRET_KEY = os.environ.get('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*','acvv.futura.co.za']
+ALLOWED_HOSTS = ['*', 'acvv.futura.co.za', 'acvv.futurasa.co.za']
 
+# 1. Trust the secure domain for form submissions
+CSRF_TRUSTED_ORIGINS = [
+    'https://acvv.futurasa.co.za',
+    'https://acvv.futura.co.za', # Added both variants just in case
+]
+
+# 2. Handle the Proxy headers from your hoster (Critical for SSL)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# 3. Security tweaks for HTTPS
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
 
 # Application definition
 

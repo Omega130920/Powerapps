@@ -7,10 +7,21 @@ SECRET_KEY = 'django-insecure-eqv3)lf)ob3%mvhf8$h#ow+7ya3zzq0$2c4lkl=yh9)jdixt-q
 
 DEBUG = True
 
-ALLOWED_HOSTS = ['*','pssubf.futurasa.co.za']
+ALLOWED_HOSTS = ['*','pssubf.futurasa.co.za','pssubf.futura.co.za']
 # Modified for development flexibility
 
+# 1. Trust the secure domain for form submissions
+CSRF_TRUSTED_ORIGINS = [
+    'https://pssubf.futurasa.co.za',
+    'https://pssubf.futura.co.za', # Added both variants just in case
+]
 
+# 2. Handle the Proxy headers from your hoster (Critical for SSL)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# 3. Security tweaks for HTTPS
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
 # --- Application definition ---
 
 INSTALLED_APPS = [

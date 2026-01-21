@@ -43,9 +43,19 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*','internalunity.futura.co.za']
+ALLOWED_HOSTS = ['*','internalunity.futura.co.za','internalunity.futurasa.co.za']
 
+CSRF_TRUSTED_ORIGINS = [
+    'https://internalunity.futurasa.co.za',
+    'https://internalunity.futura.co.za', # Added both variants just in case
+]
 
+# 2. Handle the Proxy headers from your hoster (Critical for SSL)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+
+# 3. Security tweaks for HTTPS
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
 # Application definition
 
 INSTALLED_APPS = [
