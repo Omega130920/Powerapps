@@ -13,6 +13,7 @@ from dateutil import parser
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill
 from datetime import timedelta
+from django.utils.dateparse import parse_datetime
 
 from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
@@ -282,16 +283,23 @@ def fetch_emails_view(request):
         
         # Filter: Only show if it hasn't been delegated yet
         if email_id not in delegated_ids:
+            # Parse the MS Graph string (e.g., "2026-01-22T08:00:00Z") into a Python datetime
+            raw_date = msg.get('receivedDateTime')
+            parsed_date = parse_datetime(raw_date) if raw_date else None
+
             local_entry, created = CrmInbox.objects.get_or_create(
                 email_id=email_id,
                 defaults={
                     'subject': msg.get('subject', 'No Subject'),
                     'sender': msg.get('from', {}).get('emailAddress', {}).get('address', 'Unknown'),
                     'snippet': msg.get('bodyPreview', ''),
-                    'received_timestamp': msg.get('receivedDateTime'),
+                    'received_timestamp': parsed_date, # Saved to DB
                     'status': 'Pending'
                 }
             )
+            
+            # Attach 'received_at' dynamically so the HTML template can find it
+            local_entry.received_at = local_entry.received_timestamp
             processed_emails.append(local_entry)
 
     return render(request, 'inbox.html', {'email_list': processed_emails})
@@ -534,7 +542,8 @@ from django.core.mail import EmailMessage
 def member_information(request, member_group_code):
     contact_info = get_object_or_404(GlobalFundContact, member_group_code=member_group_code)
     
-    # --- 0. HANDLE FILE DOWNLOAD ---
+    # --- 0. HANDLE FILE DOWNLOADS ---
+    # Handle original MemberDocument downloads
     if request.method == 'GET' and 'download_id' in request.GET:
         doc_id = request.GET.get('download_id')
         document = get_object_or_404(MemberDocument, id=doc_id, related_member_group_code=member_group_code)
@@ -545,6 +554,22 @@ def member_information(request, member_group_code):
                 messages.error(request, "File not found on server storage.")
         else:
             messages.error(request, "Database record exists, but no file is attached.")
+
+    # Handle Note Attachment downloads via Filename
+    if request.method == 'GET' and 'download_note_file' in request.GET:
+        target_filename = request.GET.get('download_note_file')
+        document = MemberDocument.objects.filter(
+            related_member_group_code=member_group_code, 
+            document_file__icontains=target_filename
+        ).first()
+        
+        if document and document.document_file:
+            try:
+                return FileResponse(document.document_file.open('rb'), as_attachment=True)
+            except FileNotFoundError:
+                messages.error(request, "Attachment file not found.")
+        else:
+            messages.error(request, "Could not locate the specific attachment.")
 
     # --- START OF POST LOGIC ---
     if request.method == 'POST':
@@ -557,7 +582,6 @@ def member_information(request, member_group_code):
             body_content = request.POST.get('email_body_html_content')
             attachments = request.FILES.getlist('attachments')
 
-            # 1. Send via Outlook
             response = OutlookGraphService.send_outlook_email(
                 recipient=recipient,
                 subject=subject,
@@ -566,36 +590,30 @@ def member_information(request, member_group_code):
             )
 
             if response.get('success'):
-                # 2. CAPTURE OUTLOOK ID FOR DOWNLOADS
-                # Ensure your DirectEmailLog model has an 'outlook_message_id' field
                 DirectEmailLog.objects.create(
                     member_group_code=member_group_code,
                     subject=subject,
                     recipient_email=recipient,
                     body_content=body_content,
                     sent_by_user=request.user,
-                    outlook_message_id=response.get('outlook_id'), # Captured from service
+                    outlook_message_id=response.get('outlook_id'), 
                     sent_at=timezone.now()
                 )
                 messages.success(request, f"Email sent successfully to {recipient}")
             else:
                 messages.error(request, f"Microsoft Error: {response.get('error')}")
+            
+            # Redirect back to the Communications tab
+            return redirect(f"/global-members/{member_group_code}/#communications")
 
         elif action == 'save_member_note':
-            attached_email_id = request.POST.get('attached_email_id')
+            attached_filename = None
             
-            ClientNotes.objects.create(
-                related_member_group_code=member_group_code,
-                notes=request.POST.get('note_content'),
-                communication_type=request.POST.get('communication_type'),
-                action_notes=request.POST.get('action_notes'),
-                attached_email_id=attached_email_id,
-                user=user_display, 
-                date=timezone.now()
-            )
-            
+            # 1. Process File Upload First
             if 'note_file' in request.FILES:
                 uploaded_file = request.FILES['note_file']
+                attached_filename = uploaded_file.name 
+                
                 MemberDocument.objects.create(
                     related_member_group_code=member_group_code,
                     document_file=uploaded_file,
@@ -603,7 +621,20 @@ def member_information(request, member_group_code):
                     uploaded_by=user_display,
                     uploaded_at=timezone.now()
                 )
+
+            # 2. Create Note with reference to filename
+            ClientNotes.objects.create(
+                related_member_group_code=member_group_code,
+                notes=request.POST.get('note_content'),
+                communication_type=request.POST.get('communication_type'),
+                action_notes=request.POST.get('action_notes'),
+                attached_file_name=attached_filename, 
+                user=user_display, 
+            )
             messages.success(request, 'Note saved.')
+            
+            # Redirect back to the Communications tab
+            return redirect(f"/global-members/{member_group_code}/#communications")
 
         return redirect('member_information', member_group_code=member_group_code)
 
@@ -664,7 +695,6 @@ def member_information(request, member_group_code):
 
     combined_email_log.sort(key=lambda x: x['timestamp'], reverse=True)
 
-    # Retrieval for other tabs
     notes = ClientNotes.objects.filter(related_member_group_code=member_group_code).order_by('-date')
     direct_emails = DirectEmailLog.objects.filter(member_group_code=member_group_code).order_by('-sent_at')
     documents = MemberDocument.objects.filter(related_member_group_code=member_group_code).order_by('-uploaded_at')
@@ -785,10 +815,13 @@ def tasks_view(request):
 def delegate_action_view(request, email_id):
     """
     Detailed view for a specific task in CRM_UNITY.
-    Matches UNITY_INTERNAL style: Fetches attachment metadata and raw bytes for image previews.
+    Captures 'source' to handle conditional 'Back' button logic.
     """
     task = get_object_or_404(CrmDelegateTo, email_id=email_id)
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
+    
+    # --- 🟢 CAPTURE SOURCE FOR CONDITIONAL BACK BUTTON ---
+    source = request.GET.get('from') # Capture ?from=member
     
     action_history = CrmDelegateAction.objects.filter(task_email_id=email_id).order_by('-action_timestamp')
 
@@ -814,8 +847,6 @@ def delegate_action_view(request, email_id):
             # --- 1. RESTORE TO MAIN INBOX LOGIC ---
             if action_type == 'restore_to_inbox':
                 restore_note = request.POST.get('restore_note', 'Restored from Recycle Bin to Main Inbox.')
-                
-                # Check status before processing to determine where to redirect
                 is_from_recycle_bin = (task.status == 'Recycled')
 
                 try:
@@ -837,9 +868,8 @@ def delegate_action_view(request, email_id):
                 task.delete()
                 messages.success(request, "Task successfully moved back to the original Inbox queue.")
                 
-                # --- REDIRECTION LOGIC CHANGE ---
                 if is_from_recycle_bin:
-                    return redirect('recycle_bin')  # Redirect back to Recycle Bin
+                    return redirect('recycle_bin')
                 return redirect('fetch_emails') 
 
             # --- 2. UPDATE METADATA ---
@@ -909,13 +939,18 @@ def delegate_action_view(request, email_id):
                 messages.success(request, "Task marked as Completed.")
                 return redirect('tasks')
 
-        return redirect('delegate_action', email_id=email_id)
+        # Redirect back to the same view, preserving the 'from' parameter if it exists
+        redirect_url = reverse('delegate_action', kwargs={'email_id': email_id})
+        if source:
+            redirect_url += f"?from={source}"
+        return redirect(redirect_url)
 
     return render(request, 'delegate_action.html', {
         'task': task,
         'action_history': action_history,
         'email_id': email_id,
-        'attachments': attachments_list
+        'attachments': attachments_list,
+        'source': source,  # --- 🟢 PASS TO TEMPLATE ---
     })
 
 from django.db.models import Count
@@ -1005,41 +1040,125 @@ def delegation_report_view(request):
 
 @login_required
 def complaint_log_view(request):
-    # 1. Check for Edit Mode
+    # --- 1. HANDLE FILTERS ---
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+
+    # Helper to check for "None" strings from the URL
+    def is_valid_dt(val):
+        return val and val != "None" and val != ""
+
+    # --- 2. CHECK FOR EDIT MODE ---
     edit_id = request.GET.get('edit_id')
     instance = None
     if edit_id:
         instance = get_object_or_404(ComplaintLog, pk=edit_id)
 
-    # 2. Initialize Form (Load instance if editing)
+    # --- 3. INITIALIZE FORM ---
     form = ComplaintLogForm(request.POST or None, instance=instance)
 
-    # 3. Handle Save
+    # --- 4. HANDLE POST (SAVE/UPDATE) ---
     if request.method == 'POST':
         if form.is_valid():
             comp = form.save(commit=False)
-            
-            # Only set 'created_by' for new records
             if not instance:
                 comp.created_by = request.user
-            
             comp.save()
             
             msg = "Complaint updated successfully." if instance else "Complaint logged successfully."
             messages.success(request, msg)
-            
-            # Redirect to clear the ?edit_id= parameter
             return redirect('complaint_log')
 
-    # 4. Render Template
-    complaints = ComplaintLog.objects.all().order_by('-created_at')
+    # --- 5. DATA RETRIEVAL WITH FILTERS ---
+    complaints = ComplaintLog.objects.all()
+
+    if is_valid_dt(start_date):
+        complaints = complaints.filter(created_at__date__gte=start_date)
+    if is_valid_dt(end_date):
+        complaints = complaints.filter(created_at__date__lte=end_date)
+
+    complaints = complaints.order_by('-created_at')
     
     context = {
         'form': form, 
         'complaints': complaints,
-        'is_editing': instance is not None, # Flag for the template
+        'is_editing': instance is not None,
+        'title': 'Complaint Registry'
     }
     return render(request, 'complaint_log.html', context)
+
+
+@login_required
+def export_complaints_excel(request):
+    """Exports filtered complaints to Excel."""
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+
+    def is_valid_dt(val):
+        return val and val != "None" and val != ""
+
+    # Fetch base records
+    complaints = ComplaintLog.objects.all()
+
+    # Apply same filters as the view
+    if is_valid_dt(start_date):
+        complaints = complaints.filter(created_at__date__gte=start_date)
+    if is_valid_dt(end_date):
+        complaints = complaints.filter(created_at__date__lte=end_date)
+
+    complaints = complaints.order_by('-created_at')
+
+    # Create Workbook
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Complaint Log Export"
+
+    # Header Styling
+    headers = [
+        'ID', 'Complainant', 'Employer', 'Nature of Complaint', 
+        'Status', 'Created By', 'Created Date', 'Resolved Date'
+    ]
+    ws.append(headers)
+
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="4F46E5", end_color="4F46E5", fill_type="solid") # Indigo to match UI
+    
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+
+    # Fill Data
+    for c in complaints:
+        ws.append([
+            c.id,
+            c.complainant,
+            c.employer or 'N/A',
+            c.nature_of_complaint,
+            c.current_status,
+            c.created_by.username if c.created_by else 'System',
+            c.created_at.replace(tzinfo=None) if c.created_at else 'N/A',
+            c.resolved_date.replace(tzinfo=None) if c.resolved_date else 'Pending'
+        ])
+
+    # Auto-adjust column widths
+    for column in ws.columns:
+        max_length = 0
+        column_letter = column[0].column_letter
+        for cell in column:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except: pass
+        ws.column_dimensions[column_letter].width = max_length + 2
+
+    # Return Excel File
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    filename = f"Complaint_Log_{timezone.now().strftime('%Y-%m-%d')}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    wb.save(response)
+    
+    return response
 
 from django.core.paginator import Paginator
 
@@ -1208,33 +1327,34 @@ def export_delegation_report_excel(request):
     from openpyxl.styles import Font, PatternFill, Alignment
     from django.http import HttpResponse
     from django.utils import timezone
+    from django.db.models import Q
 
     # 1. Apply date filters using the helper
-    date_query, _, _ = get_date_filters(request)
+    date_query, start_str, end_str = get_date_filters(request)
     
-    # Filter for valid entries (Categorized/Work-related)
-    valid_entries_filter = Q(category__isnull=False) & ~Q(category='') & \
-                           Q(type__isnull=False) & ~Q(type='') & ~Q(type='None')
+    # Filter for entries that have been categorized/processed
+    valid_entries_filter = Q(category__isnull=False) & ~Q(category='')
 
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Delegation Flow Report"
 
-    # 2. NEW COLUMN FLOW: Split and Reordered for clear visibility of the "Flow"
+    # 2. HEADER DEFINITION
     headers = [
-        'Email Received Date',      # Original Arrival
-        'Actioned By',               # The User who delegated (Manager)
-        'Date of Action',            # When delegation happened
-        'Delegated To',              # Assigned Agent
+        'Communication Type',       # From ClientNotes or Default 'Email'
+        'Email Received Date',      # Original Arrival from Inbox
+        'Actioned By',              # The Manager/User who delegated
+        'Date of Action',           # When it was delegated
+        'Delegated To',             # Assigned Agent
         'Member Group Code', 
         'Main Category', 
         'Enquiry Selection', 
-        'Grouping',
+        'Grouping', 
         'Status'
     ]
     ws.append(headers)
 
-    # Apply Green Styling to Header Row
+    # Apply Corporate Green Styling to Header Row
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill(start_color="1B5E20", end_color="1B5E20", fill_type="solid")
     for cell in ws[1]:
@@ -1242,37 +1362,65 @@ def export_delegation_report_excel(request):
         cell.fill = header_fill
         cell.alignment = Alignment(horizontal="center")
 
-    # 3. Fetch Records
-    raw_records = CrmDelegateTo.objects.filter(
+    # 3. Fetch Email Delegation Records
+    email_records = CrmDelegateTo.objects.filter(
         date_query & valid_entries_filter
     ).order_by('-received_timestamp')
 
-    # 4. Fill Excel Rows
-    for item in raw_records:
-        # Workflow Logic:
-        # A. Get "Actioned By" from the first log entry in CrmDelegateAction
+    # 4. Fill Excel Rows with Email Data
+    for item in email_records:
         first_action = CrmDelegateAction.objects.filter(
             task_email_id=item.email_id
         ).order_by('action_timestamp').first()
-        actioned_by_user = first_action.action_user if first_action else "System"
+        actioned_by_user = first_action.action_user if first_action else (item.delegated_by or "System")
 
-        # B. Get original Arrival Date from CrmInbox
         inbox_record = CrmInbox.objects.filter(email_id=item.email_id).first()
-        received_date = inbox_record.received_timestamp.replace(tzinfo=None) if inbox_record and inbox_record.received_timestamp else "N/A"
+        received_date = inbox_record.received_timestamp.replace(tzinfo=None) if inbox_record and inbox_record.received_timestamp else item.received_timestamp.replace(tzinfo=None)
+
+        category_display = CATEGORY_NAMES.get(str(item.category), str(item.category)) if item.category else "Unclassified"
+        grouping_display = ENQUIRY_GROUPING_MAP.get(item.type, "Unmapped") if item.type else "N/A"
 
         ws.append([
-            received_date,                                              # Email Received Date
-            actioned_by_user,                                           # Actioned By
-            item.received_timestamp.replace(tzinfo=None),               # Date of Action
-            item.delegated_to or "Unassigned",                          # Delegated To
-            item.member_group_code or "N/A",                            # Member Group Code
-            CATEGORY_NAMES.get(str(item.category), str(item.category)), # Main Category
-            item.type,                                                  # Enquiry Selection
-            ENQUIRY_GROUPING_MAP.get(item.type, "Unmapped"),            # Grouping
-            item.status                                                 # Status
+            "Email",                                            # Communication Type
+            received_date,                                      # Email Received Date
+            actioned_by_user,                                   # Actioned By
+            item.received_timestamp.replace(tzinfo=None),       # Date of Action
+            item.delegated_to or "Unassigned",                  # Delegated To
+            item.member_group_code or "N/A",                    # Member Group Code
+            category_display,                                   # Main Category
+            item.type or "None",                                # Enquiry Selection
+            grouping_display,                                   # Grouping
+            item.status                                         # Status
         ])
 
-    # 5. Auto-adjust column widths
+    # 5. Fetch and Append Client Notes (Calls/Teams/etc)
+    # --- SAFETY CHECK FOR "None" STRINGS ---
+    def is_valid_date_str(val):
+        return val and val != "None" and val != ""
+
+    notes_filter = Q()
+    if is_valid_date_str(start_str):
+        notes_filter &= Q(date__date__gte=start_str)
+    if is_valid_date_str(end_str):
+        notes_filter &= Q(date__date__lte=end_str)
+
+    note_records = ClientNotes.objects.filter(notes_filter).order_by('-date')
+
+    for note in note_records:
+        ws.append([
+            note.communication_type or "Note",                  # Communication Type
+            "N/A",                                              # Email Received Date
+            note.user,                                          # Actioned By
+            note.date.replace(tzinfo=None),                     # Date of Action
+            "N/A",                                              # Delegated To
+            note.related_member_group_code or "N/A",            # Member Group Code
+            "Communication Log",                                # Main Category
+            note.action_notes or "N/A",                         # Enquiry Selection
+            "N/A",                                              # Grouping
+            "Completed"                                         # Status
+        ])
+
+    # 6. Auto-adjust column widths
     for column in ws.columns:
         max_length = 0
         column_letter = column[0].column_letter
@@ -1280,13 +1428,12 @@ def export_delegation_report_excel(request):
             try:
                 if len(str(cell.value)) > max_length:
                     max_length = len(str(cell.value))
-            except:
-                pass
+            except: pass
         ws.column_dimensions[column_letter].width = max_length + 3
 
-    # 6. Create the Response
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = f'attachment; filename="Delegation_Flow_Report_{timezone.now().date()}.xlsx"'
+    filename = f"Delegation_Flow_Report_{timezone.now().strftime('%Y-%m-%d')}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
     wb.save(response)
     
     return response
@@ -1299,24 +1446,32 @@ def final_sla_report_view(request):
     start_str = request.GET.get('start_date')
     end_str = request.GET.get('end_date')
     
+    # --- INTERNAL HELPER: Prevent "None" string from crashing filters ---
+    def get_valid_date(date_val):
+        if date_val and date_val != "None" and date_val != "":
+            return parse_date(date_val)
+        return None
+
     # 1. Setup Date Filters
     delegate_q = Q()
     notes_q = Q()
     email_log_q = Q()
 
-    if start_str:
-        start_dt = parse_date(start_str)
+    start_dt = get_valid_date(start_str)
+    if start_dt:
         delegate_q &= Q(received_timestamp__date__gte=start_dt)
         notes_q &= Q(date__gte=start_dt)
         email_log_q &= Q(sent_at__date__gte=start_dt)
-    if end_str:
-        end_dt = parse_date(end_str)
+
+    end_dt = get_valid_date(end_str)
+    if end_dt:
         delegate_q &= Q(received_timestamp__date__lte=end_dt)
         notes_q &= Q(date__lte=end_dt)
         email_log_q &= Q(sent_at__date__lte=end_dt)
 
     # 2. Handle Excel Export Request
     if request.GET.get('export') == 'excel':
+        # Now passing clean Q objects that won't contain None values
         return export_sla_excel(delegate_q, notes_q, email_log_q)
 
     # 3. Aggregate Grouped Totals
@@ -1482,20 +1637,21 @@ def get_unified_email_data(request):
     data into a single list for the UI and CSV Export.
     Includes safety checks for 'None' strings and Agent lookups.
     """
+    from django.db.models import Max, Q
+    from datetime import datetime
+
     # 1. Action Lookup (Check for replies and original delegation actions)
-    # We get the last reply timestamp
     last_reply_map = CrmDelegateAction.objects.filter(
         action_type='REPLY_SENT'
     ).values('task_email_id').annotate(last_replied=Max('action_timestamp'))
     last_reply_dict = {item['task_email_id']: item['last_replied'] for item in last_reply_map}
 
-    # We also look for the original delegation action to see WHO did it (the Agent)
     delegation_user_map = CrmDelegateAction.objects.filter(
-        action_type='restore_to_inbox' # or any specific action that marks a user interaction
+        action_type='restore_to_inbox' 
     ).values('task_email_id', 'action_user')
     user_dict = {item['task_email_id']: item['action_user'] for item in delegation_user_map}
 
-    # 2. Setup Filters with Safety for "None" strings
+    # 2. Setup Filters
     date_filter = Q()
     start_date_str = request.GET.get('start_date')
     end_date_str = request.GET.get('end_date')
@@ -1512,7 +1668,7 @@ def get_unified_email_data(request):
     delegated_qs = CrmDelegateTo.objects.filter(date_filter).order_by('-received_timestamp')
     delegated_ids = {task.email_id for task in delegated_qs}
 
-    # 4. Fetch New/Pending Emails (exclude those already delegated)
+    # 4. Fetch New/Pending Emails
     new_emails_qs = CrmInbox.objects.filter(date_filter).exclude(
         email_id__in=delegated_ids
     ).order_by('-received_timestamp')
@@ -1529,6 +1685,7 @@ def get_unified_email_data(request):
             'delegated_to': task.delegated_to or user_dict.get(task.email_id, "System"),
             'member_group_code': task.member_group_code,
             'category': CATEGORY_NAMES.get(str(task.category), task.category),
+            'type': task.type,  # <--- CRITICAL: Now pulls Enquiry Selection from DB
             'received_timestamp': task.received_timestamp,
             'last_replied_timestamp': last_reply_dict.get(task.email_id),
             'is_delegated': True
@@ -1544,12 +1701,13 @@ def get_unified_email_data(request):
             'delegated_to': 'Inbox (Unassigned)',
             'member_group_code': 'N/A',
             'category': 'Unclassified',
+            'type': 'Incoming Email', # Default for un-delegated items
             'received_timestamp': email.received_timestamp,
             'last_replied_timestamp': None,
             'is_delegated': False
         })
 
-    # 5. Search Filter (Wildcard)
+    # 5. Search Filter
     search_text = request.GET.get('search', '').lower()
     if search_text:
         unified_list = [
@@ -1565,10 +1723,12 @@ def get_unified_email_data(request):
 
 @login_required
 def email_workflow_log_view(request):
+    from django.core.paginator import Paginator
 
+    # Uses the helper above which now includes the 'type' field
     data = get_unified_email_data(request)
     
-    paginator = Paginator(data, 25) # 25 per page
+    paginator = Paginator(data, 25) 
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
@@ -1576,8 +1736,10 @@ def email_workflow_log_view(request):
 
 @login_required
 def export_email_workflow_csv(request):
-    """Exports the filtered unified email list to CSV with Agent and Reply Date."""
-    # This pulls the data using the helper you provided earlier
+    import csv
+    from django.http import HttpResponse
+    from django.utils import timezone
+
     data = get_unified_email_data(request)
     
     response = HttpResponse(content_type='text/csv')
@@ -1586,42 +1748,37 @@ def export_email_workflow_csv(request):
 
     writer = csv.writer(response)
     
-    # Define Column Headers
     writer.writerow([
         'Received Date', 
         'Sender', 
         'Subject', 
         'Status', 
-        'Agent (Assigned)',  # The User
+        'Agent (Assigned)', 
         'Member Code', 
-        'Category', 
-        'Date Replied'       # The Reply Date
+        'Category',
+        'Enquiry Selection', 
+        'Date Replied'
     ])
 
     for row in data:
-        # Format Received Date
         received_dt = row['received_timestamp'].strftime('%Y-%m-%d %H:%M') if row['received_timestamp'] else 'N/A'
         
-        # Format Last Replied Date (The logic you were missing)
         reply_dt = 'No Reply'
         if row.get('last_replied_timestamp'):
-            # Convert the datetime object to a clean string for Excel
             reply_dt = row['last_replied_timestamp'].strftime('%Y-%m-%d %H:%M')
 
-        # Map the Agent name
-        # If 'delegated_to' is a User object, we use .username, otherwise use the string
-        agent_name = row.get('delegated_to', 'Inbox (Unassigned)')
+        agent_name = row.get('delegated_to') or 'Inbox (Unassigned)'
 
-        # WRITE THE ROW
         writer.writerow([
             received_dt,
             row.get('sender', 'Unknown'),
             row.get('subject', 'No Subject'),
             row.get('status', 'New'),
-            agent_name,  # This maps to 'Agent (Assigned)'
+            agent_name,
             row.get('member_group_code', 'N/A'),
             row.get('category', 'Unclassified'),
-            reply_dt     # This maps to 'Date Replied'
+            row.get('type', 'None'), # This will now pull the value you added to the helper
+            reply_dt
         ])
 
     return response

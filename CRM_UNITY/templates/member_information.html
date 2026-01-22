@@ -4,262 +4,259 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ contact_info.member_group_name }} Profile Information</title>
-    <style>
-        /* CSS Variables for Theming */
-        :root {
-            --color-primary: #1b5e20; /* Dark Green */
-            --color-secondary: #43a047; /* Medium Green */
-            --color-light-green: #81c784; /* Light Green for buttons/tabs */
-            --color-background-body: #d1e2c4; /* Page background */
-            --color-background-container: #f0fff0; /* Container background */
-            --color-border-light: #aed581; /* Light border/separator */
-            --color-text-dark: #333;
-            --font-size-base: 14px;
-            --font-size-small: 13px;
-        }
-        /* Base Layout */
-        html, body {
-            height: 100%;
-            margin: 0;
-            padding: 0;
-            overflow: hidden; /* This prevents scrolling */
-        }
-       
-        body {
-            font-family: sans-serif;
-            font-size: 14px; /* Reduced base font size */
-            background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
-            color: #333;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
+<style>
+    /* CSS Variables for Theming */
+    :root {
+        --color-primary: #1b5e20; /* Dark Green */
+        --color-secondary: #43a047; /* Medium Green */
+        --color-light-green: #81c784; /* Light Green for buttons/tabs */
+        --color-background-body: #d1e2c4; /* Page background */
+        --color-background-container: #f0fff0; /* Container background */
+        --color-border-light: #aed581; /* Light border/separator */
+        --color-text-dark: #333;
+        --font-size-base: 14px;
+        --font-size-small: 13px;
+    }
+    /* Base Layout */
+    html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden; /* This prevents scrolling */
+    }
+    
+    body {
+        font-family: sans-serif;
+        font-size: 14px; /* Reduced base font size */
+        background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
+        color: #333;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
 
-        .container {
-            width: 95%;
-            max-width: 98%;
-            height: 90vh;
-            display: flex;
-            flex-direction: column;
-            background-color: var(--color-background-container);
-            padding: 1.5em;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-       
-        /* Header and Buttons */
-        .header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 20px;
-        }
+    .container {
+        width: 95%;
+        max-width: 98%;
+        height: 90vh;
+        display: flex;
+        flex-direction: column;
+        background-color: var(--color-background-container);
+        padding: 1.5em;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    
+    /* Header and Buttons */
+    .header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
+    }
 
-        h1 {
-            color: var(--color-primary);
-            text-align: center;
-            flex-grow: 1;
-            font-size: 22px;
-            margin: 0;
-        }
-       
-        .btn {
-            padding: 8px 16px;
-            background-color: var(--color-light-green);
-            border: 1px solid var(--color-light-green);
-            border-radius: 5px;
-            text-decoration: none;
-            color: white;
-            font-weight: bold;
-            font-size: var(--font-size-small);
-            transition: background-color 0.3s ease;
-            cursor: pointer;
-            text-align: center;
-        }
+    h1 {
+        color: var(--color-primary);
+        text-align: center;
+        flex-grow: 1;
+        font-size: 22px;
+        margin: 0;
+    }
+    
+    .btn {
+        padding: 8px 16px;
+        background-color: var(--color-light-green);
+        border: 1px solid var(--color-light-green);
+        border-radius: 5px;
+        text-decoration: none;
+        color: white;
+        font-weight: bold;
+        font-size: var(--font-size-small);
+        transition: background-color 0.3s ease;
+        cursor: pointer;
+        text-align: center;
+    }
 
-        .btn:hover {
-            background-color: #66bb6a; /* Slightly darker green */
-        }
-       
-        .header > a {
-            flex-shrink: 0; /* Prevents button from shrinking */
-        }
-       
-        .header > div {
-            /* Placeholder for alignment balance when needed */
-            width: 138.8px; /* Approximate width of the button for center alignment of h1 */
-        }
+    .btn:hover {
+        background-color: #66bb6a; /* Slightly darker green */
+    }
+    
+    .header > a {
+        flex-shrink: 0; /* Prevents button from shrinking */
+    }
+    
+    .header > div {
+        /* Placeholder for alignment balance when needed */
+        width: 138.8px; /* Approximate width of the button for center alignment of h1 */
+    }
 
-        /* Profile Layout (Tabs and Content) */
-        .profile-layout {
-            display: flex;
-            gap: 15px;
-            flex: 1;
-            min-height: 0; /* Important for flex-child scrolling */
-        }
-       
-        /* Vertical Tabs Navigation */
-        .tab-nav {
-            list-style-type: none;
-            padding: 0;
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            width: 180px;
-            border-right: 2px solid var(--color-border-light);
-            overflow-y: auto;
-        }
-       
-        .tab-nav li {
-            padding: 10px 15px;
-            cursor: pointer;
-            background-color: var(--color-light-green); 
-            border: 1px solid var(--color-light-green);
-            border-right: none;
-            color: white;
-            margin-bottom: 4px;
-            border-radius: 5px 0 0 5px;
-            white-space: nowrap;
-            text-align: right;
-            transition: all 0.2s ease;
-            font-size: var(--font-size-small);
-        }
+    /* Profile Layout (Tabs and Content) */
+    .profile-layout {
+        display: flex;
+        gap: 15px;
+        flex: 1;
+        min-height: 0; /* Important for flex-child scrolling */
+    }
+    
+    /* Vertical Tabs Navigation */
+    .tab-nav {
+        list-style-type: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        width: 180px;
+        border-right: 2px solid var(--color-border-light);
+        overflow-y: auto;
+    }
+    
+    .tab-nav li {
+        padding: 10px 15px;
+        cursor: pointer;
+        background-color: var(--color-light-green); 
+        border: 1px solid var(--color-light-green);
+        border-right: none;
+        color: white;
+        margin-bottom: 4px;
+        border-radius: 5px 0 0 5px;
+        white-space: nowrap;
+        text-align: right;
+        transition: all 0.2s ease;
+        font-size: var(--font-size-small);
+    }
 
-        .tab-nav li.active {
-            background-color: var(--color-background-container);
-            color: var(--color-primary);
-            border-top: 2px solid var(--color-secondary);
-            border-bottom: 2px solid var(--color-secondary);
-            border-left: 2px solid var(--color-secondary);
-            font-weight: bold;
-            transform: translateX(2px);
-            z-index: 1;
-        }
+    .tab-nav li.active {
+        background-color: var(--color-background-container);
+        color: var(--color-primary);
+        border-top: 2px solid var(--color-secondary);
+        border-bottom: 2px solid var(--color-secondary);
+        border-left: 2px solid var(--color-secondary);
+        font-weight: bold;
+        transform: translateX(2px);
+        z-index: 1;
+    }
 
-        .tab-nav li:hover:not(.active) {
-            background-color: #66bb6a; 
-        }
+    .tab-nav li:hover:not(.active) {
+        background-color: #66bb6a; 
+    }
 
-        /* Tab Content Area */
-        .tab-content {
-            flex: 1;
-            background-color: var(--color-background-container);
-            padding: 15px;
-            border: 1px solid var(--color-border-light);
-            border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-            overflow-y: auto;
-        }
-       
-        .tab-pane {
-            display: none;
-        }
-       
-        .tab-pane.active {
-            display: block;
-        }
+    /* Tab Content Area */
+    .tab-content {
+        flex: 1;
+        background-color: var(--color-background-container);
+        padding: 15px;
+        border: 1px solid var(--color-border-light);
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        overflow-y: auto;
+    }
+    
+    .tab-pane {
+        display: none;
+    }
+    
+    .tab-pane.active {
+        display: block;
+    }
 
-        /* Table Styles */
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-        }
+    /* Table Styles */
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+    }
 
-        th, td {
-            padding: 8px 12px;
-            text-align: left;
-            border-bottom: 1px solid var(--color-border-light);
-            font-size: var(--font-size-small);
-        }
-       
-        th {
-            background-color: #e6ffe6;
-            color: var(--color-primary);
-            font-weight: bold;
-        }
+    th, td {
+        padding: 8px 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--color-border-light);
+        font-size: var(--font-size-small);
+    }
+    
+    th {
+        background-color: #e6ffe6;
+        color: var(--color-primary);
+        font-weight: bold;
+    }
 
-        tr:nth-child(even) {
-            background-color: #f9f9f9;
-        }
+    tr:nth-child(even) {
+        background-color: #f9f9f9;
+    }
 
-        .empty-message {
-            text-align: center;
-            padding: 15px;
-            color: #777;
-            font-style: italic;
-            font-size: var(--font-size-small);
-        }
-       
-        /* Notes and Documents Shared Styles */
-        .content-section {
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-        }
-       
-        .content-section h2 {
-            font-size: 1.2em;
-            color: var(--color-primary);
-            margin-bottom: 10px;
-            border-bottom: 2px solid var(--color-border-light);
-            padding-bottom: 5px;
-        }
-       
-        /* Input and Select Styling (omitted for brevity, assume they are correct) */
-       
+    .empty-message {
+        text-align: center;
+        padding: 15px;
+        color: #777;
+        font-style: italic;
+        font-size: var(--font-size-small);
+    }
+    
+    /* Notes and Documents Shared Styles */
+    .content-section {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+    }
+    
+    .content-section h2 {
+        font-size: 1.2em;
+        color: var(--color-primary);
+        margin-bottom: 10px;
+        border-bottom: 2px solid var(--color-border-light);
+        padding-bottom: 5px;
+    }
+    
+    .overview-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr; /* Two equal columns */
+        gap: 20px;
+        margin-top: 20px;
+    }
+
+    .card {
+        background-color: var(--color-background-container); 
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        border: 1px solid var(--color-border-light);
+    }
+
+    .card h3 {
+        color: var(--color-primary);
+        border-bottom: 2px solid var(--color-border-light);
+        padding-bottom: 8px;
+        margin-bottom: 15px;
+        font-size: 16px;
+    }
+
+    /* Styling the table inside the card for cleaner presentation */
+    .card .data-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    .card .data-table th, .card .data-table td {
+        padding: 8px 0;
+        text-align: left;
+        border-bottom: 1px dotted #ccc;
+    }
+    .card .data-table th {
+        width: 45%;
+        font-weight: bold;
+        color: var(--color-text-dark);
+    }
+
+    /* Ensure single column layout on small screens */
+    @media (max-width: 768px) {
         .overview-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr; /* Two equal columns */
-            gap: 20px;
-            margin-top: 20px;
+            grid-template-columns: 1fr;
         }
-
-        .card {
-            background-color: var(--color-background-container); /* Use defined variable */
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-            border: 1px solid var(--color-border-light);
-        }
-
-        .card h3 {
-            color: var(--color-primary);
-            border-bottom: 2px solid var(--color-border-light);
-            padding-bottom: 8px;
-            margin-bottom: 15px;
-            font-size: 16px;
-        }
-
-        /* Styling the table inside the card for cleaner presentation */
-        .card .data-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        .card .data-table th, .card .data-table td {
-            padding: 8px 0;
-            text-align: left;
-            border-bottom: 1px dotted #ccc;
-        }
-        .card .data-table th {
-            width: 45%;
-            font-weight: bold;
-            color: var(--color-text-dark);
-        }
-
-        /* Ensure single column layout on small screens */
-        @media (max-width: 768px) {
-            .overview-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-       
+    }
+    
 
 /* -------------------------------------- */
 /* CSS ANIMATION: Two ACTIVE SVG Stick Figures Talking (FINAL) */
 /* -------------------------------------- */
 
-/* Main container for the animation */
 .talking-scene {
     display: flex;
     align-items: flex-end;
@@ -269,53 +266,41 @@
     position: relative;
 }
 
-/* SVG container for each person */
 .person-svg {
     margin: 0 10px;
     overflow: visible; 
     animation: bounce 1.5s infinite ease-in-out;
 }
 
-/* Style for all stick figure lines/circles */
 .person-svg circle, .person-svg line {
     stroke-width: 2;
     stroke-linecap: round;
 }
 
-/* Apply new arm movement to the arms line */
 .person-svg .arms-line {
     transform-origin: 20px 25px; 
     animation: arm-fidget 3s infinite ease-in-out; 
 }
 
-/* Apply new leg movement to the left leg */
 .person-svg .left-leg {
     transform-origin: 20px 35px; 
     animation: leg-shift 3s infinite ease-in-out;
 }
 
-/* Apply new leg movement to the right leg, slightly delayed */
 .person-svg .right-leg {
     transform-origin: 20px 35px; 
     animation: leg-shift 3s infinite ease-in-out 1.5s;
 }
 
-/* NEW: Mouth line style and animation */
 .person-svg .mouth-line {
-    /* Set the mouth to open/close only when the person is "speaking" */
     animation: open-mouth 3s infinite;
-    /* Person 1 speaks first */
     animation-delay: 0s;
 }
 
-/* NEW: Stagger the mouth movement for person 2 */
 .person-svg.person-2 .mouth-line {
-    /* Person 2 speaks second (1.5s delay) */
     animation-delay: 1.5s; 
 }
 
-
-/* Speech bubble container (remains outside the SVG for easier absolute positioning) */
 .speech-bubble {
     position: absolute;
     bottom: 55px;
@@ -325,12 +310,10 @@
     background-color: var(--color-secondary);
     border-radius: 50%;
     opacity: 0;
-   
     animation: talk 3s infinite;
     z-index: 3;
 }
 
-/* Timing adjustments for the staggered conversation */
 .talking-scene > .speech-bubble:nth-child(1) {
     animation-delay: 0s;
     left: calc(50% - 15px); 
@@ -341,60 +324,31 @@
     left: calc(50% + 15px); 
 }
 
-
-/* -------------------------------------- */
-/* KEYFRAMES */
-/* -------------------------------------- */
-
-/* Keyframes for the subtle 'bounce' of the head while listening/talking */
 @keyframes bounce {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-5px); }
 }
 
-/* Keyframes for the 'talking' animation (pop and fade) */
 @keyframes talk {
-    0%, 15% {
-        transform: translateX(-50%) scale(0);
-        opacity: 0;
-    }
-    20% {
-        transform: translateX(-50%) scale(1.2);
-        opacity: 1;
-    }
-    30%, 45% {
-        transform: translateX(-50%) scale(1);
-        opacity: 1;
-    }
-    50%, 100% {
-        transform: translateX(-50%) scale(0);
-        opacity: 0;
-    }
+    0%, 15% { transform: translateX(-50%) scale(0); opacity: 0; }
+    20% { transform: translateX(-50%) scale(1.2); opacity: 1; }
+    30%, 45% { transform: translateX(-50%) scale(1); opacity: 1; }
+    50%, 100% { transform: translateX(-50%) scale(0); opacity: 0; }
 }
 
-/* NEW: Keyframes for MOUTH MOVEMENT */
 @keyframes open-mouth {
-    /* Mouth closed when not talking (0-15%) */
     0%, 15% { transform: translateY(0px); } 
-   
-    /* Mouth opens quickly when talking starts (20%) */
     20% { transform: translateY(2px); } 
-   
-    /* Mouth stays slightly open during speech (30-45%) */
     30%, 45% { transform: translateY(1.5px); } 
-   
-    /* Mouth closes when speech ends (50-100%) */
     50%, 100% { transform: translateY(0px); }
 }
 
-/* Keyframes for ARM MOVEMENT */
 @keyframes arm-fidget {
     0%, 100% { transform: translateY(0) rotate(0deg); }
     25% { transform: translateY(2px) rotate(2deg); }
     75% { transform: translateY(-2px) rotate(-2deg); }
 }
 
-/* Keyframes for LEG MOVEMENT */
 @keyframes leg-shift {
     0%, 100% { transform: rotate(0deg); }
     50% { transform: rotate(-5deg); }
@@ -409,7 +363,7 @@
     border-collapse: collapse;
 }
 .email-log-table th {
-    background-color: #f0f4c3; /* Light, neutral color for email header */
+    background-color: #f0f4c3; 
     color: #43a047;
     padding: 10px 15px;
     text-align: left;
@@ -426,7 +380,7 @@
     background-color: #f5f5f5;
 }
 .email-log-table a {
-    color: #43a047; /* Primary link color */
+    color: #43a047; 
     text-decoration: none;
     font-weight: 500;
 }
@@ -434,30 +388,17 @@
     text-decoration: underline;
 }
 
-/* Status colors (Must match statuses used in DELEGATION_LOG) */
-.status-delegated { 
-    color: #1e88e5; /* Blue */
-    font-weight: bold; 
-}
-.status-actioned { 
-    color: #2e7d32; /* Green */
-    font-weight: bold; 
-}
-.status-recycled { 
-    color: #f4511e; /* Orange/Red for discarded */
-    font-weight: bold; 
-}
-.status-not.actioned { /* If you use "Not Actioned" as a status */
-    color: #888;
-}
+.status-delegated { color: #1e88e5; font-weight: bold; }
+.status-actioned { color: #2e7d32; font-weight: bold; }
+.status-recycled { color: #f4511e; font-weight: bold; }
+.status-not.actioned { color: #888; }
 
-/* Compose Email Form Styling */
 .email-composition-area {
     margin-top: 15px; 
     padding: 15px; 
-    border: 2px dashed #1e88e5; /* Blue for new email */
+    border: 2px dashed #1e88e5; 
     border-radius: 8px; 
-    background-color: #e3f2fd; /* Light blue background */
+    background-color: #e3f2fd; 
 }
 .email-composition-area h2 {
     color: #1e88e5 !important;
@@ -476,12 +417,44 @@
     border-radius: 4px; 
     background-color: white;
 }
+
+/* -------------------------------------- */
+/* ADDED: ACTION BUTTON STYLES FOR EMAIL LOG (VIEW/DOWNLOAD) */
+/* -------------------------------------- */
+
+.email-log-actions {
+    display: flex; 
+    gap: 8px; 
+    justify-content: center;
+}
+
+.action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: white !important; /* Force white text */
+    padding: 6px 12px;
+    border-radius: 4px;
+    text-decoration: none !important;
+    font-size: 0.8rem;
+    font-weight: bold;
+    transition: opacity 0.2s;
+}
+
+.action-btn:hover {
+    opacity: 0.85;
+    text-decoration: none !important;
+}
+
+.bg-view { background-color: #43a047; }    /* Green */
+.bg-download { background-color: #1976d2; } /* Blue */
+
 </style>
 <body>
     <div class="container">
         <div class="header">
             <a href="{% url 'global_members_list' %}" class="btn">Return to Global List</a>
-            <h1>{{ contact_info.member_group_name }} Profile</h1>
+            <h1>{{ contact_info.member_group_code }} - {{ contact_info.member_group_name }} Profile</h1>
            
             <div class="talking-scene">
                 <svg width="40" height="60" viewBox="0 0 40 60" class="person-svg person-1">
@@ -1330,7 +1303,7 @@
                                     <i class="fas fa-lock" style="font-size: 0.8em; margin-right: 5px; color: #999;"></i> {{ email.subject|truncatechars:45 }}
                                 </span>
                             {% else %}
-                                <a href="{% url 'delegate_action' email_id=email.email_id %}" style="color: #2e7d32; text-decoration: none; font-weight: 500;">
+                                <a href="{% url 'delegate_action' email_id=email.email_id %}?from=member" style="color: #2e7d32; text-decoration: none; font-weight: 500;">
                                     {{ email.subject|truncatechars:45 }}
                                 </a>
                             {% endif %}
@@ -1353,16 +1326,16 @@
                             {% else %}-{% endif %}
                         </td>
                         <td style="padding: 10px; text-align: center;">
-                            <div style="display: flex; gap: 5px; justify-content: center;">
+                            <div class="email-log-actions">
                                 <a href="{% url 'view_email_thread' email_id=email.email_id %}" 
-                                   style="background-color: #81c784; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 0.85em;"
+                                   class="action-btn bg-view" 
                                    title="View Audit Trail">
-                                    <i class="fas fa-stream"></i>
+                                    <i class="fas fa-eye"></i> View
                                 </a>
                                 <a href="{% url 'download_actual_email' email_id=email.email_id %}" 
-                                   style="background-color: #1976d2; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 0.85em;"
+                                   class="action-btn bg-download" 
                                    title="Download .eml File">
-                                    <i class="fas fa-file-download"></i>
+                                    <i class="fas fa-download"></i> Download
                                 </a>
                             </div>
                         </td>
@@ -1384,12 +1357,12 @@
                         <td style="padding: 10px;"><span style="color: #e91e63; font-weight: bold;">SENT</span></td>
                         <td style="padding: 10px;">{{ email.sent_at|date:"Y-m-d H:i" }}</td>
                         <td style="padding: 10px; text-align: center;">
-                            <div style="display: flex; gap: 5px; justify-content: center;">
+                            <div class="email-log-actions">
                                 {% if email.outlook_message_id %}
                                     <a href="{% url 'download_actual_email' email_id=email.outlook_message_id %}" 
-                                    style="background-color: #1976d2; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 0.85em;"
-                                    title="Download Sent .eml">
-                                        <i class="fas fa-file-download"></i>
+                                       class="action-btn bg-download" 
+                                       title="Download Sent .eml">
+                                        <i class="fas fa-download"></i> Download
                                     </a>
                                 {% else %}
                                     <span style="color: #ccc;" title="No ID available for older logs">-</span>
@@ -1661,28 +1634,37 @@
                     </div>
                 </div>
                 
-                <div class="col-right existing-notes-list" style="flex: 1; padding: 15px; background-color: #e6ffe6; border-radius: 8px;">
-                    <h2 style="margin-top: 0; font-size: 1.5em; color: #38761d;">Existing Notes</h2>
-                    <div class="note-list" style="max-height: 400px; overflow-y: auto;">
-                        {% if notes %}
-                            {% for note in notes %}
-                            <div class="note-item" style="border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 10px;">
-                                <div class="note-header" style="font-size: 0.9em; margin-bottom: 5px;">
-                                    Posted by: <strong>{{ note.user }}</strong> on {{ note.date|date:"Y-m-d H:i" }}
-                                    <small style="display: block; color: #555;">{{ note.communication_type }} | {{ note.action_notes }}</small>
-                                </div>
-                                <p class="note-content" style="margin-top: 5px; margin-bottom: 0;">{{ note.notes }}</p>
-                                
-                                {% if note.has_file %}
-                                    <a href="{{ note.file_url }}" target="_blank" class="attachment-link">📄 View Attachment</a>
-                                {% endif %}
+            <div class="col-right existing-notes-list" style="flex: 1; padding: 15px; background-color: #e6ffe6; border-radius: 8px;">
+                <h2 style="margin-top: 0; font-size: 1.5em; color: #38761d;">Existing Notes</h2>
+                <div class="note-list" style="max-height: 400px; overflow-y: auto;">
+                    {% if notes %}
+                        {% for note in notes %}
+                        <div class="note-item" style="border-bottom: 1px solid #ccc; padding-bottom: 10px; margin-bottom: 10px; position: relative;">
+                            <div class="note-header" style="font-size: 0.9em; margin-bottom: 5px;">
+                                Posted by: <strong>{{ note.user }}</strong> on {{ note.date|date:"Y-m-d H:i" }}
+                                <small style="display: block; color: #555;">{{ note.communication_type }} | {{ note.action_notes }}</small>
                             </div>
-                            {% endfor %}
-                        {% else %}
-                            <p class="empty-message">No notes available.</p>
-                        {% endif %}
-                    </div>
-                </div> 
+                            <p class="note-content" style="margin-top: 5px; margin-bottom: 0;">{{ note.notes }}</p>
+                            
+                            {# Check for the filename field added to the ClientNotes model #}
+                            {% if note.attached_file_name %}
+                                <div style="margin-top: 8px;">
+                                    <a href="?download_note_file={{ note.attached_file_name }}" 
+                                    class="attachment-link" 
+                                    style="display: inline-flex; align-items: center; background-color: #f1f8e9; border: 1px solid #c8e6c9; padding: 4px 8px; border-radius: 4px; color: #2e7d32; text-decoration: none; font-size: 0.85em; font-weight: bold;">
+                                        <i class="fas fa-paperclip" style="margin-right: 5px;"></i> View Attachment
+                                    </a>
+                                    <small style="color: #666; font-size: 0.75em; display: block; margin-top: 2px;">
+                                        {{ note.attached_file_name|truncatechars:30 }}
+                                    </small>
+                                </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    {% else %}
+                        <p class="empty-message">No notes available.</p>
+                    {% endif %}
+                </div>
             </div>
 
             <button type="submit" name="note_submission_action" value="save_member_note" id="call_note_submit" style="width: 100%; background-color: #4CAF50; color: white; border: none; padding: 10px; border-radius: 4px; display: none; margin-top: 15px;">Log Outgoing Call Note</button>
@@ -1760,9 +1742,8 @@
 </section>
        
 <script>
-    
     // --- NO TIMER FUNCTIONS ARE INCLUDED IN THIS SCRIPT ---
-   
+
     // --- Tab Switching Logic (Unmodified) ---
     const toggleEditView = (currentSectionId, targetSectionId) => {
         const currentDiv = document.getElementById(currentSectionId);
@@ -1795,7 +1776,7 @@
                 window.history.pushState(null, null, tab.dataset.tabTarget);
             });
         });
-       
+
         document.querySelectorAll('.edit-toggle-btn').forEach(button => {
             button.addEventListener('click', function() {
                 const targetId = this.getAttribute('data-target');
@@ -1815,7 +1796,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const activateEditMode = urlParams.get('edit_mode');
         const hash = window.location.hash;
-       
+        
         let initialTab = null;
         let editDivId = null;
 
@@ -1855,10 +1836,9 @@
         } else if (hash) {
             initialTab = document.querySelector(`.tab-nav li[data-tab-target="${hash}"]`);
         }
-       
+        
         if (initialTab) {
             activateTab(initialTab);
-           
             if (editDivId) {
                 const displayDivId = editDivId.replace('-edit', '-display');
                 toggleEditView(displayDivId, editDivId); 
@@ -1866,6 +1846,24 @@
         } else {
             activateTab(document.querySelector('.tab-nav li.active'));
         }
+
+        // ====================================================================
+        // === ATTACHMENT CLICK HANDLER (NEW) ===
+        // ====================================================================
+        document.querySelectorAll('.attachment-link').forEach(link => {
+            link.addEventListener('click', function() {
+                const originalContent = this.innerHTML;
+                this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Downloading...';
+                this.style.pointerEvents = 'none';
+                this.style.opacity = '0.7';
+                
+                setTimeout(() => {
+                    this.innerHTML = originalContent;
+                    this.style.pointerEvents = 'auto';
+                    this.style.opacity = '1';
+                }, 2500);
+            });
+        });
 
         // ====================================================================
         // === NOTES TAB DYNAMIC COMMUNICATION FORM VISIBILITY AND DIALER LOGIC (MODIFIED) ===
@@ -1879,22 +1877,17 @@
         
         const dialButton = document.getElementById('trigger_call_dialer');
 
-        // Field references (NOTES TAB ONLY)
         const regularNoteContent = document.getElementById('regular_note_content'); 
         const regularNoteSubmit = document.getElementById('regular_note_submit'); 
-        const actionInput = notesMasterForm ? notesMasterForm.querySelector('input[name="action"]') : null;
         const dialerNumber = document.getElementById('dialer_number');
         const callStatus = document.getElementById('call_status');
         
-        // Reference Email ID hidden input and selection list
         const attachedEmailIdInput = document.getElementById('attached_email_id');
         const emailListSelect = document.getElementById('email_list_select');
        
-        // Dialer Pad specific references
         const dialerButtons = document.querySelectorAll('.dialer-btn');
         const dialerClear = document.getElementById('dialer_clear');
 
-        // Dialer Pad Functionality
         function appendNumber(value) {
             if (dialerNumber) {
                 dialerNumber.value += value;
@@ -1920,13 +1913,11 @@
             if (!commTypeSelect) return;
             const selectedValue = commTypeSelect.value;
            
-            // Hide all action areas initially
             if (regularNoteArea) regularNoteArea.style.display = 'none';
             if (dialerArea) dialerArea.style.display = 'none';
             if (emailAttachSection) emailAttachSection.style.display = 'none';
             if (callLogSubmit) callLogSubmit.style.display = 'none';
 
-            // Reset dynamic fields
             if (regularNoteContent) {
                 regularNoteContent.value = '';
                 regularNoteContent.removeAttribute('required'); 
@@ -1939,7 +1930,6 @@
             if (dialerNumber) dialerNumber.removeAttribute('required');
             if (callStatus) callStatus.removeAttribute('required');
             
-            // Reset the Reference Email values
             if (emailListSelect) emailListSelect.value = '';
             if (attachedEmailIdInput) attachedEmailIdInput.value = '';
 
@@ -1949,36 +1939,30 @@
                 if (callLogSubmit) callLogSubmit.style.display = 'block';
                 if (dialerNumber) dialerNumber.setAttribute('required', 'required');
                 if (regularNoteSubmit) regularNoteSubmit.setAttribute('disabled', 'true');
-
             } else if (selectedValue === 'Sent E-mail') {
                 if (regularNoteArea) regularNoteArea.style.display = 'block';
                 if (emailAttachSection) emailAttachSection.style.display = 'block';
                 if (regularNoteSubmit) regularNoteSubmit.setAttribute('name', 'note_submission_action');
-
             } else if (['Incoming Call', 'Notes Log', 'Teams Meeting'].includes(selectedValue)) {
                 if (regularNoteArea) regularNoteArea.style.display = 'block';
                 if (regularNoteContent) regularNoteContent.setAttribute('required', 'required');
                 if (regularNoteSubmit) regularNoteSubmit.setAttribute('name', 'note_submission_action');
-               
             } else {
                 if (regularNoteArea) regularNoteArea.style.display = 'block';
                 if (regularNoteSubmit) regularNoteSubmit.setAttribute('name', 'note_submission_action');
             }
         }
        
-        // === EVENT LISTENERS (NOTES TAB) ===
         if (commTypeSelect) {
             commTypeSelect.addEventListener('change', toggleCommunicationForms);
         }
 
-        // Email Select sync with hidden ID input
         if (emailListSelect && attachedEmailIdInput) {
             emailListSelect.addEventListener('change', function() {
                 attachedEmailIdInput.value = this.value;
             });
         }
        
-        // Dialer Trigger Logic
         if (dialButton) {
             dialButton.addEventListener('click', function() {
                 const phoneNumber = dialerNumber ? dialerNumber.value.trim() : '';
@@ -1990,12 +1974,10 @@
             });
         }
 
-        // Run on load to set initial visibility
         if (commTypeSelect) {
             toggleCommunicationForms();
         }
        
-        // --- Form Submission Handler for NOTES TAB ---
         if (notesMasterForm) {
             notesMasterForm.addEventListener('submit', function(event) {
                 const selectedType = commTypeSelect ? commTypeSelect.value : '';
@@ -2017,12 +1999,13 @@
         }
         
         // ====================================================================
-        // === COMPOSE EMAIL TAB LOGIC (UNMODIFIED) ===
+        // === COMPOSE EMAIL TAB LOGIC (UPDATED WITH LOADING STATE) ===
         // ====================================================================
         const composeEmailForm = document.getElementById('compose_email_form');
         const directEmailBodyEditor = document.getElementById('direct_member_email_body_editor');
         const directEmailBodyHtmlInput = document.getElementById('direct_email_body_html_content');
         const directEmailActionInput = composeEmailForm ? composeEmailForm.querySelector('input[name="action"]') : null;
+        const sendEmailButton = composeEmailForm ? composeEmailForm.querySelector('button[type="submit"]') : null;
 
         if (composeEmailForm) {
             composeEmailForm.addEventListener('submit', function(event) {
@@ -2035,8 +2018,19 @@
                     }
                     directEmailBodyHtmlInput.value = content;
                 }
+                
                 if (directEmailActionInput) {
                      directEmailActionInput.value = 'send_direct_email';
+                }
+
+                // Add visual feedback for sending via Outlook
+                if (sendEmailButton) {
+                    const originalBtnText = sendEmailButton.innerHTML;
+                    sendEmailButton.innerHTML = '<i class="fas fa-paper-plane fa-spin"></i> Sending via Outlook...';
+                    sendEmailButton.style.opacity = '0.7';
+                    sendEmailButton.style.pointerEvents = 'none';
+                    
+                    // Note: We don't use setTimeout here because the page will redirect upon success
                 }
             });
         }

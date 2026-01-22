@@ -123,9 +123,16 @@
 <body>
 
 <div class="dashboard-links mt-4">
-    <a href="{% url 'dashboard' %}" class="return-button">
-        <i class="fas fa-home" style="margin-right: 8px;"></i> Back to Home Screen
-    </a>
+    {% if source == 'member' %}
+        {# Use the correct name 'member_information' and pass the member_group_code variable #}
+        <a href="{% url 'member_information' member_group_code=task.member_group_code %}" class="return-button" style="background-color: #673ab7; border-color: #5e35b1;">
+            <i class="fas fa-arrow-left" style="margin-right: 8px;"></i> Back to Member Information
+        </a>
+    {% else %}
+        <a href="{% url 'tasks' %}" class="return-button">
+            <i class="fas fa-home" style="margin-right: 8px;"></i> Back to My Dashboard
+        </a>
+    {% endif %}
 </div>
 
 <div class="task-container">

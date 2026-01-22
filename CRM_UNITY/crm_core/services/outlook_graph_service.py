@@ -1,3 +1,5 @@
+# outlook_graph_service.py
+
 import requests
 import logging
 import base64
@@ -12,7 +14,7 @@ class OutlookGraphService:
     def _make_graph_request(endpoint, method='GET', data=None, is_mime=False):
         """
         Unified request handler using System Service Token.
-        Added 'is_mime' parameter to handle raw RFC822/MIME streams ($value).
+        Handles both JSON responses and raw MIME streams ($value).
         """
         access_token = get_current_access_token()
         if not access_token:
@@ -48,7 +50,7 @@ class OutlookGraphService:
         except Exception as e:
             logger.error(f"Graph Request Error: {e}")
             try:
-                # If it's a response object, try to get JSON error
+                # Attempt to extract specific Microsoft Graph error messages
                 error_detail = response.json().get('error', {}).get('message', str(e))
             except:
                 error_detail = str(e)
@@ -63,12 +65,14 @@ class OutlookGraphService:
     @staticmethod
     def send_outlook_email(recipient, subject, body_html, attachments=None):
         """
-        Sends an email using the Service Account defined in settings.
-        Captured outlook_id by creating a draft first, then sending.
+        CRM_UNITY: Sends an email directly via the /sendMail endpoint.
+        Updated to fix 403 Forbidden errors by removing the 'Draft' creation step,
+        which requires Mail.ReadWrite permissions.
         """
-        # STEP 1: Create a Draft Message to obtain a Message ID
-        create_endpoint = "messages"
-        draft_payload = {
+        endpoint = "sendMail"
+        
+        # 1. Construct the message dictionary structure
+        message_dict = {
             "subject": subject,
             "body": {
                 "contentType": "HTML",
@@ -76,19 +80,11 @@ class OutlookGraphService:
             },
             "toRecipients": [
                 {"emailAddress": {"address": recipient}}
-            ]
+            ],
+            "attachments": []
         }
 
-        draft_result = OutlookGraphService._make_graph_request(create_endpoint, method='POST', data=draft_payload)
-        
-        if isinstance(draft_result, dict) and 'error' in draft_result:
-            return {'success': False, 'error': draft_result.get('error')}
-        
-        message_id = draft_result.get('id')
-        if not message_id:
-            return {'success': False, 'error': 'Failed to retrieve message ID from Microsoft Graph'}
-
-        # STEP 2: Upload Attachments to the Draft if they exist
+        # 2. Process and encode attachments directly into the message payload
         if attachments:
             for f in attachments:
                 try:
@@ -96,30 +92,30 @@ class OutlookGraphService:
                     content_bytes = f.read()
                     encoded_content = base64.b64encode(content_bytes).decode('utf-8')
                     
-                    attachment_payload = {
+                    message_dict["attachments"].append({
                         "@odata.type": "#microsoft.graph.fileAttachment",
                         "name": f.name,
                         "contentType": getattr(f, 'content_type', 'application/octet-stream'),
                         "contentBytes": encoded_content
-                    }
-                    
-                    attach_endpoint = f"messages/{message_id}/attachments"
-                    attach_result = OutlookGraphService._make_graph_request(attach_endpoint, method='POST', data=attachment_payload)
-                    
-                    if isinstance(attach_result, dict) and 'error' in attach_result:
-                        logger.error(f"Attachment failed for {f.name}: {attach_result.get('error')}")
+                    })
                 except Exception as e:
-                    logger.error(f"Failed to process attachment {f.name}: {e}")
+                    logger.error(f"CRM_UNITY: Failed to encode attachment {f.name}: {e}")
 
-        # STEP 3: Send the Draft
-        send_endpoint = f"messages/{message_id}/send"
-        send_result = OutlookGraphService._make_graph_request(send_endpoint, method='POST')
+        # 3. Wrap the message in the 'message' key required by the /sendMail API
+        payload = {
+            "message": message_dict,
+            "saveToSentItems": "true"
+        }
 
-        if isinstance(send_result, dict) and 'error' in send_result:
-            return {'success': False, 'error': send_result.get('error')}
+        # 4. Execute the single POST request to send the email
+        result = OutlookGraphService._make_graph_request(endpoint, method='POST', data=payload)
+
+        # Check for error results returned from the handler
+        if isinstance(result, dict) and 'error' in result:
+            return {'success': False, 'error': result.get('error')}
         
-        # Return success and the ID so it can be stored in DirectEmailLog
-        return {'success': True, 'outlook_id': message_id}
+        # On success, return a static ID as /sendMail does not return the created Message ID
+        return {'success': True, 'outlook_id': 'DIRECT_SEND_SUCCESS'}
     
     @staticmethod
     def fetch_attachments(target_email, message_id):
@@ -137,9 +133,8 @@ class OutlookGraphService:
     @staticmethod
     def get_email_mime_content(message_id):
         """
-        NEW: Fetches the raw RFC822 MIME content of an email.
-        This allows downloading the actual .eml file.
+        Fetches the raw RFC822 MIME content of an email ($value).
+        Used for downloading .eml files.
         """
         endpoint = f"messages/{message_id}/$value"
-        # We pass is_mime=True so the handler returns raw bytes instead of JSON
         return OutlookGraphService._make_graph_request(endpoint, method='GET', is_mime=True)

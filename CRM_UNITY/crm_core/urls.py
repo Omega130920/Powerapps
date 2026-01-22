@@ -48,5 +48,6 @@ urlpatterns = [
     path('email-log/export/', views.export_email_workflow_csv, name='export_email_workflow'),
     
     path('download-email/<str:email_id>/', views.download_actual_email, name='download_actual_email'),
+    path('complaint-log/export/', views.export_complaints_excel, name='export_complaints_excel'),
 
 ]

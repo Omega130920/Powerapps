@@ -240,6 +240,8 @@ class ClientNotes(models.Model):
     date = models.DateTimeField(auto_now_add=True)
     communication_type = models.CharField(max_length=50, null=True, blank=True)
     action_notes = models.CharField(max_length=50, null=True, blank=True)
+    attached_email_id = models.CharField(max_length=255, null=True, blank=True)
+    attached_file_name = models.CharField(max_length=255, null=True, blank=True)
 
     class Meta:
         managed = False
