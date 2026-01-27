@@ -429,7 +429,14 @@
             {% endif %}
         </div>
 
-        <h1>Unity Management Details for {% if is_fallback %}{{ unity_record.B_Company_Name }} (Limited Data){% else %}{{ unity_record.b_company_name }}{% endif %}</h1>
+        <h1>
+    {{ unity_record.a_company_code }} 
+    {% if is_fallback %}
+        (Limited Data)
+    {% else %}
+        - {{ unity_record.b_company_name }}
+    {% endif %}
+</h1>
         <div></div>
     </div>
 
@@ -450,76 +457,86 @@
             <li data-tab-target="#recon">Open Bills</li>
             <li data-tab-target="#billing">Recon History</li>
             <li data-tab-target="#notes-log">Notes</li>
-            <li data-tab-target="#email-log">Emails</li>
+            <li data-tab-target="#email-log">Email Log</li>
         </ul>
 
         <div class="tab-content">
 
-            <div id="general-info" class="tab-pane active">
-                {% if is_fallback %}
-                    <div class="fallback-warning">Full details are unavailable. This record exists only in the Internal Funds list.</div>
-                    <table><tbody><tr><th>Company Code</th><td>{{ unity_record.A_Company_Code }}</td></tr><tr><th>Company Name</th><td>{{ unity_record.B_Company_Name }}</td></tr><tr><th>Source</th><td>{{ unity_record.Source }}</td></tr></tbody></table>
-                {% else %}
-                    <div id="view-mode-container">
-                        <button type="button" class="edit-btn" onclick="toggleEditMode(true)">✏️ Edit Details</button>
-                        <div style="clear: both;"></div>
-                        <table>
-                            <tbody>
-                                <tr><th>Company Code</th><td>{{ unity_record.a_company_code }}</td></tr>
-                                <tr><th>Company Name</th><td>{{ unity_record.b_company_name }}</td></tr>
-                                <tr><th>Recon Contact 1</th><td>{{ unity_record.recon_contact_1_name|default:"-" }} <br><small style="color:#666">{{ unity_record.recon_contact_1_email|default:"" }}</small></td></tr>
-                                <tr><th>Recon Contact 2</th><td>{{ unity_record.recon_contact_2_name|default:"-" }} <br><small style="color:#666">{{ unity_record.recon_contact_2_email|default:"" }}</small></td></tr>
-                                <tr><th>Commencement Date</th><td>{{ unity_record.commencement_date|date:"Y-m-d"|default:"-" }}</td></tr>
-                                <tr><th>Fund Status</th><td>{{ unity_record.fund_status|default:"-" }}</td></tr>
-                                <tr><th>Fund Status Date</th><td>{{ unity_record.fund_status_date|date:"Y-m-d"|default:"-" }}</td></tr>
-                                <tr><th>Last Recon Note</th><td>{{ unity_record.i_last_recon }}</td></tr>
-                                <tr><th>Agent</th><td>{{ unity_record.c_agent }}</td></tr>
-                                <tr><th>Company Status</th><td>{{ unity_record.d_company_status }}</td></tr>
-                                <tr><th>Payment Method</th><td>{{ unity_record.e_payment_method }}</td></tr>
-                                <tr><th>Billing Method</th><td>{{ unity_record.f_billing_method }}</td></tr>
-                                <tr><th>Current Fiscal</th><td>{{ unity_record.g_current_fiscal }}</td></tr>
-                                <tr><th>Current Status</th><td>{{ unity_record.h_current_status }}</td></tr>
-                                <tr><th>Arrears</th><td>{{ unity_record.j_arrears }}</td></tr>
-                            </tbody>
-                        </table>
-                    </div>
+<div id="general-info" class="tab-pane active">
+    {% if is_fallback %}
+        <div class="fallback-warning">Full details are unavailable. This record exists only in the Internal Funds list.</div>
+        <table><tbody><tr><th>Company Code</th><td>{{ unity_record.A_Company_Code }}</td></tr><tr><th>Company Name</th><td>{{ unity_record.B_Company_Name }}</td></tr><tr><th>Source</th><td>{{ unity_record.Source }}</td></tr></tbody></table>
+    {% else %}
+        <div id="view-mode-container">
+            <button type="button" class="dashboard-button" style="background-color: #f7931e; border:none; margin-bottom:10px; cursor:pointer;" onclick="toggleEditMode(true)">✏️ Edit Details</button>
+            <div style="clear: both;"></div>
+            <table>
+                <tbody>
+                    <tr><th>Company Code</th><td>{{ unity_record.a_company_code }}</td></tr>
+                    <tr><th>Company Name</th><td>{{ unity_record.b_company_name }}</td></tr>
+                    <tr><th>Recon Contact 1</th><td>{{ unity_record.recon_contact_1_name|default:"-" }} <br><small style="color:#666">{{ unity_record.recon_contact_1_email|default:"" }}</small></td></tr>
+                    <tr><th>Recon Contact 2</th><td>{{ unity_record.recon_contact_2_name|default:"-" }} <br><small style="color:#666">{{ unity_record.recon_contact_2_email|default:"" }}</small></td></tr>
+                    <tr><th>Commencement Date</th><td>{{ unity_record.commencement_date|date:"Y-m-d"|default:"-" }}</td></tr>
+                    <tr><th>Fund Status</th><td>{{ unity_record.fund_status|default:"-" }}</td></tr>
+                    <tr><th>Fund Status Date</th><td>{{ unity_record.fund_status_date|date:"Y-m-d"|default:"-" }}</td></tr>
+                    <tr><th>Last Recon Note</th><td>{{ unity_record.i_last_recon }}</td></tr>
+                    <tr><th>Agent</th><td>{{ unity_record.c_agent }}</td></tr>
+                    <tr><th>Company Status</th><td>{{ unity_record.d_company_status }}</td></tr>
+                    <tr><th>Payment Method</th><td>{{ unity_record.e_payment_method }}</td></tr>
+                    <tr><th>Billing Method</th><td>{{ unity_record.f_billing_method }}</td></tr>
+                    <tr><th>Current Fiscal</th><td>{{ unity_record.g_current_fiscal }}</td></tr>
+                    <tr><th>Current Status</th><td>{{ unity_record.h_current_status }}</td></tr>
+                    <tr><th>Arrears</th><td>{{ unity_record.j_arrears }}</td></tr>
+                </tbody>
+            </table>
+        </div>
 
-                    <div id="edit-mode-container" style="display: none;">
-                        <h2 style="margin-top: 0; color: #f57f17; border-bottom: 2px solid #f9a825; padding-bottom: 10px;">Editing Company Profile</h2>
-                        <form method="POST" action="">
-                            {% csrf_token %}
-                            <input type="hidden" name="update_general_info" value="true">
-                            <table>
-                                <tbody>
-                                    <tr style="background-color: #eee;"><th>Company Code</th><td>{{ unity_record.a_company_code }}</td></tr>
-                                    <tr style="background-color: #eee;"><th>Company Name</th><td>{{ unity_record.b_company_name }}</td></tr>
-                                    <tr><th>Recon Contact 1 – Name & Surname</th><td><input type="text" name="recon_contact_1_name" value="{{ unity_record.recon_contact_1_name|default:'' }}" class="form-input" placeholder="Enter Name"></td></tr>
-                                    <tr><th>Recon Contact 1 – Email Address</th><td><input type="email" name="recon_contact_1_email" value="{{ unity_record.recon_contact_1_email|default:'' }}" class="form-input" placeholder="Enter Email"></td></tr>
-                                    <tr><th>Recon Contact 2 – Name & Surname</th><td><input type="text" name="recon_contact_2_name" value="{{ unity_record.recon_contact_2_name|default:'' }}" class="form-input" placeholder="Enter Name"></td></tr>
-                                    <tr><th>Recon Contact 2 – Email Address</th><td><input type="email" name="recon_contact_2_email" value="{{ unity_record.recon_contact_2_email|default:'' }}" class="form-input" placeholder="Enter Email"></td></tr>
-                                    <tr><th>Commencement Date</th><td><input type="date" name="commencement_date" value="{{ unity_record.commencement_date|date:'Y-m-d' }}" class="form-input"></td></tr>
-                                    <tr><th>Fund Status Date</th><td><input type="date" name="fund_status_date" value="{{ unity_record.fund_status_date|date:'Y-m-d' }}" class="form-input"></td></tr>
-                                    <tr><th>Last Recon Note</th><td><input type="text" name="last_recon_note" value="{{ unity_record.i_last_recon }}" class="form-input" placeholder="Note content..."></td></tr>
-                                    <tr><th>Agent</th><td>
-                                        <select name="agent" class="form-select">
-                                            <option value="" {% if not unity_record.c_agent %}selected{% endif %}>-- Select Agent --</option>
-                                            <option value="karen" {% if unity_record.c_agent == 'karen' %}selected{% endif %}>karen</option>
-                                            <option value="Mymoena" {% if unity_record.c_agent == 'Mymoena' %}selected{% endif %}>Mymoena</option>
-                                            <option value="merril" {% if unity_record.c_agent == 'merril' %}selected{% endif %}>merril</option>
-                                            <option value="gail" {% if unity_record.c_agent == 'gail' %}selected{% endif %}>gail</option>
-                                            <option value="Gail Le Roux" {% if unity_record.c_agent == 'Gail Le Roux' %}selected{% endif %}>Gail Le Roux</option>
-                                        </select>
-                                    </td></tr>
-                                    </tbody>
-                            </table>
-                            <div style="text-align: right; padding-top: 10px;">
-                                <button type="button" class="cancel-btn" onclick="toggleEditMode(false)">Cancel</button>
-                                <button type="submit" class="save-info-btn">Save General Info</button>
-                            </div>
-                        </form>
-                    </div>
-                {% endif %}
-            </div>
+        <div id="edit-mode-container" style="display: none;">
+            <h2 style="margin-top: 0; color: #f57f17; border-bottom: 2px solid #f9a825; padding-bottom: 10px;">Editing Company Profile</h2>
+            <form method="POST" action="">
+                {% csrf_token %}
+                <input type="hidden" name="update_general_info" value="true">
+                <table>
+                    <tbody>
+                        <tr style="background-color: #eee;"><th>Company Code</th><td>{{ unity_record.a_company_code }}</td></tr>
+                        <tr style="background-color: #eee;"><th>Company Name</th><td>{{ unity_record.b_company_name }}</td></tr>
+                        
+                        <tr><th>Recon Contact 1 – Name</th><td><input type="text" name="recon_contact_1_name" value="{{ unity_record.recon_contact_1_name|default:'' }}" class="form-input"></td></tr>
+                        <tr><th>Recon Contact 1 – Email</th><td><input type="email" name="recon_contact_1_email" value="{{ unity_record.recon_contact_1_email|default:'' }}" class="form-input"></td></tr>
+                        <tr><th>Recon Contact 2 – Name</th><td><input type="text" name="recon_contact_2_name" value="{{ unity_record.recon_contact_2_name|default:'' }}" class="form-input"></td></tr>
+                        <tr><th>Recon Contact 2 – Email</th><td><input type="email" name="recon_contact_2_email" value="{{ unity_record.recon_contact_2_email|default:'' }}" class="form-input"></td></tr>
+                        
+                        <tr><th>Commencement Date</th><td><input type="date" name="commencement_date" value="{{ unity_record.commencement_date|date:'Y-m-d' }}" class="form-input"></td></tr>
+                        <tr><th>Fund Status</th><td><input type="text" name="fund_status" value="{{ unity_record.fund_status|default:'' }}" class="form-input"></td></tr>
+                        <tr><th>Fund Status Date</th><td><input type="date" name="fund_status_date" value="{{ unity_record.fund_status_date|date:'Y-m-d' }}" class="form-input"></td></tr>
+                        
+                        <tr><th>Last Recon Note</th><td><input type="text" name="last_recon_note" value="{{ unity_record.i_last_recon }}" class="form-input"></td></tr>
+                        <tr><th>Agent</th><td>
+                            <select name="agent" class="form-select">
+                                <option value="karen" {% if unity_record.c_agent == 'karen' %}selected{% endif %}>karen</option>
+                                <option value="Mymoena" {% if unity_record.c_agent == 'Mymoena' %}selected{% endif %}>Mymoena</option>
+                                <option value="merril" {% if unity_record.c_agent == 'merril' %}selected{% endif %}>merril</option>
+                                <option value="gail" {% if unity_record.c_agent == 'gail' %}selected{% endif %}>gail</option>
+                                <option value="Gail Le Roux" {% if unity_record.c_agent == 'Gail Le Roux' %}selected{% endif %}>Gail Le Roux</option>
+                            </select>
+                        </td></tr>
+
+                        <tr><th>Company Status (D)</th><td><input type="text" name="company_status" value="{{ unity_record.d_company_status|default:'' }}" class="form-input"></td></tr>
+                        <tr><th>Payment Method (E)</th><td><input type="text" name="payment_method" value="{{ unity_record.e_payment_method|default:'' }}" class="form-input"></td></tr>
+                        <tr><th>Billing Method (F)</th><td><input type="text" name="billing_method" value="{{ unity_record.f_billing_method|default:'' }}" class="form-input"></td></tr>
+                        <tr><th>Current Fiscal (G)</th><td><input type="text" name="current_fiscal" value="{{ unity_record.g_current_fiscal|default:'' }}" class="form-input"></td></tr>
+                        <tr><th>Current Status (H)</th><td><input type="text" name="current_status" value="{{ unity_record.h_current_status|default:'' }}" class="form-input"></td></tr>
+                        <tr><th>Arrears (J)</th><td><input type="text" name="arrears" value="{{ unity_record.j_arrears|default:'' }}" class="form-input"></td></tr>
+                    </tbody>
+                </table>
+                <div style="text-align: right; padding-top: 10px;">
+                    <button type="button" class="cancel-btn" onclick="toggleEditMode(false)">Cancel</button>
+                    <button type="submit" class="save-info-btn">Save General Info</button>
+                </div>
+            </form>
+        </div>
+    {% endif %}
+</div>
 
             <div id="bank-lines" class="tab-pane">
                 <h2 style="color:#388e3c; border-bottom: 2px solid #aed581; padding-bottom: 5px;">
@@ -1150,6 +1167,7 @@
         </form>
     </div>
 
+ <div class="email-log-section">
     {% if combined_email_log %}
         <div class="table-responsive">
             <table class="styled-table">
@@ -1161,8 +1179,8 @@
                         <th>Delegated Date</th>
                         <th>Assigned To / Recipient</th>
                         <th style="width: 120px;">Action / Status</th>
-                        <th>Actioned Date</th>
-                        <th style="text-align: center;">Thread</th>
+                        <th>Action Date</th>
+                        <th style="text-align: center;">View/Download</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1172,10 +1190,12 @@
                             <div class="type-cell">
                                 <span style="font-size: 1.2em;">{{ log.icon }}</span>
                                 <span style="font-weight:bold; color: {{ log.badge_color }};">
-                                    {% if log.type == 'DIRECT' %}
-                                        DIRECT
-                                    {% else %}
+                                    {% if log.type == 'Original' %}
                                         ORIGINAL
+                                    {% elif log.type == 'Reply' %}
+                                        REPLY
+                                    {% else %}
+                                        DIRECT
                                     {% endif %}
                                 </span>
                             </div>
@@ -1183,24 +1203,35 @@
                         <td class="subject-cell" title="{{ log.subject }}">
                             {{ log.subject|default:"(No Subject)" }}
                         </td>
-                        <td>{{ log.received_at|date:"Y-m-d H:i"|default:"-" }}</td>
-                        <td>{{ log.delegated_at|date:"Y-m-d H:i"|default:"-" }}</td>
+                        <td>{{ log.received_at|date:"Y-m-d H:i"|default:"---" }}</td>
+                        <td>{{ log.delegated_at|date:"Y-m-d H:i"|default:"---" }}</td>
                         <td><strong>{{ log.assigned_to|default:"-" }}</strong></td>
                         <td>
                             <span class="status-tag" style="background-color: {{ log.badge_color }}; color: white; font-size: 11px; padding: 4px 8px; border-radius: 4px; display: inline-block; min-width: 80px; text-align: center;">
                                 {{ log.display_type|upper }}
                             </span>
                         </td>
-                        <td>{{ log.actioned_at|date:"Y-m-d H:i"|default:"-" }}</td>
-                        <td style="text-align: center;">
+                        <td>{{ log.actioned_at|date:"Y-m-d H:i"|default:"---" }}</td>
+                        <td style="text-align: center; white-space: nowrap;">
                             {% if log.email_id %}
                                 <a href="{% url 'view_email_thread' email_id=log.email_id %}" 
-                                   class="btn-thread" style="text-decoration: none; display: inline-block;">
-                                    View Thread
+                                   class="btn-thread" style="text-decoration: none; display: inline-block; margin-right: 5px;" title="View Email Content">
+                                    <i class="fas fa-eye"></i> View
+                                </a>
+
+                                <a href="{% url 'download_email_file' email_id=log.email_id %}" 
+                                   class="btn-thread" style="text-decoration: none; display: inline-block; background-color: #0277bd;" title="Download .eml">
+                                    <i class="fas fa-download"></i>
                                 </a>
                             {% else %}
-                                <span style="color: #ccc; font-size: 11px;">-</span>
+                                <span style="color: #999; font-size: 11px; font-style: italic;">Manual Entry</span>
                             {% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="8" class="empty-message" style="background: white; padding: 20px; text-align: center;">
+                            No email history found for this record.
                         </td>
                     </tr>
                     {% endfor %}
@@ -1208,10 +1239,11 @@
             </table>
         </div>
     {% else %}
-        <p class="empty-message" style="background: white; border-radius: 8px; margin-top: 15px; padding: 20px; text-align: center;">No email history found for this record.</p>
-    {% endif %}
+        <p class="empty-message" style="background: white; border-radius: 8px; margin-top: 15px; padding: 20px; text-align: center;">
+            No email history found for this record.
+        </p>
+    {% endif %} 
 </div>
-
         </div> </div> </div> <script>
     // ==========================================
     // --- 1. CONFIGURATION & GLOBALS ---

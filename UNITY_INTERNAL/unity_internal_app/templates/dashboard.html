@@ -156,11 +156,11 @@
 
     <div class="button-container">
         {% if user.username == 'omega' %}
+
             <a href="{% url 'outlook_dashboard' %}" class="button-block">
                 Delegations
                 <span id="badge-new-emails" class="badge blue-badge" {% if not new_emails_count %}style="display:none;"{% endif %}>{{ new_emails_count }}</span>
             </a>
-            <a href="{% url 'email_list' %}" class="button-block">Email List</a>
             <a href="{% url 'outlook_recycle_bin' %}" class="button-block">
                 Recycle Bin
                 <span id="badge-recycled" class="badge grey-badge" {% if not recycled_count %}style="display:none;"{% endif %}>{{ recycled_count }}</span>
@@ -172,9 +172,10 @@
         {% endif %}
 
         <a href="{% url 'outlook_delegated_box' %}" class="button-block">
-            Dashboard
+            My Dashboard
             <span id="badge-my-delegations" class="badge orange-badge" {% if not my_pending_delegations_count %}style="display:none;"{% endif %}>{{ my_pending_delegations_count }}</span>
         </a>
+        <a href="{% url 'email_list' %}" class="button-block">Email List</a>
 
         <a href="{% url 'unity_list' %}" class="button-block">Employer Recon</a>
         <!--<a href="{% url 'add_member' %}" class="button-block">Add Member Group</a>-->
@@ -187,7 +188,7 @@
         </a>
 
         <a href="{% url 'credit_note_list' %}" class="button-block">
-            Credit Notes
+            Create Over Credit Line
             <span id="badge-credit-notes" class="badge blue-badge" {% if not credit_notes_count %}style="display:none;"{% endif %}>{{ credit_notes_count }}</span>
         </a>
 

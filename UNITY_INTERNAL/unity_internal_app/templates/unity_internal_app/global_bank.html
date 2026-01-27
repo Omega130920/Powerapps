@@ -33,16 +33,28 @@
     tbody td { padding: 8px 10px; border-bottom: 1px solid #aed581; word-wrap: break-word; }
     tbody tr:nth-child(even) { background-color: #e6ffe6; }
     
+    /* New: Styling for Virtual Credits (Overs) */
+    tbody tr.credit-row { background-color: #fff3e0 !important; border-left: 5px solid #ef6c00; }
+    tbody tr.credit-row:hover { background-color: #ffe0b2 !important; }
+
     .action-button { padding: 6px 12px; background-color: #3f51b5; border: 1px solid #3f51b5; border-radius: 4px; text-decoration: none; color: white; font-size: 0.9em; cursor: pointer; display: inline-block; }
     .action-button:hover { background-color: #303f9f; color: white; }
     .view-btn { background-color: #78909c; border-color: #78909c; }
+    
+    /* Credit Action Button */
+    .credit-apply-btn { background-color: #ef6c00; border-color: #e65100; }
+    .credit-apply-btn:hover { background-color: #e65100; }
+
     .export-btn { background-color: #2e7d32; border-color: #1b5e20; }
     .dash-btn { background-color: #f8f9fa; color: #1b5e20; border: 2px solid #1b5e20; margin-bottom: 10px; font-weight: bold; }
     .dash-btn:hover { background-color: #1b5e20; color: white; }
 
-    /* Recon Badges */
+    /* Badges */
     .recon-yes { background-color: #c8e6c9; color: #1b5e20; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 11px; }
     .recon-no { background-color: #ffcdd2; color: #c62828; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 11px; }
+    .source-badge { font-size: 10px; font-weight: bold; padding: 2px 4px; border-radius: 3px; margin-right: 5px; text-transform: uppercase; }
+    .badge-credit { background-color: #ef6c00; color: white; }
+    .badge-bank { background-color: #2196F3; color: white; }
 
     /* Filter Styling */
     .filter-container { display: flex; gap: 1em; align-items: center; padding: 0.8em 1em; background-color: #f0fff0; border-radius: 6px; border: 1px solid #aed581; flex-wrap: wrap; margin-bottom: 15px;}
@@ -83,8 +95,9 @@
         <table>
             <thead>
                 <tr>
-                    <th style="width: 80px;">Date</th>
-                    <th style="width: 120px;">Reconned</th>
+                    <th style="width: 85px;">Date</th>
+                    <th style="width: 80px;">Source</th>
+                    <th style="width: 80px;">Reconned</th>
                     <th>Member Group</th>
                     <th>Deposit</th>
                     <th>Settled</th>
@@ -96,8 +109,15 @@
             </thead>
             <tbody>
                 {% for item in global_records %}
-                <tr>
+                <tr class="{% if item.source == 'CREDIT' %}credit-row{% endif %}">
                     <td>{{ item.transaction_date|date:"Y-m-d" }}</td>
+                    <td>
+                        {% if item.source == 'CREDIT' %}
+                            <span class="source-badge badge-credit">Overs Line</span>
+                        {% else %}
+                            <span class="source-badge badge-bank">Bank</span>
+                        {% endif %}
+                    </td>
                     <td>
                         {% if item.remaining <= 0 %}
                             <span class="recon-yes">YES</span>
@@ -105,20 +125,27 @@
                             <span class="recon-no">NO</span>
                         {% endif %}
                     </td>
-                    <td><strong>{{ item.company_code }}</strong><br><small>{{ item.company_name }}</small></td>
-                    <td style="color: #1b5e20;">R {{ item.amount|floatformat:2 }}</td>
+                    <td>
+                        <strong>{{ item.company_code }}</strong><br>
+                        <small>{{ item.company_name }}</small>
+                    </td>
+                    <td style="color: #1b5e20; font-weight: bold;">R {{ item.amount|floatformat:2 }}</td>
                     <td style="color: #43a047;">R {{ item.settled|floatformat:2 }}</td>
                     <td style="{% if item.remaining > 0 %}color: #d32f2f; font-weight: bold;{% endif %}">
                         R {{ item.remaining|floatformat:2 }}
                     </td>
-                    <td><small>{{ item.note_selection|default:"--" }}</small></td>
+                    <td><small>{{ item.note_selection|default:"Bank Statement" }}</small></td>
                     <td>{{ item.agent }}</td>
                     <td style="text-align: center;">
-                        <a href="{% url 'display_bankline_review' item.id %}?from=global" class="action-button view-btn">Review</a>
+                        {% if item.source == 'CREDIT' %}
+                            <a href="{% url 'bankline_recon' item.id %}?source=credit" class="action-button credit-apply-btn">Apply</a>
+                        {% else %}
+                            <a href="{% url 'display_bankline_review' item.id %}?from=global" class="action-button view-btn">Review</a>
+                        {% endif %}
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="9" style="text-align: center; padding: 20px;">No records found for the selected criteria.</td></tr>
+                <tr><td colspan="10" style="text-align: center; padding: 20px;">No records found for the selected criteria.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

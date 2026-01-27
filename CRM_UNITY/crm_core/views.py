@@ -543,7 +543,13 @@ def member_information(request, member_group_code):
     contact_info = get_object_or_404(GlobalFundContact, member_group_code=member_group_code)
     
     # --- 0. HANDLE FILE DOWNLOADS ---
-    # Handle original MemberDocument downloads
+    if request.method == 'GET' and 'download_email_id' in request.GET:
+        email_id = request.GET.get('download_email_id')
+        if email_id == "DIRECT_SEND_SUCCESS":
+            messages.warning(request, "The physical .eml file for this older record is not available.")
+            return redirect('member_information', member_group_code=member_group_code)
+        return redirect('download_actual_email', email_id=email_id)
+
     if request.method == 'GET' and 'download_id' in request.GET:
         doc_id = request.GET.get('download_id')
         document = get_object_or_404(MemberDocument, id=doc_id, related_member_group_code=member_group_code)
@@ -555,14 +561,12 @@ def member_information(request, member_group_code):
         else:
             messages.error(request, "Database record exists, but no file is attached.")
 
-    # Handle Note Attachment downloads via Filename
     if request.method == 'GET' and 'download_note_file' in request.GET:
         target_filename = request.GET.get('download_note_file')
         document = MemberDocument.objects.filter(
             related_member_group_code=member_group_code, 
             document_file__icontains=target_filename
         ).first()
-        
         if document and document.document_file:
             try:
                 return FileResponse(document.document_file.open('rb'), as_attachment=True)
@@ -576,7 +580,26 @@ def member_information(request, member_group_code):
         action = request.POST.get('action')
         user_display = request.user.username 
         
-        if action == 'send_direct_email':
+        # NEW ACTION: HANDLE PDF UPLOAD
+        if action == 'upload_pdf':
+            if 'pdf_file' in request.FILES:
+                uploaded_file = request.FILES['pdf_file']
+                doc_title = request.POST.get('title')
+                
+                MemberDocument.objects.create(
+                    related_member_group_code=member_group_code,
+                    document_file=uploaded_file,
+                    title=doc_title,
+                    uploaded_by=user_display,
+                    uploaded_at=timezone.now()
+                )
+                messages.success(request, f"Document '{doc_title}' uploaded successfully.")
+            else:
+                messages.error(request, "No file was selected for upload.")
+            
+            return redirect(f"/global-members/{member_group_code}/#pdf-documents")
+
+        elif action == 'send_direct_email':
             recipient = request.POST.get('recipient_email')
             subject = request.POST.get('subject')
             body_content = request.POST.get('email_body_html_content')
@@ -590,30 +613,27 @@ def member_information(request, member_group_code):
             )
 
             if response.get('success'):
+                real_outlook_id = response.get('outlook_id', 'MANUAL_SEND_SUCCESS')
                 DirectEmailLog.objects.create(
                     member_group_code=member_group_code,
                     subject=subject,
                     recipient_email=recipient,
                     body_content=body_content,
                     sent_by_user=request.user,
-                    outlook_message_id=response.get('outlook_id'), 
+                    outlook_message_id=real_outlook_id, 
                     sent_at=timezone.now()
                 )
                 messages.success(request, f"Email sent successfully to {recipient}")
             else:
                 messages.error(request, f"Microsoft Error: {response.get('error')}")
             
-            # Redirect back to the Communications tab
             return redirect(f"/global-members/{member_group_code}/#communications")
 
         elif action == 'save_member_note':
             attached_filename = None
-            
-            # 1. Process File Upload First
             if 'note_file' in request.FILES:
                 uploaded_file = request.FILES['note_file']
                 attached_filename = uploaded_file.name 
-                
                 MemberDocument.objects.create(
                     related_member_group_code=member_group_code,
                     document_file=uploaded_file,
@@ -622,7 +642,6 @@ def member_information(request, member_group_code):
                     uploaded_at=timezone.now()
                 )
 
-            # 2. Create Note with reference to filename
             ClientNotes.objects.create(
                 related_member_group_code=member_group_code,
                 notes=request.POST.get('note_content'),
@@ -632,13 +651,11 @@ def member_information(request, member_group_code):
                 user=user_display, 
             )
             messages.success(request, 'Note saved.')
-            
-            # Redirect back to the Communications tab
-            return redirect(f"/global-members/{member_group_code}/#communications")
+            return redirect(f"/global-members/{member_group_code}/#notes")
 
         return redirect('member_information', member_group_code=member_group_code)
 
-    # --- DATA RETRIEVAL ---
+    # --- DATA RETRIEVAL (Unchanged) ---
     personnel_data = {
         'cbc_info': Cbc.objects.filter(member_group_code=member_group_code).first(),
         'cbc_admin_info': CbcAdminPerson.objects.filter(member_group_code=member_group_code).first(),
@@ -652,12 +669,10 @@ def member_information(request, member_group_code):
         'section13a_info': Section13a.objects.filter(member_group_code=member_group_code).first(),
     }
 
-    # --- MERGED COMMUNICATION HISTORY ---
     combined_email_log = []
     delegated_items = CrmDelegateTo.objects.filter(member_group_code=member_group_code)
     related_email_ids = [item.email_id for item in delegated_items]
     thread_status_map = {item.email_id: item.status for item in delegated_items}
-    
     inbox_records = CrmInbox.objects.filter(email_id__in=related_email_ids)
     inbox_map = {email.email_id: email.received_timestamp for email in inbox_records}
 
@@ -674,11 +689,7 @@ def member_information(request, member_group_code):
             'action_user': item.delegated_by
         })
 
-    threaded_replies = CrmDelegateAction.objects.filter(
-        task_email_id__in=related_email_ids, 
-        action_type='REPLY_SENT'
-    )
-
+    threaded_replies = CrmDelegateAction.objects.filter(task_email_id__in=related_email_ids, action_type='REPLY_SENT')
     for reply in threaded_replies:
         parent_status = thread_status_map.get(reply.task_email_id, 'Replied')
         combined_email_log.append({
@@ -694,7 +705,6 @@ def member_information(request, member_group_code):
         })
 
     combined_email_log.sort(key=lambda x: x['timestamp'], reverse=True)
-
     notes = ClientNotes.objects.filter(related_member_group_code=member_group_code).order_by('-date')
     direct_emails = DirectEmailLog.objects.filter(member_group_code=member_group_code).order_by('-sent_at')
     documents = MemberDocument.objects.filter(related_member_group_code=member_group_code).order_by('-uploaded_at')
@@ -1536,72 +1546,115 @@ def final_sla_report_view(request):
     return render(request, 'final_sla_report.html', context)
 
 def export_sla_excel(delegate_q, notes_q, email_log_q):
-    """Enhanced helper to generate the detailed SLA Excel file matching live totals"""
+    """
+    MASTER SLA EXCEL EXPORT
+    Updated: Includes New/Undelegated emails and fixes Note attribute pulling.
+    """
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "SLA Detailed Breakdown"
+    ws.title = "Master SLA Audit Trail"
     
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill(start_color="1B5E20", end_color="1B5E20", fill_type="solid")
 
-    headers = ['Date', 'Main Category', 'Enquiry Type', 'Action Type', 'User', 'Reference', 'Content Preview']
+    headers = [
+        'Status/Type', 'Date Received', 'Date Actioned', 'Agent Primary', 
+        'Agent Secondary', 'Main Category', 'Enquiry Category (1-14)', 
+        'Enquiry Type (Action)', 'Reference', 'Content Preview', 'Destination'
+    ]
     ws.append(headers)
     for cell in ws[1]:
         cell.font = header_font
         cell.fill = header_fill
 
-    # 1. Add Communication Logs (Calls, Teams, Queries)
-    for note in ClientNotes.objects.filter(notes_q):
-        ws.append([
-            note.date.replace(tzinfo=None),
-            'Communication Log',
-            note.communication_type,
-            note.action_notes,
-            note.user,
-            note.related_member_group_code,
-            note.notes[:100]
-        ])
-
-    # 2. ADD MISSING DATA: Inbox Emails & Task Queries
-    # This pulls the 9 Inbox Emails and 2 Queries missing from your previous export
+    # 1. ADD DELEGATIONS (Delegated, Completed, Recycled)
     for task in CrmDelegateTo.objects.filter(delegate_q):
+        ref_code = getattr(task, 'Member_Group_Code', None) or getattr(task, 'member_group_code', '---')
         ws.append([
-            task.received_timestamp.replace(tzinfo=None),
-            'Inbox Delegation',
-            task.type or 'Incoming Email',
-            task.status,
-            task.delegated_by,
-            task.member_group_code,
-            task.subject
+            task.status,                                     
+            task.received_timestamp.replace(tzinfo=None) if task.received_timestamp else None,
+            task.received_timestamp.replace(tzinfo=None) if task.received_timestamp else None,
+            task.delegated_by or 'System',                               
+            task.delegated_to or 'Unassigned',                               
+            'Inbox Delegation',                              
+            getattr(task, 'category', '---'),                          
+            getattr(task, 'type', '---'),                              
+            ref_code,                          
+            task.subject,                                    
+            getattr(task, 'sender', '---') 
         ])
 
-    # 3. ADD MISSING DATA: Sent Email Replies (SLA Category: Sent Emails)
-    # This pulls the 'REPLY_SENT' actions logged in the thread table
-    for action in CrmDelegateAction.objects.filter(task_email_id__isnull=False, action_type='REPLY_SENT'):
+    # 2. ADD NOTES (Manual & Delegated) - FIXED ATTRIBUTE PULLING
+    for note in ClientNotes.objects.filter(notes_q):
+        status_label = "Note on Email" if getattr(note, 'attached_email_id', None) else "Direct Note"
+        
+        # Pulling using exact database column casing confirmed in your schema
+        agent_name = getattr(note, 'User', None) or getattr(note, 'user', '---')
+        ref_code = getattr(note, 'Member Group Code', None) or \
+                   getattr(note, 'member_group_code', None) or \
+                   getattr(note, 'related_member_group_code', '---')
+        
+        # These are the fields you noted were missing:
+        comm_type = getattr(note, 'Communication_Type', None) or getattr(note, 'communication_type', '---')
+        act_notes = getattr(note, 'Action_Notes', None) or getattr(note, 'action_notes', '---')
+        
         ws.append([
-            action.action_timestamp.replace(tzinfo=None),
-            'Sent Email (Thread Reply)',
-            'Email Response',
-            'REPLY_SENT',
-            action.action_user,
-            'N/A',
-            action.related_subject
+            status_label,                                    
+            '',                                              
+            note.date.replace(tzinfo=None) if note.date else None,                  
+            agent_name,                                      
+            '',                                              
+            'Communication Log',                             
+            comm_type,                  
+            act_notes,                  
+            ref_code,                  
+            note.notes[:250] if note.notes else "",                                
+            ''                                               
         ])
 
-    # 4. Add Direct Emails
+    # 3. ADD DIRECT EMAILS
     for email in DirectEmailLog.objects.filter(email_log_q):
         ws.append([
-            email.sent_at.replace(tzinfo=None),
-            'Direct Email',
-            'Outgoing Email',
-            'Sent',
-            email.sent_by_user.username,
-            email.member_group_code,
-            email.subject
+            'Direct Email',                                  
+            '',                                              
+            email.sent_at.replace(tzinfo=None) if email.sent_at else None,              
+            email.sent_by_user.username if email.sent_by_user else "System",                     
+            '',                                              
+            'Direct Email',                                  
+            '',                                              
+            'Outgoing Response',                             
+            getattr(email, 'member_group_code', '---'),                         
+            email.subject,                                   
+            getattr(email, 'recipient_email', '---') 
         ])
 
+    # 4. ADD THREAD REPLIES
+    for action in CrmDelegateAction.objects.filter(action_type='REPLY_SENT'):
+        parent_task = CrmDelegateTo.objects.filter(email_id=action.task_email_id).first()
+        ref_code = getattr(parent_task, 'Member_Group_Code', None) or getattr(parent_task, 'member_group_code', '---') if parent_task else '---'
+        dest_email = getattr(parent_task, 'sender', '---') if parent_task else '---'
+        
+        ws.append([
+            'REPLY_SENT',
+            '', 
+            action.action_timestamp.replace(tzinfo=None) if action.action_timestamp else None,
+            action.action_user,
+            '',
+            'Sent Email (Reply)',
+            '',
+            'Thread Reply',
+            ref_code,
+            action.related_subject,
+            dest_email 
+        ])
+
+    # Final Formatting
+    for column_cells in ws.columns:
+        length = max(len(str(cell.value)) for cell in column_cells)
+        ws.column_dimensions[column_cells[0].column_letter].width = min(length + 2, 50)
+
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = f'attachment; filename="Detailed_SLA_Report_{date.today()}.xlsx"'
+    response['Content-Disposition'] = f'attachment; filename="Master_SLA_Trace_{date.today()}.xlsx"'
     wb.save(response)
     return response
 
@@ -1787,28 +1840,29 @@ def export_email_workflow_csv(request):
 def download_actual_email(request, email_id):
     """
     Fetches the raw MIME content from Outlook and serves it as a .eml file.
-    This can be called from the Thread view OR the Member Information Email Log.
     """
     try:
         # 1. Get raw bytes from our updated service
+        # NOTE: If this is a new email, email_id will be the real Microsoft ID
         raw_mime = OutlookGraphService.get_email_mime_content(email_id)
 
         if isinstance(raw_mime, dict) and 'error' in raw_mime:
             messages.error(request, f"Microsoft Error: {raw_mime['error']}")
             return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
 
-        # 2. Try to find a subject for the filename
-        # We check CrmDelegateTo first, then CrmInbox
-        subject_source = CrmDelegateTo.objects.filter(email_id=email_id).first() or \
-                         CrmInbox.objects.filter(email_id=email_id).first()
+        # 2. Filename Logic: Look in DirectEmailLog too!
+        subject_source = (
+            CrmDelegateTo.objects.filter(email_id=email_id).first() or 
+            CrmInbox.objects.filter(email_id=email_id).first() or
+            DirectEmailLog.objects.filter(outlook_message_id=email_id).first()
+        )
         
         filename = "email_record.eml"
-        if subject_source and subject_source.subject:
-            # Clean filename: remove non-alphanumeric characters
+        if subject_source and hasattr(subject_source, 'subject') and subject_source.subject:
             clean_subject = "".join([c for c in subject_source.subject if c.isalnum() or c in (' ', '-', '_')]).strip()
             filename = f"{clean_subject[:50]}.eml"
 
-        # 3. Return as a downloadable message/rfc822 file
+        # 3. Return as a downloadable file
         response = HttpResponse(raw_mime, content_type='message/rfc822')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response

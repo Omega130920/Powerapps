@@ -312,8 +312,10 @@ from django.db.models import Sum, Max, Q # Ensure Max is imported
 def unity_information(request: HttpRequest, company_code):
     """
     Displays detailed information for a single record.
+    UPDATED: Uses dedicated attached_email_id column for Outlook IDs.
     UPDATED: Integrated Two-Pot claim sorting and refined Email Log badge logic.
-    FIXED: Integrated OutlookInbox mapping for claim email previews.
+    FIXED: Resolved FieldError by checking transactions in Python.
+    FIXED: Consolidated POST handling to prevent double-sending emails.
     """
     
     # --- 1. Fetch Main Unity Record ---
@@ -367,31 +369,25 @@ def unity_information(request: HttpRequest, company_code):
     bank_lines = bank_lines_assigned
     credit_notes = CreditNote.objects.filter(member_group_code=company_code).order_by('-ccdates_month')
 
-    # --- UPDATED: Fetch Company Claims (Sorted for Two-Pot support) ---
+    # --- Fetch Company Claims with Outlook Previews ---
     try:
         company_claims = UnityClaim.objects.filter(
             company_code=company_code
         ).prefetch_related('notes').order_by('-claim_created_date', 'member_surname')
         
-        # FIXED: Logic to fetch email content using OutlookInbox mapping (Same as Two-Pot view)
         delegation_pks = [c.linked_email_id for c in company_claims if c.linked_email_id]
         
         if delegation_pks:
-            # Map Delegation Primary Key -> Outlook String Email ID
             delegations_map = EmailDelegation.objects.in_bulk(delegation_pks)
             outlook_string_ids = [d.email_id for d in delegations_map.values()]
-            
-            # Map Outlook String Email ID -> Full Body/Subject Content
             inbox_map = OutlookInbox.objects.in_bulk(outlook_string_ids)
 
             for claim in company_claims:
                 if claim.linked_email_id:
-                    # Conversion to int to match in_bulk dictionary keys
                     del_obj = delegations_map.get(int(claim.linked_email_id))
                     if del_obj:
                         inbox_item = inbox_map.get(del_obj.email_id)
                         if inbox_item:
-                            # Attach attributes for the template to render
                             claim.email_preview_subject = inbox_item.subject
                             claim.email_preview_sender = inbox_item.sender_address
                             claim.email_preview_body = inbox_item.body_content
@@ -399,7 +395,7 @@ def unity_information(request: HttpRequest, company_code):
     except Exception:
         company_claims = []
     
-    # --- 3. Fetch Communication Logs (Notes/Calls) ---
+    # --- 3. Fetch Communication Logs (Excluding Sent Email) ---
     try:
         communication_logs = UnityNotes.objects.filter(member_group_code=lookup_code).filter(~Q(communication_type='Sent Email')).order_by('-date')
     except Exception:
@@ -413,32 +409,35 @@ def unity_information(request: HttpRequest, company_code):
     ).select_related('assigned_user').order_by('-received_at')
 
     for task in delegated_emails:
-        agg_result = DelegationTransactionLog.objects.filter(delegation=task).aggregate(latest=Max('timestamp'))
-        latest_tx = agg_result.get('latest')
-
-        combined_email_log.append({
-            'type': 'Original', 
-            'display_type': task.get_status_display(),
-            'subject': task.email_category or f"Outlook Task: {task.email_id[:12]}...",
-            'received_at': task.received_at,      
-            'delegated_at': task.delegated_at,    
-            'actioned_at': latest_tx,            
-            'timestamp': task.received_at,        
-            'action_user': f"System",
-            'assigned_to': task.assigned_user.username if task.assigned_user else 'UNASSIGNED',
-            'badge_color': '#3f51b5',
-            'icon': '📥',
-            'email_id': task.email_id,
-            'log_id': f'delegation-{task.id}',
-        })
-        
-        # Transactions associated with these tasks
         transactions = DelegationTransactionLog.objects.filter(delegation=task).select_related('user')
+        
+        # Check for replies in memory to avoid FieldError on non-existent database column
+        has_replies = any('REPLY' in (tx.action_type or '').upper() for tx in transactions)
+
+        # Only add "Original" entry if it hasn't been replied to yet
+        if not has_replies:
+            combined_email_log.append({
+                'type': 'Original', 
+                'display_type': task.get_status_display(),
+                'subject': task.email_category or f"Outlook Task: {task.email_id[:12]}...",
+                'received_at': task.received_at,      
+                'delegated_at': task.delegated_at,    
+                'actioned_at': None,            
+                'timestamp': task.received_at,        
+                'action_user': f"System",
+                'assigned_to': task.assigned_user.username if task.assigned_user else 'UNASSIGNED',
+                'badge_color': '#3f51b5',
+                'icon': '📥',
+                'email_id': task.email_id,
+                'log_id': f'delegation-{task.id}',
+            })
+        
+        # Add actual transactions (Replies)
         for tx in transactions:
-            is_reply = getattr(tx, 'email_type', 'DIRECT') == 'REPLY'
+            is_reply = 'REPLY' in (tx.action_type or '').upper()
             
             combined_email_log.append({
-                'type': 'Reply' if is_reply else 'Direct Sent',
+                'type': 'Reply' if is_reply else 'Direct',
                 'display_type': tx.action_type, 
                 'subject': tx.subject,
                 'received_at': None,             
@@ -453,13 +452,22 @@ def unity_information(request: HttpRequest, company_code):
                 'log_id': f'transaction-{tx.id}',
             })
             
-    # Direct Sent Emails from the UnityNotes table
+    # Direct Sent Emails from Notes
     sent_emails_from_notes = UnityNotes.objects.filter(member_group_code=lookup_code, communication_type='Sent Email').order_by('-date')
     for log in sent_emails_from_notes:
+        # 1. Primary Check: Dedicated column
+        outlook_id = log.attached_email_id 
+        display_subject = log.action_notes or 'Email Sent'
+        
+        # 2. Fallback Check: Old OUTLOOK_ID prefix logic for legacy data
+        if not outlook_id and log.action_notes and "OUTLOOK_ID:" in log.action_notes:
+            outlook_id = log.action_notes.replace("OUTLOOK_ID:", "").strip()
+            display_subject = "Outlook Sent Email"
+
         combined_email_log.append({
-            'type': 'Direct Sent',
+            'type': 'Direct',
             'display_type': 'Direct Sent Email',
-            'subject': log.action_notes or 'Email Sent',
+            'subject': display_subject,
             'received_at': None,
             'delegated_at': None,
             'actioned_at': log.date,
@@ -468,6 +476,7 @@ def unity_information(request: HttpRequest, company_code):
             'badge_color': '#4CAF50',
             'icon': '📤',
             'log_id': f'notes-{log.ID}', 
+            'email_id': outlook_id, # Enables "View Thread" and Download
         })
 
     combined_email_log.sort(key=lambda x: x['timestamp'], reverse=True)
@@ -489,17 +498,16 @@ def unity_information(request: HttpRequest, company_code):
             bill.display_status = 'OPEN' if bill.total_covered > Decimal('0.00') else 'SCHEDULED'
             open_bills.append(bill)
 
-    # --- Compose Select Logic ---
     my_delegated_emails = EmailDelegation.objects.filter(
         assigned_user=request.user
-    ).exclude(
-        status__in=['COMP', 'CLS', 'DONE'] 
-    ).order_by('-received_at')
+    ).exclude(status__in=['COMP', 'CLS', 'DONE']).order_by('-received_at')
 
     # --- 6. HANDLE POST REQUESTS ---
     if request.method == 'POST':
-        # HANDLE: Claims Modal "Send Email & Save" button
-        if request.POST.get('email_submission_action') == 'send_email_and_log':
+        is_email_send = request.POST.get('email_submission_action') == 'send_email_and_log' or \
+                        request.POST.get('action') == 'send_outgoing_member_note'
+
+        if is_email_send:
             subject = request.POST.get('member_email_subject_reply', 'Claim Update')
             recipient = request.POST.get('member_recipient_email')
             email_body_html = request.POST.get('email_body_html_content')
@@ -508,17 +516,23 @@ def unity_information(request: HttpRequest, company_code):
                 response = OutlookGraphService.send_outlook_email(settings.OUTLOOK_EMAIL_ADDRESS, recipient, subject, email_body_html, 'HTML')
 
                 if response.get('success'):
+                    graph_id = response.get('id', '')
+                    
+                    # Store data using the specific attached_email_id column
                     UnityNotes.objects.create(
                         member_group_code=company_code,
                         user=request.user.username,
                         date=timezone.now(),
                         communication_type='Sent Email', 
-                        action_notes=subject,
-                        notes=f"To: {recipient}\n{email_body_html}"
+                        action_notes=subject[:90], # Use subject in notes (varchar 90 limit)
+                        attached_email_id=graph_id, # Dedicated column (varchar 255)
+                        notes=f"To: {recipient}\nSubject: {subject}\n{email_body_html}"
                     )
                     messages.success(request, f"Email sent via Microsoft Graph to {recipient}!")
                 else:
                     messages.error(request, f"Graph API Error: {response.get('error')}")
+            
+            return redirect(f"{reverse('unity_information', kwargs={'company_code': company_code})}#email-log")
 
         if request.POST.get('update_general_info') == 'true':
             if unity_record and not is_fallback:
@@ -532,41 +546,17 @@ def unity_information(request: HttpRequest, company_code):
                 messages.success(request, "General Information updated.")
             return redirect('unity_information', company_code=company_code)
         
-        else:
-            action_type = request.POST.get('action') 
-            if action_type == 'send_outgoing_member_note':
-                subject = request.POST.get('member_email_subject_reply', 'Email Sent')
-                recipient = request.POST.get('member_recipient_email', 'Unknown')
-                email_body_html = request.POST.get('email_body_html_content')
-                
-                response = OutlookGraphService.send_outlook_email(settings.OUTLOOK_EMAIL_ADDRESS, recipient, subject, email_body_html, 'HTML')
-
-                if response.get('success'):
-                    UnityNotes.objects.create(
-                        member_group_code=company_code,
-                        user=request.user.username,
-                        date=timezone.now(),
-                        communication_type='Sent Email', 
-                        action_notes=subject,
-                        notes=f"To: {recipient}\n{email_body_html}"
-                    )
-                    messages.success(request, f"Email sent via Microsoft Graph to {recipient}!")
-                else:
-                    messages.error(request, f"Graph API Error: {response.get('error')}")
-                
-                return redirect(f"{reverse('unity_information', kwargs={'company_code': company_code})}#email-log")
-            
-            elif request.POST.get('note_content') or request.POST.get('action_notes'):
-                UnityNotes.objects.create(
-                    member_group_code=company_code,
-                    user=request.user.username,
-                    date=timezone.now(),
-                    communication_type=request.POST.get('communication_type') or 'Notes Log',
-                    action_notes=request.POST.get('action_notes'),
-                    notes=request.POST.get('note_content')
-                )
-                messages.success(request, "Note added.")
-                return redirect(f"{reverse('unity_information', kwargs={'company_code': company_code})}#notes-log")
+        elif request.POST.get('note_content') or request.POST.get('action_notes'):
+            UnityNotes.objects.create(
+                member_group_code=company_code,
+                user=request.user.username,
+                date=timezone.now(),
+                communication_type=request.POST.get('communication_type') or 'Notes Log',
+                action_notes=request.POST.get('action_notes'),
+                notes=request.POST.get('note_content')
+            )
+            messages.success(request, "Note added.")
+            return redirect(f"{reverse('unity_information', kwargs={'company_code': company_code})}#notes-log")
 
     # --- 7. RENDER ---
     context = {
@@ -889,60 +879,51 @@ def import_excel_view(request):
 @login_required
 def bank_list(request):
     """
-    Displays a list of active bank transaction segments, combining both existing
-    ReconnedBank segments (splits, partials) and brand new, unassigned ImportBank lines.
+    Displays a list of active bank transaction segments and Approved Credit Note "Overs".
     
-    CRITICAL FIX: All active lines are now sourced from the ReconnedBank table.
-    New ImportBank lines are automatically converted to ReconnedBank segments on load.
+    CRITICAL FIX: Injects 'Approved' credit notes into the bank list as virtual deposits.
+    This ensures that credits verified by the manager are not forgotten.
     """
     from django.db.models import F, Q
+    from django.urls import reverse
 
     # --- Step 1: Automatic Segment Creation for New Imports ---
     
-    # Identify ImportBank IDs that are NOT in the ReconnedBank table at all
     assigned_import_ids = ReconnedBank.objects.values_list('bank_line_id', flat=True).distinct()
     
     new_imports_to_segment = ImportBank.objects.exclude(
         id__in=assigned_import_ids
     ).filter(
-        # Only process positive transactions
         transaction_amount__gt=ZERO_DECIMAL 
     )
     
-    # Use transaction.atomic to ensure segment creation is robust
     with transaction.atomic():
         for import_line in new_imports_to_segment:
-            # Create the initial 1:1 segment in ReconnedBank, marked as unassigned
             ReconnedBank.objects.create(
                 bank_line_id=import_line.id,
-                company_code=None,  # Crucially starts as UNASSIGNED
+                company_code=None, 
                 transaction_amount=import_line.transaction_amount,
                 transaction_date=import_line.date,
                 fiscal_date=None, 
-                recon_status='Unidentified - New Import', # Specific status for first segment
+                recon_status='Unidentified - New Import',
                 amount_settled=ZERO_DECIMAL,
             )
             
-    # --- Step 2: Query ALL Active Segments (New Imports + Split Pushbacks) ---
+    # --- Step 2: Query ALL Active Segments (Physical Cash) ---
     
-    # Query all ReconnedBank segments that have a remaining balance
     active_segments_queryset = ReconnedBank.objects.annotate(
         remaining_balance=F('transaction_amount') - F('amount_settled')
     ).filter(
         remaining_balance__gt=ZERO_DECIMAL 
     ).select_related('bank_line').order_by('-transaction_date', 'id')
 
-    # --- Step 3: Combine and Process ---
-    
     combined_records = []
     
+    # Process physical bank lines
     for recon_data in active_segments_queryset:
-        
         allocated_code = recon_data.company_code
-        # A line is considered 'unassigned' if company_code is NULL/None
         is_unassigned = allocated_code is None 
         
-        # --- Company & Agent Info ---
         company_name = "-"
         agent_name = "-"
         if allocated_code and allocated_code != "N/A":
@@ -956,21 +937,17 @@ def bank_list(request):
                     company_name = fund_entry.B_Company_Name
                     agent_name = "Internal"
         
-        # --- Action Logic (Uses ReconnedBank PK only) ---
-        # If unassigned, the action is 'Assign' and the target ID is the ReconnedBank ID.
-        # If assigned, the action is 'View' and the target ID is the ReconnedBank ID.
         action_url = reverse('bankline_recon', args=[recon_data.id]) if is_unassigned else reverse('display_bankline_review', args=[recon_data.id])
         action_text = "Assign" if is_unassigned else "View"
-        display_status = recon_data.recon_status or "Unidentified" # Use actual status for segments
         
         combined_records.append({
-            # Data from ReconnedBank segment (Primary Key is ALWAYS ReconnedBank ID)
             'id': recon_data.id, 
+            'source_type': 'BANK', # Flag for UI
             'deposit_amount': recon_data.transaction_amount, 
             'transaction_date': recon_data.transaction_date,
             'transaction_description': recon_data.bank_line.transaction_description,
             'remaining_balance': recon_data.remaining_balance,
-            'recon_status': display_status,
+            'recon_status': recon_data.recon_status or "Unidentified",
             'allocated_code': allocated_code,
             'company_name': company_name,
             'agent': agent_name,
@@ -979,7 +956,35 @@ def bank_list(request):
             'action_text': action_text,
         })
 
-    # Sort the final combined list by date
+    # --- Step 3: FAIL-SAFE - Injected Approved Credit Notes (Virtual Cash) ---
+    # Fetch credits that were approved by the manager but not yet linked/used
+    approved_overs = CreditNote.objects.filter(
+        credit_link_status='Approved',
+        note_selection='OVERS',
+        schedule_amount__gt=ZERO_DECIMAL
+    )
+
+    for credit in approved_overs:
+        # Action URL for credit sends a 'source=credit' parameter to the recon view
+        credit_action_url = f"{reverse('bankline_recon', args=[credit.id])}?source=credit"
+        
+        combined_records.append({
+            'id': credit.id,
+            'source_type': 'CREDIT', # Flag for UI to highlight as a Credit Note
+            'deposit_amount': credit.schedule_amount,
+            'transaction_date': credit.authorized_at.date() if credit.authorized_at else credit.processed_date,
+            'transaction_description': f"APPROVED OVERS: {credit.comment or 'Manager Verified'}",
+            'remaining_balance': credit.schedule_amount,
+            'recon_status': 'APPROVED OVERS LINE', # High-visibility label
+            'allocated_code': credit.member_group_code,
+            'company_name': credit.member_group_name or "Verified Credit",
+            'agent': credit.authorized_by or "Manager",
+            'review_note': f"Authorized at {credit.authorized_at}",
+            'action_url': credit_action_url,
+            'action_text': "Use Credit",
+        })
+
+    # Sort everything together by date (Cash and Virtual Credits mixed)
     combined_records.sort(key=lambda x: x['transaction_date'], reverse=True)
     
     context = {
@@ -990,10 +995,36 @@ def bank_list(request):
 @login_required
 def bankline_recon(request, record_id):
     """
-    Handles the initial reconciliation (assignment) of a single bank line segment.
-    CRITICAL FIX: Now expects a ReconnedBank ID (record_id) and directly updates it.
+    Handles the reconciliation/assignment of bank lines OR Approved Credits.
+    UPDATED: If source='credit', it skips assignment and routes to Bill Summary.
     """
-    # 1. Fetch the ReconnedBank segment (new import segment or split remainder)
+    from django.urls import reverse
+    
+    # Check if we are dealing with a Credit Note instead of a Bank Line
+    is_credit = request.GET.get('source') == 'credit'
+    
+    if is_credit:
+        # 1. Fetch the Credit Note instead of ReconnedBank
+        credit_note = get_object_or_404(CreditNote, id=record_id)
+        
+        # 2. Logic Check: Since it's already "Approved" for a specific company,
+        # we find the first open bill for that company to help the clerk.
+        open_bill = UnityBill.objects.filter(
+            C_Company_Code=credit_note.member_group_code,
+            is_reconciled=False
+        ).order_by('A_CCDatesMonth').first()
+        
+        if open_bill:
+            messages.info(request, f"Using Approved Credit of R{credit_note.schedule_amount} for {credit_note.member_group_code}.")
+            return redirect('pre_bill_reconciliation_summary', 
+                            company_code=credit_note.member_group_code, 
+                            bill_id=open_bill.id)
+        else:
+            # Fallback if no open bill exists yet
+            messages.warning(request, f"Credit is ready, but no open bills were found for {credit_note.member_group_code}.")
+            return redirect('unity_information', company_code=credit_note.member_group_code)
+
+    # --- STANDARD BANK LINE LOGIC ---
     try:
         recon_segment = get_object_or_404(
             ReconnedBank.objects.select_related('bank_line'), 
@@ -1003,13 +1034,10 @@ def bankline_recon(request, record_id):
         messages.error(request, f"Error retrieving Recon Segment ID: {record_id}")
         return redirect('bank_list')
 
-    # Check if segment is already assigned (in which case, redirect to review)
     if recon_segment.company_code is not None:
-        messages.warning(request, f"Bank line {record_id} is already assigned to {recon_segment.company_code}. Redirecting to review.")
+        messages.warning(request, f"Bank line {record_id} is already assigned to {recon_segment.company_code}.")
         return redirect('display_bankline_review', recon_id=record_id)
         
-    # Get all potential Company Codes from the InternalFunds source table
-    # This is the list displayed in the dropdown
     company_codes = InternalFunds.objects.values_list('A_Company_Code', flat=True).distinct().order_by('A_Company_Code')
 
     if request.method == 'POST':
@@ -1020,39 +1048,31 @@ def bankline_recon(request, record_id):
             return redirect('bankline_recon', record_id=record_id)
 
         try:
-            # --- VALIDATION STEP: Ensure the code exists in a lookup table ---
-            # Check if the code exists in either InternalFunds or UnityMgListing
             code_exists = InternalFunds.objects.filter(A_Company_Code=allocated_company_code_value).exists() or \
                           UnityMgListing.objects.filter(a_company_code=allocated_company_code_value).exists()
 
             if not code_exists:
-                messages.error(request, f"Company code '{allocated_company_code_value}' is not recognized as a valid Member Group.")
+                messages.error(request, f"Company code '{allocated_company_code_value}' is not recognized.")
                 return redirect('bankline_recon', record_id=record_id)
 
-            # --- ASSIGNMENT ---
+            # ASSIGNMENT
             recon_segment.company_code = allocated_company_code_value
             recon_segment.agent = request.user.get_full_name() or request.user.username
-            
-            # Set status to 'Unreconciled - Assigned'
             recon_segment.recon_status = 'Unreconciled - Assigned'
-            
             recon_segment.save()
             
             messages.success(request, f"Bank line segment {record_id} assigned to Code: {allocated_company_code_value}.")
-            
-            # Redirect to the Member Group's info page, forcing the reconciliation tab
             return redirect(f"{reverse('unity_information', kwargs={'company_code': allocated_company_code_value})}#recon")
 
         except Exception as e:
             messages.error(request, f"Error saving assignment: {e}")
             return redirect('bankline_recon', record_id=record_id)
 
-    # GET Request context
+    # GET Request context for standard bank lines
     context = {
-        # 'bank_record' is the parent ImportBank object (original transaction details)
         'bank_record': recon_segment.bank_line, 
         'company_codes': company_codes,
-        'current_recon': recon_segment, # Pass the segment object for its details
+        'current_recon': recon_segment,
     }
     return render(request, 'unity_internal_app/bankline_recon.html', context)
 
@@ -1312,52 +1332,50 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
     
     bill_record = get_object_or_404(UnityBill, id=bill_id, C_Company_Code=company_code)
     
-    # --- CALCULATE AVAILABLE DEBT ---
+    # --- CALCULATE AVAILABLE DEBT (Cash) ---
     available_debt_lines = get_available_bank_lines(company_code)
     total_debt = available_debt_lines.aggregate(total=Sum('remaining_debt'))['total'] or ZERO_DECIMAL
     
-    bill_date = bill_record.A_CCDatesMonth
-    month_start_date = bill_date.replace(day=1)
-    next_month = month_start_date + relativedelta(months=1)
-    fiscal_end_date = next_month - relativedelta(days=1)
-
-    # --- AGGREGATIONS ---
-    
-    # 1. TOTAL APPLIED TO BILL: Total settled amount from all sources
+    # --- AGGREGATIONS (Already Applied) ---
+    # 1. Total settled amount from all sources
     total_applied = BillSettlement.objects.filter(
         unity_bill_source_id=bill_record.pk
     ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
     
-    # 2. SEPARATE CASH ALREADY APPLIED
+    # 2. Separate Cash applied
     total_cash_applied = BillSettlement.objects.filter(
         unity_bill_source_id=bill_record.pk,
         reconned_bank_line_id__isnull=False 
     ).aggregate(total_cash=Sum('settled_amount'))['total_cash'] or ZERO_DECIMAL
 
-    # 3. Get Credit Total
+    # 3. Total Credit Notes already applied
     total_credit_notes_assigned = BillSettlement.objects.filter(
         unity_bill_source_id=bill_record.pk,
         source_credit_note_id__isnull=False
     ).aggregate(total_credit=Sum('settled_amount'))['total_credit'] or ZERO_DECIMAL
 
-    # 4. Get Journal/Surplus Total (from JournalEntry table)
+    # 4. Total Journals/Surplus applied
     total_surplus_applied_to_bill = JournalEntry.objects.filter(
         target_bill=bill_record
     ).aggregate(total_footer=Sum('amount'))['total_footer'] or ZERO_DECIMAL
 
     # --- MATH UPDATES ---
     scheduled_amount = bill_record.H_Schedule_Amount or ZERO_DECIMAL
-    
-    # Remaining Schedule logic
     remaining_scheduled_amount = scheduled_amount - total_credit_notes_assigned - total_surplus_applied_to_bill - total_cash_applied
-    
-    # Outstanding card
     current_outstanding = max(ZERO_DECIMAL, remaining_scheduled_amount)
 
-    # Surplus Logic
-    over_scheduled_amount = max(ZERO_DECIMAL, total_debt - current_outstanding)
+    # --- NEW FAIL-SAFE: FETCH AVAILABLE APPROVED CREDITS ---
+    # These are credits the manager approved (Overs or previous remainders) 
+    # that haven't been applied to a bill yet.
+    available_credits = CreditNote.objects.filter(
+        member_group_code=company_code,
+        credit_link_status='Approved',
+        schedule_amount__gt=ZERO_DECIMAL
+    )
+    
+    total_available_credit_value = available_credits.aggregate(t=Sum('schedule_amount'))['t'] or ZERO_DECIMAL
 
-    # --- FIND AVAILABLE SURPLUS FOR THIS COMPANY ---
+    # --- SURPLUS & JOURNALS (Existing Logic) ---
     company_bill_ids = UnityBill.objects.filter(C_Company_Code=company_code).values_list('id', flat=True)
     potential_surpluses = ScheduleSurplus.objects.filter(
         unity_bill_source_id__in=company_bill_ids
@@ -1365,79 +1383,59 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
     
     available_surpluses = []
     total_available_surplus_value = ZERO_DECIMAL
-    
     for s in potential_surpluses:
         used = JournalEntry.objects.filter(surplus_source=s).aggregate(t=Sum('amount'))['t'] or ZERO_DECIMAL
         remaining = s.surplus_amount - used
         if remaining > ZERO_DECIMAL:
             s.temp_available = remaining
             total_available_surplus_value += remaining
-            try:
-                origin_bill = UnityBill.objects.get(pk=s.unity_bill_source_id)
-                s.origin_date = origin_bill.A_CCDatesMonth
-            except:
-                s.origin_date = "Unknown Date"
             available_surpluses.append(s)
 
-    # --- FETCH APPLIED JOURNALS FOR DISPLAY ---
     applied_journals = JournalEntry.objects.filter(target_bill=bill_record).select_related('surplus_source')
 
-    # --- NEW: FETCH ASSIGNED CREDIT NOTES FOR DISPLAY ---
-    # We query the Settlements table to find any credit notes that have been 
-    # used (even partially) for this bill.
+    # --- FETCH ASSIGNED CREDIT NOTES (For audit trail display) ---
     assigned_note_ids = BillSettlement.objects.filter(
         unity_bill_source_id=bill_record.pk,
         source_credit_note_id__isnull=False
     ).values_list('source_credit_note_id', flat=True)
-    
-    # Get the actual CreditNote objects based on those IDs
-    credit_notes_queryset = CreditNote.objects.filter(id__in=assigned_note_ids)
+    credit_notes_history = CreditNote.objects.filter(id__in=assigned_note_ids)
     
     # --- UPDATED ACTION MESSAGE LOGIC ---
+    # Include available credits in the "coverage" calculation
+    total_coverage_available = total_debt + total_available_credit_value + total_available_surplus_value
     is_bill_fully_covered = total_applied >= (scheduled_amount - SAFETY_TOLERANCE)
     
     if is_bill_fully_covered:
         is_proceed_enabled = True
-        settled_vs_scheduled_diff = total_applied - scheduled_amount
-        if settled_vs_scheduled_diff >= SAFETY_TOLERANCE:
-             action_message = f"FULLY COVERED. R{settled_vs_scheduled_diff:.2f} recorded as surplus. Ready to Finalize."
-        else:
-             action_message = "PERFECTLY COVERED. Ready to Finalize."
-    elif total_debt > ZERO_DECIMAL: 
-        if total_debt >= remaining_scheduled_amount:
-             action_message = f"FULL CASH COVERAGE AVAILABLE: R{total_debt:.2f} can clear the R{remaining_scheduled_amount:.2f} balance."
-             is_proceed_enabled = True 
-        else:
-             action_message = f"Partial coverage available. R{total_debt:.2f} can be applied to the R{remaining_scheduled_amount:.2f} balance."
-             is_proceed_enabled = False
-    else: 
+        action_message = "FULLY COVERED. Ready to Finalize."
+    elif total_coverage_available >= current_outstanding:
+        is_proceed_enabled = True
+        action_message = f"FULL COVERAGE AVAILABLE: R{total_coverage_available:.2f} available to clear R{current_outstanding:.2f} balance."
+    else:
         is_proceed_enabled = False
-        action_message = f"Action REQUIRED: R{remaining_scheduled_amount:.2f} liability remains."
+        action_message = f"Action REQUIRED: R{current_outstanding:.2f} liability remains."
 
     # --- FINAL CONTEXT MAPPING ---
     context = {
         'bill_record': bill_record,
         'company_code': company_code,
-        'total_debt': total_debt,
+        'total_debt': total_debt, # Cash
+        'total_available_credit': total_available_credit_value, # Approved Credits (Fail-safe)
         'scheduled_amount': scheduled_amount,
-        'total_credit_notes_assigned': total_credit_notes_assigned,
+        'total_credit_notes_assigned': total_credit_notes_assigned, # Already used
         'total_available_surplus': total_available_surplus_value,
         'total_cash_applied': total_cash_applied,
         'remaining_schedule_amount': remaining_scheduled_amount,
         'current_outstanding': current_outstanding, 
-        'over_scheduled_amount': over_scheduled_amount,
         'all_lines': available_debt_lines.all().order_by('transaction_date'),
         
-        # USE THE NEW QUERYSET HERE:
-        'credit_notes': credit_notes_queryset,
+        'available_credits': available_credits, # NEW: For "Apply Credit" buttons in HTML
+        'credit_notes': credit_notes_history, # Already applied list
         
         'available_surpluses': available_surpluses,
         'applied_journals': applied_journals,
-        'total_journal_assigned': total_surplus_applied_to_bill,
         'action_message': action_message,
         'is_proceed_enabled': is_proceed_enabled,
-        'fiscal_starting_date': month_start_date,
-        'fiscal_closing_date': fiscal_end_date,
     }
     
     return render(request, 'unity_internal_app/pre_bill_summary.html', context)
@@ -2070,27 +2068,45 @@ def assign_fiscal_date_view(request, note_id):
     from .models import CreditNote, UnityBill
     from .forms import FiscalDateAssignmentForm
 
-    context_type = request.GET.get('context', 'info')
     note_record = get_object_or_404(CreditNote, id=note_id)
     current_company_code = note_record.member_group_code 
 
     if request.method == 'POST':
         form = FiscalDateAssignmentForm(request.POST, instance=note_record)
+        
+        # Ensure manually handled fields don't block validation
         if 'fiscal_date' in form.fields: form.fields['fiscal_date'].required = False
         if 'target_bill_id' in form.fields: form.fields['target_bill_id'].required = False
 
         new_group_code = request.POST.get('member_group_code')
         link_reason = request.POST.get('link_reason')
-        requested_amt = request.POST.get('requested_link_amount') # Capture specific amount
+        requested_amt = request.POST.get('requested_link_amount')
+        
+        # Capture the new inputs from the updated HTML
+        bank_fiscal_input = request.POST.get('fiscal_date')
+        date_identified_input = request.POST.get('date_identified')
 
         if form.is_valid() and new_group_code:
             note = form.save(commit=False)
+            
+            # Update Core Workflow Fields
             note.member_group_code = new_group_code
+            note.link_request_reason = link_reason
             
-            # Store the specific amount requested for the manager to see
+            # Update the specific date fields
+            if bank_fiscal_input:
+                note.fiscal_date = bank_fiscal_input
+            if date_identified_input:
+                note.date_identified = date_identified_input
+            
+            # Handle the Allocation Amount
             if requested_amt:
-                note.requested_amount = Decimal(requested_amt)
+                try:
+                    note.requested_amount = Decimal(requested_amt)
+                except (ValueError, TypeError):
+                    note.requested_amount = note.schedule_amount
             
+            # Find an open bill for linking
             open_bill = UnityBill.objects.filter(
                 C_Company_Code=new_group_code,
                 is_reconciled=False
@@ -2098,20 +2114,24 @@ def assign_fiscal_date_view(request, note_id):
             
             if open_bill:
                 note.pending_linked_bill = open_bill
-                note.link_request_reason = link_reason
                 note.credit_link_status = 'Pending'
                 note.save()
                 messages.success(request, f"Requested R{note.requested_amount} allocation for Bill #{open_bill.id}.")
             else:
                 note.save()
-                messages.warning(request, f"Code updated, but NO open bill found.")
+                messages.warning(request, "Request saved, but no open bill was found for this code.")
 
             timestamp = timezone.now().timestamp()
             return redirect(f"{reverse('unity_billing_history', kwargs={'company_code': new_group_code})}?cache={timestamp}#credit")
     else:
         form = FiscalDateAssignmentForm(instance=note_record)
 
-    context = {'page_title': 'Request Link Approval', 'note': note_record, 'form': form, 'company_code': current_company_code}
+    context = {
+        'page_title': 'Request Link Approval', 
+        'note': note_record, 
+        'form': form, 
+        'company_code': current_company_code
+    }
     return render(request, 'unity_internal_app/assign_fiscal_date.html', context)
 
 @login_required
@@ -3382,18 +3402,22 @@ User = get_user_model() # Alias for the User model
 
 @login_required
 def outlook_dashboard_view(request):
-    """
-    Displays the Inbox. 
-    Shows ONLY emails that are NEW. 
-    Explicitly excludes 'DEL' (Delegated) and 'DLT' (Deleted/Recycle Bin).
-    UPDATED: Pulls received_at from local OutlookInbox model.
-    """
     if request.user.username.lower() != 'omega' and not request.user.is_superuser:
         messages.error(request, "Access restricted.")
         return redirect('outlook_delegated_box')
 
     target_email = request.GET.get('email', settings.OUTLOOK_EMAIL_ADDRESS)
-    context = {'target_email': target_email, 'messages': []}
+    
+    # --- Capture Search and Sort Params ---
+    search_query = request.GET.get('q', '').strip().lower()
+    sort_order = request.GET.get('sort', 'newest') # Default to Newest
+    
+    context = {
+        'target_email': target_email, 
+        'messages': [],
+        'search_query': search_query,
+        'sort_order': sort_order
+    }
     
     inbox_data = OutlookGraphService.fetch_inbox_messages(target_email, top_count=50) 
     
@@ -3401,11 +3425,7 @@ def outlook_dashboard_view(request):
         all_emails = inbox_data.get('value', [])
         email_ids = [e['id'] for e in all_emails]
         
-        # Fetch local inbox records to get the stored received_at date
-        # Use in_bulk for efficient ID-based mapping
         local_inbox_map = OutlookInbox.objects.filter(email_id__in=email_ids).in_bulk(field_name='email_id')
-
-        # LOGIC: Exclude anything that isn't NEW
         delegated_or_recycled_ids = EmailDelegation.objects.filter(
             email_id__in=email_ids
         ).exclude(status='NEW').values_list('email_id', flat=True)
@@ -3417,24 +3437,36 @@ def outlook_dashboard_view(request):
                 continue
                 
             received_date_str = email.get('receivedDateTime') 
-            
-            # Ensure a NEW record exists in Delegation
             delegation, created = EmailDelegation.objects.get_or_create(
                 email_id=email_id,
                 defaults={'received_at': received_date_str, 'status': 'NEW'}
             )
             
-            # ATTACH LOCAL TIMESTAMP: 
-            # If the item exists in OutlookInbox, use that date. Otherwise, fallback to Graph date.
             local_record = local_inbox_map.get(email_id)
-            if local_record:
-                email['internal_received_at'] = local_record.received_at
-            else:
-                email['internal_received_at'] = received_date_str
-
+            # Standardize date for sorting logic
+            sort_date = local_record.received_at if local_record else received_date_str
+            
+            email['internal_received_at'] = sort_date
             email['delegation_status'] = delegation.get_status_display()
             email['delegation_id'] = delegation.pk 
+
+            # --- 2. WILDCARD SEARCH LOGIC ---
+            if search_query:
+                subject = email.get('subject', '').lower()
+                sender = email.get('from', {}).get('emailAddress', {}).get('address', '').lower()
+                sender_name = email.get('from', {}).get('emailAddress', {}).get('name', '').lower()
+                
+                # If search term isn't in subject or sender, skip this email
+                if search_query not in subject and search_query not in sender and search_query not in sender_name:
+                    continue
+
             filtered_emails.append(email)
+            
+        # --- 3. DATE SORTER LOGIC ---
+        # Note: local_record.received_at is a datetime object, received_date_str is a string.
+        # Python handles string ISO dates or datetime objects well in sorted()
+        reverse_sort = (sort_order == 'newest')
+        filtered_emails.sort(key=lambda x: x['internal_received_at'], reverse=reverse_sort)
             
         context['messages'] = filtered_emails
     else:
@@ -3503,58 +3535,72 @@ def send_email_view(request):
 def outlook_delegated_box(request):
     """
     Displays the list of tasks specifically assigned to the current user.
-    Strictly filters for Status='DEL' to distinguish from 'DLT' (Recycle Bin).
+    Includes additional DB fields and handles Search/Sort.
     """
-    # 1. Fetch only ACTIVE delegations for this user
-    # Note: If your helper 'get_delegated_emails_for_user' doesn't filter by status, 
-    # use the direct QuerySet below:
+    # --- Capture Search and Sort Params ---
+    search_query = request.GET.get('q', '').strip().lower()
+    sort_order = request.GET.get('sort', 'newest')
+
+    # 1. Fetch delegations for this user
     delegations = EmailDelegation.objects.filter(
         assigned_user=request.user, 
         status='DEL'
-    ).order_by('-received_at')
+    )
+
+    # 2. Map local Inbox details for received_at (using in_bulk for efficiency)
+    email_ids = delegations.values_list('email_id', flat=True)
+    local_inbox_map = OutlookInbox.objects.filter(email_id__in=email_ids).in_bulk(field_name='email_id')
 
     tasks = []
     target_email = settings.OUTLOOK_EMAIL_ADDRESS 
 
     for delegation in delegations:
-        # Fetch subject/sender details from Graph for display
-        endpoint = f"messages/{delegation.email_id}?$select=subject,from,receivedDateTime"
+        # Get received_at from local_inbox_map (Table: unity_internal_inbox)
+        local_inbox = local_inbox_map.get(delegation.email_id)
+        db_received_at = local_inbox.received_at if local_inbox else delegation.received_at
         
+        # --- WILDCARD SEARCH LOGIC ---
+        # Search against Subject, Category, Company Code, or From
+        # (Note: For subject/from we still use Graph API data, for codes we use DB)
+        
+        # We fetch Graph details first to allow searching against Subject/From
+        endpoint = f"messages/{delegation.email_id}?$select=subject,from"
         try:
-            # Execute GET request to Graph API
-            response = OutlookGraphService._make_graph_request(
-                endpoint, 
-                target_email, 
-                method='GET'
-            )
+            response = OutlookGraphService._make_graph_request(endpoint, target_email, method='GET')
+            graph_subject = response.get('subject', '(No Subject)') if 'error' not in response else "N/A"
+            graph_from = response.get('from', {}).get('emailAddress', {}).get('name', 'Unknown') if 'error' not in response else "N/A"
             
-            # Check for API errors or empty response
-            if response and 'error' not in response:
-                tasks.append({
-                    'delegation_id': delegation.pk,
-                    'status': delegation.get_status_display(), # Shows "Delegated" labels
-                    'subject': response.get('subject', '(No Subject)'),
-                    'from': response.get('from', {}).get('emailAddress', {}).get('name', 'Unknown Sender'),
-                    'received': response.get('receivedDateTime'),
-                    'company_code': delegation.company_code, # Added for better UI context
-                })
-            else:
-                # Optional: log specific Graph API failures for individual items
-                pass
+            if search_query:
+                match = any([
+                    search_query in graph_subject.lower(),
+                    search_query in graph_from.lower(),
+                    search_query in (delegation.email_category or '').lower(),
+                    search_query in (delegation.company_code or '').lower()
+                ])
+                if not match:
+                    continue
 
-        except Exception as e:
-            # Fallback for UI if Graph API is unreachable for a specific message
             tasks.append({
                 'delegation_id': delegation.pk,
                 'status': delegation.get_status_display(),
-                'subject': f"[Graph Error: {delegation.email_id[:8]}...]",
-                'from': "N/A",
-                'received': delegation.received_at
+                'subject': graph_subject,
+                'from': graph_from,
+                'received': db_received_at, # From local inbox table
+                'company_code': delegation.company_code, # From delegation table
+                'email_type': delegation.email_category, # From delegation table
             })
+        except Exception:
+            continue
+
+    # --- DATE SORTER LOGIC ---
+    reverse_sort = (sort_order == 'newest')
+    tasks.sort(key=lambda x: x['received'] if x['received'] else timezone.now(), reverse=reverse_sort)
 
     context = {
         'tasks': tasks,
-        'task_count': len(tasks)
+        'task_count': len(tasks),
+        'search_query': search_query,
+        'sort_order': sort_order
     }
     return render(request, 'unity_internal_app/outlook_delegated_box.html', context)
 
@@ -3696,12 +3742,20 @@ def outlook_delegated_action(request, delegation_id):
 @login_required
 def outlook_delegate_to(request, email_id):
     """
-    Handles the detailed delegation form for classification before assignment.
-    UPDATED: Fetches attachment metadata and raw bytes for image previews.
+    Handles delegation and re-delegation of Outlook tasks.
+    FIXED: Explicitly handles record updates to ensure testuser1 -> testuser2 re-assignment works.
+    UPDATED: Supports 'current_delegation' context for manager re-assignment logic.
+    UPDATED: Detects re-delegation and logs the transition.
     """
+    from .models import EmailDelegation, DelegationTransactionLog
+    
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
+    # Available users for assignment (excluding the current user performing the action)
     available_users = User.objects.filter(is_active=True).exclude(pk=request.user.pk)
     
+    # 1. Fetch current delegation status if it exists
+    current_delegation = EmailDelegation.objects.filter(email_id=email_id).first()
+
     if request.method == 'POST':
         work_related_input = request.POST.get('work_related')
         assignee_pk = request.POST.get('agent_name')
@@ -3713,8 +3767,8 @@ def outlook_delegate_to(request, email_id):
             'comm_type': request.POST.get('comm_type') or 'Email',
         }
 
+        # --- HANDLE ARCHIVE/RECYCLE ---
         if work_related_input == 'No':
-            from .models import EmailDelegation
             EmailDelegation.objects.update_or_create(
                 email_id=email_id,
                 defaults={
@@ -3727,40 +3781,67 @@ def outlook_delegate_to(request, email_id):
                 }
             )
             messages.error(request, "Email moved to Recycle Bin (Status: DLT).")
-            return redirect('outlook_dashboard')
+            return redirect('email_list')
 
+        # --- HANDLE DELEGATION / RE-DELEGATION ---
         else:
             if not assignee_pk or assignee_pk in ['', '__Select Agent__']:
                 messages.error(request, "Please select an agent for delegation.")
             else:
-                success, message = delegate_email_task(
-                    email_id, 
-                    assignee_pk, 
-                    request.user, 
-                    classification_data=data_for_delegation
-                )
-                
-                if success:
-                    assignee = User.objects.get(pk=assignee_pk)
-                    reply_endpoint = f"messages/{email_id}/createReply"
-                    reply_payload = {
-                        "comment": f"Dear Sender,\n\nThis request has been successfully received and delegated to our agent: {assignee.username}.\n\nPlease use Reference: {data_for_delegation['company_code'] or 'N/A'} for future queries.\n\nRegards,\nMIP Support Team"
-                    }
-                    
-                    try:
-                        draft_response = OutlookGraphService._make_graph_request(
-                            reply_endpoint, target_email, method='POST', data=reply_payload
-                        )
-                        if 'id' in draft_response:
-                            send_endpoint = f"messages/{draft_response['id']}/send"
-                            OutlookGraphService._make_graph_request(send_endpoint, target_email, method='POST')
-                            messages.success(request, f"Task delegated and confirmation email sent!")
-                    except Exception as e:
-                        messages.warning(request, f"Delegation saved, but reply failed: {str(e)}")
+                # Fetch new assignee object
+                assignee = User.objects.get(pk=assignee_pk)
 
-                    return redirect('outlook_dashboard')
+                # FIX: Check if this is a re-assignment of an existing record
+                if current_delegation:
+                    # Logic for RE-ASSIGNMENT (testuser1 -> testuser2)
+                    old_agent_name = current_delegation.assigned_user.username if current_delegation.assigned_user else "Unassigned"
+                    
+                    # Update existing record fields
+                    current_delegation.assigned_user = assignee
+                    current_delegation.company_code = data_for_delegation['company_code']
+                    current_delegation.email_category = data_for_delegation['email_category']
+                    current_delegation.status = 'DEL'
+                    current_delegation.delegated_at = timezone.now()
+                    current_delegation.save()
+
+                    # Audit Log for the Re-delegation
+                    DelegationTransactionLog.objects.create(
+                        delegation=current_delegation,
+                        user=request.user,
+                        action_type='RE_DELEGATED',
+                        subject=f"Task moved from {old_agent_name} to {assignee.username}",
+                        recipient_email=assignee.email or "N/A"
+                    )
+                    messages.success(request, f"Task successfully re-assigned to {assignee.username}.")
+                    return redirect('email_list')
+
                 else:
-                    messages.error(request, message)
+                    # Logic for NEW DELEGATION (Task was 'NEW')
+                    success, message = delegate_email_task(
+                        email_id, 
+                        assignee_pk, 
+                        request.user, 
+                        classification_data=data_for_delegation
+                    )
+                    
+                    if success:
+                        # Standard Auto-Reply for NEW delegations only
+                        reply_endpoint = f"messages/{email_id}/createReply"
+                        reply_payload = {
+                            "comment": f"Dear Sender,\n\nThis request has been successfully received and delegated to our agent: {assignee.username}.\n\nPlease use Reference: {data_for_delegation['company_code'] or 'N/A'} for future queries.\n\nRegards,\nMIP Support Team"
+                        }
+                        try:
+                            draft_res = OutlookGraphService._make_graph_request(reply_endpoint, target_email, method='POST', data=reply_payload)
+                            if 'id' in draft_res:
+                                send_endpoint = f"messages/{draft_res['id']}/send"
+                                OutlookGraphService._make_graph_request(send_endpoint, target_email, method='POST')
+                                messages.success(request, f"Task assigned and confirmation email sent!")
+                        except Exception as e:
+                            messages.warning(request, f"Task assigned, but auto-reply failed: {str(e)}")
+                        
+                        return redirect('email_list')
+                    else:
+                        messages.error(request, message)
 
     # --- Fetch Data for GET Request ---
     endpoint = f"messages/{email_id}" 
@@ -3768,12 +3849,12 @@ def outlook_delegate_to(request, email_id):
 
     if 'error' in email_data:
         messages.error(request, f"Error fetching email content: {email_data.get('error')}")
-        return redirect('outlook_dashboard')
+        return redirect('email_list')
 
     # Fetch Attachments Metadata
     attachments_data = OutlookGraphService.fetch_attachments(target_email, email_id)
     
-    # 🚀 NEW: Fetch content bytes for images to allow thumbnails in the delegation form
+    # Process image previews
     for att in attachments_data:
         content_type = att.get('contentType', '').lower()
         if 'image' in content_type:
@@ -3784,7 +3865,9 @@ def outlook_delegate_to(request, email_id):
     raw_content = email_data.get('body', {}).get('content', '')
     received_date_str = email_data.get('receivedDateTime')
     
-    get_or_create_delegation_status(email_id, received_date_str=received_date_str)
+    # Sync status in background if missing
+    if not current_delegation:
+        current_delegation = get_or_create_delegation_status(email_id, received_date_str=received_date_str)
     
     context = {
         'email_id': email_id,
@@ -3792,6 +3875,7 @@ def outlook_delegate_to(request, email_id):
         'email_content': raw_content, 
         'attachments': attachments_data, 
         'available_users': available_users,
+        'current_delegation': current_delegation,
     }
     return render(request, 'unity_internal_app/outlook_delegate_to.html', context)
 
@@ -3904,47 +3988,76 @@ def outlook_delete_permanent(request):
 @login_required
 def view_email_thread(request, email_id):
     """
-    Displays the historical timeline and the original email content with 
-    attachment previews/downloads.
+    Displays email content, attachments, and combined timeline of 
+    automated transactions, delegation notes, and manual unity notes.
     """
-    # 1. Fetch the original delegated email item from local DB
-    task = get_object_or_404(EmailDelegation, email_id=email_id)
+    from .models import EmailDelegation, DelegationTransactionLog, UnityNotes, DelegationNote, OutlookInbox
+
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     
-    # 2. Fetch Live Content from Graph API
-    # This ensures the history view shows the full original HTML and current attachments
+    # 1. Fetch Live Content from Graph API
     endpoint = f"messages/{email_id}"
     email_data = OutlookGraphService._make_graph_request(endpoint, target_email, method='GET')
     
-    attachments = []
-    if 'error' not in email_data:
-        # Fetch Attachment Metadata
-        attachments = OutlookGraphService.fetch_attachments(target_email, email_id)
-        
-        # Fetch bytes for images to show thumbnails in the history timeline
-        for att in attachments:
-            if 'image' in att.get('contentType', '').lower():
-                raw_att = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
+    # Ensure email_data is a dictionary for safe template lookup
+    if not isinstance(email_data, dict):
+        email_data = {}
+
+    if 'error' in email_data:
+        messages.error(request, f"Microsoft Graph Error: {email_data.get('error')}")
+        return redirect(request.META.get('HTTP_REFERER', 'outlook_dashboard'))
+
+    # 2. Handle Attachments
+    attachments = OutlookGraphService.fetch_attachments(target_email, email_id)
+    for att in attachments:
+        if 'image' in att.get('contentType', '').lower():
+            raw_att = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
+            # Safeguard against raw_att not containing contentBytes
+            if isinstance(raw_att, dict) and 'contentBytes' in raw_att:
                 att['contentBytes'] = raw_att.get('contentBytes')
-        
-        # Use live body content if available, otherwise fallback to task attribute
-        email_body = email_data.get('body', {}).get('content', '')
-    else:
-        # Fallback to local task data if Graph API call fails
-        email_body = getattr(task, 'body_content', "Live content unavailable.")
 
-    # 3. Fetch Transaction Log (Timeline)
-    actions = DelegationTransactionLog.objects.filter(
-        delegation=task
-    ).select_related('user').order_by('-timestamp')
+    email_body = email_data.get('body', {}).get('content', '')
 
+    # 3. Fetch Local Data (Task, Transactions, and Manual Notes)
+    # Using .first() prevents 404s on Direct Emails (Sent Items)
+    task = EmailDelegation.objects.filter(email_id=email_id).first()
+    
+    actions = []
+    delegation_notes = []
+    if task:
+        actions = list(DelegationTransactionLog.objects.filter(delegation=task).select_related('user'))
+        delegation_notes = list(DelegationNote.objects.filter(delegation=task).select_related('user'))
+
+    # 4. Fetch Manual Unity Notes associated with this Email ID
+    manual_unity_notes = list(UnityNotes.objects.filter(attached_email_id=email_id))
+
+    # 5. Build Combined Timeline
+    combined_timeline = []
+
+    # Map Action logs
+    for act in actions:
+        combined_timeline.append({'type': 'action', 'date': act.timestamp, 'obj': act})
+    
+    # Map Delegation/Internal notes
+    for d_note in delegation_notes:
+        combined_timeline.append({'type': 'del_note', 'date': d_note.created_at, 'obj': d_note})
+
+    # Map Unity Management notes (Direct Emails & Manual Logs)
+    for u_note in manual_unity_notes:
+        combined_timeline.append({'type': 'unity_note', 'date': u_note.date, 'obj': u_note})
+
+    # Sort timeline: Newest at the top
+    combined_timeline.sort(key=lambda x: x['date'], reverse=True)
+
+    # 6. Final Context Preparation
     context = {
         'task': task,
-        'email': email_data, # Metadata like Sender/Subject
+        'email': email_data,
         'email_body': email_body,
         'attachments': attachments,
-        'actions': actions,
-        'inbox_item': task, 
+        'combined_timeline': combined_timeline,
+        # Try to find a local inbox item, otherwise use the task as fallback for metadata
+        'inbox_item': OutlookInbox.objects.filter(email_id=email_id).first() or task, 
     }
     
     return render(request, 'unity_internal_app/view_email_thread.html', context)
@@ -3952,67 +4065,101 @@ def view_email_thread(request, email_id):
 @login_required
 def email_list_view(request):
     """
-    MASTER ARCHIVE: Displays all delegated tasks and transaction logs.
-    Fix: Using delegation_id for transaction log lookup.
+    MASTER ARCHIVE: Displays 'NEW', 'DEL' (Delegated), and 'COM' (Completed) tasks.
+    Supports filtering by Status, Agent, Type, Date, and Search Text.
     """
+    # 1. Capture Filter Parameters
     filter_type = request.GET.get('type', 'all')
+    search_query = request.GET.get('search', '').strip().lower()
+    start_date = request.GET.get('start')
+    end_date = request.GET.get('end')
     
-    # 1. Fetch all Delegation Tasks (excluding Recycle Bin)
-    delegations_qs = EmailDelegation.objects.exclude(status__in=['DLT', 'ARC']).order_by('-received_at')
+    # New Filter Parameters from HTML dropdowns
+    status_filter = request.GET.get('status')
+    agent_filter = request.GET.get('agent')
+    type_filter = request.GET.get('email_type')
     
-    # FIX: delegation_id is the correct field in DelegationTransactionLog
-    # We get a set of IDs for delegations that have at least one log entry
-    all_log_delegation_ids = DelegationTransactionLog.objects.values_list('delegation_id', flat=True)
-    emails_with_replies = set(all_log_delegation_ids) 
+    # 2. Base Query: Start by excluding deleted/archived items
+    delegations_qs = EmailDelegation.objects.exclude(
+        status__in=['DLT', 'ARC']
+    ).select_related('assigned_user').order_by('-received_at')
 
-    # Fetch inbox map for details
-    inbox_map = {obj.email_id: obj for obj in OutlookInbox.objects.all()}
-    
-    filtered_delegations = []
-    for d in delegations_qs:
-        # CHECK LOGIC: Does this specific delegation instance have any replies?
-        has_reply = d.id in emails_with_replies
-        
-        # APPLY RULE: (NEW) OR (COM) OR (DEL with a reply)
-        should_show = (d.status == 'NEW') or (d.status == 'COM') or (d.status == 'DEL' and has_reply)
-        
-        if should_show:
-            inbox_detail = inbox_map.get(d.email_id)
-            if inbox_detail:
-                d.subject = inbox_detail.subject
-                d.sender_address = inbox_detail.sender_address
-            else:
-                d.subject = f"[Details Missing - ID: {d.email_id[:10]}]"
-                d.sender_address = "Unknown"
-            
-            filtered_delegations.append(d)
-
-    # 2. Fetch Transaction Logs as independent items for the combined archive
-    transactions = list(DelegationTransactionLog.objects.all().order_by('-timestamp'))
-
-    # Category filtering
-    if filter_type == 'new':
-        items = [d for d in filtered_delegations if d.status == 'NEW']
-    elif filter_type == 'delegated':
-        items = [d for d in filtered_delegations if d.status == 'DEL']
-    elif filter_type == 'reply':
-        items = transactions
+    # Apply Database-Level Filters
+    if status_filter:
+        delegations_qs = delegations_qs.filter(status=status_filter)
     else:
-        # Combined list sorted by date
-        items = sorted(
-            filtered_delegations + transactions, 
-            key=lambda x: x.received_at if hasattr(x, 'received_at') and x.received_at else (x.timestamp if hasattr(x, 'timestamp') else timezone.now()), 
-            reverse=True
-        )
+        # UPDATED: Default view now shows NEW and DEL (Delegated) 
+        # to show active workload, or COM if explicitly requested via filter_type
+        if filter_type == 'com':
+            delegations_qs = delegations_qs.filter(status='COM')
+        elif filter_type == 'new':
+            delegations_qs = delegations_qs.filter(status='NEW')
+        else:
+            # Default: Show New and currently Delegated (Active Work)
+            delegations_qs = delegations_qs.filter(status__in=['NEW', 'DEL'])
 
-    # Pagination
-    paginator = Paginator(items, 24)
+    if agent_filter:
+        delegations_qs = delegations_qs.filter(assigned_user_id=agent_filter)
+        
+    if type_filter:
+        delegations_qs = delegations_qs.filter(email_category=type_filter)
+
+    # 3. Link to OutlookInbox for Subject and Sender Address
+    email_ids = delegations_qs.values_list('email_id', flat=True)
+    inbox_map = {obj.email_id: obj for obj in OutlookInbox.objects.filter(email_id__in=email_ids)}
+    
+    final_items = []
+    for d in delegations_qs:
+        inbox_detail = inbox_map.get(d.email_id)
+        if inbox_detail:
+            d.subject = inbox_detail.subject
+            d.sender_address = inbox_detail.sender_address
+        else:
+            d.subject = f"[Details Missing: {d.email_id[:10]}]"
+            d.sender_address = "Unknown"
+
+        # 4. Apply Python-Side Filters (Search and Date)
+        if search_query:
+            if search_query not in d.subject.lower() and \
+               search_query not in (d.company_code or '').lower() and \
+               search_query not in (d.email_category or '').lower():
+                continue
+
+        if start_date and d.received_at:
+            try:
+                if d.received_at.date() < datetime.strptime(start_date, '%Y-%m-%d').date():
+                    continue
+            except ValueError: pass
+            
+        if end_date and d.received_at:
+            try:
+                if d.received_at.date() > datetime.strptime(end_date, '%Y-%m-%d').date():
+                    continue
+            except ValueError: pass
+
+        final_items.append(d)
+
+    # 5. Handle "Filter Category" backwards compatibility
+    # (Already handled in Step 2 for query optimization, but keeping list logic safe)
+    if filter_type == 'new':
+        final_items = [item for item in final_items if item.status == 'NEW']
+    elif filter_type == 'com':
+        final_items = [item for item in final_items if item.status == 'COM']
+    elif filter_type == 'delegated':
+        final_items = [item for item in final_items if item.status == 'DEL']
+
+    # 6. Pagination
+    paginator = Paginator(final_items, 24)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
     
+    # 7. Provide context
     return render(request, 'unity_internal_app/email_list.html', {
         'page_obj': page_obj,
-        'current_filter': filter_type
+        'current_filter': filter_type,
+        'search_query': search_query,
+        'all_agents': User.objects.filter(is_active=True).order_by('username'),
+        'status_filter': status_filter,
     })
     
 @login_required
@@ -4234,9 +4381,8 @@ def manager_approval_dashboard(request):
 def approve_credit_link(request, note_id):
     """
     Manager Approval Logic.
-    UPDATED: Handles "Overs credit line" differently. 
-    - If it's an 'Overs' line: It is approved to become a usable credit (Unlinked).
-    - If it's a standard link request: It allocates money to a specific bill.
+    UPDATED: Handles "Overs credit line" as a fail-safe by marking as 'Approved'.
+    This ensures the credit appears in the Bank List for the Clerk.
     """
     from decimal import Decimal
     from django.db.models import Sum
@@ -4252,23 +4398,22 @@ def approve_credit_link(request, note_id):
         messages.error(request, "This credit is not pending approval.")
         return redirect('manager_approval_dashboard')
 
-    # --- NEW LOGIC: HANDLE "OVERS CREDIT LINE" VERIFICATION ---
-    # If the reason is 'Overs credit line', the manager is just verifying the 
-    # bank overpayment is valid. It doesn't get applied to a bill immediately.
+    # --- FAIL-SAFE LOGIC: HANDLE "OVERS CREDIT LINE" VERIFICATION ---
+    # If the reason is 'Overs credit line', we change status to 'Approved'.
+    # This acts as the trigger for bank_list.html to display this as a virtual deposit.
     if note.link_request_reason == "Overs credit line":
-        note.credit_link_status = 'Unlinked' # Now available for future bill requests
+        note.credit_link_status = 'Approved' # <--- Changed from Unlinked
         note.pending_linked_bill = None
         note.authorized_by = request.user.username
         note.authorized_at = timezone.now()
         note.save()
         
-        messages.success(request, f"Overs credit line of R{note.schedule_amount} verified and released to Member Group {note.member_group_code}.")
+        messages.success(request, f"Overs credit line of R{note.schedule_amount} for {note.member_group_code} approved. It is now visible in the Bank List for the Clerk.")
         return redirect('manager_approval_dashboard')
 
-    # --- EXISTING LOGIC: HANDLE BILL ALLOCATION REQUESTS ---
+    # --- STANDARD LOGIC: HANDLE SPECIFIC BILL ALLOCATION REQUESTS ---
     target_bill = note.pending_linked_bill
     if not target_bill:
-        # Fallback: if no bill and not an 'Overs', reset to Unlinked
         note.credit_link_status = 'Unlinked'
         note.save()
         messages.warning(request, "Request reset: No target bill was attached to this link request.")
@@ -4294,24 +4439,23 @@ def approve_credit_link(request, note_id):
         return redirect('manager_approval_dashboard')
 
     # 2. Update Balances
-    # Subtract from available balance
     note.schedule_amount -= final_allocation 
-    # Store what was actually used
     note.requested_amount = final_allocation 
 
-    if note.schedule_amount <= ZERO_DECIMAL:
+    # If money remains on the credit note, it goes back to 'Unlinked' (Fail-safe for remainders)
+    if note.schedule_amount <= Decimal('0.009'):
         note.assigned_unity_bill = target_bill
-        note.credit_link_status = 'Approved' # Fully consumed
+        note.credit_link_status = 'Approved' 
     else:
         note.assigned_unity_bill = None
-        note.credit_link_status = 'Unlinked' # Partial remains for future use
+        note.credit_link_status = 'Unlinked' 
 
     note.pending_linked_bill = None
     note.authorized_by = request.user.username
     note.authorized_at = timezone.now()
     note.save()
 
-    # 3. Create Audit Trail
+    # 3. Create Audit Trail (Allocates the money to the bill)
     BillSettlement.objects.create(
         unity_bill_source=target_bill,
         settled_amount=final_allocation,
@@ -4320,7 +4464,10 @@ def approve_credit_link(request, note_id):
         reconned_bank_line=None
     )
 
-    messages.success(request, f"Approved R{final_allocation} for Bill #{target_bill.id}.")
+    # NOTE: We specifically DO NOT set target_bill.is_reconciled = True here.
+    # The Clerk must still go to the summary page and click "Finalize".
+
+    messages.success(request, f"Approved R{final_allocation} for Bill #{target_bill.id}. Clerk can now finalize this bill.")
     return redirect('manager_approval_dashboard')
 
 @login_required
@@ -4352,54 +4499,93 @@ def reject_credit_link(request, note_id):
 
 @login_required
 def global_bank_view(request):
+    from django.db.models import F, Q
+    from decimal import Decimal
+    from django.core.paginator import Paginator
+
     query = request.GET.get('q')
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
     
-    base_queryset = ReconnedBank.objects.select_related('bank_line').order_by('-transaction_date', '-id')
-
-    # Apply Date Range Filters
+    # --- 1. Fetch Physical Bank Lines ---
+    bank_qs = ReconnedBank.objects.select_related('bank_line').order_by('-transaction_date', '-id')
     if start_date and end_date:
-        base_queryset = base_queryset.filter(transaction_date__range=[start_date, end_date])
-
+        bank_qs = bank_qs.filter(transaction_date__range=[start_date, end_date])
     if query:
-        base_queryset = base_queryset.filter(
+        bank_qs = bank_qs.filter(
             Q(company_code__icontains=query) |
-            Q(bank_line__transaction_description__icontains=query) |
-            Q(recon_status__icontains=query)
+            Q(bank_line__transaction_description__icontains=query)
         )
 
-    paginator = Paginator(base_queryset, 50)
+    # --- 2. Fetch Approved Virtual Credits (The Overs) ---
+    credit_qs = CreditNote.objects.filter(
+        Q(note_selection='OVERS') | Q(link_request_reason='Overs credit line'),
+        credit_link_status='Approved',
+        schedule_amount__gt=Decimal('0.00')
+    )
+    if start_date and end_date:
+        credit_qs = credit_qs.filter(authorized_at__date__range=[start_date, end_date])
+    if query:
+        credit_qs = credit_qs.filter(Q(member_group_code__icontains=query))
+
+    # --- 3. Build MG Map for Names and Agents ---
+    # We collect all unique codes from both querysets to minimize DB hits
+    all_codes = list(bank_qs.values_list('company_code', flat=True).distinct()) + \
+                list(credit_qs.values_list('member_group_code', flat=True).distinct())
+    
+    mg_map = {
+        item['a_company_code']: {'name': item['b_company_name'], 'agent': item['c_agent']}
+        for item in UnityMgListing.objects.filter(a_company_code__in=all_codes).values('a_company_code', 'b_company_name', 'c_agent')
+    }
+
+    # --- 4. Unify the Data into the combined_list ---
+    combined_list = []
+
+    # Map Bank Lines
+    for r in bank_qs:
+        mg_info = mg_map.get(r.company_code, {})
+        combined_list.append({
+            'id': r.id,
+            'source': 'BANK',
+            'transaction_date': r.transaction_date,
+            'amount': r.transaction_amount,
+            'settled': r.amount_settled,
+            'remaining': r.transaction_amount - r.amount_settled,
+            'status': r.recon_status or "Unidentified",
+            'company_code': r.company_code or "—",
+            'company_name': mg_info.get('name', "Unassigned") if r.company_code else "—",
+            'note_selection': "Bank Statement",
+            # FIX: Pull agent from MG Map, not the record
+            'agent': mg_info.get('agent', "System") if r.company_code else "—",
+        })
+
+    # Map Approved Credits
+    for c in credit_qs:
+        combined_list.append({
+            'id': c.id,
+            'source': 'CREDIT',
+            'transaction_date': c.authorized_at.date() if c.authorized_at else c.processed_date,
+            'amount': c.schedule_amount,
+            'settled': Decimal('0.00'),
+            'remaining': c.schedule_amount,
+            'status': "APPROVED VIRTUAL",
+            'company_code': c.member_group_code,
+            'company_name': c.member_group_name or mg_map.get(c.member_group_code, {}).get('name', "Verified Credit"),
+            'note_selection': "APPROVED OVERS",
+            'agent': c.authorized_by or "Manager",
+        })
+
+    # Sort combined list by date
+    combined_list.sort(key=lambda x: x['transaction_date'], reverse=True)
+
+    # Pagination
+    paginator = Paginator(combined_list, 50)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
-    company_codes = [r.company_code for r in page_obj if r.company_code]
-    mg_map = {
-        item['a_company_code']: {'name': item['b_company_name'], 'agent': item['c_agent']}
-        for item in UnityMgListing.objects.filter(a_company_code__in=company_codes).values('a_company_code', 'b_company_name', 'c_agent')
-    }
-
-    global_records = []
-    for record in page_obj:
-        remaining = record.transaction_amount - record.amount_settled
-        mg_info = mg_map.get(record.company_code, {})
-        
-        global_records.append({
-            'id': record.id,
-            'transaction_date': record.transaction_date,
-            'description': record.bank_line.transaction_description,
-            'amount': record.transaction_amount,
-            'settled': record.amount_settled,
-            'remaining': remaining,
-            'status': record.recon_status or "Unidentified",
-            'company_code': record.company_code or "—",
-            'company_name': mg_info.get('name', "Unassigned") if record.company_code else "—",
-            'agent': mg_info.get('agent', "System") if record.company_code else "—",
-        })
-
     context = {
         'page_obj': page_obj,
-        'global_records': global_records,
+        'global_records': page_obj, # This is our unified paginated list
         'search_query': query,
         'start_date': start_date,
         'end_date': end_date,
@@ -4483,70 +4669,94 @@ def download_attachment_view(request, message_id, attachment_id):
 @login_required
 def export_email_list(request):
     """
-    Exports the Master Archive to Excel, applying date and category filters.
+    Exports the Email Archive to Excel.
+    UPDATED: Now includes 'NEW' and 'DEL' (Delegated) by default.
+    COLUMNS: Status, Subject, From, Received, Delegated, Agent, Company, Type.
     """
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from django.http import HttpResponse
+
+    # 1. Capture Filter Parameters
     filter_type = request.GET.get('type', 'all')
-    search_query = request.GET.get('search', '')
+    search_query = request.GET.get('search', '').strip().lower()
     start_date = request.GET.get('start')
     end_date = request.GET.get('end')
-
-    # 1. Fetch Data (Mirroring email_list_view logic)
-    delegations_qs = EmailDelegation.objects.exclude(status='DLT')
-    all_log_delegation_ids = DelegationTransactionLog.objects.values_list('delegation_id', flat=True)
-    emails_with_replies = set(all_log_delegation_ids)
-    inbox_map = {obj.email_id: obj for obj in OutlookInbox.objects.all()}
-
-    # Process Delegations
-    filtered_delegations = []
-    for d in delegations_qs:
-        has_reply = d.id in emails_with_replies
-        should_show = (d.status == 'NEW') or (d.status == 'COM') or (d.status == 'DEL' and has_reply)
-        
-        if should_show:
-            # Apply Date Filters to Delegations
-            if start_date and d.received_at and d.received_at.date() < timezone.datetime.strptime(start_date, '%Y-%m-%d').date():
-                continue
-            if end_date and d.received_at and d.received_at.date() > timezone.datetime.strptime(end_date, '%Y-%m-%d').date():
-                continue
-            
-            inbox_detail = inbox_map.get(d.email_id)
-            d.subject = inbox_detail.subject if inbox_detail else "Unknown Subject"
-            d.sender_address = inbox_detail.sender_address if inbox_detail else "Unknown"
-            filtered_delegations.append(d)
-
-    # Process Transactions
-    transactions_qs = DelegationTransactionLog.objects.all()
-    if start_date:
-        transactions_qs = transactions_qs.filter(timestamp__date__gte=start_date)
-    if end_date:
-        transactions_qs = transactions_qs.filter(timestamp__date__lte=end_date)
     
-    transactions = list(transactions_qs)
+    status_filter = request.GET.get('status')
+    agent_filter = request.GET.get('agent')
+    type_filter = request.GET.get('email_type')
 
-    # 2. Apply Category Filtering
-    if filter_type == 'new':
-        final_items = [d for d in filtered_delegations if d.status == 'NEW']
-    elif filter_type == 'delegated':
-        final_items = [d for d in filtered_delegations if d.status == 'DEL']
-    elif filter_type == 'reply':
-        final_items = transactions
+    # 2. Fetch Data with Database-Level Filtering
+    # Exclude Recycle Bin/Archived items
+    delegations_qs = EmailDelegation.objects.exclude(status__in=['DLT', 'ARC']).select_related('assigned_user')
+
+    # Apply Dropdown Filters at DB Level
+    if status_filter:
+        delegations_qs = delegations_qs.filter(status=status_filter)
     else:
-        final_items = sorted(
-            filtered_delegations + transactions,
-            key=lambda x: x.received_at if hasattr(x, 'received_at') else x.timestamp,
-            reverse=True
-        )
+        # UPDATED: Default restricted to NEW and DEL (Delegated) as requested
+        delegations_qs = delegations_qs.filter(status__in=['NEW', 'DEL'])
 
-    # 3. Create Excel
+    if agent_filter:
+        delegations_qs = delegations_qs.filter(assigned_user_id=agent_filter)
+        
+    if type_filter:
+        delegations_qs = delegations_qs.filter(email_category=type_filter)
+
+    # 3. Map Inbox details (Subject and From)
+    email_ids = delegations_qs.values_list('email_id', flat=True)
+    inbox_map = {obj.email_id: obj for obj in OutlookInbox.objects.filter(email_id__in=email_ids)}
+
+    final_items = []
+    for d in delegations_qs:
+        inbox_detail = inbox_map.get(d.email_id)
+        d.subject = inbox_detail.subject if inbox_detail else "Unknown Subject"
+        # ADDED: Sender Address field
+        d.sender_address = inbox_detail.sender_address if inbox_detail else "Unknown"
+
+        # Apply Python-Side Search Filter
+        if search_query:
+            if search_query not in d.subject.lower() and \
+               search_query not in (d.company_code or '').lower() and \
+               search_query not in (d.email_category or '').lower():
+                continue
+
+        # Apply Date Filters
+        if start_date and d.received_at:
+            try:
+                if d.received_at.date() < datetime.strptime(start_date, '%Y-%m-%d').date():
+                    continue
+            except ValueError: pass
+        if end_date and d.received_at:
+            try:
+                if d.received_at.date() > datetime.strptime(end_date, '%Y-%m-%d').date():
+                    continue
+            except ValueError: pass
+        
+        # Backward compatibility check (ensures we don't accidentally export COM if filter_type is 'new')
+        if filter_type == 'new' and d.status != 'NEW':
+            continue
+
+        final_items.append(d)
+
+    # Sort final list
+    final_items.sort(key=lambda x: x.received_at if x.received_at else timezone.now(), reverse=True)
+
+    # 4. Create Excel
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Email Archive"
+    ws.title = "Active Emails"
 
     # Styling
     header_font = Font(bold=True, color="FFFFFF")
-    header_fill = PatternFill(start_color="43A047", end_color="43A047", fill_type="solid")
+    header_fill = PatternFill(start_color="2E5077", end_color="2E5077", fill_type="solid") # Changed to a professional blue
     
-    headers = ['Status', 'Subject', 'Participant (From/To)', 'Date / Time', 'Assigned / Action By']
+    # UPDATED: Columns as requested
+    headers = [
+        'Email Status', 'Subject', 'From', 'Date Received', 
+        'Date Delegation', 'Agent', 'Company Code', 'Email Type'
+    ]
     ws.append(headers)
 
     for cell in ws[1]:
@@ -4554,29 +4764,62 @@ def export_email_list(request):
         cell.fill = header_fill
         cell.alignment = Alignment(horizontal="center")
 
-    # 4. Populate Rows
+    # 5. Populate Rows
     for item in final_items:
-        if hasattr(item, 'action_type'): # It's a Transaction
-            status = "Actioned"
-            subject = item.subject
-            participant = f"To: {item.recipient_email}"
-            dt = item.timestamp.strftime('%Y-%m-%d %H:%M')
-            user = item.user.username if item.user else "System"
-        else: # It's a Delegation
-            status = "Completed" if item.status == 'COM' else ("Delegated" if item.status == 'DEL' else "New")
-            subject = item.subject
-            participant = f"From: {item.sender_address}"
-            dt = item.received_at.strftime('%Y-%m-%d %H:%M') if item.received_at else ""
-            user = item.assigned_user.username if item.assigned_user else "Pending"
+        status_display = item.get_status_display()
+        subject = item.subject
+        sender = item.sender_address
+        received_dt = item.received_at.strftime('%Y-%m-%d %H:%M') if item.received_at else ""
+        delegated_dt = item.delegated_at.strftime('%Y-%m-%d %H:%M') if item.delegated_at else "---"
+        user = item.assigned_user.username if item.assigned_user else "Unassigned"
+        comp_code = item.company_code or "N/A"
+        category = item.email_category or "General"
 
-        ws.append([status, subject, participant, dt, user])
+        ws.append([
+            status_display, subject, sender, received_dt, 
+            delegated_dt, user, comp_code, category
+        ])
 
-    # Adjust column widths
-    for i, width in enumerate([15, 50, 30, 20, 20], 1):
+    # Adjust column widths for better readability
+    # Status, Subject, From, RecDate, DelDate, Agent, CompCode, Type
+    column_widths = [18, 55, 30, 20, 20, 15, 15, 15]
+    for i, width in enumerate(column_widths, 1):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width
 
-    # 5. Return File
+    # 6. Return File
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = f'attachment; filename=Email_Archive_{timezone.now().strftime("%Y%m%d")}.xlsx'
+    response['Content-Disposition'] = f'attachment; filename=Active_Emails_{timezone.now().strftime("%Y%m%d")}.xlsx'
     wb.save(response)
     return response
+
+@login_required
+def download_email_file(request, email_id):
+    """
+    Fetches the raw MIME (.eml) content from Microsoft Graph for a specific message.
+    """
+    try:
+        # Use your existing OutlookGraphService to fetch raw content
+        # The /$value endpoint returns the raw MIME content of the message
+        endpoint = f"messages/{email_id}/$value"
+        
+        # Ensure your service has a method to handle raw/binary responses
+        # If not, you can use a direct call or I can help you update the service
+        raw_content = OutlookGraphService._make_graph_request(
+            endpoint, 
+            settings.OUTLOOK_EMAIL_ADDRESS, 
+            method='GET', 
+            is_raw=True # This tells the service NOT to parse as JSON
+        )
+
+        if not raw_content:
+            messages.error(request, "Could not retrieve email content from Outlook.")
+            return redirect(request.META.get('HTTP_REFERER', 'unity_list'))
+
+        # Prepare the response as a file download
+        response = HttpResponse(raw_content, content_type='message/rfc822')
+        response['Content-Disposition'] = f'attachment; filename="Outlook_Email_{email_id[:10]}.eml"'
+        return response
+
+    except Exception as e:
+        messages.error(request, f"Error downloading email: {str(e)}")
+        return redirect(request.META.get('HTTP_REFERER', 'unity_list'))

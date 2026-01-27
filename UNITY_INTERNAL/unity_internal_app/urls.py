@@ -105,4 +105,5 @@ urlpatterns = [
     
     path('emails/archive/', views.email_list_view, name='email_list'), # The HTML view
     path('emails/export/', views.export_email_list, name='export_email_list'),
+    path('download-email/<str:email_id>/', views.download_email_file, name='download_email_file'),
 ]

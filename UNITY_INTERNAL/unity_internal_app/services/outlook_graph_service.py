@@ -17,9 +17,10 @@ class OutlookGraphService:
     """
 
     @staticmethod
-    def _make_graph_request(endpoint, target_email, method='GET', data=None):
+    def _make_graph_request(endpoint, target_email, method='GET', data=None, is_raw=False):
         """
-        Generic internal function to handle all authenticated requests to the Graph API.
+        Generic internal function to handle authenticated requests.
+        Updated to support is_raw for binary/MIME content.
         """
         access_token = get_current_access_token()
         
@@ -44,6 +45,10 @@ class OutlookGraphService:
             
             response.raise_for_status() 
 
+            # If we need the raw binary content (e.g., for .eml files)
+            if is_raw:
+                return response.content
+
             if response.status_code == 202 and method == 'POST':
                 return {'success': True}
 
@@ -52,7 +57,13 @@ class OutlookGraphService:
         except requests.exceptions.HTTPError as e:
             status_code = e.response.status_code
             logger.error(f"Graph API HTTP Error {status_code}: {e.response.text}")
-            error_details = e.response.json() if e.response.text else str(e)
+            
+            # Try to return JSON error if available, else string
+            try:
+                error_details = e.response.json()
+            except:
+                error_details = e.response.text if e.response.text else str(e)
+                
             return {'error': f"Graph API Error: Status {status_code}", 
                     'details': error_details}
             
@@ -67,13 +78,11 @@ class OutlookGraphService:
         """
         Saves or updates emails into the local unmanaged MySQL table 'unity_internal_inbox'.
         """
-        # Local import to prevent circular dependency
         from ..models import OutlookInbox 
         
         sync_count = 0
         for msg in messages_data:
             try:
-                # Extract values safely
                 email_id = msg.get('id')
                 subject = msg.get('subject')
                 sender_name = msg.get('from', {}).get('emailAddress', {}).get('name')
@@ -81,7 +90,6 @@ class OutlookGraphService:
                 body = msg.get('body', {}).get('content')
                 received_str = msg.get('receivedDateTime')
 
-                # Update or Create in MySQL
                 OutlookInbox.objects.update_or_create(
                     email_id=email_id,
                     defaults={
@@ -98,15 +106,13 @@ class OutlookGraphService:
         
         return sync_count
 
-    # --- Public Service Functions (Delegation-Aware) ---
+    # --- Public Service Functions ---
 
     @staticmethod
     def fetch_inbox_messages(target_email, top_count=10):
         """
-        Fetches the latest messages and syncs them to the local MySQL inbox.
-        Included 'body' in select so we can archive the content.
+        Fetches latest messages and syncs to local MySQL.
         """
-        # We add 'body' to the select query so we have the content to save locally
         endpoint = (
             f"mailFolders/inbox/messages?$top={top_count}"
             "&$select=subject,from,receivedDateTime,isRead,body"
@@ -115,16 +121,16 @@ class OutlookGraphService:
         
         response = OutlookGraphService._make_graph_request(endpoint, target_email)
         
-        if 'value' in response:
-            # Trigger the local sync
+        if isinstance(response, dict) and 'value' in response:
             OutlookGraphService.sync_to_local_inbox(response['value'])
             
         return response
 
     @staticmethod
-    def send_outlook_email(target_email, recipient_email, subject, body_content, content_type='Text'):
+    def send_outlook_email(target_email, recipient_email, subject, body_content, content_type='HTML'):
         """
-        Sends an email and logs the action.
+        Sends an email via Microsoft Graph and retrieves the newly created ID 
+        from Sent Items to allow for future viewing and downloading.
         """
         email_data = {
             "message": {
@@ -145,31 +151,54 @@ class OutlookGraphService:
         }
         
         endpoint = "sendMail"
-        response = OutlookGraphService._make_graph_request(endpoint, target_email, method='POST', data=email_data)
+        # 1. Send the email
+        send_res = OutlookGraphService._make_graph_request(endpoint, target_email, method='POST', data=email_data)
         
-        if 'error' in response:
-            return response
+        # 2. Check for success (202 Accepted returns {'success': True} in your _make_graph_request)
+        if isinstance(send_res, dict) and send_res.get('success') is True:
+            try:
+                # 3. Retrieve the ID of the email just placed in 'Sent Items'
+                # We filter by subject to ensure we get the right one
+                sent_endpoint = f"mailFolders/sentitems/messages?$top=1&$select=id&$filter=subject eq '{subject}'"
+                sent_check = OutlookGraphService._make_graph_request(sent_endpoint, target_email)
+                
+                if sent_check and 'value' in sent_check and len(sent_check['value']) > 0:
+                    # Return the ID so the View can save it in UnityNotes
+                    return {
+                        'success': True, 
+                        'id': sent_check['value'][0]['id'],
+                        'message': 'Email sent and ID retrieved.'
+                    }
+            except Exception as e:
+                logger.error(f"Email sent but Sent Items ID retrieval failed: {e}")
         
-        return {'success': True, 'message': 'Email successfully submitted to Graph API.'}
+        # Fallback if ID couldn't be fetched but mail was sent
+        return send_res
     
-    # --- Attachment Handling ---
+    # --- Attachment & Raw Content Handling ---
 
     @staticmethod
     def fetch_attachments(target_email, message_id):
         """
-        Fetches the metadata for all attachments belonging to a specific message.
+        Fetches metadata for attachments.
         """
         endpoint = f"messages/{message_id}/attachments"
         response = OutlookGraphService._make_graph_request(endpoint, target_email)
-        
-        # Return the list of attachment objects if found, else empty list
-        return response.get('value', [])
+        return response.get('value', []) if isinstance(response, dict) else []
 
     @staticmethod
     def get_attachment_raw(target_email, message_id, attachment_id):
         """
-        Fetches the raw data for a specific attachment.
-        Note: Microsoft Graph returns this as a Base64 string in the 'contentBytes' field.
+        Fetches specific attachment data.
         """
         endpoint = f"messages/{message_id}/attachments/{attachment_id}"
         return OutlookGraphService._make_graph_request(endpoint, target_email)
+
+    @staticmethod
+    def fetch_raw_eml(target_email, message_id):
+        """
+        Fetches the raw MIME content of a message for .eml download.
+        Uses the /$value segment.
+        """
+        endpoint = f"messages/{message_id}/$value"
+        return OutlookGraphService._make_graph_request(endpoint, target_email, is_raw=True)

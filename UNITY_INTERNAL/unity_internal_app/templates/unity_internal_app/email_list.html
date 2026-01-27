@@ -79,8 +79,7 @@
         margin-bottom: 5px;
     }
 
-    .type-original { background-color: #e3f2fd; color: #1565c0; } 
-    .type-reply { background-color: #e8f5e9; color: #2e7d32; }
+    .type-reply { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #c5e1a5; }
 
     .return-button {
         padding: 10px 20px;
@@ -95,7 +94,6 @@
         display: inline-block;
     }
 
-    /* NEW EXPORT BUTTON STYLE */
     .export-button {
         padding: 10px 20px;
         background-color: #0277bd;
@@ -125,7 +123,7 @@
 
     .filter-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
         gap: 15px;
         align-items: end;
     }
@@ -164,37 +162,64 @@
 
 <div class="log-container">
     <div class="log-header">
-        <h1><i class="fas fa-history"></i> E-mail list</h1>
+        <h1><i class="fas fa-history"></i> E-mail list (New & Completed)</h1>
     </div>
 
     <div class="filter-section" style="margin-bottom: 20px; background: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
         <form method="GET" action="{% url 'email_list' %}" id="filterForm" class="filter-grid">
             <div>
                 <label style="font-weight: bold; display: block; margin-bottom: 5px; color: #555;">Search Text</label>
-                <input type="text" id="emailSearch" name="search" placeholder="Search..." class="form-input" value="{{ request.GET.search }}">
+                <input type="text" id="emailSearch" name="search" placeholder="Search subject/code..." class="form-input" value="{{ request.GET.search }}">
             </div>
+
             <div>
-                <label style="font-weight: bold; display: block; margin-bottom: 5px; color: #555;">Category</label>
-                <select name="type" class="filter-select" onchange="this.form.submit()">
-                    <option value="all" {% if current_filter == 'all' %}selected{% endif %}>All Items</option>
-                    <option value="new" {% if current_filter == 'new' %}selected{% endif %}>New Emails</option>
-                    <option value="delegated" {% if current_filter == 'delegated' %}selected{% endif %}>Delegated Emails</option>
-                    <option value="reply" {% if current_filter == 'reply' %}selected{% endif %}>Replies / Actions</option>
+                <label style="font-weight: bold; display: block; margin-bottom: 5px; color: #555;">Email Status</label>
+                <select name="status" class="filter-select" onchange="this.form.submit()">
+                    <option value="">All Statuses</option>
+                    <option value="NEW" {% if request.GET.status == 'NEW' %}selected{% endif %}>New Emails</option>
+                    <option value="DEL" {% if request.GET.status == 'DEL' %}selected{% endif %}>Delegated</option>
+                    <option value="COM" {% if request.GET.status == 'COM' %}selected{% endif %}>Completed</option>
                 </select>
             </div>
+
+            <div>
+                <label style="font-weight: bold; display: block; margin-bottom: 5px; color: #555;">Delegated Agent</label>
+                <select name="agent" class="filter-select" onchange="this.form.submit()">
+                    <option value="">All Agents</option>
+                    {% for user in all_agents %}
+                        <option value="{{ user.id }}" {% if request.GET.agent == user.id|stringformat:"i" %}selected{% endif %}>{{ user.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label style="font-weight: bold; display: block; margin-bottom: 5px; color: #555;">Email Type</label>
+                <select name="email_type" class="filter-select" onchange="this.form.submit()">
+                    <option value="">All Types</option>
+                    <option value="Schedule" {% if request.GET.email_type == 'Schedule' %}selected{% endif %}>Schedule</option>
+                    <option value="Claim" {% if request.GET.email_type == 'Claim' %}selected{% endif %}>Claim</option>
+                    <option value="Query" {% if request.GET.email_type == 'Query' %}selected{% endif %}>Query</option>
+                    <option value="Bank" {% if request.GET.email_type == 'Bank' %}selected{% endif %}>Bank</option>
+                    <option value="Info Only" {% if request.GET.email_type == 'Info Only' %}selected{% endif %}>Info Only</option>
+                    <option value="LPI" {% if request.GET.email_type == 'LPI' %}selected{% endif %}>LPI</option>
+                </select>
+            </div>
+
             <div>
                 <label style="font-weight: bold; display: block; margin-bottom: 5px; color: #555;">From Date</label>
                 <input type="date" id="startDate" name="start" class="form-input" value="{{ request.GET.start }}">
             </div>
+
             <div>
                 <label style="font-weight: bold; display: block; margin-bottom: 5px; color: #555;">To Date</label>
                 <input type="date" id="endDate" name="end" class="form-input" value="{{ request.GET.end }}">
             </div>
-            <div style="display: flex; gap: 5px; white-space: nowrap;">
+
+            <div style="display: flex; gap: 5px; white-space: nowrap; grid-column: span 1;">
                 <button type="submit" class="return-button" style="background-color: #43a047; padding: 10px;">Filter</button>
                 
                 <button type="button" onclick="submitExport()" class="export-button" style="padding: 10px;">
-                    <i class="fas fa-file-excel"></i> Export to Excel
+                    <i class="fas fa-file-excel"></i> Export
                 </button>
 
                 <a href="{% url 'email_list' %}" class="return-button" style="background-color: #607d8b; padding: 10px;">Reset</a>
@@ -205,25 +230,37 @@
     <table id="masterEmailTable" class="task-table">
         <thead>
             <tr>
-                <th style="width: 12%;">Status</th>
-                <th style="width: 38%;">Subject</th>
-                <th style="width: 20%;">From:</th>
-                <th style="width: 14%;">Date Received</th>
-                <th style="width: 16%;">Assigned to</th>
+                <th style="width: 30%;">Email Subject</th>
+                <th style="width: 15%;">Email Received</th>
+                <th style="width: 15%;">Delegation Date</th>
+                <th style="width: 12%;">Email Status</th>
+                <th style="width: 16%;">Delegated Agent</th>
+                <th style="width: 12%;">Email Type</th>
             </tr>
         </thead>
         <tbody>
             {% for item in page_obj %}
-            <tr class="archive-row">
+            {# Row becomes clickable for managers to view/re-delegate #}
+            <tr class="archive-row" {% if not item.action_type %} onclick="window.location='{% url 'outlook_delegate_to' email_id=item.email_id %}'" {% endif %}>
                 {% if item.action_type %}
-                    <td>
-                        <span class="status-tag" style="color: #2e7d32;">Actioned</span>
-                    </td>
-                    <td><strong>{{ item.subject }}</strong></td>
-                    <td><small style="color: #555;"><b>To:</b> {{ item.recipient_email }}</small></td>
+                    <td><strong>{{ item.subject }}</strong><br><small style="color:#555;">To: {{ item.recipient_email }}</small></td>
+                    <td>---</td>
                     <td>{{ item.timestamp|date:"Y-m-d H:i" }}</td>
+                    <td><span class="status-tag" style="color: #2e7d32;">Actioned</span></td>
                     <td><i class="fas fa-user-edit"></i> {{ item.user.username }}</td>
+                    <td><span class="badge-type type-reply">LOG</span></td>
                 {% else %}
+                    <td>
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                            <div>
+                                <strong>{{ item.subject|default:"(No Subject)" }}</strong>
+                                <br><small style="color: #666;">Code: {{ item.company_code|default:"N/A" }}</small>
+                            </div>
+                            <i class="fas fa-external-link-alt" style="color: #43a047; font-size: 10px; margin-top: 5px;"></i>
+                        </div>
+                    </td>
+                    <td>{{ item.received_at|date:"Y-m-d H:i" }}</td>
+                    <td>{{ item.delegated_at|date:"Y-m-d H:i"|default:"---" }}</td>
                     <td>
                         {% if item.status == 'COM' %}
                             <span class="status-tag" style="color: #43a047;">Completed</span>
@@ -234,23 +271,22 @@
                         {% endif %}
                     </td>
                     <td>
-                        <strong>{{ item.subject }}</strong>
-                        <br><small style="color: #666;">Code: {{ item.company_code|default:"N/A" }} | {{ item.email_category|default:"General" }}</small>
-                    </td>
-                    <td><small style="color: #555;"><b>From:</b> {{ item.sender_address }}</small></td>
-                    <td>{{ item.received_at|date:"Y-m-d H:i" }}</td>
-                    <td>
                         {% if item.assigned_user %}
                             <i class="fas fa-user"></i> {{ item.assigned_user.username }}
                         {% else %}
-                            <i class="fas fa-user-clock"></i> Pending
+                            <i class="fas fa-user-clock"></i> <span style="color: #bbb;">Unassigned</span>
                         {% endif %}
+                    </td>
+                    <td>
+                        <span class="badge-type type-reply">
+                            {{ item.email_category|default:"General" }}
+                        </span>
                     </td>
                 {% endif %}
             </tr>
             {% empty %}
             <tr>
-                <td colspan="5" style="text-align: center; padding: 30px; color: #888;">No archived items found matching your filters.</td>
+                <td colspan="6" style="text-align: center; padding: 30px; color: #888;">No items found matching your filters.</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -258,21 +294,20 @@
 
     <div class="pagination">
         {% if page_obj.has_previous %}
-            <a href="?page=1&type={{ current_filter }}&search={{ request.GET.search }}&start={{ request.GET.start }}&end={{ request.GET.end }}" class="page-link">&laquo; First</a>
-            <a href="?page={{ page_obj.previous_page_number }}&type={{ current_filter }}&search={{ request.GET.search }}&start={{ request.GET.start }}&end={{ request.GET.end }}" class="page-link">Previous</a>
+            <a href="?page=1&search={{ request.GET.search }}&status={{ request.GET.status }}&agent={{ request.GET.agent }}&email_type={{ request.GET.email_type }}&start={{ request.GET.start }}&end={{ request.GET.end }}" class="page-link">&laquo; First</a>
+            <a href="?page={{ page_obj.previous_page_number }}&search={{ request.GET.search }}&status={{ request.GET.status }}&agent={{ request.GET.agent }}&email_type={{ request.GET.email_type }}&start={{ request.GET.start }}&end={{ request.GET.end }}" class="page-link">Prev</a>
         {% endif %}
 
         <span class="page-link active">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
 
         {% if page_obj.has_next %}
-            <a href="?page={{ page_obj.next_page_number }}&type={{ current_filter }}&search={{ request.GET.search }}&start={{ request.GET.start }}&end={{ request.GET.end }}" class="page-link">Next</a>
-            <a href="?page={{ page_obj.paginator.num_pages }}&type={{ current_filter }}&search={{ request.GET.search }}&start={{ request.GET.start }}&end={{ request.GET.end }}" class="page-link">Last &raquo;</a>
+            <a href="?page={{ page_obj.next_page_number }}&search={{ request.GET.search }}&status={{ request.GET.status }}&agent={{ request.GET.agent }}&email_type={{ request.GET.email_type }}&start={{ request.GET.start }}&end={{ request.GET.end }}" class="page-link">Next</a>
+            <a href="?page={{ page_obj.paginator.num_pages }}&search={{ request.GET.search }}&status={{ request.GET.status }}&agent={{ request.GET.agent }}&email_type={{ request.GET.email_type }}&start={{ request.GET.start }}&end={{ request.GET.end }}" class="page-link">Last &raquo;</a>
         {% endif %}
     </div>
 </div>
 
 <script>
-    // Search highlight/filter (Client side)
     document.getElementById('emailSearch').addEventListener('keyup', function() {
         let filter = this.value.toLowerCase();
         let rows = document.querySelectorAll('.archive-row');
@@ -281,19 +316,12 @@
         });
     });
 
-    // Handle the Export Action
     function submitExport() {
         const form = document.getElementById('filterForm');
         const originalAction = form.action;
-        
-        // Point the form to your export view URL
         form.action = "{% url 'export_email_list' %}"; 
         form.submit();
-        
-        // Restore original action for normal filtering after a short delay
-        setTimeout(() => {
-            form.action = originalAction;
-        }, 100);
+        setTimeout(() => { form.action = originalAction; }, 100);
     }
 </script>
 {% endblock %}

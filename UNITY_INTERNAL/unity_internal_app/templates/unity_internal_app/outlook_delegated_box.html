@@ -5,7 +5,7 @@
 {% block content %}
 <style>
 /* -------------------------------------- */
-/* BASE STYLES & LAYOUT (From Sample) */
+/* BASE STYLES & LAYOUT */
 /* -------------------------------------- */
 body {
     font-family: sans-serif;
@@ -23,7 +23,7 @@ body {
     box-sizing: border-box;
 }
 .log-container {
-    max-width: 1400px;
+    max-width: 1500px; /* Slightly wider to accommodate new columns */
     width: 100%;
     margin: 40px auto;
     padding: 20px;
@@ -41,9 +41,54 @@ body {
 }
 .log-header h1 {
     margin: 0;
-    color: #43a047; /* Green title color */
+    color: #43a047;
     font-size: 28px;
 }
+
+/* --- Filter Bar Styles (Matching Dashboard) --- */
+.filter-bar {
+    background-color: #f1f8e9;
+    padding: 15px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    border: 1px solid #dcedc8;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    align-items: center;
+}
+.search-input {
+    padding: 8px 12px;
+    border: 1px solid #c5e1a5;
+    border-radius: 4px;
+    flex-grow: 1;
+    min-width: 250px;
+}
+.sort-select {
+    padding: 8px;
+    border: 1px solid #c5e1a5;
+    border-radius: 4px;
+    background-color: white;
+}
+.btn-filter {
+    padding: 8px 18px;
+    background-color: #43a047;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: bold;
+}
+.btn-reset {
+    padding: 8px 18px;
+    background-color: #f5f5f5;
+    color: #333;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 14px;
+}
+
 .task-table {
     width: 100%;
     border-collapse: collapse;
@@ -53,7 +98,7 @@ body {
     padding: 12px 15px;
     border-bottom: 1px solid #eee;
     text-align: left;
-    font-size: 14px;
+    font-size: 13px; /* Smaller font for better fit */
     word-wrap: break-word;
 }
 .task-table th {
@@ -67,11 +112,12 @@ body {
     background-color: #e8f5e9;
     cursor: pointer;
 }
-/* Custom Status Colors from Sample */
-.status-delegated { color: #2e7d32; font-weight: bold; }
-.status-new { color: #1e88e5; font-weight: bold; } /* Using this for non-DEL statuses */
 
-/* Custom Button Styles (For "Back" link) */
+/* Custom Status & Category Styles */
+.status-delegated { color: #2e7d32; font-weight: bold; }
+.comp-code-text { color: #1b5e20; font-weight: bold; font-family: monospace; font-size: 14px; }
+.type-badge { background-color: #e8f5e9; color: #2e7d32; padding: 4px 8px; border-radius: 4px; font-size: 11px; border: 1px solid #c5e1a5; }
+
 .return-button {
     padding: 10px 20px;
     background-color: #81c784;
@@ -82,22 +128,20 @@ body {
     cursor: pointer;
     transition: background-color 0.3s ease;
     text-align: center;
-    display: inline-block; /* Essential for anchors */
+    display: inline-block;
 }
 .return-button:hover { background-color: #66bb6a; }
-.btn-action { /* Styling for the View/Action button */
-    padding: 8px 12px;
+.btn-action {
+    padding: 6px 10px;
     background-color: #f7931e;
     color: white;
     border: none;
     border-radius: 4px;
     text-decoration: none;
-    font-size: 14px;
-    cursor: pointer;
+    font-size: 12px;
 }
 </style>
 
-{# --- Global Links (Adapted from your sample's style) --- #}
 <div class="Dashboard" style="margin-top: 25px;">
     <a href="{% url 'dashboard' %}" class="return-button">Back to Home Screen</a>
 </div>
@@ -106,53 +150,56 @@ body {
     
     <div class="log-header">
         <h1><i class="fas fa-tasks"></i> My Delegated Outlook Tasks</h1>
-        <p>Total Tasks: <strong>{{ tasks|length }}</strong></p>
     </div>
-    
-    {% if messages %}
-        {% for message in messages %}
-        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
-            {{ message }}
-            <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                <span aria-hidden="true">&times;</span>
-            </button>
-        </div>
-        {% endfor %}
-    {% endif %}
+
+    <form method="GET" action="{% url 'outlook_delegated_box' %}" class="filter-bar">
+        <input type="text" name="q" class="search-input" 
+               placeholder="Wildcard search (Subject, Sender, Comp. Code, or Type)..." value="{{ search_query }}">
+
+        <select name="sort" class="sort-select" onchange="this.form.submit()">
+            <option value="newest" {% if sort_order == 'newest' %}selected{% endif %}>Newest to Oldest</option>
+            <option value="oldest" {% if sort_order == 'oldest' %}selected{% endif %}>Oldest to Newest</option>
+        </select>
+
+        <button type="submit" class="btn-filter">Search</button>
+        <a href="{% url 'outlook_delegated_box' %}" class="btn-reset">Reset</a>
+        
+        <span style="margin-left: auto; color: #43a047;">Found: <strong>{{ tasks|length }}</strong></span>
+    </form>
 
     {% if tasks %}
     <table class="task-table">
         <thead>
             <tr>
-                <th style="width: 15%;">Status</th>
-                <th style="width: 15%;">Received</th>
-                <th style="width: 35%;">Subject</th>
-                <th style="width: 20%;">From</th>
-                <th style="width: 15%;">Action</th>
+                <th style="width: 10%;">Status</th>
+                <th style="width: 14%;">Email Received</th> <th style="width: 12%;">Comp. Code</th>    <th style="width: 12%;">Email Type</th>    <th style="width: 20%;">Subject</th>
+                <th style="width: 14%;">From</th>
+                <th style="width: 8%;">Action</th>
             </tr>
         </thead>
         <tbody>
             {% for task in tasks %}
             <tr onclick="window.location.href='{% url 'outlook_delegated_action' delegation_id=task.delegation_id %}'" class="clickable-row">
                 
-                <td class="{% if task.status == 'Delegated' %}status-delegated{% else %}status-new{% endif %}">
+                <td class="status-delegated">
                     <b>{{ task.status }}</b>
                 </td>
                 
                 <td>{{ task.received|date:"Y-m-d H:i" }}</td>
+
+                <td><span class="comp-code-text">{{ task.company_code|default:"—" }}</span></td>
+
+                <td><span class="type-badge">{{ task.email_type|default:"General" }}</span></td>
                 
-                <td>
-                    {# Linking the subject for easy access #}
-                    <a href="{% url 'outlook_delegated_action' delegation_id=task.delegation_id %}" style="text-decoration: none; color: inherit;">
-                        {{ task.subject|default:"(No Subject)" }}
-                    </a>
+                <td style="font-size: 12px;">
+                    <b>{{ task.subject|default:"(No Subject)" }}</b>
                 </td>
                 
                 <td>{{ task.from }}</td>
                 
                 <td>
                     <a href="{% url 'outlook_delegated_action' delegation_id=task.delegation_id %}" class="btn-action">
-                        View/Action
+                        View
                     </a>
                 </td>
             </tr>
@@ -160,8 +207,8 @@ body {
         </tbody>
     </table>
     {% else %}
-    <div class="alert alert-info" role="alert" style="margin-top: 20px;">
-        You currently have no active tasks delegated to you.
+    <div class="alert alert-info" role="alert" style="margin-top: 20px; text-align: center;">
+        <i class="fas fa-info-circle"></i> No delegated tasks match your current search or filters.
     </div>
     {% endif %}
 

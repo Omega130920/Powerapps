@@ -63,6 +63,7 @@ tbody tr:nth-child(even){background-color:#e6ffe6;}
 {% if messages %}{% for message in messages %}
 <div class="alert-info text-success" style="background-color: #c8e6c9; color: #388e3c; border-left: 5px solid #4CAF50;">{{ message }}</div>
 {% endfor %}{% endif %}
+
 <div class="metrics-row">
 <div class="metric-card green">
 <div class="card-body">
@@ -74,6 +75,13 @@ tbody tr:nth-child(even){background-color:#e6ffe6;}
 <div class="card-body">
 <h5 class="card-title">Total Bank Lines</h5>
 <p class="card-text">R {{ total_debt|floatformat:2 }}</p>
+</div>
+</div>
+<div class="metric-card orange">
+<div class="card-body">
+<h5 class="card-title">Available Credit (Approved)</h5>
+<p class="card-text">R {{ total_available_credit|default:"0.00"|floatformat:2 }}</p>
+<small>Manager Verified - Ready to Apply</small>
 </div>
 </div>
 <div class="metric-card purple">
@@ -114,6 +122,49 @@ Proceed to Recon (Finalize)
 Proceed to Recon (Unavailable)
 </button>
 {% endif %}
+
+{% if available_credits %}
+<hr>
+<h3 style="color: #e65100;">🛡️ Available Approved Credits (Fail-Safe)</h3>
+<p style="font-size: 0.9em;">
+The manager has approved these credits specifically for <strong>{{ company_code }}</strong>. 
+Apply them here to reduce the bill liability before final reconciliation.
+</p>
+<table style="background-color: #fff3e0; border: 1px solid #ffe0b2;">
+<thead>
+<tr style="background-color: #ff9800; color: white;">
+<th>Credit ID</th>
+<th>Reason / Description</th>
+<th>Authorized By</th>
+<th>Date Approved</th>
+<th>Available Balance</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+{% for credit in available_credits %}
+<tr>
+<td>{{ credit.id }}</td>
+<td>{{ credit.link_request_reason }}</td>
+<td>{{ credit.authorized_by }}</td>
+<td>{{ credit.authorized_at|date:"Y-m-d" }}</td>
+<td style="font-weight: bold; color: #e65100;">R {{ credit.schedule_amount|floatformat:2 }}</td>
+<td>
+<form action="{% url 'apply_available_credit' bill_id=bill_record.id %}" method="POST">
+{% csrf_token %}
+<input type="hidden" name="credit_id" value="{{ credit.id }}">
+<div class="allocation-form-group">
+<input type="number" name="amount_to_apply" step="0.01" max="{{ credit.schedule_amount|floatformat:2 }}" value="{{ credit.schedule_amount|floatformat:2 }}">
+<button type="submit" class="action-button" style="background-color: #ef6c00;">Apply Credit</button>
+</div>
+</form>
+</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% endif %}
+
 <hr>
 <h3>Associated Cash Lines Available for Allocation ({{ all_lines|length }} items)</h3>
 <p>
@@ -340,6 +391,9 @@ document.addEventListener('DOMContentLoaded', function() {
     const creditAllocated = parseFloat("{{ total_credit_notes_assigned|default:0 }}");
     const journalAllocated = parseFloat("{{ total_journal_assigned|default:0 }}");
     const cashAlreadyInDB = parseFloat("{{ total_cash_applied|default:0 }}");
+    
+    // NEW: Factor in available credits that are sitting there ready to be applied
+    const availableCreditTotal = parseFloat("{{ total_available_credit|default:0 }}");
 
     function calculateLiveOutstanding() {
         let currentTypedCash = 0;
@@ -351,6 +405,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
+        // The "Outstanding" logic: We subtract EVERYTHING that is applied. 
+        // We do NOT subtract 'availableCreditTotal' here because it hasn't been applied yet,
+        // but it helps the user see how much Cash they still need to type in.
         let remaining = scheduledAmount - creditAllocated - journalAllocated - cashAlreadyInDB - currentTypedCash;
         
         if (remaining < 0) remaining = 0;
@@ -360,10 +417,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (remaining <= 0.01) {
             outstandingDisplay.style.color = "#4CAF50"; 
-            outstandingSmall.innerHTML = "Debt is perfectly matched to the Remaining Scheduled Amount.";
         } else {
             outstandingDisplay.style.color = "white";
-            outstandingSmall.innerHTML = `**${formatted}** remains **Unbilled Debt**.`;
         }
     }
 

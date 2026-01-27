@@ -1,5 +1,6 @@
 # outlook_graph_service.py
 
+import time
 import requests
 import logging
 import base64
@@ -65,57 +66,60 @@ class OutlookGraphService:
     @staticmethod
     def send_outlook_email(recipient, subject, body_html, attachments=None):
         """
-        CRM_UNITY: Sends an email directly via the /sendMail endpoint.
-        Updated to fix 403 Forbidden errors by removing the 'Draft' creation step,
-        which requires Mail.ReadWrite permissions.
+        CRM_UNITY: Sends directly and MUST return the real Microsoft Message ID.
         """
         endpoint = "sendMail"
         
-        # 1. Construct the message dictionary structure
+        # 1. Prepare the email payload
         message_dict = {
             "subject": subject,
-            "body": {
-                "contentType": "HTML",
-                "content": body_html
-            },
-            "toRecipients": [
-                {"emailAddress": {"address": recipient}}
-            ],
+            "body": {"contentType": "HTML", "content": body_html},
+            "toRecipients": [{"emailAddress": {"address": recipient.strip()}}],
             "attachments": []
         }
 
-        # 2. Process and encode attachments directly into the message payload
+        # Handle Attachments
         if attachments:
             for f in attachments:
-                try:
-                    f.seek(0)
-                    content_bytes = f.read()
-                    encoded_content = base64.b64encode(content_bytes).decode('utf-8')
-                    
-                    message_dict["attachments"].append({
-                        "@odata.type": "#microsoft.graph.fileAttachment",
-                        "name": f.name,
-                        "contentType": getattr(f, 'content_type', 'application/octet-stream'),
-                        "contentBytes": encoded_content
-                    })
-                except Exception as e:
-                    logger.error(f"CRM_UNITY: Failed to encode attachment {f.name}: {e}")
+                f.seek(0)
+                encoded_content = base64.b64encode(f.read()).decode('utf-8')
+                message_dict["attachments"].append({
+                    "@odata.type": "#microsoft.graph.fileAttachment",
+                    "name": f.name,
+                    "contentType": getattr(f, 'content_type', 'application/octet-stream'),
+                    "contentBytes": encoded_content
+                })
 
-        # 3. Wrap the message in the 'message' key required by the /sendMail API
-        payload = {
-            "message": message_dict,
-            "saveToSentItems": "true"
-        }
+        payload = {"message": message_dict, "saveToSentItems": "true"}
 
-        # 4. Execute the single POST request to send the email
+        # 2. Send the email (Requires Mail.Send permission)
         result = OutlookGraphService._make_graph_request(endpoint, method='POST', data=payload)
 
-        # Check for error results returned from the handler
         if isinstance(result, dict) and 'error' in result:
             return {'success': False, 'error': result.get('error')}
         
-        # On success, return a static ID as /sendMail does not return the created Message ID
-        return {'success': True, 'outlook_id': 'DIRECT_SEND_SUCCESS'}
+        # 3. Retrieve the REAL ID from Sent Items
+        # We wait 1.5 seconds for Microsoft to update the Sent folder
+        time.sleep(1.5) 
+        
+        try:
+            # We fetch the absolute latest item from the Sent Items folder
+            sent_endpoint = "mailFolders/sentitems/messages?$top=1&$select=id&$orderby=receivedDateTime desc"
+            sent_check = OutlookGraphService._make_graph_request(sent_endpoint, method='GET')
+            
+            if sent_check and 'value' in sent_check and len(sent_check['value']) > 0:
+                # This is the real AAMk... ID
+                message_id = sent_check['value'][0]['id'] 
+                
+                return {
+                    'success': True, 
+                    'outlook_id': message_id  # <--- This is what you wanted!
+                }
+            else:
+                return {'success': False, 'error': 'Email sent but could not locate ID in Sent Items.'}
+        
+        except Exception as e:
+            return {'success': False, 'error': f"ID Retrieval failed: {str(e)}"}
     
     @staticmethod
     def fetch_attachments(target_email, message_id):

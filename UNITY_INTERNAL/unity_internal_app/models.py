@@ -1,3 +1,5 @@
+# UNITY_INTERNAL
+
 from decimal import Decimal
 # NOTE: Removed 'from time import timezone' as it conflicts with 'from django.utils import timezone'
 from django.db import models
@@ -369,6 +371,7 @@ class CreditNote(models.Model):
     request_reason = models.TextField(null=True, blank=True)
     authorized_by = models.CharField(max_length=100, null=True, blank=True)
     authorized_at = models.DateTimeField(null=True, blank=True)
+    date_identified = models.DateField(null=True, blank=True)
     
     # Add this line here:
     note_selection = models.CharField(max_length=100, null=True, blank=True)
@@ -574,19 +577,37 @@ class Unity_Internal_DelegateAction(models.Model):
 class UnityNotes(models.Model):
     """
     Model for the UNMANAGED external 'unity_notes' table.
+    Updated to include dedicated columns for Outlook ID and attachments.
     """
-    ID = models.IntegerField(primary_key=True) 
+    ID = models.AutoField(primary_key=True) # Changed to AutoField if your DB uses Auto-Increment
     member_group_code = models.TextField(db_column='Member Group Code')
     date = models.DateTimeField()
     user = models.TextField(db_column='User')
     notes = models.TextField()
     communication_type = models.CharField(max_length=90, db_column='Communication_Type')
     action_notes = models.CharField(max_length=90, db_column='Action_Notes')
+    
+    # --- NEW COLUMNS FROM YOUR DB SCHEMA ---
+    attached_email_id = models.CharField(
+        max_length=255, 
+        db_column='attached_email_id', 
+        null=True, 
+        blank=True
+    )
+    attached_file_name = models.CharField(
+        max_length=255, 
+        db_column='attached_file_name', 
+        null=True, 
+        blank=True
+    )
 
     class Meta:
         db_table = 'unity_notes'
         managed = False
         verbose_name_plural = "Unity Notes"
+
+    def __str__(self):
+        return f"Note {self.ID} for {self.member_group_code}"
         
 class UnityClaim(models.Model):
     # --- Dropdown Choices ---
@@ -620,6 +641,8 @@ class UnityClaim(models.Model):
         ('2 pot forms submitted to ER', '2 pot forms submitted to ER'),
         ('Withdraw - Not Allowed', 'Withdraw - Not Allowed'),
         ('Withdraw – Already Claimed in Current Tax Year', 'Withdraw – Already Claimed in Current Tax Year'),
+        ('Member Emergency Savings Pot Withdrawal Submitted', 'Member Emergency Savings Pot Withdrawal Submitted'),
+        ('Member Emergency Savings Pot Withdrawal Requested', 'Member Emergency Savings Pot Withdrawal Requested'),
     ]
 
     PAYMENT_OPTIONS = [

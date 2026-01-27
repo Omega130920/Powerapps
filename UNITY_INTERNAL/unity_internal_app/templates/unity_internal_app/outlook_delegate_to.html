@@ -136,6 +136,18 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
 .btn-delegate:hover { background-color: #66bb6a; }
 
 .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+
+/* --- MANAGER STATUS CARD --- */
+.manager-status-card {
+    background-color: #f1f8e9;
+    border: 1px solid #c5e1a5;
+    padding: 15px 20px;
+    border-radius: 8px;
+    margin-bottom: 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
 </style>
 
 <div class="Dashboard">
@@ -145,6 +157,26 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
 
 <div class="delegate-container">
     <h1>Delegate Outlook Task</h1>
+
+    {% if current_delegation %}
+    <div class="manager-status-card">
+        <div>
+            <h4 style="margin:0; color: #2e7d32;">
+                {% if current_delegation.assigned_user %}
+                    <i class="fas fa-user-tag"></i> Currently Assigned To: <strong>{{ current_delegation.assigned_user.username }}</strong>
+                {% else %}
+                    <i class="fas fa-user-clock"></i> Current Status: <strong>UNASSIGNED (NEW)</strong>
+                {% endif %}
+            </h4>
+            <p style="margin: 5px 0 0 0; font-size: 12px; color: #666;">
+                Status: {{ current_delegation.get_status_display }} | Received: {{ current_delegation.received_at|date:"Y-m-d H:i" }}
+            </p>
+        </div>
+        {% if current_delegation.assigned_user %}
+            <span style="background-color: #f7931e; color: white; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold;">RE-DELEGATION</span>
+        {% endif %}
+    </div>
+    {% endif %}
     
     {% if messages %}
         {% for message in messages %}
@@ -195,8 +227,8 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
         <div class="form-group">
             <label for="work_related">Is this task Work Related?*</label>
             <select id="work_related" name="work_related" required>
-                <option value="Yes" selected>Yes (Assign to Agent)</option>
-                <option value="No">No (Archive/Recycle)</option>
+                <option value="Yes" {% if current_delegation.work_related or not current_delegation %}selected{% endif %}>Yes (Assign to Agent)</option>
+                <option value="No" {% if not current_delegation.work_related and current_delegation %}selected{% endif %}>No (Archive/Recycle)</option>
             </select>
         </div>
 
@@ -204,26 +236,19 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
             <div class="form-grid">
                 <div class="form-group">
                     <label for="company_code">Company Code (Reference):</label>
-                    <input type="text" id="company_code" name="company_code" placeholder="Enter Company Code">
+                    <input type="text" id="company_code" name="company_code" placeholder="Enter Company Code" value="{{ current_delegation.company_code|default:'' }}">
                 </div>
                 
                 <div class="form-group">
                     <label for="email_category">Classification:</label>
                     <select id="email_category" name="email_category">
                         <option value="">-- Select --</option>
-                        <option value="Schedule">Schedule</option>
-                        <option value="Claim">Claim</option>
-                        <option value="Query">Query</option>
-                        <option value="Bank">Bank</option>
-                        <option value="Info Only">Info Only</option>
-                        <option value="LPI">LPI</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label for="comm_type">Communication Type:</label>
-                    <select id="comm_type" name="comm_type">
-                        <option value="Email" selected>Outlook Inbox</option>
+                        <option value="Schedule" {% if current_delegation.email_category == 'Schedule' %}selected{% endif %}>Schedule</option>
+                        <option value="Claim" {% if current_delegation.email_category == 'Claim' %}selected{% endif %}>Claim</option>
+                        <option value="Query" {% if current_delegation.email_category == 'Query' %}selected{% endif %}>Query</option>
+                        <option value="Bank" {% if current_delegation.email_category == 'Bank' %}selected{% endif %}>Bank</option>
+                        <option value="Info Only" {% if current_delegation.email_category == 'Info Only' %}selected{% endif %}>Info Only</option>
+                        <option value="LPI" {% if current_delegation.email_category == 'LPI' %}selected{% endif %}>LPI</option>
                     </select>
                 </div>
             </div>
@@ -233,7 +258,7 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
                 <select id="agent_name" name="agent_name">
                     <option value="">-- Select Agent --</option>
                     {% for user in available_users %}
-                        <option value="{{ user.pk }}">{{ user.username }}</option>
+                        <option value="{{ user.pk }}" {% if current_delegation.assigned_user_id == user.pk %}selected{% endif %}>{{ user.username }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -242,10 +267,10 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
         <input type="hidden" name="email_id" value="{{ email_id }}">
 
         <div class="button-container">
-            <a href="{% url 'outlook_dashboard' %}" class="btn-cancel">Cancel</a>
+            <a href="{% url 'email_list' %}" class="btn-cancel">Cancel</a>
             <button type="submit" id="submit_button" class="btn-delegate">
                 <span id="btn-icon">👤</span> 
-                <span id="btn-text">Assign Task</span>
+                <span id="btn-text">{% if current_delegation.assigned_user %}Re-Assign Task{% else %}Assign Task{% endif %}</span>
             </button>
         </div>
     </form>
@@ -259,6 +284,7 @@ document.addEventListener('DOMContentLoaded', function(){
     const btnIcon = document.getElementById('btn-icon');
     const btnText = document.getElementById('btn-text');
     const agentSelect = document.getElementById('agent_name');
+    const isRedelegation = {% if current_delegation.assigned_user %}true{% else %}false{% endif %};
 
     function toggleFormSections(){
         const isWorkRelated = workRelatedSelect.value === 'Yes';
@@ -273,7 +299,7 @@ document.addEventListener('DOMContentLoaded', function(){
             classificationWrapper.style.display = 'block';
             submitButton.style.backgroundColor = '#81c784'; // Green
             btnIcon.textContent = '👤'; 
-            btnText.textContent = 'Assign Task';
+            btnText.textContent = isRedelegation ? 'Re-Assign Task' : 'Assign Task';
             agentSelect.setAttribute('required', 'required');
         }
     }

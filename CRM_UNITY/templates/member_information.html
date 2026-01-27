@@ -1327,16 +1327,18 @@
                         </td>
                         <td style="padding: 10px; text-align: center;">
                             <div class="email-log-actions">
-                                <a href="{% url 'view_email_thread' email_id=email.email_id %}" 
-                                   class="action-btn bg-view" 
-                                   title="View Audit Trail">
-                                    <i class="fas fa-eye"></i> View
-                                </a>
-                                <a href="{% url 'download_actual_email' email_id=email.email_id %}" 
-                                   class="action-btn bg-download" 
-                                   title="Download .eml File">
-                                    <i class="fas fa-download"></i> Download
-                                </a>
+                                {% if email.outlook_message_id and email.outlook_message_id != "DIRECT_SEND_SUCCESS" %}
+                                    <a href="?download_email_id={{ email.outlook_message_id }}" 
+                                    class="action-btn bg-download" 
+                                    title="Download Sent .eml">
+                                        <i class="fas fa-download"></i> Download
+                                    </a>
+                                {% else %}
+                                    {# If ID is missing or is the placeholder, show a disabled state #}
+                                    <span style="color: #999; font-size: 0.85em; cursor: help;" title="Directly sent emails do not support downloads.">
+                                        <i class="fas fa-ban"></i> No Download
+                                    </span>
+                                {% endif %}
                             </div>
                         </td>
                     </tr>
@@ -1359,9 +1361,9 @@
                         <td style="padding: 10px; text-align: center;">
                             <div class="email-log-actions">
                                 {% if email.outlook_message_id %}
-                                    <a href="{% url 'download_actual_email' email_id=email.outlook_message_id %}" 
-                                       class="action-btn bg-download" 
-                                       title="Download Sent .eml">
+                                    <a href="?download_email_id={{ email.outlook_message_id }}" 
+                                    class="action-btn bg-download" 
+                                    title="Download Sent .eml">
                                         <i class="fas fa-download"></i> Download
                                     </a>
                                 {% else %}
@@ -1514,7 +1516,7 @@
     </style>
 
     <div class="content-section">
-        <form method="post" action="{% url 'member_information' member_group_code=contact_info.member_group_code %}" id="notes_master_form" enctype="multipart/form-data">
+        <form method="post" action="{% url 'member_information' member_group_code=contact_info.member_group_code %}#notes" id="notes_master_form" enctype="multipart/form-data">
             {% csrf_token %}
             <input type="hidden" name="action" id="notes_form_action" value="save_member_note">
             
@@ -1677,10 +1679,11 @@
         <div class="pdf-upload-section" style="background-color: #e6ffe6; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
             <h2 style="color: #38761d; margin-top: 0;">Upload New Document (PDF)</h2>
             <form method="post" enctype="multipart/form-data" 
-                action="{% url 'member_information' member_group_code=contact_info.member_group_code %}"
-                class="pdf-upload-form">
+                  action="{% url 'member_information' member_group_code=contact_info.member_group_code %}#pdf-documents"
+                  class="pdf-upload-form" id="pdf_upload_master">
                 {% csrf_token %}
-                <input type="hidden" name="upload_document" value="1"> 
+                
+                <input type="hidden" name="action" value="upload_pdf"> 
                 
                 <div class="form-row" style="margin-bottom: 15px;">
                     <label style="font-weight: bold; display: block; margin-bottom: 5px;">Document Title:</label>
@@ -1698,10 +1701,14 @@
 
                 <div class="form-row" style="margin-bottom: 15px;">
                     <label style="font-weight: bold; display: block; margin-bottom: 5px;">Select PDF File:</label>
-                    <input type="file" name="document_file" accept=".pdf" style="background: white; padding: 5px; border: 1px dashed #43a047; border-radius: 4px; width: 100%;">
+                    <input type="file" name="pdf_file" accept=".pdf" required
+                           style="background: white; padding: 5px; border: 1px dashed #43a047; border-radius: 4px; width: 100%;">
                 </div>
                 
-                <button type="submit" class="pdf-upload-button" style="padding: 10px 20px; background-color: #38761d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">Upload Document</button>
+                <button type="submit" class="pdf-upload-button" 
+                        style="padding: 10px 20px; background-color: #38761d; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                    Upload Document
+                </button>
             </form>
         </div>
         
@@ -1726,7 +1733,8 @@
                             <td style="padding: 10px;">{{ doc.uploaded_by }}</td>
                             <td style="padding: 10px;">{{ doc.uploaded_at|date:"Y-m-d H:i" }}</td>
                             <td style="padding: 10px;">
-                                <a href="{% url 'member_information' member_group_code=contact_info.member_group_code %}?download_id={{ doc.id }}" style="color: #1e88e5; text-decoration: none; font-weight: bold;">
+                                <a href="{% url 'member_information' member_group_code=contact_info.member_group_code %}?download_id={{ doc.id }}" 
+                                   style="color: #1e88e5; text-decoration: none; font-weight: bold;">
                                     Download
                                 </a>
                             </td>
@@ -1735,7 +1743,9 @@
                     </tbody>
                 </table>
             {% else %}
-                <p class="empty-message" style="text-align: center; color: #777; font-style: italic; padding: 20px;">No documents have been uploaded for this member yet.</p>
+                <p class="empty-message" style="text-align: center; color: #777; font-style: italic; padding: 20px;">
+                    No documents have been uploaded for this member yet.
+                </p>
             {% endif %}
         </div>
     </div>
@@ -1773,7 +1783,10 @@
         tabs.forEach(tab => {
             tab.addEventListener('click', () => {
                 activateTab(tab);
-                window.history.pushState(null, null, tab.dataset.tabTarget);
+                // This updates the URL so if the user hits 'Refresh' or 'Submit', 
+                // the server knows which tab to stay on.
+                const targetHash = tab.dataset.tabTarget;
+                window.history.replaceState(null, null, targetHash);
             });
         });
 
@@ -1792,7 +1805,9 @@
             });
         });
 
-        // --- Initial Tab Selection (Unmodified) ---
+        // ====================================================================
+        // === UPDATED INITIAL TAB SELECTION (FIXES SCROLL JUMP) ===
+        // ====================================================================
         const urlParams = new URLSearchParams(window.location.search);
         const activateEditMode = urlParams.get('edit_mode');
         const hash = window.location.hash;
@@ -1834,11 +1849,22 @@
             initialTab = document.querySelector('.tab-nav li[data-tab-target="#section13a"]');
             editDivId = 'section13a-edit';
         } else if (hash) {
+            // Prioritize hash (e.g., #pdf-documents) for form redirects
             initialTab = document.querySelector(`.tab-nav li[data-tab-target="${hash}"]`);
         }
         
         if (initialTab) {
             activateTab(initialTab);
+
+            // Added: Forces page to stay at the top after tab activation
+            if (hash) {
+                setTimeout(() => {
+                    window.scrollTo(0, 0); 
+                    const tabContent = document.querySelector('.tab-content');
+                    if (tabContent) tabContent.scrollTop = 0;
+                }, 10);
+            }
+
             if (editDivId) {
                 const displayDivId = editDivId.replace('-edit', '-display');
                 toggleEditView(displayDivId, editDivId); 
@@ -1848,7 +1874,7 @@
         }
 
         // ====================================================================
-        // === ATTACHMENT CLICK HANDLER (NEW) ===
+        // === ATTACHMENT CLICK HANDLER (Unmodified) ===
         // ====================================================================
         document.querySelectorAll('.attachment-link').forEach(link => {
             link.addEventListener('click', function() {
@@ -1866,7 +1892,7 @@
         });
 
         // ====================================================================
-        // === NOTES TAB DYNAMIC COMMUNICATION FORM VISIBILITY AND DIALER LOGIC (MODIFIED) ===
+        // === NOTES TAB DYNAMIC COMMUNICATION FORM VISIBILITY AND DIALER LOGIC (Unmodified) ===
         // ====================================================================
         const commTypeSelect = document.getElementById('id_communication_type');
         const regularNoteArea = document.getElementById('regular-note-area');
@@ -1999,7 +2025,7 @@
         }
         
         // ====================================================================
-        // === COMPOSE EMAIL TAB LOGIC (UPDATED WITH LOADING STATE) ===
+        // === COMPOSE EMAIL TAB LOGIC (Unmodified) ===
         // ====================================================================
         const composeEmailForm = document.getElementById('compose_email_form');
         const directEmailBodyEditor = document.getElementById('direct_member_email_body_editor');
@@ -2023,14 +2049,10 @@
                      directEmailActionInput.value = 'send_direct_email';
                 }
 
-                // Add visual feedback for sending via Outlook
                 if (sendEmailButton) {
-                    const originalBtnText = sendEmailButton.innerHTML;
                     sendEmailButton.innerHTML = '<i class="fas fa-paper-plane fa-spin"></i> Sending via Outlook...';
                     sendEmailButton.style.opacity = '0.7';
                     sendEmailButton.style.pointerEvents = 'none';
-                    
-                    // Note: We don't use setTimeout here because the page will redirect upon success
                 }
             });
         }

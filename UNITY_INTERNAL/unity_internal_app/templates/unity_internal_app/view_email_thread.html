@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Email Thread | {{ task.subject }}</title>
+    <title>Email Thread | {% if email.subject %}{{ email.subject }}{% elif task.subject %}{{ task.subject }}{% else %}No Subject{% endif %}</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         /* --- General Page Styling --- */
@@ -205,6 +205,7 @@
         .bg-reply { background-color: #f3e5f5; color: #7b1fa2; }
         .bg-direct { background-color: #fff3e0; color: #e65100; }
         .bg-default { background-color: #f0fff4; color: #2f855a; }
+        .bg-note { background-color: #e3f2fd; color: #0d47a1; } /* Blue for Unity Notes */
 
         .event-meta {
             display: block;
@@ -238,17 +239,19 @@
     <div class="action-bar">
         <div>
             <h1 style="margin:0; color: #2e7d32;">Communication History</h1>
-            <p style="margin:0; color: #666;">Ref: {{ task.company_code|default:"N/A" }}</p>
+            <p style="margin:0; color: #666;">
+                Ref: {% if task %}{{ task.company_code }}{% elif inbox_item %}{{ inbox_item.company_code }}{% else %}Direct Email{% endif %}
+            </p>
         </div>
         <a href="javascript:history.back()" class="return-button">← Back to Dashboard</a>
     </div>
 
     <div class="email-thread-card">
         <div class="card-header-main">
-            <h3>{{ task.subject|default:"(No Subject)" }}</h3>
+            <h3>{% if email.subject %}{{ email.subject }}{% elif task %}{{ task.subject }}{% else %}(No Subject){% endif %}</h3>
             <div style="font-size: 14px; color: #4a5568;">
-                <strong>Incoming Task ID:</strong> {{ task.email_id }} <br>
-                <strong>Original Arrival:</strong> {{ task.received_at|date:"d M Y, H:i" }}
+                <strong>Graph ID:</strong> {% if email.id %}{{ email.id }}{% else %}{{ task.email_id }}{% endif %} <br>
+                <strong>Date:</strong> {% if email.receivedDateTime %}{{ email.receivedDateTime|date:"d M Y, H:i" }}{% else %}{{ task.received_at|date:"d M Y, H:i" }}{% endif %}
             </div>
         </div>
         <div class="card-body-content">
@@ -287,7 +290,7 @@
                         {% endif %}
                     </div>
                     <div class="file-name" title="{{ att.name }}">{{ att.name }}</div>
-                    <a href="{% url 'download_attachment' message_id=task.email_id attachment_id=att.id %}" class="btn-download-small">
+                    <a href="{% url 'download_attachment' message_id=email.id|default:task.email_id attachment_id=att.id %}" class="btn-download-small">
                         <i class="fas fa-download"></i> Download
                     </a>
                 </div>
@@ -301,6 +304,8 @@
 
     <div class="timeline-container">
         
+        {# --- Start with Original Delegation if it exists --- #}
+        {% if task %}
         <div class="timeline-event">
             <div class="timeline-icon" style="background-color: #2b6cb0;"></div>
             <span class="badge-status bg-delegated">Delegation Created</span>
@@ -311,35 +316,69 @@
                 Date: {{ task.received_at|date:"d M Y, H:i" }}
             </span>
         </div>
+        {% endif %}
 
-        {% for action in actions %}
+        {# --- Unified Timeline Loop --- #}
+        {% for item in combined_timeline %}
         <div class="timeline-event">
-            <div class="timeline-icon" 
-                 style="background-color: {% if action.email_type == 'REPLY' %}#9c27b0{% elif action.email_type == 'DIRECT' %}#f7931e{% else %}#2f855a{% endif %};">
-            </div>
             
-            <span class="badge-status 
-                {% if action.email_type == 'REPLY' %}bg-reply
-                {% elif action.email_type == 'DIRECT' %}bg-direct
-                {% else %}bg-default{% endif %}">
-                {{ action.action_type|default:"Action Log" }}
-            </span>
+            {% if item.type == 'action' %}
+                <div class="timeline-icon" 
+                     style="background-color: {% if item.obj.email_type == 'REPLY' %}#9c27b0{% elif item.obj.email_type == 'DIRECT' %}#f7931e{% else %}#2f855a{% endif %};">
+                </div>
+                
+                <span class="badge-status 
+                    {% if item.obj.email_type == 'REPLY' %}bg-reply
+                    {% elif item.obj.email_type == 'DIRECT' %}bg-direct
+                    {% else %}bg-default{% endif %}">
+                    {{ item.obj.action_type|default:"Action Log" }}
+                </span>
 
-            <p class="event-text">
-                <strong>Recipient:</strong> {{ action.recipient_email }}
-            </p>
-            
-            <div class="email-details-block">
-                <strong>Subject:</strong> {{ action.subject }}
-            </div>
-            
-            <span class="event-meta">
-                Action by: <strong>{{ action.user.username }}</strong> | {{ action.timestamp|date:"d M Y, H:i" }}
-            </span>
+                <p class="event-text">
+                    <strong>Recipient:</strong> {{ item.obj.recipient_email }}
+                </p>
+                
+                <div class="email-details-block">
+                    <strong>Subject:</strong> {{ item.obj.subject }}
+                </div>
+                
+                <span class="event-meta">
+                    Action by: <strong>{{ item.obj.user.username }}</strong> | {{ item.date|date:"d M Y, H:i" }}
+                </span>
+
+            {% elif item.type == 'unity_note' %}
+                <div class="timeline-icon" style="background-color: #0d47a1;"></div>
+                <span class="badge-status bg-note">Unity Management Note</span>
+                
+                <p class="event-text" style="white-space: pre-line;">
+                    {{ item.obj.notes }}
+                </p>
+
+                <div class="email-details-block" style="border-left-color: #0d47a1;">
+                    <strong>Action/Ref:</strong> {{ item.obj.action_notes|default:"General Note" }}
+                </div>
+
+                <span class="event-meta">
+                    Logged by: <strong>{{ item.obj.user }}</strong> | {{ item.date|date:"d M Y, H:i" }}
+                </span>
+
+            {% elif item.type == 'del_note' %}
+                <div class="timeline-icon" style="background-color: #4a5568;"></div>
+                <span class="badge-status" style="background-color: #edf2f7; color: #4a5568;">Internal Task Note</span>
+                
+                <p class="event-text">
+                    {{ item.obj.content }}
+                </p>
+
+                <span class="event-meta">
+                    User: <strong>{{ item.obj.user.username }}</strong> | {{ item.date|date:"d M Y, H:i" }}
+                </span>
+            {% endif %}
+
         </div>
         {% empty %}
         <div style="padding-left: 20px; color: #888; font-style: italic;">
-            No additional actions recorded yet.
+            No additional activity recorded for this thread.
         </div>
         {% endfor %}
 

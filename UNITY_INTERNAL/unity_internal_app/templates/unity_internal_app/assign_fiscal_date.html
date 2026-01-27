@@ -78,6 +78,12 @@
         .top-nav { margin-bottom: 20px; }
         .top-nav a { text-decoration: none; color: #666; font-size: 0.9em; }
         .top-nav a:hover { color: #2e7d32; text-decoration: underline; }
+        
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
     </style>
 </head>
 <body>
@@ -100,8 +106,8 @@
             <span>R {{ note.schedule_amount|floatformat:2 }}</span>
         </div>
         <div class="detail-item">
-            <strong>Import Comment</strong>
-            <span>{{ note.comment|default:"N/A" }}</span>
+            <strong>Deposit Date (Bank)</strong>
+            <span>{{ note.source_bank_line.transaction_date|default:note.bank_stmt_date|date:"Y-m-d" }}</span>
         </div>
         <div class="detail-item">
             <strong>Link Status</strong>
@@ -117,16 +123,33 @@
     <form method="post">
         {% csrf_token %}
         
-        <div class="form-group">
-            <label for="id_member_group_code">Member Group Code (Auto-Assign Target)</label>
-            <input type="text" name="member_group_code" id="id_member_group_code" value="{{ note.member_group_code }}" required>
+        <div class="grid-2">
+            <div class="form-group">
+                <label for="id_member_group_code">Member Group Code</label>
+                <input type="text" name="member_group_code" id="id_member_group_code" value="{{ note.member_group_code }}" required>
+            </div>
+
+            <div class="form-group">
+                <label for="requested_link_amount" style="color: #2e7d32;">Amount to Allocate (R)</label>
+                <input type="number" step="0.01" name="requested_link_amount" id="requested_link_amount" 
+                       value="{{ note.schedule_amount|floatformat:2 }}" max="{{ note.schedule_amount }}" required>
+                <small style="color: #666;">Max Available: R {{ note.schedule_amount|floatformat:2 }}</small>
+            </div>
         </div>
 
-        <div class="form-group">
-            <label for="requested_link_amount" style="color: #2e7d32;">Amount to Allocate (R)</label>
-            <input type="number" step="0.01" name="requested_link_amount" id="requested_link_amount" 
-                   value="{{ note.schedule_amount|floatformat:2 }}" max="{{ note.schedule_amount }}" required>
-            <small style="color: #666;">Max Available: R {{ note.schedule_amount|floatformat:2 }}</small>
+        <div class="grid-2">
+            <div class="form-group">
+                <label for="id_fiscal_date">Bank Fiscal Date</label>
+                <input type="date" name="fiscal_date" id="id_fiscal_date" 
+                       value="{{ note.fiscal_date|date:'Y-m-d' }}">
+                <small style="color: #666;">Select the fiscal month this payment belongs to.</small>
+            </div>
+
+            <div class="form-group">
+                <label for="id_date_identified">Date Identified</label>
+                <input type="date" name="date_identified" id="id_date_identified" 
+                       value="{{ note.date_identified|date:'Y-m-d' }}">
+            </div>
         </div>
 
         <div class="form-group">
@@ -134,8 +157,9 @@
             <textarea name="link_reason" id="link_reason" class="form-input" required placeholder="Reason for using this specific amount...">{{ note.link_request_reason|default:'' }}</textarea>
         </div>
 
+        {# Render any other visible fields from the form that we haven't manually placed #}
         {% for field in form.visible_fields %}
-            {% if field.name != 'member_group_code' and field.name != 'fiscal_date' and field.name != 'target_bill_id' %}
+            {% if field.name != 'member_group_code' and field.name != 'fiscal_date' and field.name != 'target_bill_id' and field.name != 'date_identified' %}
                 <div class="form-group">
                     <label for="{{ field.id_for_label }}">{{ field.label }}</label>
                     {{ field }}
