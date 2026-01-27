@@ -1326,15 +1326,22 @@
                             {% else %}-{% endif %}
                         </td>
                         <td style="padding: 10px; text-align: center;">
-                            <div class="email-log-actions">
-                                {% if email.outlook_message_id and email.outlook_message_id != "DIRECT_SEND_SUCCESS" %}
-                                    <a href="?download_email_id={{ email.outlook_message_id }}" 
+                            <div class="email-log-actions" style="display: flex; gap: 5px; justify-content: center;">
+                                {# View Thread Button #}
+                                {% if email.email_id %}
+                                    <a href="{% url 'view_email_thread' email_id=email.email_id %}" class="action-btn bg-view" title="View Full Thread" style="background-color: #43a047; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 0.85em;">
+                                        <i class="fas fa-eye"></i> View
+                                    </a>
+                                {% endif %}
+
+                                {# DOWNLOAD BUTTON FOR ORIGINAL LOG - Uses email_id from the context map #}
+                                {% if email.email_id %}
+                                    <a href="?download_email_id={{ email.email_id }}" 
                                     class="action-btn bg-download" 
                                     title="Download Sent .eml">
                                         <i class="fas fa-download"></i> Download
                                     </a>
                                 {% else %}
-                                    {# If ID is missing or is the placeholder, show a disabled state #}
                                     <span style="color: #999; font-size: 0.85em; cursor: help;" title="Directly sent emails do not support downloads.">
                                         <i class="fas fa-ban"></i> No Download
                                     </span>
@@ -1359,7 +1366,14 @@
                         <td style="padding: 10px;"><span style="color: #e91e63; font-weight: bold;">SENT</span></td>
                         <td style="padding: 10px;">{{ email.sent_at|date:"Y-m-d H:i" }}</td>
                         <td style="padding: 10px; text-align: center;">
-                            <div class="email-log-actions">
+                            <div class="email-log-actions" style="display: flex; gap: 5px; justify-content: center;">
+                                {# View Thread Button #}
+                                {% if email.outlook_message_id and email.outlook_message_id != "MANUAL_SEND_SUCCESS" %}
+                                    <a href="{% url 'view_email_thread' email_id=email.outlook_message_id %}" class="action-btn bg-view" title="View Full Thread" style="background-color: #43a047; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 0.85em;">
+                                        <i class="fas fa-eye"></i> View
+                                    </a>
+                                {% endif %}
+
                                 {% if email.outlook_message_id %}
                                     <a href="?download_email_id={{ email.outlook_message_id }}" 
                                     class="action-btn bg-download" 

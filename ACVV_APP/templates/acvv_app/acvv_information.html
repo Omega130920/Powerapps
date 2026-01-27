@@ -200,62 +200,99 @@
                     {% endif %}
                 </div>
 
-                <div id="email-log" class="tab-pane">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #aed581; padding-bottom: 10px;">
-                        <div>
-                            <h2 style="margin: 0; font-size: 1.5em; color: #1565c0;">Delegated & Sent Emails</h2>
-                            <p style="font-size: 0.9em; color: #555; margin: 5px 0 0 0;">Tracking history.</p>
-                        </div>
-                        <button type="button" class="dashboard-button" style="background-color: #ff9800;" onclick="toggleStandaloneEmailForm()">📧 Compose New Email</button>
-                    </div>
+<div id="email-log" class="tab-pane">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #aed581; padding-bottom: 10px;">
+        <div>
+            <h2 style="margin: 0; font-size: 1.5em; color: #1565c0;">Delegated & Sent Emails</h2>
+            <p style="font-size: 0.9em; color: #555; margin: 5px 0 0 0;">Tracking history.</p>
+        </div>
+        <button type="button" class="dashboard-button" style="background-color: #ff9800;" onclick="toggleStandaloneEmailForm()">📧 Compose New Email</button>
+    </div>
 
-                    <div id="standalone-email-container" style="display: none; margin-bottom: 20px;">
-                        <form method="post" action="{% url 'save_acvv_claim' company_code=acvv_record.mip_names %}" id="standalone_email_master_form" enctype="multipart/form-data" style="background-color: #fffaf5; border: 2px dashed #ff9800; border-radius: 8px; padding: 20px;">
-                            {% csrf_token %}
-                            <input type="hidden" name="action" value="send_outgoing_email">
-                            <input type="hidden" name="email_body_html_content" id="standalone_email_html_content">
-                            <div class="form-group" style="margin-bottom: 10px;">
-                                <label style="font-weight: bold; display: block; margin-bottom: 5px;">To:</label>
-                                <input type="text" name="member_recipient_email" value="{{ acvv_record.mg_email_address }}" class="form-input" required>
-                            </div>
-                            <div class="form-group" style="margin-bottom: 15px;">
-                                <label style="font-weight: bold; display: block; margin-bottom: 5px;">Subject:</label>
-                                <input type="text" name="member_email_subject_reply" value="[MIP: {{ acvv_record.mip_names }}] New Communication" class="form-input">
-                            </div>
-                            <div class="form-group" style="margin-bottom: 15px;">
-                                <label style="font-weight: bold; display: block; margin-bottom: 5px;">Email Body:</label>
-                                <div id="standalone_email_body_editor" class="rich-text-editor" contenteditable="true">
-                                    <p>Dear Sir/Madam,</p><p>Regarding Member Group Code {{ acvv_record.mip_names }},</p><p><br></p><p>Kind regards,</p><p>{{ request.user.username }}</p>
-                                </div>
-                            </div>
-                            <div style="text-align: right;">
-                                <button type="button" class="cancel-btn" style="margin-right: 10px;" onclick="toggleStandaloneEmailForm()">Cancel</button>
-                                <button type="submit" onclick="syncStandaloneEditor()" style="padding: 10px 20px; background-color: #f7931e; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Send Email & Log</button>
-                            </div>
-                        </form>
-                    </div>
-
-                    {% if combined_email_log %}
-                    <table>
-                        <thead>
-                            <tr>
-                                <th style="width: 160px;">Type</th><th>Subject</th><th>Assigned</th><th>Status</th><th>Thread</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for log in combined_email_log %}
-                            <tr>
-                                <td><div class="type-cell"><span>{{ log.icon }}</span><span style="color: {{ log.badge_color }};">{{ log.type }}</span></div></td>
-                                <td>{{ log.subject|truncatechars:50 }}</td>
-                                <td>{{ log.assigned_to|default:"-" }}</td>
-                                <td><span class="status-badge" style="background-color: {{ log.badge_color }}; color: white;">{{ log.display_type|upper }}</span></td>
-                                <td style="text-align: center;">{% if log.email_id %}<a href="{% url 'outlook_view_thread' delegation_id=log.email_id %}" class="btn-thread">View</a>{% else %}-{% endif %}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                    {% endif %}
+    <div id="standalone-email-container" style="display: none; margin-bottom: 20px;">
+        <form method="post" action="{% url 'save_acvv_claim' company_code=acvv_record.mip_names %}" id="standalone_email_master_form" enctype="multipart/form-data" style="background-color: #fffaf5; border: 2px dashed #ff9800; border-radius: 8px; padding: 20px;">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="send_outgoing_email">
+            <input type="hidden" name="email_body_html_content" id="standalone_email_html_content">
+            <div class="form-group" style="margin-bottom: 10px;">
+                <label style="font-weight: bold; display: block; margin-bottom: 5px;">To:</label>
+                <input type="text" name="member_recipient_email" value="{{ acvv_record.mg_email_address }}" class="form-input" required>
+            </div>
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label style="font-weight: bold; display: block; margin-bottom: 5px;">Subject:</label>
+                <input type="text" name="member_email_subject_reply" value="[MIP: {{ acvv_record.mip_names }}] New Communication" class="form-input">
+            </div>
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label style="font-weight: bold; display: block; margin-bottom: 5px;">Email Body:</label>
+                <div id="standalone_email_body_editor" class="rich-text-editor" contenteditable="true">
+                    <p>Dear Sir/Madam,</p><p>Regarding Member Group Code {{ acvv_record.mip_names }},</p><p><br></p><p>Kind regards,</p><p>{{ request.user.username }}</p>
                 </div>
+            </div>
+            <div style="text-align: right;">
+                <button type="button" class="cancel-btn" style="margin-right: 10px;" onclick="toggleStandaloneEmailForm()">Cancel</button>
+                <button type="submit" onclick="syncStandaloneEditor()" style="padding: 10px 20px; background-color: #f7931e; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Send Email & Log</button>
+            </div>
+        </form>
+    </div>
+
+    {% if combined_email_log %}
+    <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+            <tr style="text-align: left; background-color: #f8f9fa;">
+                <th style="width: 160px; padding: 10px;">Type</th>
+                <th style="padding: 10px;">Subject</th>
+                <th style="padding: 10px;">Assigned</th>
+                <th style="padding: 10px;">Status</th>
+                <th style="padding: 10px; text-align: center;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in combined_email_log %}
+            <tr style="border-bottom: 1px solid #eee;">
+                <td style="padding: 10px;">
+                    <div class="type-cell">
+                        <span>{{ log.icon }}</span>
+                        <span style="color: {{ log.badge_color }}; font-weight: bold;">{{ log.type }}</span>
+                    </div>
+                </td>
+                <td style="padding: 10px;">{{ log.subject|truncatechars:50 }}</td>
+                <td style="padding: 10px;">{{ log.assigned_to|default:"-" }}</td>
+                <td style="padding: 10px;">
+                    <span class="status-badge" style="background-color: {{ log.badge_color }}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">
+                        {{ log.display_type|upper }}
+                    </span>
+                </td>
+                <td style="padding: 10px; text-align: center;">
+                    <div style="display: flex; gap: 5px; justify-content: center; align-items: center;">
+                        
+                        {# VIEW THREAD BUTTON - Adjusted for ACVV APP #}
+                        {% if log.email_id %}
+                            <a href="{% url 'outlook_view_thread' delegation_id=log.email_id %}" 
+                               style="background-color: #43a047; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 0.8em; font-weight: bold;">
+                                <i class="fas fa-eye"></i> View
+                            </a>
+                        {% else %}
+                            -
+                        {% endif %}
+
+                        {# DOWNLOAD BUTTON - Adjusted for ACVV APP #}
+                        {% if log.email_id and log.type == 'ORIGINAL' %}
+                            <a href="{% url 'download_acvv_email' delegation_id=log.email_id %}" 
+                               title="Download Sent .eml"
+                               style="background-color: #1976d2; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 0.8em; font-weight: bold;">
+                                <i class="fas fa-download"></i>
+                            </a>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+        <p style="text-align: center; padding: 20px; color: #777;">No email history found.</p>
+    {% endif %}
+</div>
 
                 <div id="pdf-upload" class="tab-pane">
                     <div style="background-color: #ffffff; padding: 20px; border-radius: 8px; border: 1px solid #aed581;">

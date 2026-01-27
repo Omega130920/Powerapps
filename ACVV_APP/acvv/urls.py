@@ -53,4 +53,6 @@ urlpatterns = [
     
     path('temp-exists/', views.temp_exists_list, name='temp_exists_list'),
     path('temp-exists/export/', views.export_temp_exists, name='export_temp_exists_excel'),
+    path('outlook/thread/<int:delegation_id>/', views.outlook_view_thread, name='outlook_view_thread'),
+    path('outlook/download/<int:delegation_id>/', views.download_acvv_email, name='download_acvv_email'),
 ]

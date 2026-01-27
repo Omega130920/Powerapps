@@ -15,7 +15,8 @@ from django.core.files.storage import FileSystemStorage
 
 # Core Django Auth Models
 from django.contrib.auth.models import User
-import openpyxl 
+import openpyxl
+import requests 
 
 # Local Model Imports
 from .models import AcvvClaim, BranchDocument, ClaimNote, Globalacvv, ClientNotes, EmailDelegation, DelegationNote, DelegationTransactionLog, ReconciliationRecord, ReconciliationWorksheet, TempExit
@@ -1436,3 +1437,87 @@ def temp_exists_list(request):
     # Display existing entries
     exits = TempExit.objects.all().order_by('-created_at')
     return render(request, 'acvv_app/temp_exists.html', {'exits': exits})
+
+@login_required
+def outlook_view_thread(request, delegation_id):
+    """
+    Detailed audit trail of a specific email thread for ACVV.
+    Combines Database Logs (Transactions) with Live Graph API data (Body/Attachments).
+    """
+    # 1. Get the local database record using the Primary Key passed from the template
+    task = get_object_or_404(EmailDelegation, pk=delegation_id)
+    target_email = settings.OUTLOOK_EMAIL_ADDRESS
+
+    # 2. Fetch live email body from Graph API using the stored Microsoft string ID
+    # We use the 'email_id' field from your model which contains the long MS string
+    endpoint = f"messages/{task.email_id}"
+    email_data = _make_graph_request(endpoint, target_email)
+    
+    # 3. Fetch live attachments from Graph API
+    attachment_endpoint = f"messages/{task.email_id}/attachments"
+    attachment_data = _make_graph_request(attachment_endpoint, target_email)
+    attachments = attachment_data.get('value', [])
+
+    # 4. Fetch local Audit Trail (Transactions)
+    # Using 'transaction_time' based on your model schema
+    actions = DelegationTransactionLog.objects.filter(delegation=task).order_by('transaction_time')
+
+    context = {
+        'task': task,
+        'email_body': email_data.get('body', {}).get('content', 'Content not found or email has been moved.'),
+        'attachments': attachments,
+        'actions': actions,
+    }
+    return render(request, 'acvv_app/outlook_view_thread.html', context)
+
+@login_required
+def download_acvv_email(request, delegation_id):
+    """
+    Fetches raw MIME content from Outlook and serves it as a downloadable .eml file.
+    Bypasses _make_graph_request to avoid JSON parsing errors on binary data.
+    """
+    import requests
+    from django.conf import settings
+    # Import the token getter directly from your service
+    from .services.outlook_graph_service import get_current_access_token
+
+    # 1. Get the local record and the target email
+    task = get_object_or_404(EmailDelegation, pk=delegation_id)
+    ms_id = task.email_id 
+    target_email = settings.OUTLOOK_EMAIL_ADDRESS
+
+    # 2. Get the token using your existing manager
+    access_token = get_current_access_token()
+    
+    if not access_token:
+        messages.error(request, "Authentication failed: Could not retrieve access token.")
+        return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
+
+    # 3. Build the URL for the raw MIME content ($value)
+    url = f"https://graph.microsoft.com/v1.0/users/{target_email}/messages/{ms_id}/$value"
+    headers = {'Authorization': f'Bearer {access_token}'}
+
+    try:
+        # 4. Make the request directly using 'requests' to get binary content
+        response = requests.get(url, headers=headers)
+        
+        # Raise for status but catch it to prevent 500 pages
+        response.raise_for_status()
+
+        if response.status_code == 200:
+            # 5. Clean filename and return binary response
+            clean_subject = "".join([c for c in task.subject if c.isalnum() or c in (' ', '-', '_')]).strip()
+            filename = f"{clean_subject[:50] or 'email_record'}.eml"
+
+            django_response = HttpResponse(response.content, content_type='message/rfc822')
+            django_response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return django_response
+        else:
+            messages.error(request, f"Outlook returned status: {response.status_code}")
+            return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
+
+    except Exception as e:
+        messages.error(request, f"Download failed: {str(e)}")
+        # Log the error to console for debugging
+        print(f"DEBUG DOWNLOAD ERROR: {e}")
+        return redirect(request.META.get('HTTP_REFERER', 'dashboard'))

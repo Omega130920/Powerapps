@@ -1257,10 +1257,18 @@ def download_attachment_view(request, message_id, attachment_id):
 def view_email_thread(request, email_id):
     """A dedicated page to see the full history of an email thread including attachments."""
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
-    # 1. Get the delegation record
-    task = get_object_or_404(CrmDelegateTo, email_id=email_id)
     
-    # 2. Get the original inbox record
+    # 1. Try to get the delegation record first. If not found, try the DirectEmailLog.
+    task = CrmDelegateTo.objects.filter(email_id=email_id).first()
+    if not task:
+        # Fallback to DirectEmailLog if it's a direct email
+        task = DirectEmailLog.objects.filter(outlook_message_id=email_id).first()
+    
+    # If it's still not found in either table, then 404
+    if not task:
+        raise Http404("No email record found for this ID.")
+    
+    # 2. Get the original inbox record (if it exists)
     inbox_item = CrmInbox.objects.filter(email_id=email_id).first()
     
     # 3. Get the full audit trail
@@ -1271,7 +1279,7 @@ def view_email_thread(request, email_id):
     attachments_list = []
     
     try:
-        # Fetch Body
+        # Fetch Body from Outlook Graph
         endpoint = f"messages/{email_id}"
         email_data = OutlookGraphService._make_graph_request(endpoint, method='GET')
         
@@ -1279,8 +1287,10 @@ def view_email_thread(request, email_id):
             email_body = email_data.get('body', {}).get('content', "")
         elif inbox_item:
             email_body = inbox_item.snippet
+        elif hasattr(task, 'body_content'): # For DirectEmailLog fallback
+            email_body = task.body_content
 
-        # 🚀 5. Fetch Attachments (Live from Outlook)
+        # 5. Fetch Attachments (Live from Outlook)
         attachments_list = OutlookGraphService.fetch_attachments(target_email, email_id)
         
         # Inject contentBytes for thumbnails
@@ -1302,7 +1312,7 @@ def view_email_thread(request, email_id):
         'inbox_item': inbox_item,
         'actions': actions,
         'email_body': email_body,
-        'attachments': attachments_list, # Key for the HTML loop
+        'attachments': attachments_list,
         'email_id': email_id,
     }
     return render(request, 'email_thread.html', context)

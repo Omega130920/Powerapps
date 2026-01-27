@@ -64,7 +64,7 @@ tr:hover {background-color: #e8f5e9;}
 <div class="container">
     <div class="dashboard-header">
         <a href="{% url 'dashboard' %}" class="dashboard-button">Back to Home Screen</a>
-        <h1>{% if is_two_pot_view %}Two-Pot National Monitor{% else %}Global Claims Register{% endif %}</h1>
+        <h1>{% if is_two_pot_view %}Two-Pot Claims{% else %}Withdrawal Claims{% endif %}</h1>
         <button type="button" class="dashboard-button" onclick="openGlobalClaimModal()">➕ New Claim</button>
     </div>
 
