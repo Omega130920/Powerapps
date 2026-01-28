@@ -1683,7 +1683,7 @@
                             {# Check for the filename field added to the ClientNotes model #}
                             {% if note.attached_file_name %}
                                 <div style="margin-top: 8px;">
-                                    <a href="?download_note_file={{ note.attached_file_name }}" 
+                                    <a href="{% url 'download_member_note_file' member_group_code=contact_info.member_group_code %}?file={{ note.attached_file_name }}" 
                                     class="attachment-link" 
                                     style="display: inline-flex; align-items: center; background-color: #f1f8e9; border: 1px solid #c8e6c9; padding: 4px 8px; border-radius: 4px; color: #2e7d32; text-decoration: none; font-size: 0.85em; font-weight: bold;">
                                         <i class="fas fa-paperclip" style="margin-right: 5px;"></i> View Attachment
@@ -1906,20 +1906,21 @@
         }
 
         // ====================================================================
-        // === ATTACHMENT CLICK HANDLER (Unmodified) ===
+        // === ATTACHMENT CLICK HANDLER (UPDATED FOR DOWNLOAD SUPPORT) ===
         // ====================================================================
         document.querySelectorAll('.attachment-link').forEach(link => {
             link.addEventListener('click', function() {
                 const originalContent = this.innerHTML;
                 this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Downloading...';
-                this.style.pointerEvents = 'none';
+                
+                // We no longer set pointerEvents to 'none' because it can interfere 
+                // with the browser initiating the download stream from Django.
                 this.style.opacity = '0.7';
                 
                 setTimeout(() => {
                     this.innerHTML = originalContent;
-                    this.style.pointerEvents = 'auto';
                     this.style.opacity = '1';
-                }, 2500);
+                }, 3000); // Extended slightly to allow the download to start
             });
         });
 

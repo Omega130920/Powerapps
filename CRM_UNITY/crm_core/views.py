@@ -476,8 +476,19 @@ def send_task_email_view(request, email_id):
                 note_content=message_body, # Stores the actual email content
                 related_subject=subject     # Stores the reply subject
             )
+
+            # 🚀 THE ADDITION: Log to ClientNotes for SLA Reporting
+            # This ensures the email reply is visible in the Master SLA Audit Trail
+            ClientNotes.objects.create(
+                related_member_group_code=task.member_group_code,
+                notes=f"Email Sent (Delegated): {subject}",
+                communication_type='Sent E-mail',
+                action_notes='Delegation Reply',
+                user=request.user.username,
+                date=timezone.now()
+            )
             
-            messages.success(request, f"Reply sent and logged in thread.")
+            messages.success(request, f"Reply sent and logged in thread & SLA.")
         else:
             messages.error(request, f"Failed: {response.get('error')}")
             
@@ -538,11 +549,15 @@ RELATED_FORMS = [
 
 from django.core.mail import EmailMessage
 
+import urllib.parse # Ensure this is at the top of your file
+
 @login_required
 def member_information(request, member_group_code):
     contact_info = get_object_or_404(GlobalFundContact, member_group_code=member_group_code)
     
     # --- 0. HANDLE FILE DOWNLOADS ---
+    
+    # Standard Email Download
     if request.method == 'GET' and 'download_email_id' in request.GET:
         email_id = request.GET.get('download_email_id')
         if email_id == "DIRECT_SEND_SUCCESS":
@@ -550,6 +565,7 @@ def member_information(request, member_group_code):
             return redirect('member_information', member_group_code=member_group_code)
         return redirect('download_actual_email', email_id=email_id)
 
+    # Specific Document Download by ID
     if request.method == 'GET' and 'download_id' in request.GET:
         doc_id = request.GET.get('download_id')
         document = get_object_or_404(MemberDocument, id=doc_id, related_member_group_code=member_group_code)
@@ -561,26 +577,59 @@ def member_information(request, member_group_code):
         else:
             messages.error(request, "Database record exists, but no file is attached.")
 
-    if request.method == 'GET' and 'download_note_file' in request.GET:
-        target_filename = request.GET.get('download_note_file')
+    # 🟢 UPDATED: FUZZY SEARCH DOWNLOAD LOGIC FOR NOTES ATTACHMENTS
+    target_param = request.GET.get('download_note_file') or request.GET.get('file')
+    
+    if request.method == 'GET' and target_param:
+        target_filename = urllib.parse.unquote(target_param)
+        
+        print(f"--- DEBUG: Attempting download for: {target_filename} ---")
+
+        # 1. Primary Search (Exact/Contains)
         document = MemberDocument.objects.filter(
             related_member_group_code=member_group_code, 
             document_file__icontains=target_filename
         ).first()
+        
+        # 2. Secondary Search (Fuzzy Fallback for renamed files)
+        if not document and len(target_filename) > 10:
+            fuzzy_prefix = target_filename[:10]
+            print(f"DEBUG: Exact match failed. Trying fuzzy prefix: {fuzzy_prefix}")
+            document = MemberDocument.objects.filter(
+                related_member_group_code=member_group_code,
+                document_file__icontains=fuzzy_prefix
+            ).first()
+
         if document and document.document_file:
             try:
-                return FileResponse(document.document_file.open('rb'), as_attachment=True)
-            except FileNotFoundError:
-                messages.error(request, "Attachment file not found.")
+                file_path = document.document_file.path
+                if os.path.exists(file_path):
+                    # Immediate Return to stream the file
+                    response = FileResponse(open(file_path, 'rb'), as_attachment=True)
+                    response['Content-Disposition'] = f'attachment; filename="{target_filename}"'
+                    return response
+                else:
+                    print(f"DEBUG ERROR: Physical file missing at {file_path}")
+                    messages.error(request, "Database record found, but the file is missing from server storage.")
+            except Exception as e:
+                messages.error(request, f"System error during file access: {str(e)}")
         else:
-            messages.error(request, "Could not locate the specific attachment.")
+            # Helpful trace for you to see what is actually in your DB
+            db_files = list(MemberDocument.objects.filter(
+                related_member_group_code=member_group_code
+            ).values_list('document_file', flat=True))
+            print(f"--- DATABASE TRACE for {member_group_code} ---")
+            print(f"Looking for: {target_filename}")
+            print(f"Files found in DB for this member: {db_files}")
+            messages.error(request, f"Could not locate document record for: {target_filename}")
+            
+        return redirect(f"/global-members/{member_group_code}/#notes")
 
     # --- START OF POST LOGIC ---
     if request.method == 'POST':
         action = request.POST.get('action')
         user_display = request.user.username 
         
-        # NEW ACTION: HANDLE PDF UPLOAD
         if action == 'upload_pdf':
             if 'pdf_file' in request.FILES:
                 uploaded_file = request.FILES['pdf_file']
@@ -596,7 +645,6 @@ def member_information(request, member_group_code):
                 messages.success(request, f"Document '{doc_title}' uploaded successfully.")
             else:
                 messages.error(request, "No file was selected for upload.")
-            
             return redirect(f"/global-members/{member_group_code}/#pdf-documents")
 
         elif action == 'send_direct_email':
@@ -604,21 +652,14 @@ def member_information(request, member_group_code):
             subject = request.POST.get('subject')
             body_content = request.POST.get('email_body_html_content')
             attachments = request.FILES.getlist('attachments')
-            
-            # --- CAPTURE THE NEW ACTION LOG TYPE ---
             action_log_type = request.POST.get('action_notes_email', 'Direct Email Sent')
 
             response = OutlookGraphService.send_outlook_email(
-                recipient=recipient,
-                subject=subject,
-                body_html=body_content,
-                attachments=attachments
+                recipient=recipient, subject=subject, body_html=body_content, attachments=attachments
             )
 
             if response.get('success'):
                 real_outlook_id = response.get('outlook_id', 'MANUAL_SEND_SUCCESS')
-                
-                # UPDATED: Now includes action_type for DirectEmailLog
                 DirectEmailLog.objects.create(
                     member_group_code=member_group_code,
                     subject=subject,
@@ -629,8 +670,6 @@ def member_information(request, member_group_code):
                     sent_at=timezone.now(),
                     action_type=action_log_type
                 )
-
-                # --- AUTO-LOG TO CLIENT NOTES ---
                 ClientNotes.objects.create(
                     related_member_group_code=member_group_code,
                     notes=f"Email Sent: {subject}",
@@ -639,11 +678,9 @@ def member_information(request, member_group_code):
                     user=user_display,
                     date=timezone.now()
                 )
-
                 messages.success(request, f"Email sent successfully and logged as {action_log_type}.")
             else:
                 messages.error(request, f"Microsoft Error: {response.get('error')}")
-            
             return redirect(f"/global-members/{member_group_code}/#communications")
 
         elif action == 'save_member_note':
@@ -672,7 +709,7 @@ def member_information(request, member_group_code):
 
         return redirect('member_information', member_group_code=member_group_code)
 
-    # --- DATA RETRIEVAL (Unchanged) ---
+    # --- DATA RETRIEVAL ---
     personnel_data = {
         'cbc_info': Cbc.objects.filter(member_group_code=member_group_code).first(),
         'cbc_admin_info': CbcAdminPerson.objects.filter(member_group_code=member_group_code).first(),
@@ -917,11 +954,11 @@ def delegate_action_view(request, email_id):
                 )
                 messages.success(request, "Task metadata updated successfully.")
 
-            # --- 3. ADD INTERNAL NOTE ---
+            # --- 3. ADD INTERNAL NOTE (FIXED NAMES & TAGGING) ---
             elif action_type == 'add_note':
                 note_text = request.POST.get('internal_note')
-                comm_type = request.POST.get('communication_type_note')
-                action_note_val = request.POST.get('action_notes_note')
+                comm_type = request.POST.get('communication_type') 
+                action_note_val = request.POST.get('action_notes_email')
                 
                 current_notes_raw = task.internal_notes
                 
@@ -943,13 +980,25 @@ def delegate_action_view(request, email_id):
                 task.internal_notes = json.dumps(current_notes)
                 task.save()
                 
+                # 🚀 TAGGING: Prepend "Delegated:" so the report can identify the source
+                delegated_tag = f"Delegated: {comm_type}" if comm_type else "Delegated Note"
+
+                ClientNotes.objects.create(
+                    related_member_group_code=task.member_group_code,
+                    notes=note_text,
+                    communication_type=delegated_tag, 
+                    action_notes=action_note_val, 
+                    user=user_display,
+                    date=timezone.now()
+                )
+
                 CrmDelegateAction.objects.create(
                     task_email_id=email_id,
                     action_type='add_note',
                     action_user=user_display,
                     note_content=note_text
                 )
-                messages.success(request, "Internal note saved.")
+                messages.success(request, "Internal note saved and logged to SLA.")
 
             # --- 4. FINALIZE / COMPLETE ---
             elif action_type == 'complete':
@@ -957,6 +1006,16 @@ def delegate_action_view(request, email_id):
                 task.status = 'Completed'
                 task.save()
                 
+                # 🚀 ALSO MIRROR COMPLETION TO CLIENT NOTES (Tagged as Delegated)
+                ClientNotes.objects.create(
+                    related_member_group_code=task.member_group_code,
+                    notes=f"Task Completed: {final_note}",
+                    communication_type='Delegated: Task Finalized',
+                    action_notes='Delegation Closure',
+                    user=user_display,
+                    date=timezone.now()
+                )
+
                 CrmDelegateAction.objects.create(
                     task_email_id=email_id,
                     action_type='complete',
@@ -977,7 +1036,7 @@ def delegate_action_view(request, email_id):
         'action_history': action_history,
         'email_id': email_id,
         'attachments': attachments_list,
-        'source': source,  # --- 🟢 PASS TO TEMPLATE ---
+        'source': source,
     })
 
 from django.db.models import Count
@@ -1614,9 +1673,30 @@ def export_sla_excel(delegate_q, notes_q, email_log_q):
             actioned_dt = comp.action_timestamp.replace(tzinfo=None) if comp else task.received_timestamp.replace(tzinfo=None)
         ws1.append([task.status, received_dt, actioned_dt, task.delegated_by, task.delegated_to, 'Inbox Delegation', CATEGORY_NAMES.get(str(task.category), task.category), task.type, getattr(task, 'member_group_code', '---'), task.subject, getattr(task, 'sender', '---')])
 
-    # 3. DIRECT NOTES
+    # 3. DIRECT & DELEGATED NOTES (UPDATED LOGIC)
     for note in ClientNotes.objects.filter(notes_q):
-        ws1.append(["Direct Note", None, note.date.replace(tzinfo=None), None, note.user, note.communication_type, None, note.action_notes, note.related_member_group_code, note.notes[:250], None])
+        # 🚀 LOGIC TO DIFFERENTIATE DIRECT VS DELEGATED
+        display_label = "Direct Note"
+        clean_comm_type = note.communication_type or "Note"
+        
+        if note.communication_type and "Delegated:" in note.communication_type:
+            display_label = "Delegated Note"
+            # Remove the prefix for a cleaner category display in Excel
+            clean_comm_type = note.communication_type.replace("Delegated: ", "")
+
+        ws1.append([
+            display_label, 
+            None, 
+            note.date.replace(tzinfo=None), 
+            None, 
+            note.user, 
+            clean_comm_type, 
+            None, 
+            note.action_notes, 
+            note.related_member_group_code, 
+            note.notes[:250], 
+            None
+        ])
 
     # 4. DIRECT EMAILS
     for email in DirectEmailLog.objects.filter(email_log_q):
@@ -1637,8 +1717,8 @@ def export_sla_excel(delegate_q, notes_q, email_log_q):
 
     # Get unique agents who have done SOMETHING in the filtered period
     agents = set(CrmDelegateTo.objects.filter(delegate_q).values_list('delegated_to', flat=True)) | \
-             set(ClientNotes.objects.filter(notes_q).values_list('user', flat=True)) | \
-             set(DirectEmailLog.objects.filter(email_log_q).values_list('sent_by_user__username', flat=True))
+              set(ClientNotes.objects.filter(notes_q).values_list('user', flat=True)) | \
+              set(DirectEmailLog.objects.filter(email_log_q).values_list('sent_by_user__username', flat=True))
 
     for agent in sorted(filter(None, agents)):
         # --- Add a sub-header for the Agent ---
@@ -1653,9 +1733,15 @@ def export_sla_excel(delegate_q, notes_q, email_log_q):
         for t in CrmDelegateTo.objects.filter(delegate_q, delegated_to=agent):
             ws2.append([t.status, None, None, t.delegated_by, t.delegated_to, 'Inbox Delegation', t.category, t.type, t.member_group_code, t.subject, '---'])
         
-        # 2. Agent's Notes
+        # 2. Agent's Notes (UPDATED LOGIC FOR AGENT SHEET)
         for n in ClientNotes.objects.filter(notes_q, user=agent):
-            ws2.append(["Direct Note", None, n.date.replace(tzinfo=None), None, n.user, n.communication_type, None, n.action_notes, n.related_member_group_code, n.notes[:100], None])
+            display_label = "Direct Note"
+            clean_type = n.communication_type or "Note"
+            if n.communication_type and "Delegated:" in n.communication_type:
+                display_label = "Delegated Note"
+                clean_type = n.communication_type.replace("Delegated: ", "")
+                
+            ws2.append([display_label, None, n.date.replace(tzinfo=None), None, n.user, clean_type, None, n.action_notes, n.related_member_group_code, n.notes[:100], None])
         
         # 3. Agent's Direct Emails
         for e in DirectEmailLog.objects.filter(email_log_q, sent_by_user__username=agent):
@@ -1889,3 +1975,27 @@ def download_actual_email(request, email_id):
     except Exception as e:
         messages.error(request, f"Download failed: {str(e)}")
         return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
+    
+def download_member_note_file(request, member_group_code):
+    raw_filename = request.GET.get('file')
+    if not raw_filename:
+        raise Http404("No file specified")
+
+    target_filename = urllib.parse.unquote(raw_filename)
+    
+    # Precise lookup
+    document = MemberDocument.objects.filter(
+        related_member_group_code=member_group_code, 
+        document_file__icontains=target_filename
+    ).first()
+    
+    if document and document.document_file:
+        file_path = document.document_file.path
+        if os.path.exists(file_path):
+            # Stream the file
+            return FileResponse(open(file_path, 'rb'), as_attachment=True, filename=target_filename)
+    
+    # If we get here, the file doesn't exist. 
+    # Instead of a silent 302, we show an error.
+    messages.error(request, f"Attachment '{target_filename}' could not be found.")
+    return redirect('member_information', member_group_code=member_group_code)

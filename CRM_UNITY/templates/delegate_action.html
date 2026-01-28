@@ -138,7 +138,7 @@
 <div class="task-container">
 
     <div class="task-header">
-        <h1><i class="fas fa-tasks"></i> Action Task: {{ task.subject }}</h1>
+        <h1><i class="fas fa-tasks"></i> Subject: {{ task.subject }}</h1>
         <div style="margin-top: 5px;">
             <span class="status-badge">{{ task.status }}</span>
             <small style="margin-left: 15px;">Assigned to: <strong>{{ task.delegated_to }}</strong></small>
@@ -467,7 +467,6 @@
                             <label class="form-label">Communication Type:</label>
                             <select name="communication_type" class="form-control">
                                 <option value="">Select Communication Type</option>
-                                <option value="Incoming Call">Incoming Call</option>
                                 <option value="Outgoing Call">Outgoing Call</option>
                                 <option value="Notes Log">Notes Log</option>
                                 <option value="Teams Meeting">Teams Meeting</option>

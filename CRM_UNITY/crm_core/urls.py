@@ -12,14 +12,16 @@ urlpatterns = [
 
     # --- CRM Member Management ---
     path('global-members/', views.global_members_list, name='global_members_list'),
+    
+    # 🟢 PRIORITY: Download route must stay ABOVE the general member information path
+    path('global-members/<str:member_group_code>/download-note/', views.member_information, name='download_member_note_file'),
+    
     path('global-members/<str:member_group_code>/', views.member_information, name='member_information'),
     path('add/member/', views.add_member, name='add_member'),
     path('import/global-data/', views.import_global_data, name='import_global_data'),
 
     # --- Microsoft Graph Email & Inbox (Automatic Sync) ---
     path('emails/', views.fetch_emails_view, name='fetch_emails'),
-    
-    # Endpoint for fetching raw HTML content for Modals/Iframes
     path('emails/data/<str:email_id>/', views.get_email_content_view, name='get_email_content'), 
     
     # --- Delegation Workflow ---
@@ -27,9 +29,7 @@ urlpatterns = [
     path('tasks/', views.tasks_view, name='tasks'),
     path('tasks/action/<str:email_id>/', views.delegate_action_view, name='delegate_action'),
     path('tasks/send-email/<str:email_id>/', views.send_task_email_view, name='send_task_email'),
-    path('tasks/attachment/<str:message_id>/<str:attachment_id>/', 
-         views.download_attachment_view, 
-         name='download_attachment'),
+    path('tasks/attachment/<str:message_id>/<str:attachment_id>/', views.download_attachment_view, name='download_attachment'),
 
     # --- Management Overviews (Omega Only Views) ---
     path('delegations-overview/', views.email_registry_view, name='email_registry'),
@@ -49,5 +49,4 @@ urlpatterns = [
     
     path('download-email/<str:email_id>/', views.download_actual_email, name='download_actual_email'),
     path('complaint-log/export/', views.export_complaints_excel, name='export_complaints_excel'),
-
 ]
