@@ -392,14 +392,16 @@ class DirectEmailLog(models.Model):
     member_group_code = models.CharField(max_length=50)
     subject = models.CharField(max_length=255)
     recipient_email = models.CharField(max_length=255)
-    body_content = models.TextField()  # Maps to LONGTEXT in MySQL
+    body_content = models.TextField()
     sent_by_user = models.ForeignKey(User, on_delete=models.DO_NOTHING, db_column='sent_by_user_id')
     sent_at = models.DateTimeField()
     outlook_message_id = models.TextField(null=True, blank=True)
+    # New field added below
+    action_type = models.CharField(max_length=100, null=True, blank=True)
 
     class Meta:
-        managed = False  # Django will not attempt to create or alter this table
-        db_table = 'crm_direct_email_log'  # Must match your SQL exactly
+        managed = False
+        db_table = 'crm_direct_email_log'
 
     def __str__(self):
         return f"{self.subject} to {self.recipient_email}"

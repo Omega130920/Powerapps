@@ -177,13 +177,13 @@
     <div class="button-container">
         <a href="{% url 'pssubf_dashboard' %}" class="button-block">
             <i class="fas fa-envelope-open-text"></i>
-            <span class="button-text">Service Inbox</span>
+            <span class="button-text">Delegations</span>
             <span id="badge-new-emails" class="badge blue-badge" {% if not new_emails_count %}style="display:none;"{% endif %}>{{ new_emails_count }}</span>
         </a>
 
         <a href="{% url 'pssubf_delegations_list' %}" class="button-block">
             <i class="fas fa-tasks"></i>
-            <span class="button-text">Delegations</span>
+            <span class="button-text">Dashboard</span>
             <span id="badge-my-delegations" class="badge orange-badge" {% if not my_pending_delegations_count %}style="display:none;"{% endif %}>{{ my_pending_delegations_count }}</span>
         </a>
 

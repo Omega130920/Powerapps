@@ -1393,89 +1393,107 @@
     </div>
 </section>
 
-                <!-- NEW SECTION FOR COMPOSING EMAIL -->
-                <section id="compose-email" class="tab-pane">
-                    <form method="post" action="{% url 'member_information' member_group_code=contact_info.member_group_code %}" id="compose_email_form" enctype="multipart/form-data">
-                        {% csrf_token %}
-                        <div class="email-composition-area" style="background-color: #f8fbff; border: 1px solid #1e88e5; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
-                            
-                            <h2 style="margin-top: 0; font-size: 1.4em; color: #1e88e5; display: flex; align-items: center; border-bottom: 2px solid #e3f2fd; padding-bottom: 10px; margin-bottom: 20px;">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16" style="margin-right: 10px;">
-                                    <path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/>
-                                    <path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5z"/>
-                                </svg>
-                                Compose New Outgoing Email
-                            </h2>
+<section id="compose-email" class="tab-pane">
+    <form method="post" action="{% url 'member_information' member_group_code=contact_info.member_group_code %}" id="compose_email_form" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="email-composition-area" style="background-color: #f8fbff; border: 1px solid #1e88e5; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+            
+            <h2 style="margin-top: 0; font-size: 1.4em; color: #1e88e5; display: flex; align-items: center; border-bottom: 2px solid #e3f2fd; padding-bottom: 10px; margin-bottom: 20px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" class="bi bi-pencil-square" viewBox="0 0 16 16" style="margin-right: 10px;">
+                    <path d="M15.502 1.94a.5.5 0 0 1 0 .706L14.459 3.69l-2-2L13.502.646a.5.5 0 0 1 .707 0l1.293 1.293zm-1.75 2.456-2-2L4.939 9.21a.5.5 0 0 0-.121.196l-.805 2.414a.25.25 0 0 0 .316.316l2.414-.805a.5.5 0 0 0 .196-.12l6.813-6.814z"/>
+                    <path fill-rule="evenodd" d="M1 13.5A1.5 1.5 0 0 0 2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-6a.5.5 0 0 0-1 0v6a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5H9a.5.5 0 0 0 0-1H2.5A1.5 1.5 0 0 0 1 2.5z"/>
+                </svg>
+                Compose New Outgoing Email
+            </h2>
 
-                            <input type="hidden" name="action" value="send_direct_email"> 
-                            <input type="hidden" name="email_body_html_content" id="direct_email_body_html_content">
-                            
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-                                <div class="form-group">
-                                    <label for="direct_member_recipient_email" style="font-weight: bold; display: block; margin-bottom: 5px; color: #333;">To:</label>
-                                    <input type="email" id="direct_member_recipient_email" name="recipient_email" 
-                                        placeholder="recipient@example.com"
-                                        value="{% if cbc_info.email_address %}{{ cbc_info.email_address }}{% endif %}"
-                                        required
-                                        style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 5px; box-sizing: border-box;">
-                                </div>
-                                <div class="form-group">
-                                    <label for="direct_member_cc_email" style="font-weight: bold; display: block; margin-bottom: 5px; color: #333;">Cc (Optional):</label>
-                                    <input type="text" id="direct_member_cc_email" name="cc_email" 
-                                        placeholder="comma separated emails"
-                                        style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 5px; box-sizing: border-box;">
-                                </div>
-                            </div>
+            <input type="hidden" name="action" value="send_direct_email"> 
+            <input type="hidden" name="email_body_html_content" id="direct_email_body_html_content">
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <div class="form-group">
+                    <label for="direct_member_recipient_email" style="font-weight: bold; display: block; margin-bottom: 5px; color: #333;">To:</label>
+                    <input type="email" id="direct_member_recipient_email" name="recipient_email" 
+                        placeholder="recipient@example.com"
+                        value="{% if cbc_info.email_address %}{{ cbc_info.email_address }}{% endif %}"
+                        required
+                        style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 5px; box-sizing: border-box;">
+                </div>
+                <div class="form-group">
+                    <label for="direct_member_cc_email" style="font-weight: bold; display: block; margin-bottom: 5px; color: #333;">Cc (Optional):</label>
+                    <input type="text" id="direct_member_cc_email" name="cc_email" 
+                        placeholder="comma separated emails"
+                        style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 5px; box-sizing: border-box;">
+                </div>
+            </div>
 
-                            <div class="form-group" style="margin-bottom: 15px;">
-                                <label for="direct_member_email_subject" style="font-weight: bold; display: block; margin-bottom: 5px; color: #333;">Subject:</label>
-                                <input type="text" id="direct_member_email_subject" name="subject" 
-                                    value="[MIP: {{ contact_info.member_group_code }}] New Direct Communication"
-                                    required
-                                    style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 5px; box-sizing: border-box; font-weight: 500;">
-                            </div>
+            <div style="margin-bottom: 15px;">
+                <label style="font-weight: bold; display: block; margin-bottom: 5px; color: #333;">Action Log Type:</label>
+                <select name="action_notes_email" class="form-control" style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 5px; background-color: white;">
+                    <option value="">Select Action Note</option>
+                    <option value="Feedback to Sanlam">Feedback to Sanlam</option>
+                    <option value="Feedback to Employer">Feedback to Employer</option>
+                    <option value="Feedback to Member">Feedback to Member</option>
+                    <option value="Feedback to CBC">Feedback to CBC</option>
+                    <option value="Enquiry to FO">Enquiry to FO</option>
+                    <option value="Enquiry to Sanlam">Enquiry to Sanlam</option>
+                    <option value="Enquiry to Employer">Enquiry to Employer</option>
+                    <option value="Enquiry to CBC">Enquiry to CBC</option>
+                    <option value="Sent to Employer">Sent to Employer</option>
+                    <option value="Sent to Sanlam">Sent to Sanlam</option>
+                    <option value="Sent to CBC">Sent to CBC</option>
+                    <option value="Sent to FO">Sent to FO</option>
+                </select>
+            </div>
 
-                            <div style="background: #eee; border: 1px solid #cbd5e0; border-bottom: none; padding: 5px 10px; border-radius: 5px 5px 0 0; display: flex; gap: 10px;">
-                                <button type="button" onclick="document.execCommand('bold', false, null)" style="cursor:pointer; font-weight:bold; border:1px solid #ccc; background:#fff; padding:2px 8px;">B</button>
-                                <button type="button" onclick="document.execCommand('italic', false, null)" style="cursor:pointer; font-style:italic; border:1px solid #ccc; background:#fff; padding:2px 8px;">I</button>
-                                <button type="button" onclick="document.execCommand('underline', false, null)" style="cursor:pointer; text-decoration:underline; border:1px solid #ccc; background:#fff; padding:2px 8px;">U</button>
-                                <button type="button" onclick="document.execCommand('insertUnorderedList', false, null)" style="cursor:pointer; border:1px solid #ccc; background:#fff; padding:2px 8px;">• List</button>
-                            </div>
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="direct_member_email_subject" style="font-weight: bold; display: block; margin-bottom: 5px; color: #333;">Subject:</label>
+                <input type="text" id="direct_member_email_subject" name="subject" 
+                    value="[MIP: {{ contact_info.member_group_code }}] New Direct Communication"
+                    required
+                    style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 5px; box-sizing: border-box; font-weight: 500;">
+            </div>
 
-                            <div class="form-group" style="margin-bottom: 15px;">
-                                <div id="direct_member_email_body_editor" 
-                                    class="rich-text-editor" 
-                                    contenteditable="true"
-                                    style="min-height: 250px; border: 1px solid #cbd5e0; border-radius: 0 0 5px 5px; padding: 15px; background: #fff; line-height: 1.6; outline: none; box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);">
-                                    <p>Dear Sir/Madam,</p>
-                                    <p>Regarding Member Group Code <strong>{{ contact_info.member_group_code }}</strong>,</p>
-                                    <p><br></p>
-                                    <p>Kind regards,</p>
-                                    <p><strong>{{ request.user.username }}</strong></p>
-                                </div>
-                            </div>
-                            
-                            <div class="form-group" style="margin-bottom: 20px;">
-                                <label for="attachments" style="font-weight: bold; display: block; margin-bottom: 5px; color: #333;">Attachments:</label>
-                                <div class="file-upload-wrapper" style="padding: 15px; border: 2px dashed #1e88e5; border-radius: 6px; background-color: #fff; text-align: center;">
-                                    <input type="file" id="direct_attachments" name="attachments" multiple style="cursor: pointer;">
-                                    <p style="margin: 8px 0 0 0; color: #666; font-size: 12px;">Files attached here will be sent to the recipient and logged in the MIP system.</p>
-                                </div>
-                            </div>
+            <div style="background: #eee; border: 1px solid #cbd5e0; border-bottom: none; padding: 5px 10px; border-radius: 5px 5px 0 0; display: flex; gap: 10px;">
+                <button type="button" onclick="document.execCommand('bold', false, null)" style="cursor:pointer; font-weight:bold; border:1px solid #ccc; background:#fff; padding:2px 8px;">B</button>
+                <button type="button" onclick="document.execCommand('italic', false, null)" style="cursor:pointer; font-style:italic; border:1px solid #ccc; background:#fff; padding:2px 8px;">I</button>
+                <button type="button" onclick="document.execCommand('underline', false, null)" style="cursor:pointer; text-decoration:underline; border:1px solid #ccc; background:#fff; padding:2px 8px;">U</button>
+                <button type="button" onclick="document.execCommand('insertUnorderedList', false, null)" style="cursor:pointer; border:1px solid #ccc; background:#fff; padding:2px 8px;">• List</button>
+            </div>
 
-                            <button type="submit" 
-                                    name="email_submission_action"
-                                    value="send_email_and_log"
-                                    id="direct_email_submit"
-                                    style="width: 100%; background: linear-gradient(135deg, #1e88e5 0%, #1565c0 100%); color: white; border: none; padding: 14px; border-radius: 6px; cursor: pointer; font-size: 1.1em; font-weight: bold; display: flex; align-items: center; justify-content: center; transition: background 0.2s;">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-send-check-fill" viewBox="0 0 16 16" style="margin-right: 10px;">
-                                    <path d="M15.964.686a.5.5 0 0 0-.65-.65L.767 5.855H.766l-.452.18a.5.5 0 0 0-.082.887L.95 7.02a.5.5 0 0 0 .1.1L15.964.686Zm-5.833 7.84L9.088 1.488 2.053 8.525l.812.324L10.131 8.525Z"/>
-                                </svg>
-                                Send Email and Update Log
-                            </button>
-                        </div>
-                    </form>
-                </section>
+            <div class="form-group" style="margin-bottom: 15px;">
+                <div id="direct_member_email_body_editor" 
+                    class="rich-text-editor" 
+                    contenteditable="true"
+                    style="min-height: 250px; border: 1px solid #cbd5e0; border-radius: 0 0 5px 5px; padding: 15px; background: #fff; line-height: 1.6; outline: none; box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);">
+                    <p>Dear Sir/Madam,</p>
+                    <p>Regarding Member Group Code <strong>{{ contact_info.member_group_code }}</strong>,</p>
+                    <p><br></p>
+                    <p>Kind regards,</p>
+                    <p><strong>{{ request.user.username }}</strong></p>
+                </div>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 20px;">
+                <label for="attachments" style="font-weight: bold; display: block; margin-bottom: 5px; color: #333;">Attachments:</label>
+                <div class="file-upload-wrapper" style="padding: 15px; border: 2px dashed #1e88e5; border-radius: 6px; background-color: #fff; text-align: center;">
+                    <input type="file" id="direct_attachments" name="attachments" multiple style="cursor: pointer;">
+                    <p style="margin: 8px 0 0 0; color: #666; font-size: 12px;">Files attached here will be sent to the recipient and logged in the MIP system.</p>
+                </div>
+            </div>
+
+            <button type="submit" 
+                    name="email_submission_action"
+                    value="send_email_and_log"
+                    id="direct_email_submit"
+                    style="width: 100%; background: linear-gradient(135deg, #1e88e5 0%, #1565c0 100%); color: white; border: none; padding: 14px; border-radius: 6px; cursor: pointer; font-size: 1.1em; font-weight: bold; display: flex; align-items: center; justify-content: center; transition: background 0.2s;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" class="bi bi-send-check-fill" viewBox="0 0 16 16" style="margin-right: 10px;">
+                    <path d="M15.964.686a.5.5 0 0 0-.65-.65L.767 5.855H.766l-.452.18a.5.5 0 0 0-.082.887L.95 7.02a.5.5 0 0 0 .1.1L15.964.686Zm-5.833 7.84L9.088 1.488 2.053 8.525l.812.324L10.131 8.525Z"/>
+                </svg>
+                Send Email and Update Log
+            </button>
+        </div>
+    </form>
+</section>
                 <!-- END NEW SECTION -->
 
 

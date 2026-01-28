@@ -47,3 +47,15 @@ class PssubfOutlookToken(models.Model):
     class Meta:
         managed = False  # Managed manually in MySQL
         db_table = 'pssubf_outlook_token'
+        
+class PssubfNote(models.Model):
+    task_email_id = models.CharField(max_length=255)
+    agent_name = models.CharField(max_length=100)
+    note_text = models.TextField()
+    classification_at_time = models.CharField(max_length=100)
+    status_at_time = models.CharField(max_length=50)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False  # Django will not manage this table
+        db_table = 'pssubf_notes'

@@ -33,4 +33,5 @@ urlpatterns = [
     path('recycle-view/<str:email_id>/', views.pssubf_recycle_view, name='pssubf_recycle_view'),
     path('delete-permanent/<str:email_id>/', views.pssubf_delete_permanent, name='pssubf_delete_permanent'),
     path('bulk-delete/', views.pssubf_bulk_delete, name='pssubf_bulk_delete'),
+    path('history-preview/<str:email_id>/', views.pssubf_history_preview, name='pssubf_history_preview'),
 ]

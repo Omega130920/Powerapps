@@ -10,7 +10,7 @@ from django.db.models import Q
 logger = logging.getLogger(__name__)
 
 # Import your unmanaged models
-from .models import PssubfInbox, PssubfDelegate, PssubfAction
+from .models import PssubfInbox, PssubfDelegate, PssubfAction, PssubfNote
 # Import your verified services
 from PSSUBF_APP.services.outlook_graph_service import OutlookGraphService
 from PSSUBF_APP.services.delegation_service import delegate_pssubf_task
@@ -157,16 +157,38 @@ def pssubf_action_view(request, email_id):
             )
             messages.success(request, "Task information updated successfully.")
 
-        # 2. Add Internal Note
+        # 2. Add Internal Note (UPDATED to include Status/Classification and PssubfNote saving)
         elif action_type == 'add_note':
             note_text = request.POST.get('note_content')
+            
+            # Capture the confirmation dropdowns from the note form
+            new_category = request.POST.get('email_category')
+            new_status = request.POST.get('status')
+            
+            # Sync the main task state
+            if new_category:
+                task.email_category = new_category
+            if new_status:
+                task.status = new_status
+            task.save()
+
+            # Save to the new unmanaged table: pssubf_notes
+            PssubfNote.objects.create(
+                task_email_id=email_id,
+                agent_name=request.user.username,
+                note_text=note_text,
+                classification_at_time=task.email_category,
+                status_at_time=task.status
+            )
+
+            # Keep the existing PssubfAction log for the timeline
             PssubfAction.objects.create(
                 task_email_id=email_id,
                 action_user=request.user.username,
                 action_type="NOTE",
                 note_content=note_text
             )
-            messages.success(request, "Internal note saved.")
+            messages.success(request, "Internal note saved and task status synchronized.")
 
         # 3. Handle External Email Reply
         elif action_type == 'send_reply':
@@ -230,22 +252,15 @@ def pssubf_action_view(request, email_id):
     attachments = OutlookGraphService.fetch_attachments(target_email, email_id)
     email_content = email_data.get('body', {}).get('content', 'Content unavailable.')
 
-    # 🚀 FIX: Resolve Inline Images (Signatures, etc.)
     for att in attachments:
-        # Check if it's an inline attachment with a Content-ID
         if att.get('isInline') and att.get('contentId'):
             cid = att.get('contentId')
-            # Fetch the raw bytes if not already included
             raw = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
             if raw and isinstance(raw, dict) and 'contentBytes' in raw:
                 base64_data = raw['contentBytes']
                 content_type = att.get('contentType', 'image/png')
-                
-                # Replace the CID link with a Base64 Data URL
                 data_url = f"data:{content_type};base64,{base64_data}"
                 email_content = email_content.replace(f"cid:{cid}", data_url)
-                
-                # Also store it in the attachment object for the gallery/list view
                 att['contentBytes'] = base64_data
 
     history = PssubfAction.objects.filter(task_email_id=email_id).order_by('-action_timestamp')
@@ -490,3 +505,34 @@ def pssubf_bulk_delete(request):
             messages.error(request, f"Permanently deleted {len(selected_ids)} records.")
             
     return redirect('pssubf_recycle_bin')
+
+@login_required
+def pssubf_history_preview(request, email_id):
+    """
+    AJAX View: Finds the sender of the current email and returns 
+    all previous delegation records for that sender.
+    """
+    # 1. Get the current email from the inbox to identify the sender
+    # We use .first() to avoid a 404 if the sync hasn't hit the DB yet
+    current_mail = PssubfInbox.objects.filter(email_id=email_id).first()
+    
+    if not current_mail:
+        # If not in local DB, we try to get the sender from the Graph API live
+        email_data = OutlookGraphService._make_graph_request(f"messages/{email_id}", method='GET')
+        sender_email = email_data.get('from', {}).get('emailAddress', {}).get('address', '')
+    else:
+        sender_email = current_mail.sender
+
+    # 2. Find all previous delegations for this specific sender
+    # We look in PssubfDelegate to see who worked on this person's files before
+    previous_tasks = PssubfDelegate.objects.filter(
+        sender=sender_email
+    ).exclude(email_id=email_id).order_by('-created_at')
+
+    context = {
+        'sender_email': sender_email,
+        'previous_tasks': previous_tasks,
+    }
+
+    # 3. Render the partial HTML that "pops up" in the modal
+    return render(request, 'pssubf/partials/history_preview_content.html', context)

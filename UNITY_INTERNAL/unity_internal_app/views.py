@@ -2041,13 +2041,13 @@ def import_credit(request):
 @login_required
 def credit_note_list(request):
     """
-    Displays all imported CreditNote records.
-    Records disappear from this global list as soon as a 
-    user initiates a request (Status moves away from Unlinked).
+    Displays all imported and manually created CreditNote records.
+    Updated to include Pending and Approved items so they can be 
+    toggled in the UI.
     """
-    # Show only the 'Inbox' of items that have NO pending or approved allocations
+    # Use __in to fetch all three statuses
     credit_notes = CreditNote.objects.filter(
-        credit_link_status='Unlinked'
+        credit_link_status__in=['Unlinked', 'Pending', 'Approved']
     ).order_by('-processed_date')
     
     context = {
@@ -4823,3 +4823,51 @@ def download_email_file(request, email_id):
     except Exception as e:
         messages.error(request, f"Error downloading email: {str(e)}")
         return redirect(request.META.get('HTTP_REFERER', 'unity_list'))
+    
+@login_required
+@transaction.atomic
+def create_manual_credit(request):
+    """
+    Handles manual 'Overs' credit creation from the modal.
+    Sets status to 'Pending' for Manager Approval.
+    """
+    if request.method == 'POST':
+        # Capture form data from the modal
+        company_code = request.POST.get('company_code')
+        amount = request.POST.get('deposit_amount')
+        deposit_date = request.POST.get('deposit_date')
+        bank_fiscal = request.POST.get('bank_fiscal')
+        date_identified = request.POST.get('date_identified')
+        agent_input = request.POST.get('agent_name')
+
+        if not all([company_code, amount, deposit_date]):
+            messages.error(request, "Please provide Company Code, Amount, and Deposit Date.")
+            return redirect('credit_note_list')
+
+        # Create the record in credit_note table
+        new_credit = CreditNote.objects.create(
+            member_group_code=company_code,
+            schedule_amount=Decimal(amount),          # Using schedule_amount as the balance
+            bank_stmt_date=parse_date(deposit_date),  # Maps to 'Deposit Date'
+            fiscal_date=parse_date(bank_fiscal),      # Maps to 'Bank Fiscal'
+            date_identified=parse_date(date_identified),
+            processed_by=agent_input or request.user.username,
+            processed_date=timezone.now(),
+            note_selection='OVERS',                   # Triggers yellow badge styling
+            link_request_reason='Overs credit line',  # Specific flag for your fail-safe logic
+            credit_link_status='Pending'              # Sends it to Manager Dashboard
+        )
+
+        # Manager Notification Logic
+        # (This triggers the auto-notify flow for manager approval)
+        try:
+            subject = f"APPROVAL REQUIRED: Manual Overs Credit - {company_code}"
+            body = f"A manual overs credit of R{amount} has been created for {company_code}."
+            OutlookGraphService.send_outlook_email(settings.OUTLOOK_EMAIL_ADDRESS, "omega@example.com", subject, body, 'TEXT')
+        except Exception:
+            pass 
+
+        messages.success(request, f"Manual credit for {company_code} created. Awaiting manager approval.")
+        return redirect('credit_note_list')
+
+    return redirect('credit_note_list')

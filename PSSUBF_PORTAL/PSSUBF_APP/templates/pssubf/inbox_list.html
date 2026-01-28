@@ -57,7 +57,7 @@
         .task-table {
             width: 100%;
             border-collapse: separate;
-            border-spacing: 0 8px; /* Creates the "row" effect */
+            border-spacing: 0 8px;
         }
 
         .task-table th {
@@ -82,7 +82,6 @@
             font-size: 14px;
         }
 
-        /* Rounded corners for the rows */
         .task-table td:first-child { border-left: 1px solid var(--glass-border); border-radius: 12px 0 0 12px; }
         .task-table td:last-child { border-right: 1px solid var(--glass-border); border-radius: 0 12px 12px 0; }
 
@@ -100,7 +99,24 @@
             font-weight: bold;
         }
 
-        /* --- BUTTONS --- */
+        /* --- ACTION BUTTONS --- */
+        .btn-ogie {
+            background: rgba(255, 255, 255, 0.5);
+            border: 1px solid var(--glass-border);
+            color: var(--text-dark);
+            padding: 8px 12px;
+            border-radius: 10px;
+            margin-right: 5px;
+            transition: 0.2s;
+            display: inline-block;
+        }
+
+        .btn-ogie:hover {
+            background: var(--accent-green);
+            color: white;
+            transform: scale(1.1);
+        }
+
         .btn-delegate-link {
             background-color: #f7931e;
             color: white;
@@ -117,9 +133,22 @@
         .btn-delegate-link:hover {
             background-color: #e67e00;
             transform: translateY(-2px);
-            box-shadow: 0 6px 15px rgba(247, 147, 30, 0.4);
             color: white;
         }
+
+        /* --- GLASS MODAL STYLING --- */
+        .modal-content.glass-modal {
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            color: var(--text-dark);
+        }
+        .modal-header { border-bottom: 1px solid var(--glass-border); }
+        .modal-footer { border-top: 1px solid var(--glass-border); }
+
+        .history-loading { padding: 40px; text-align: center; }
 
         .btn-menu {
             background: var(--glass-bg);
@@ -131,18 +160,13 @@
             text-decoration: none;
             transition: 0.2s;
         }
-
-        .btn-menu:hover {
-            background: rgba(255,255,255,0.4);
-            color: var(--text-dark);
-        }
     </style>
 </head>
 <body>
 
 <div class="log-container">
     <div class="log-header">
-        <h1><i class="bi bi-envelope-heart-fill me-2"></i> PSSUBF New Incoming Tasks</h1>
+        <h1><i class="bi bi-envelope-heart-fill me-2"></i> Delegations</h1>
         <a href="{% url 'pssubf_switchboard' %}" class="btn-menu">
             <i class="bi bi-arrow-left-circle me-1"></i> Back to Home Screen
         </a>
@@ -172,23 +196,77 @@
                     <div class="small text-muted">{{ message.from.emailAddress.address }}</div>
                 </td>
                 <td class="text-center">
+                    <button class="btn-ogie" 
+                            onclick="openHistoryModal('{{ message.id }}', '{{ message.from.emailAddress.address }}')"
+                            title="View History">
+                        <i class="bi bi-eye"></i>
+                    </button>
+
                     <a href="{% url 'pssubf_delegate' message.id %}" class="btn-delegate-link">
                         <i class="bi bi-share-fill me-1"></i> Delegate
                     </a>
                 </td>
             </tr>
             {% empty %}
-            <tr>
-                <td colspan="5" class="text-center py-5">
-                    <i class="bi bi-check2-circle fs-1 opacity-50"></i>
-                    <p class="mt-2 fw-bold">All caught up! No new emails.</p>
-                </td>
-            </tr>
+            <tr><td colspan="5" class="text-center py-5">All caught up!</td></tr>
             {% endfor %}
         </tbody>
     </table>
 </div>
 
+<div class="modal fade" id="historyModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content glass-modal">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold"><i class="bi bi-clock-history me-2"></i> Communication History</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="historyModalBody">
+                <div class="history-loading">
+                    <div class="spinner-border text-success" role="status"></div>
+                    <p class="mt-2">Fetching history for <span id="targetEmailDisplay"></span>...</p>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+    const historyModal = new bootstrap.Modal(document.getElementById('historyModal'));
+
+    function openHistoryModal(messageId, emailAddress) {
+        document.getElementById('targetEmailDisplay').innerText = emailAddress;
+        document.getElementById('historyModalBody').innerHTML = `
+            <div class="history-loading">
+                <div class="spinner-border text-success" role="status"></div>
+                <p class="mt-2">Fetching history for <b>${emailAddress}</b>...</p>
+            </div>
+        `;
+        
+        historyModal.show();
+
+        // AJAX call to get the history HTML
+        // Note: You will need a Django view that returns just the history partial HTML
+        fetch(`/pssubf/history-preview/${messageId}/`)
+            .then(response => response.text())
+            .then(html => {
+                document.getElementById('historyModalBody').innerHTML = html;
+            })
+            .catch(err => {
+                document.getElementById('historyModalBody').innerHTML = `
+                    <div class="alert alert-danger m-3">
+                        <i class="bi bi-exclamation-triangle me-2"></i> 
+                        Error loading history. The system could not retrieve previous logs for this address.
+                    </div>
+                `;
+            });
+    }
+</script>
+
 </body>
 </html>
