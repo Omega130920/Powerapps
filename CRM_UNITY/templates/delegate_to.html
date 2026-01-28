@@ -69,7 +69,6 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
 .form-group label { display: block; margin-bottom: 5px; font-weight: 700; color: #333; font-size: 14px; }
 .form-group input[type=text], .form-group select { width: 100%; padding: 8px 10px; border: 1px solid #aed581; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
 
-.button-container { display: flex; justify-content: space-between; align-items: center; margin-top: 25px; }
 .btn-back { padding: 10px 18px; background-color: #757575; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; transition: background-color .3s ease; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
 .btn-back:hover { background-color: #616161; }
 
@@ -82,11 +81,34 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
 
 .form-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 15px; }
 .hidden { display: none; }
+
+/* 🟢 RE-DELEGATION ALERT STYLES */
+.redelegate-alert {
+    background-color: #fff3cd;
+    border: 1px solid #ffeeba;
+    color: #856404;
+    padding: 12px 20px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
 </style>
 
 <div class="delegate-container">
     <h1>Delegate CRM Task</h1>
     
+    {% if existing_delegation %}
+    <div class="redelegate-alert">
+        <i class="fas fa-exclamation-triangle"></i>
+        <span>
+            <strong>Manager Override:</strong> This task is currently assigned to <strong>{{ existing_delegation.delegated_to }}</strong>. 
+            Updating this form will re-delegate the task.
+        </span>
+    </div>
+    {% endif %}
+
     <form id="delegateForm" method="post" action="{% url 'delegate_email' email_id=email_id %}">
         {% csrf_token %}
 
@@ -96,7 +118,7 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
             </a>
             <button type="submit" class="btn-delegate submit-btn-sync">
                 <span class="btn-icon-sync">👤</span> 
-                <span class="btn-text-sync">Assign Task</span>
+                <span class="btn-text-sync">{% if existing_delegation %}Update Assignment{% else %}Assign Task{% endif %}</span>
             </button>
         </div>
         
@@ -139,43 +161,55 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
         <div class="form-group">
             <label for="work_related">Is this task Work Related?*</label>
             <select id="work_related" name="work_related" required>
-                <option value="Yes" selected>Yes (Assign to Agent)</option>
-                <option value="No">No (Archive/Recycle)</option>
+                <option value="Yes" {% if existing_delegation and existing_delegation.is_work_related %}selected{% elif not existing_delegation %}selected{% endif %}>Yes (Assign to Agent)</option>
+                <option value="No" {% if existing_delegation and not existing_delegation.is_work_related %}selected{% endif %}>No (Archive/Recycle)</option>
             </select>
         </div>
 
         <div id="classification_fields_wrapper">
+            <div class="form-group" id="delegation_fields">
+                <label for="agent_name">Assign/Delegate To Agent:*</label>
+                <select id="agent_name" name="agent_name">
+                    <option value="">-- Select Agent --</option>
+                    {% for agent in available_agents %}
+                        <option value="{{ agent.username }}" {% if existing_delegation.delegated_to == agent.username %}selected{% endif %}>
+                            {{ agent.username }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
             <div class="form-grid">
                 <div class="form-group">
                     <label for="mip_number">Member Group Code:</label>
-                    <input type="text" id="mip_number" name="mip_number" placeholder="Enter Member Group Code">
+                    <input type="text" id="mip_number" name="mip_number" placeholder="Enter Member Group Code" value="{{ existing_delegation.member_group_code|default:'' }}">
                 </div>
                 
                 <div class="form-group">
                     <label for="email_category">Enquiry Type:</label>
                     <select id="email_category" name="email_category">
                         <option value="">-- Select --</option>
-                        <option value="1">1. Reconciliation</option>
-                        <option value="2">2. Claim</option>
-                        <option value="3">3. Section 13A</option>
-                        <option value="4">4. New Business</option>
-                        <option value="5">5. Amendments</option>
-                        <option value="6">6. Section 28</option>
-                        <option value="7">7. Section 14</option>
-                        <option value="8">8. Section 27</option>
-                        <option value="9">9. Complaints</option>
-                        <option value="10">10. Two Pot</option>
-                        <option value="11">11. Report Back</option>
-                        <option value="12">12. Broker Investigations and Rebrokes</option>
-                        <option value="13">13. General</option>
-                        <option value="14">14. Other</option>
+                        <option value="1" {% if existing_delegation.category == "1" %}selected{% endif %}>1. Reconciliation</option>
+                        <option value="2" {% if existing_delegation.category == "2" %}selected{% endif %}>2. Claim</option>
+                        <option value="3" {% if existing_delegation.category == "3" %}selected{% endif %}>3. Section 13A</option>
+                        <option value="4" {% if existing_delegation.category == "4" %}selected{% endif %}>4. New Business</option>
+                        <option value="5" {% if existing_delegation.category == "5" %}selected{% endif %}>5. Amendments</option>
+                        <option value="6" {% if existing_delegation.category == "6" %}selected{% endif %}>6. Section 28</option>
+                        <option value="7" {% if existing_delegation.category == "7" %}selected{% endif %}>7. Section 14</option>
+                        <option value="8" {% if existing_delegation.category == "8" %}selected{% endif %}>8. Section 27</option>
+                        <option value="9" {% if existing_delegation.category == "9" %}selected{% endif %}>9. Complaints</option>
+                        <option value="10" {% if existing_delegation.category == "10" %}selected{% endif %}>10. Two Pot</option>
+                        <option value="11" {% if existing_delegation.category == "11" %}selected{% endif %}>11. Report Back</option>
+                        <option value="12" {% if existing_delegation.category == "12" %}selected{% endif %}>12. Broker Investigations and Rebrokes</option>
+                        <option value="13" {% if existing_delegation.category == "13" %}selected{% endif %}>13. General</option>
+                        <option value="14" {% if existing_delegation.category == "14" %}selected{% endif %}>14. Other</option>
                     </select>
                 </div>
             </div>
 
             <div class="form-group">
                 <label for="email_type">Enquiry Selection:</label>
-                <select id="email_type" name="email_type">
+                <select id="email_type" name="email_type" data-saved-value="{{ existing_delegation.type }}">
                     <option value="" data-category="none">-- Select Enquiry Type First --</option> 
                     <option value="1.1 Schedule Query" data-category="1" class="hidden">1.1 Schedule Query</option>
                     <option value="1.2 Member Data Query" data-category="1" class="hidden">1.2 Member Data Query</option>
@@ -323,17 +357,8 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
                     <option value="14.15 Bulk Benefit Statements (employer/member) ad-hoc" data-category="14" class="hidden">14.15 Bulk Benefit Statements (employer/member) ad-hoc</option>
                 </select>
             </div>
-
-            <div class="form-group" id="delegation_fields">
-                <label for="agent_name">Delegate To Agent:*</label>
-                <select id="agent_name" name="agent_name">
-                    <option value="">-- Select Agent --</option>
-                    {% for agent in available_agents %}
-                        <option value="{{ agent.username }}">{{ agent.username }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-        </div> <input type="hidden" name="email_id" value="{{ email_id }}">
+        </div> 
+        <input type="hidden" name="email_id" value="{{ email_id }}">
     </form>
 </div>
 
@@ -354,20 +379,31 @@ document.addEventListener('DOMContentLoaded', function(){
 
     function updateEnquirySelection() {
         const selectedCategory = categorySelect.value;
+        const savedValue = typeSelect.getAttribute('data-saved-value');
+
         typeOptions.forEach(option => {
             if (option !== initialOption) {
                 option.classList.add('hidden');
                 option.selected = false;
             }
         });
+
         if (selectedCategory) {
             typeOptions.forEach(option => {
                 if (option.getAttribute('data-category') === selectedCategory) {
                     option.classList.remove('hidden');
+                    // 🟢 NEW: Match the saved value during re-delegation
+                    if (savedValue && option.value === savedValue) {
+                        option.selected = true;
+                    }
                 }
             });
         }
-        initialOption.selected = true;
+        
+        // If nothing was selected by the fuzzy match, keep the initial instruction
+        if (typeSelect.selectedIndex === -1) {
+            initialOption.selected = true;
+        }
     }
 
     function toggleFormSections(){
@@ -380,14 +416,11 @@ document.addEventListener('DOMContentLoaded', function(){
             
             // Clear required and reset values for hidden fields
             agentSelect.removeAttribute('required');
-            categorySelect.value = "";
-            typeSelect.value = "";
-            document.getElementById('mip_number').value = "";
         } else {
             classificationWrapper.style.display = 'block';
             submitButtons.forEach(btn => btn.style.backgroundColor = '#81c784');
             btnIcons.forEach(icon => icon.textContent = '👤');
-            btnTexts.forEach(txt => txt.textContent = 'Assign Task');
+            btnTexts.forEach(txt => txt.textContent = '{% if existing_delegation %}Update Assignment{% else %}Assign Task{% endif %}');
             agentSelect.setAttribute('required', 'required');
         }
     }

@@ -348,19 +348,31 @@ def get_email_content_view(request, email_id):
 def delegate_email_view(request, email_id):
     """
     Handles classification and delegation for CRM_UNITY.
-    FIXED: Removed target_email from _make_graph_request to resolve TypeError.
-    FIXED: Added validation for Graph API response data types.
+    UPDATED: Allows Managers to re-delegate and explicitly set Work-Related status.
     """
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     inbox_item = get_object_or_404(CrmInbox, email_id=email_id)
+    
+    # 🟢 NEW: Check if this is already delegated
+    existing_delegation = CrmDelegateTo.objects.filter(email_id=email_id).first()
+    
+    # 🟢 NEW: Define Manager check
+    is_manager = request.user.groups.filter(name='Managers').exists() or request.user.is_superuser
+    
+    # Logic: If it's delegated and the user is NOT a manager, kick them back to tasks
+    if existing_delegation and not is_manager:
+        messages.info(request, f"This item is already assigned to {existing_delegation.delegated_to}.")
+        return redirect('tasks')
+
+    # Manager can see everyone, Agents see everyone else
     available_agents = User.objects.filter(is_active=True).exclude(pk=request.user.pk)
 
     # ==========================================
-    # 1. HANDLE POST (DELEGATION LOGIC)
+    # 1. HANDLE POST (DELEGATION & RE-DELEGATION)
     # ==========================================
     if request.method == 'POST':
         agent_name = request.POST.get('agent_name')
-        work_related = request.POST.get('work_related') 
+        work_related = request.POST.get('work_related') # 'Yes' or 'No'
         member_code = request.POST.get('mip_number') 
         
         form_data = {
@@ -370,12 +382,12 @@ def delegate_email_view(request, email_id):
             'type': request.POST.get('email_type'),
         }
 
+        # --- Scenario A: Not Work Related (Recycle Bin) ---
         if work_related == 'No':
             success, message = delegate_email_task(email_id, None, request.user, form_data, is_recycle=True)
             if success:
                 try:
                     move_payload = {"destinationId": "deleteditems"}
-                    # Removed target_email from positional arguments
                     OutlookGraphService._make_graph_request(f"messages/{email_id}/move", method='POST', data=move_payload)
                     messages.info(request, "Email moved to Recycle Bin locally and in Outlook.")
                 except Exception as e:
@@ -385,25 +397,28 @@ def delegate_email_view(request, email_id):
                 messages.error(request, f"Error: {message}")
                 return redirect('fetch_emails')
 
+        # --- Scenario B: Work Related (Delegate/Re-delegate) ---
         else:
             if not agent_name or agent_name == "__Select Agent__":
                 messages.error(request, "Please select an agent for work-related tasks.")
             else:
+                # Use the utility function to handle DB update/create
                 success, message = delegate_email_task(email_id, agent_name, request.user, form_data)
                 
                 if success:
                     try:
                         assignee = User.objects.get(pk=agent_name) if agent_name.isdigit() else User.objects.get(username=agent_name)
-                        reply_payload = {
-                            "comment": f"Dear Sender,\n\nThis has been delegated to: {assignee.username}.\nRef: {member_code}"
-                        }
                         
-                        # Removed target_email from positional arguments
-                        draft = OutlookGraphService._make_graph_request(f"messages/{email_id}/createReply", method='POST', data=reply_payload)
-                        if draft and isinstance(draft, dict) and 'id' in draft:
-                            OutlookGraphService._make_graph_request(f"messages/{draft['id']}/send", method='POST')
+                        # Only send a reply if this is a NEW delegation (optional check)
+                        if not existing_delegation:
+                            reply_payload = {
+                                "comment": f"Dear Sender,\n\nThis has been delegated to: {assignee.username}.\nRef: {member_code}"
+                            }
+                            draft = OutlookGraphService._make_graph_request(f"messages/{email_id}/createReply", method='POST', data=reply_payload)
+                            if draft and isinstance(draft, dict) and 'id' in draft:
+                                OutlookGraphService._make_graph_request(f"messages/{draft['id']}/send", method='POST')
                         
-                        messages.success(request, f"Task delegated to {assignee.username} and reply sent.")
+                        messages.success(request, f"Task assigned to {assignee.username}. (Re-delegation: {'Yes' if existing_delegation else 'No'})")
                     except Exception as e:
                         messages.warning(request, f"Delegated locally, Graph error: {str(e)}")
                 
@@ -413,10 +428,8 @@ def delegate_email_view(request, email_id):
     # 2. HANDLE GET (DATA FETCHING)
     # ==========================================
     endpoint = f"messages/{email_id}" 
-    # Removed target_email to prevent "multiple values for argument 'method'"
     email_data = OutlookGraphService._make_graph_request(endpoint, method='GET') 
 
-    # Safety check: Ensure email_data is a dictionary before accessing .get()
     if not isinstance(email_data, dict) or 'error' in email_data:
         email_body = inbox_item.snippet
         email_subject_final = inbox_item.subject
@@ -424,10 +437,8 @@ def delegate_email_view(request, email_id):
         email_body = email_data.get('body', {}).get('content', inbox_item.snippet)
         email_subject_final = email_data.get('subject', inbox_item.subject)
 
-    # Fetching attachments (Service method uses settings internally)
     attachments_list = OutlookGraphService.fetch_attachments(target_email, email_id)
     
-    # Process image contentBytes for previews
     if attachments_list and isinstance(attachments_list, list):
         for att in attachments_list:
             content_type = att.get('contentType', '').lower()
@@ -442,7 +453,9 @@ def delegate_email_view(request, email_id):
         'available_agents': available_agents, 
         'email_body': email_body,
         'attachments': attachments_list, 
-        'inbox_item': inbox_item
+        'inbox_item': inbox_item,
+        'existing_delegation': existing_delegation, # 🟢 Pass this to show current status
+        'is_manager': is_manager               # 🟢 Pass this to show/hide specific UI
     })
     
 @login_required
@@ -804,15 +817,107 @@ def add_member(request):
 
 @login_required
 def import_global_data(request):
-    """Excel master file import handler."""
+    """Excel master file import handler with status tracking and record processing."""
+    # 1. Access Control
     if request.user.username.lower() != 'omega':
         return redirect('dashboard')
+
     if request.method == 'POST' and 'master_file' in request.FILES:
+        master_file = request.FILES['master_file']
+        
+        # 2. Tracking Statistics for the UI Prompt
+        stats = {
+            'total_created': 0,
+            'total_updated': 0,
+            'sheets_processed': 0
+        }
+
+        # 3. Validation: Extension and Integrity
+        if not master_file.name.lower().endswith('.xlsx'):
+            return render(request, 'import_global_data.html', {
+                'error_message': "Invalid Format: Only '.xlsx' files are supported."
+            })
+
+        import zipfile
+        if not zipfile.is_zipfile(master_file):
+            return render(request, 'import_global_data.html', {
+                'error_message': "File Structure Error: This file is not a valid Zip/XML workbook. Please re-save as 'Excel Workbook (*.xlsx)'."
+            })
+
         try:
-            workbook = openpyxl.load_workbook(request.FILES['master_file'], read_only=True)
-            messages.success(request, "File read successfully. Import processing initiated.")
+            # Load workbook (data_only=True ensures we get values, not formulas)
+            workbook = openpyxl.load_workbook(master_file, data_only=True)
+            
+            # 4. Sheet to Model Mapping
+            # This covers your RELATED_FORMS list and the primary GlobalFundContact table
+            sheet_model_map = {
+                'global_fund_contact_list': GlobalFundContact,
+                'cbc': Cbc,
+                'cbc_admin_person': CbcAdminPerson,
+                'cbc_consultancy_person': CbcConsultancyPerson,
+                'cfa': Cfa,
+                'cfa_admin_person': CfaAdminPerson,
+                'cfa2': Cfa2,
+                'cfa3': Cfa3,
+                'communications_person': CommunicationsPerson,
+                'human_resources': HumanResources,
+                'section13a': Section13a,
+            }
+
+            with transaction.atomic():
+                for sheet_name, model_class in sheet_model_map.items():
+                    if sheet_name in workbook.sheetnames:
+                        sheet = workbook[sheet_name]
+                        stats['sheets_processed'] += 1
+                        
+                        rows = list(sheet.rows)
+                        if len(rows) < 1:
+                            continue
+
+                        # Identify header row
+                        header = [str(cell.value).strip() if cell.value else None for cell in rows[0]]
+                        
+                        # Process data rows
+                        for row in rows[1:]:
+                            # Convert row to dictionary mapping headers to cell values
+                            row_values = [cell.value for cell in row]
+                            row_data = dict(zip(header, row_values))
+
+                            # Clean data: Remove None keys or empty values
+                            row_data = {k: v for k, v in row_data.items() if k and k != 'None'}
+
+                            # Identify Unique Key (mip_number / member_group_code)
+                            # Checking both potential column naming conventions
+                            mg_code = row_data.get('member_group_code') or row_data.get('Member_Group_Code')
+
+                            if mg_code:
+                                # Logic: Update if exists, Create if not
+                                obj, created = model_class.objects.update_or_create(
+                                    member_group_code=mg_code,
+                                    defaults=row_data
+                                )
+                                
+                                if created:
+                                    stats['total_created'] += 1
+                                else:
+                                    stats['total_updated'] += 1
+
+            # 5. Build the detailed success message for the HTML 'import-summary'
+            summary_msg = (
+                f"Successfully processed {stats['sheets_processed']} sheets. "
+                f"{stats['total_updated']} existing records were updated and "
+                f"{stats['total_created']} new records were created."
+            )
+            
+            return render(request, 'import_global_data.html', {
+                'success_message': summary_msg
+            })
+
         except Exception as e:
-            messages.error(request, f"Import Error: {e}")
+            return render(request, 'import_global_data.html', {
+                'error_message': f"Critical failure during Excel processing: {str(e)}"
+            })
+
     return render(request, 'import_global_data.html')
 
 # ==============================================================================

@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Import Master Data</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         /* Base Styles */
         body {
@@ -20,7 +21,7 @@
             box-sizing: border-box;
         }
         .main-card {
-            max-width: 800px; /* Wider for more professional look */
+            max-width: 800px;
             width: 100%;
             padding: 30px;
             background-color: #ffffff;
@@ -34,12 +35,15 @@
             margin-bottom: 25px;
             font-size: 28px;
         }
-        /* Message Styles (using class names from delegate_action.html for coloring) */
+        /* Message Styles */
         .message-box {
             padding: 15px;
             margin-bottom: 20px;
             border-radius: 6px;
             font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 12px;
         }
         .success {
             background-color: #d4edda;
@@ -51,6 +55,18 @@
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+        
+        /* 🟢 NEW: Import Summary Prompt Style */
+        .import-summary {
+            background-color: #e3f2fd;
+            border-left: 5px solid #2196f3;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+            font-size: 14px;
+            color: #0d47a1;
+        }
+
         /* Form/Input Styles */
         .form-group {
             margin-bottom: 15px;
@@ -66,7 +82,7 @@
         .btn-primary {
             width: 100%;
             padding: 12px;
-            background-color: #81c784; /* Primary Green */
+            background-color: #81c784; 
             color: white;
             border: none;
             border-radius: 5px;
@@ -75,7 +91,7 @@
             transition: background-color 0.3s ease;
         }
         .btn-primary:hover {
-            background-color: #66bb6a; /* Darker Green */
+            background-color: #66bb6a;
         }
         .return-button {
             display: block;
@@ -129,19 +145,22 @@
         
         {% if error_message %}
             <div class="message-box error" role="alert">
-                <strong>Error:</strong> {{ error_message }}
+                <i class="fas fa-exclamation-circle"></i>
+                <div><strong>Error:</strong> {{ error_message }}</div>
             </div>
         {% elif success_message %}
             <div class="message-box success" role="alert">
-                <strong>Success:</strong> {{ success_message }}
+                <i class="fas fa-check-circle"></i>
+                <div><strong>Success:</strong> Data Import was successful.</div>
             </div>
+            
         {% endif %}
 
         <form action="{% url 'import_global_data' %}" method="post" enctype="multipart/form-data">
             {% csrf_token %}
             
             <p style="font-size: 14px; margin-bottom: 20px;">
-                **Instructions:** Upload the Master Excel file (.xlsx) to update or create records across all 10 related tables. The update/create operation is based on the **'Member_Group_Code'** (mip\_number) column, which must be present.
+                <strong>Instructions:</strong> Upload the Master Excel file (.xlsx) to update or create records. The operation uses the <b>'Member_Group_Code'</b> to determine if a record should be updated or created.
             </p>
 
             <div id="drop-zone">
@@ -154,7 +173,7 @@
                     <span id="file-name">Click to select the **Master Excel file** (.xlsx)</span> or drag and drop it here.
                 </p>
                 <p style="font-size: 12px; color: #777; margin-top: 5px;">
-                    Ensure the file has sheets that match the table names (e.g., 'cbc', 'cfa', 'global_fund_contact_list').
+                    Ensure the file has sheets matching table names (e.g., 'cbc', 'cfa').
                 </p>
             </div>
 
@@ -163,8 +182,8 @@
                 <label for="header_row" style="font-size: 14px; color: #555;">File contains a header row (will be skipped)</label>
             </div>
 
-            <button type="submit" class="btn-primary">
-                💾 Update Global List
+            <button type="submit" class="btn-primary" id="submit-btn">
+                <span id="btn-text">💾 Update Global List</span>
             </button>
         </form>
     </div>
@@ -175,6 +194,8 @@
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('master_file');
         const fileNameSpan = document.getElementById('file-name');
+        const submitBtn = document.getElementById('submit-btn');
+        const btnText = document.getElementById('btn-text');
         
         const defaultText = 'Click to select the **Master Excel file** (.xlsx)';
         
@@ -186,28 +207,33 @@
             }
         }
 
-        dropZone.addEventListener('click', () => {
-            fileInput.click();
+        // Show loading state on click
+        submitBtn.addEventListener('click', function() {
+            if(fileInput.files.length > 0) {
+                btnText.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing... Please wait...';
+                submitBtn.style.backgroundColor = '#45a049';
+                submitBtn.style.cursor = 'wait';
+            }
         });
+
+        dropZone.addEventListener('click', () => fileInput.click());
 
         fileInput.addEventListener('change', (e) => {
             updateFileName(e.target.files[0]);
         });
 
-        // Basic Drag and Drop handlers
         dropZone.addEventListener('dragover', (e) => {
             e.preventDefault();
-            dropZone.style.borderColor = '#1e88e5'; // Blue border on hover
+            dropZone.style.borderColor = '#1e88e5';
         });
 
         dropZone.addEventListener('dragleave', () => {
-            dropZone.style.borderColor = '#81c784'; // Revert to green
+            dropZone.style.borderColor = '#81c784';
         });
 
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             dropZone.style.borderColor = '#81c784'; 
-
             const files = e.dataTransfer.files;
             if (files.length) {
                 fileInput.files = files;
