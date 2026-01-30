@@ -125,7 +125,7 @@ CREATE TABLE `auth_user` (
 
 LOCK TABLES `auth_user` WRITE;
 /*!40000 ALTER TABLE `auth_user` DISABLE KEYS */;
-INSERT INTO `auth_user` VALUES (1,'pbkdf2_sha256$1000000$jAUAN9GxmDLqK3EwdHo7Yg$DkNOr4kaYcwmI12Or3wviVMjPgP81v//f6GNqY7OAUk=','2026-01-05 13:45:16.688525',1,'omega','','','',1,1,'2026-01-05 13:30:36.359172');
+INSERT INTO `auth_user` VALUES (1,'pbkdf2_sha256$1000000$jAUAN9GxmDLqK3EwdHo7Yg$DkNOr4kaYcwmI12Or3wviVMjPgP81v//f6GNqY7OAUk=','2026-01-29 10:02:03.993851',1,'omega','','','',1,1,'2026-01-05 13:30:36.359172');
 /*!40000 ALTER TABLE `auth_user` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -385,6 +385,7 @@ CREATE TABLE `client_reminders` (
   `title` varchar(200) NOT NULL,
   `note` text NOT NULL,
   `reminder_date` date NOT NULL,
+  `reminder_time` time DEFAULT NULL,
   `created_by_id` int NOT NULL,
   `is_dismissed` tinyint(1) NOT NULL DEFAULT '0',
   `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
@@ -393,7 +394,7 @@ CREATE TABLE `client_reminders` (
   KEY `fk_reminders_user` (`created_by_id`),
   CONSTRAINT `fk_reminders_client` FOREIGN KEY (`client_id`) REFERENCES `client_client` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_reminders_user` FOREIGN KEY (`created_by_id`) REFERENCES `auth_user` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -402,7 +403,7 @@ CREATE TABLE `client_reminders` (
 
 LOCK TABLES `client_reminders` WRITE;
 /*!40000 ALTER TABLE `client_reminders` DISABLE KEYS */;
-INSERT INTO `client_reminders` VALUES (1,1,'sdg','adsf','2026-01-05',1,1,'2026-01-05 13:32:51'),(2,1,'asf','sdf','2026-01-05',1,1,'2026-01-05 13:33:05'),(3,1,'Birthday','Birtday','2026-01-06',1,0,'2026-01-05 13:36:20'),(4,1,'Bath day','Taking the bath','2026-01-05',1,1,'2026-01-05 13:44:38');
+INSERT INTO `client_reminders` VALUES (1,1,'sdg','adsf','2026-01-05',NULL,1,1,'2026-01-05 13:32:51'),(2,1,'asf','sdf','2026-01-05',NULL,1,1,'2026-01-05 13:33:05'),(3,1,'Birthday','Birtday','2026-01-06',NULL,1,0,'2026-01-05 13:36:20'),(4,1,'Bath day','Taking the bath','2026-01-05',NULL,1,1,'2026-01-05 13:44:38'),(5,8,'Meeting','Client meeting','2026-01-29','09:00:00',1,1,'2026-01-29 09:45:31');
 /*!40000 ALTER TABLE `client_reminders` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -552,7 +553,7 @@ CREATE TABLE `django_session` (
 
 LOCK TABLES `django_session` WRITE;
 /*!40000 ALTER TABLE `django_session` DISABLE KEYS */;
-INSERT INTO `django_session` VALUES ('1h9axng1gf4psva8r45h961zvbor89xu','.eJxVjEEOwiAQRe_C2hCGUigu3XsGMjCDVA0kpV0Z765NutDtf-_9lwi4rSVsnZcwkzgLEKffLWJ6cN0B3bHemkytrssc5a7Ig3Z5bcTPy-H-HRTs5VtrYsoeDWrOGDV452gwahytY0gxG7aUlWM2NgJZpGECQx4BJwOKSLw_Cx44uQ:1vcktY:D4KpuCr-d-k-SHuT7zPUzavxuCiNVYic_AEY5eBT9B8','2026-01-19 13:45:16.700519');
+INSERT INTO `django_session` VALUES ('1h9axng1gf4psva8r45h961zvbor89xu','.eJxVjEEOwiAQRe_C2hCGUigu3XsGMjCDVA0kpV0Z765NutDtf-_9lwi4rSVsnZcwkzgLEKffLWJ6cN0B3bHemkytrssc5a7Ig3Z5bcTPy-H-HRTs5VtrYsoeDWrOGDV452gwahytY0gxG7aUlWM2NgJZpGECQx4BJwOKSLw_Cx44uQ:1vcktY:D4KpuCr-d-k-SHuT7zPUzavxuCiNVYic_AEY5eBT9B8','2026-01-19 13:45:16.700519'),('3mmd965evfrb44pamxeippz5bffq4xqp','.eJxVjEEOwiAQRe_C2hCGUigu3XsGMjCDVA0kpV0Z765NutDtf-_9lwi4rSVsnZcwkzgLEKffLWJ6cN0B3bHemkytrssc5a7Ig3Z5bcTPy-H-HRTs5VtrYsoeDWrOGDV452gwahytY0gxG7aUlWM2NgJZpGECQx4BJwOKSLw_Cx44uQ:1vlOqi:0QPgZncwobm7bmxp4dr22VuvmAAHNQGFtWZS4E3EkVM','2026-02-12 10:02:04.002008');
 /*!40000 ALTER TABLE `django_session` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -773,4 +774,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-01-27 10:38:12
+-- Dump completed on 2026-01-30 10:14:35

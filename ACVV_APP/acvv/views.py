@@ -1190,10 +1190,12 @@ def reconciliation_worksheet(request):
                 if key.startswith('payment_method_'):
                     row_id = key.split('_')[2]
                     
+                    # 🟢 UPDATED: Added member_count_reconciled to the update call
                     ReconciliationWorksheet.objects.filter(pk=row_id).update(
                         company_status=request.POST.get(f'company_status_{row_id}'),
                         payment_method=request.POST.get(f'payment_method_{row_id}'),
                         arrears=request.POST.get(f'arrears_{row_id}', ''),
+                        member_count_reconciled=request.POST.get(f'member_count_{row_id}', 0) or 0,
                         contribution_amount_reconciled=request.POST.get(f'amount_{row_id}', 0.00) or 0.00,
                         reconciled_status=request.POST.get(f'recon_status_{row_id}'),
                         date_schedule_received=request.POST.get(f'schedule_{row_id}') or None,
@@ -1211,8 +1213,6 @@ def reconciliation_worksheet(request):
             # Update MySQL 'NOTES' using the DD.MM.YYYY format
             records_to_update = ReconciliationWorksheet.objects.filter(fiscal_month=current_fiscal)
             for rec in records_to_update:
-                # We save it as the 1st of the current fiscal month
-                # This ensures the next month sees this as the "Last Date"
                 formatted_note_date = current_fiscal.strftime("01.%m.%Y")
                 Globalacvv.objects.filter(mip_names=rec.mg_name).update(
                     notes=formatted_note_date
@@ -1247,17 +1247,12 @@ def reconciliation_worksheet(request):
             pulled_last_fiscal=Subquery(acvv_notes_sub)
         )
 
-    # 6. Apply 2-Month Arrears Aging Logic (Supporting DD.MM.YYYY format)
+    # 6. Apply 2-Month Arrears Aging Logic
     for r in records:
         if r.pulled_last_fiscal:
             try:
-                # Fix: Parse the specific MySQL format DD.MM.YYYY
                 last_date = datetime.strptime(r.pulled_last_fiscal, "%d.%m.%Y").date()
-                
-                # Difference calculation: Jan 2026 vs Dec 2025 = 1 month
                 diff = (current_fiscal.year - last_date.year) * 12 + (current_fiscal.month - last_date.month)
-                
-                # Rule: Blank if diff < 2. Arrears if diff >= 2.
                 r.is_overdue = diff >= 2
                 r.last_fiscal_display = last_date.strftime("%B %Y")
             except (ValueError, TypeError):
@@ -1277,7 +1272,7 @@ def reconciliation_worksheet(request):
         'can_close': today.day >= 8 and not records.filter(is_closed=True).exists(),
         'current_fiscal': current_fiscal
     })
-
+    
 @login_required
 def export_reconciliation_worksheet(request, date_str):
     """

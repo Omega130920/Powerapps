@@ -309,7 +309,7 @@ def email_registry_view(request):
     """
     MANAGER (omega) ONLY: Email List shows ALL emails and their current statuses.
     """
-    if request.user.username.lower() != 'omega':
+    if request.user.username.lower() not in ['omega', 'manager']:
         return redirect('dashboard')
     
     all_emails = CrmDelegateTo.objects.all().order_by('-received_timestamp')
@@ -320,7 +320,7 @@ def recycle_bin_view(request):
     """
     MANAGER (omega) ONLY: Recycle Bin shows tasks marked as recycled.
     """
-    if request.user.username.lower() != 'omega':
+    if request.user.username.lower() not in ['omega', 'manager']:
         return redirect('dashboard')
         
     tasks = CrmDelegateTo.objects.filter(is_recycled=True)
@@ -365,7 +365,7 @@ def delegate_email_view(request, email_id):
         return redirect('tasks')
 
     # Manager can see everyone, Agents see everyone else
-    available_agents = User.objects.filter(is_active=True).exclude(pk=request.user.pk)
+    available_agents = User.objects.filter(is_active=True)
 
     # ==========================================
     # 1. HANDLE POST (DELEGATION & RE-DELEGATION)
@@ -819,7 +819,7 @@ def add_member(request):
 def import_global_data(request):
     """Excel master file import handler with status tracking and record processing."""
     # 1. Access Control
-    if request.user.username.lower() != 'omega':
+    if request.user.username.lower() not in ['omega', 'manager']:
         return redirect('dashboard')
 
     if request.method == 'POST' and 'master_file' in request.FILES:
@@ -1148,7 +1148,7 @@ from django.db.models import Count
 
 @login_required
 def delegation_report_view(request):
-    if request.user.username.lower() != 'omega':
+    if request.user.username.lower() not in ['omega', 'manager']:
         return redirect('dashboard')
 
     # 1. Get Date Filters
@@ -1359,7 +1359,7 @@ def email_registry_view(request):
     MANAGER (omega) ONLY: Email Registry / Delegations Overview.
     Shows all emails, their statuses, and allows searching/pagination.
     """
-    if request.user.username.lower() != 'omega':
+    if request.user.username.lower() not in ['omega', 'manager']:
         messages.error(request, "Access restricted to management.")
         return redirect('dashboard')
     
@@ -1383,7 +1383,7 @@ def recycle_bin_view(request):
     MANAGER (omega) ONLY: View items marked for Recycle Bin.
     Filters by the status string 'Recycled'.
     """
-    if request.user.username.lower() != 'omega':
+    if request.user.username.lower() not in ['omega', 'manager']:
         messages.error(request, "Access restricted.")
         return redirect('dashboard')
 
@@ -1641,7 +1641,7 @@ def export_delegation_report_excel(request):
 
 @login_required
 def final_sla_report_view(request):
-    if request.user.username.lower() != 'omega':
+    if request.user.username.lower() not in ['omega', 'manager']:
         return redirect('dashboard')
 
     start_str = request.GET.get('start_date')

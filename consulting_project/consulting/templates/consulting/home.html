@@ -6,9 +6,12 @@
     <title>Consulting Dashboard</title>
     
     <style>
+        /* --- Root Colors (Preserving your original palette) --- */
         :root {
-            --primary-green: #4CAF50;
-            --accent-green: #388E3C;
+            --primary-green: rgb(119, 206, 97);
+            --accent-green: rgb(105, 187, 85);
+            --bg-light-green: #d1e2c4;
+            --text-default: #333;
         }
 
         html, body {
@@ -19,7 +22,8 @@
 
         body {
             font-family: sans-serif;
-            background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+            /* Preserving your original background */
+            background: linear-gradient(to bottom, var(--bg-light-green), rgb(143, 207, 127));
             display: flex;
             flex-direction: column;
             justify-content: flex-start;
@@ -27,6 +31,7 @@
             min-height: 100vh;
             padding: 20px;
             box-sizing: border-box;
+            color: var(--text-default);
         }
 
         h1 {
@@ -37,6 +42,7 @@
             width: 100%;
         }
 
+        /* --- Button Container Grid --- */
         .button-container {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -47,16 +53,17 @@
             margin: 20px auto;
         }
 
+        /* --- Button Block (Preserving your exact original style) --- */
         .button-block {
             padding: 50px 20px;
-            background-color: rgb(119, 206, 97);
-            border: 1px solid rgb(119, 206, 97);
+            background-color: var(--primary-green);
+            border: 1px solid var(--primary-green);
             border-radius: 5px;
             text-align: center;
-            cursor: pointer;
             text-decoration: none;
             color: white;
             font-size: 1.6em;
+            font-weight: bold;
             box-sizing: border-box;
             display: flex;
             justify-content: center;
@@ -65,11 +72,11 @@
         }
 
         .button-block:hover {
-            background-color: rgb(105, 187, 85);
-            border: 1px solid rgb(105, 187, 85);
+            background-color: var(--accent-green);
+            border: 1px solid var(--accent-green);
         }
 
-        /* Reminder Popup Styles */
+        /* --- Reminder Popup Styles (Preserved Logic and Layout) --- */
         #reminderOverlay {
             position: fixed;
             top: 0;
@@ -116,6 +123,24 @@
             font-weight: bold;
             font-size: 1.1em;
             cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        
+        .ack-button:hover {
+            background: #2e7d32;
+        }
+
+        /* Responsive adjustments for mobile */
+        @media (max-width: 768px) {
+            .button-container {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            h1 { font-size: 2.5em; }
+        }
+        @media (max-width: 480px) {
+            .button-container {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>

@@ -177,14 +177,6 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
         {% endif %}
     </div>
     {% endif %}
-    
-    {% if messages %}
-        {% for message in messages %}
-        <div class="alert alert-{{ message.tags }}" style="padding:10px; margin-bottom:15px; border-radius:4px; background-color:#fff3cd; color:#856404; border:1px solid #ffeeba;">
-            {{ message }}
-        </div>
-        {% endfor %}
-    {% endif %}
 
     <form method="post" action="{% url 'outlook_delegate_to' email_id=email_id %}">
         {% csrf_token %}

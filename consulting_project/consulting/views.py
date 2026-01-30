@@ -463,42 +463,34 @@ def dismiss_all_reminders(request):
         
     return redirect('consulting_home')
 
-# ==========================================
-# 2. CALENDAR & FILTERING
+## ==========================================
+# 2. CALENDAR & FILTERING (Updated for Search, History & Time)
 # ==========================================
 @login_required
 def client_calendar(request):
-    # Fetch all clients for the dropdowns
+    # Fetch all clients for the search/dropdown
     clients = ClientClient.objects.all().order_by('client_name')
     
-    # Get client_id from the URL (the GET request from the filter bar)
+    # 1. TABLE LOGIC (Remains conditional for the UI below the search)
     filter_client_id = request.GET.get('view_client')
     selected_client = None
-
-    # THE FIX: This logic must exist and be the ONLY 'client_calendar' function
     if filter_client_id and filter_client_id.strip():
         try:
-            # Show future reminders strictly for the SPECIFIC selected client
-            reminders_list = ClientReminder.objects.filter(
-                client_id=filter_client_id,
-                reminder_date__gte=date.today(),
-                is_dismissed=False
-            ).order_by('reminder_date')
-            
-            # This allows the template to show "Upcoming Schedule for: [Name]"
             selected_client = ClientClient.objects.get(id=filter_client_id)
+            reminders_list = ClientReminder.objects.filter(client_id=filter_client_id).order_by('-reminder_date', '-reminder_time') 
         except (ClientClient.DoesNotExist, ValueError):
             reminders_list = ClientReminder.objects.none()
     else:
-        # Default: Show ALL upcoming reminders for all clients
-        reminders_list = ClientReminder.objects.filter(
-            reminder_date__gte=date.today(),
-            is_dismissed=False
-        ).order_by('reminder_date')
+        reminders_list = ClientReminder.objects.filter(reminder_date__gte=date.today(), is_dismissed=False).order_by('reminder_date', 'reminder_time')
+
+    # 2. MASTER SCHEDULE LOGIC (This is for the Popup)
+    # This sees EVERYTHING regardless of what client is selected
+    all_reminders_full = ClientReminder.objects.all().select_related('client')
 
     return render(request, 'calendar.html', {
         'clients': clients,
         'reminders_list': reminders_list,
+        'all_reminders_full': all_reminders_full, # THE MASTER LIST
         'selected_client': selected_client
     })
 
@@ -510,18 +502,40 @@ def add_reminder(request):
     if request.method == "POST":
         client_id = request.POST.get('client_id')
         reminder_date = request.POST.get('date')
+        reminder_time = request.POST.get('time') # New field from Teams-view slots
         title = request.POST.get('title')
         note = request.POST.get('note')
+        reminder_id = request.POST.get('reminder_id') 
+
+        # Clean the time input: if no time is selected, we treat it as an all-day reminder (None)
+        if not reminder_time or reminder_time == "undefined":
+            reminder_time = None
 
         if client_id and reminder_date:
-            ClientReminder.objects.create(
-                client_id=client_id,
-                title=title,
-                note=note,
-                reminder_date=reminder_date,
-                created_by=request.user, 
-                is_dismissed=False
-            )
+            if reminder_id:
+                # UPDATE EXISTING logic
+                reminder = get_object_or_404(ClientReminder, id=reminder_id)
+                reminder.reminder_date = reminder_date
+                reminder.reminder_time = reminder_time # Update time
+                reminder.title = title
+                reminder.note = note
+                reminder.save()
+                messages.success(request, "Reminder/Meeting updated successfully.")
+            else:
+                # CREATE NEW logic
+                ClientReminder.objects.create(
+                    client_id=client_id,
+                    title=title,
+                    note=note,
+                    reminder_date=reminder_date,
+                    reminder_time=reminder_time, # Save specific hour
+                    created_by=request.user, 
+                    is_dismissed=False
+                )
+                messages.success(request, f"New meeting scheduled for {reminder_date} at {reminder_time or 'All Day'}.")
+        
+        # Redirect back to the specific client's planner view to keep the workspace open
+        return redirect(f"{reverse('client_calendar')}?view_client={client_id}")
         
     return redirect('client_calendar')
 

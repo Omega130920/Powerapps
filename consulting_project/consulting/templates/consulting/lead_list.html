@@ -3,302 +3,330 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>New Leads List</title>
+    <title>New Leads List | Consulting Management</title>
     
     <style>
-        /* --- Root Colors (Reused from Client List) --- */
+        /* --- Professional Style Guide --- */
         :root {
             --primary-green: rgb(119, 206, 97);
             --accent-green: rgb(105, 187, 85);
-            --bg-light-green: #e9f5e0; 
-            --page-bg: linear-gradient(to bottom, #d1e2c4);
-            --text-default: #333;
-            --export-blue: #0070c0;
+            --bg-light-green: #f4f9f1; 
+            --page-bg: #f0f4f8;
+            --text-default: #2d3436;
+            --text-muted: #636e72;
+            --export-blue: #0984e3;
+            --white: #ffffff;
+            --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background: var(--page-bg);
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: linear-gradient(180deg, #d1e2c4 0%, #f0f4f8 100%);
             margin: 0;
             padding: 0;
+            color: var(--text-default);
+            min-height: 100vh;
         }
 
         /* --- Header Bar --- */
         .header-bar {
-            background-color: var(--primary-green);
-            padding: 15px 25px;
+            background-color: var(--white);
+            padding: 12px 30px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
-        .header-bar .search-box {
-            padding: 10px;
-            border-radius: 5px;
-            border: 1px solid #777;
-            font-size: 1rem;
-            width: 250px;
-            box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
-        }
-        .header-bar .export-button {
-            background-color: var(--export-blue);
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            font-size: 1rem;
+
+        .back-link {
+            text-decoration: none;
+            color: var(--text-muted);
             font-weight: 600;
-            cursor: pointer;
-            transition: background-color 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            transition: all 0.2s;
         }
+
+        .back-link:hover {
+            background-color: #f1f2f6;
+            color: var(--accent-green);
+        }
+
         .header-controls {
              display: flex;
              gap: 15px;
              align-items: center;
         }
 
-        /* --- Main Content Area --- */
-        .content-area {
-            padding: 25px;
-            overflow-x: auto;
+        .search-box {
+            padding: 10px 15px;
+            border-radius: 8px;
+            border: 1px solid #dfe6e9;
+            font-size: 0.95rem;
+            width: 300px;
+            transition: all 0.2s;
+            outline: none;
         }
+
+        .search-box:focus {
+            border-color: var(--primary-green);
+            box-shadow: 0 0 0 3px rgba(119, 206, 97, 0.2);
+        }
+
+        .export-button {
+            background-color: var(--export-blue);
+            color: white;
+            padding: 10px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .export-button:hover { background-color: #0771c1; }
+
+        /* --- Content Area --- */
+        .content-area {
+            padding: 30px;
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+
         h1 {
             color: var(--accent-green);
-            font-size: 1.8rem;
-            margin-top: 0;
-            margin-bottom: 20px;
+            font-size: 1.7rem;
+            margin-bottom: 25px;
+            font-weight: 700;
         }
 
         /* --- Lead Table --- */
+        .table-container {
+            background: var(--white);
+            border-radius: 12px;
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            overflow-x: auto;
+        }
+
         .lead-table {
             width: 100%;
-            min-width: 1500px; 
+            min-width: 1600px; 
             border-collapse: collapse;
-            background-color: #fff;
-            border-radius: 8px;
-            overflow: hidden; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: left;
         }
 
         .lead-table th, .lead-table td {
-            border: 1px solid #ddd;
-            padding: 12px 15px;
-            text-align: left;
-            font-size: 0.95rem;
-            color: var(--text-default);
+            padding: 16px 20px;
+            border-bottom: 1px solid #f1f2f6;
+            font-size: 0.88rem;
         }
         
+        /* Header Rows */
         .lead-table thead .header-row {
             background-color: var(--accent-green);
             color: white;
-            font-weight: 700;
-            text-align: center;
         }
-        .lead-table thead .header-row th {
-            border-color: #72a566;
-            vertical-align: middle;
+
+        .lead-table thead th {
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            font-size: 0.75rem;
+            border: none;
         }
 
         .lead-table thead .filter-row {
-            background-color: var(--bg-light-green); 
-        }
-        
-        .lead-table .filter-row th {
-            padding: 8px 15px;
+            background-color: #fbfdfa;
         }
 
         .filter-input {
             width: 100%;
-            box-sizing: border-box;
-            max-width: none;
-            padding: 8px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            font-size: 0.9rem;
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 0.82rem;
+            outline: none;
+            transition: border-color 0.2s;
         }
-        
-        /* Table Body Rows */
-        .lead-table tbody tr:nth-child(even) {
-            background-color: #f7fff5;
-        }
-        .lead-table tbody tr:hover {
-            background-color: #d1e2c4;
-            cursor: pointer;
-        }
-        
-        /* Status Colors */
-        .status-new { background-color: #e3f2fd; color: #1e88e5; }
-        .status-in-progress { background-color: #fff3e0; color: #ff9800; }
-        .status-taken-up { background-color: #e8f5e9; color: var(--primary-green); }
-        .status-not-taken-up { background-color: #ffebee; color: #e53935; }
-        .status-parked { background-color: #f3e5f5; color: #8e24aa; }
 
+        .filter-input:focus { border-color: var(--primary-green); }
+
+        /* Row Interactivity */
+        .lead-table tbody tr { transition: background-color 0.2s; }
+        .lead-table tbody tr:hover { background-color: #f8fafc; cursor: pointer; }
+        .lead-table tbody tr:nth-child(even) { background-color: #fcfdfb; }
+        
+        /* Status Badge System */
         .lead-status { 
-            padding: 4px 8px; 
-            border-radius: 4px; 
-            font-weight: 600; 
-            white-space: nowrap;
+            padding: 4px 10px; 
+            border-radius: 20px; 
+            font-weight: 700; 
+            font-size: 0.72rem;
+            text-transform: uppercase;
             display: inline-block;
-            font-size: 0.85rem;
+            letter-spacing: 0.04em;
         }
 
-        /* Sorter Button */
+        .status-new { background-color: #e3f2fd; color: #1e88e5; }
+        .status-inprogress { background-color: #fff4e5; color: #b7791f; }
+        .status-takenup { background-color: #e3f9e5; color: #1f7a1f; }
+        .status-nottakenup { background-color: #ffe5e5; color: #a31515; }
+        .status-parked { background-color: #f3e8ff; color: #6b21a8; }
+
+        /* Sorter Styling */
         .sorter-button {
-            background: none;
-            border: none;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 6px 10px;
+            border-radius: 4px;
             color: white;
             cursor: pointer;
             font-weight: 700;
             display: flex;
             align-items: center;
             width: 100%;
-            text-align: center;
             justify-content: center;
+            transition: background 0.2s;
         }
-        .sorter-icon { margin-left: 5px; font-size: 0.7rem; }
+
+        .sorter-button:hover { background: rgba(255,255,255,0.2); }
+        .sorter-icon { margin-left: 8px; font-size: 0.8rem; opacity: 0.8; }
 
     </style>
 </head>
 <body>
 
     <div class="header-bar">
-        <!-- Assuming a consulting_home URL exists for general navigation -->
-        <a href="{% url 'consulting_home' %}" class="back-link" style="color: white; font-weight: 700;">&larr; Back to Home</a>
+        <a href="{% url 'consulting_home' %}" class="back-link">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            Back to Home Screen
+        </a>
         <div class="header-controls">
-             <input type="text" class="search-box" id="globalSearchInput" placeholder="Search Company or Contact..."> 
-             <button class="export-button">Export</button>
+             <input type="text" class="search-box" id="globalSearchInput" placeholder="Company, Contact or Notes..."> 
+             <button class="export-button">
+                 <svg style="margin-right:8px" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                 Export
+             </button>
         </div>
     </div>
 
     <div class="content-area">
-        <!-- THIS IS THE CORRECT H1 FOR THE LIST VIEW -->
-        <h1>New Leads</h1>
+        <h1>New Leads Pipeline</h1>
 
-        <table class="lead-table" id="leadTable">
-            <thead>
-                <tr class="header-row">
-                    <th>LEAD RECEIVED FROM</th>
-                    <th>
-                        <!-- Auto sort from new to old - lead received date -->
-                        <button class="sorter-button" onclick="sortLeads('-date_received')">
-                            DATE RECEIVED
-                            <span class="sorter-icon" id="receivedDateSortIcon">
-                                {% if current_sort == '-date_received' %}▼{% else %}↕{% endif %}
-                            </span>
-                        </button>
-                    </th>
-                    <th>COMPANY NAME</th>
-                    <th>CONTACT PERSON</th>
-                    <th>CONTACT NUMBER</th>
-                    <th>CONTACT EMAIL</th>
-                    <th>PRODUCT REQUIRED</th>
-                    <th>STATUS</th>
-                    <th>ASSIGNED TO</th>
-                    <th>DATE ACCEPTED</th>
-                    <th>START DATE</th>
-                    <th>
-                        <!-- Sort button for last follow up: toggles new to old/old to new -->
-                        <button class="sorter-button" onclick="sortLeads('last_follow_up')">
-                            LAST FOLLOW UP
-                            <span class="sorter-icon" id="followUpSortIcon">
-                                {% if current_sort == 'last_follow_up_desc' %}▼{% elif current_sort == 'last_follow_up_asc' %}▲{% else %}↕{% endif %}
-                            </span>
-                        </button>
-                    </th>
-                    <th>NOTES</th>
-                </tr>
-                <tr class="filter-row" id="filterRow">
-                    <!-- 0: LEAD RECEIVED FROM -->
-                    <th><input type="text" class="filter-input" placeholder="Filter source..." data-column="0"></th>
-                    <!-- 1: DATE RECEIVED (Filtering, not sorting) -->
-                    <th><input type="text" class="filter-input" placeholder="Filter date..." data-column="1"></th>
-                    <!-- 2: COMPANY NAME -->
-                    <th><input type="text" class="filter-input" placeholder="Filter company..." data-column="2"></th>
-                    <!-- 3: CONTACT PERSON -->
-                    <th><input type="text" class="filter-input" placeholder="Filter contact..." data-column="3"></th>
-                    <!-- 4: CONTACT NUMBER -->
-                    <th><input type="text" class="filter-input" placeholder="Filter number..." data-column="4"></th>
-                    <!-- 5: CONTACT EMAIL -->
-                    <th><input type="text" class="filter-input" placeholder="Filter email..." data-column="5"></th>
-                    <!-- 6: PRODUCT REQUIRED (Dropdown) -->
-                    <th>
-                        <select class="filter-input" data-column="6">
-                            <option value="">All</option>
-                            {% for product in product_options %}
-                            <option value="{{ product|lower }}">{{ product }}</option>
-                            {% endfor %}
-                        </select>
-                    </th>
-                    <!-- 7: STATUS (Dropdown filter) -->
-                    <th>
-                        <select class="filter-input" data-column="7">
-                            <option value="">All</option>
-                            <option value="new">New</option>
-                            <option value="in progress">In Progress</option>
-                            <option value="taken up">Taken Up</option>
-                            <option value="not taken up">Not Taken Up</option>
-                            <option value="parked">Parked</option>
-                        </select>
-                    </th>
-                    <!-- 8: ASSIGNED TO (Dropdown filter) -->
-                    <th>
-                        <select class="filter-input" data-column="8">
-                            <option value="">All</option>
-                            {% for consultant in consultant_options %}
-                            <option value="{{ consultant|lower }}">{{ consultant|upper }}</option>
-                            {% endfor %}
-                        </select>
-                    </th>
-                    <!-- 9: DATE ACCEPTED -->
-                    <th><input type="text" class="filter-input" placeholder="Filter accepted date..." data-column="9"></th>
-                    <!-- 10: START DATE -->
-                    <th><input type="text" class="filter-input" placeholder="Filter start date..." data-column="10"></th>
-                    <!-- 11: LAST FOLLOW UP -->
-                    <th><input type="text" class="filter-input" placeholder="Filter last follow up..." data-column="11"></th>
-                    <!-- 12: NOTES -->
-                    <th><input type="text" class="filter-input" placeholder="Filter notes..." data-column="12"></th>
-                </tr>
-            </thead>
-            <tbody id="leadTableBody">
-                {% for lead in leads %}
-                
-                <tr data-lead-id="{{ lead.id }}" data-status="{{ lead.status|lower|cut:' ' }}">
-                    <td>{{ lead.lead_received_from }}</td>
-                    <td>{{ lead.date_received|date:"Y-m-d" }}</td>
-                    <td>{{ lead.company_name|upper }}</td>
-                    <td>{{ lead.contact_person }}</td>
-                    <td>{{ lead.contact_number|default:"N/A" }}</td>
-                    <td>{{ lead.contact_email|default:"N/A" }}</td>
-                    <td>{{ lead.product_required }}</td>
-                    <td>
-                        <!-- Status formatting: uses lead.status converted to lowercase/hyphenated CSS class -->
-                        {% with status_class=lead.status|lower|cut:' ' %}
-                        <span class="lead-status status-{{ status_class }}">{{ lead.status|upper }}</span>
-                        {% endwith %}
-                    </td>
-                    <td>{{ lead.assigned_to|upper|default:"UNASSIGNED" }}</td>
-                    <td>{{ lead.date_accepted|default:"N/A"|date:"Y-m-d" }}</td>
-                    <td>{{ lead.start_date|default:"N/A"|date:"Y-m-d" }}</td>
-                    <td>{{ lead.last_follow_up|default:"N/A"|date:"Y-m-d" }}</td>
-                    <td title="{{ lead.internal_notes|default:'No notes' }}">{{ lead.internal_notes|truncatechars:30 }}</td>
-                </tr>
-                
-                {% empty %}
-                <tr>
-                    <td colspan="13" style="text-align: center; padding: 40px; color: #888;">
-                        No new leads found.
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="table-container">
+            <table class="lead-table" id="leadTable">
+                <thead>
+                    <tr class="header-row">
+                        <th>Lead From</th>
+                        <th>
+                            <button class="sorter-button" onclick="sortLeads('-date_received')">
+                                Date Received
+                                <span class="sorter-icon" id="receivedDateSortIcon">
+                                    {% if current_sort == '-date_received' %}▼{% else %}↕{% endif %}
+                                </span>
+                            </button>
+                        </th>
+                        <th>Company Name</th>
+                        <th>Contact Person</th>
+                        <th>Number</th>
+                        <th>Email</th>
+                        <th>Product Required</th>
+                        <th>Status</th>
+                        <th>Assigned To</th>
+                        <th>Date Accepted</th>
+                        <th>Start Date</th>
+                        <th>
+                            <button class="sorter-button" onclick="sortLeads('last_follow_up')">
+                                Last Follow Up
+                                <span class="sorter-icon" id="followUpSortIcon">
+                                    {% if current_sort == 'last_follow_up_desc' %}▼{% elif current_sort == 'last_follow_up_asc' %}▲{% else %}↕{% endif %}
+                                </span>
+                            </button>
+                        </th>
+                        <th>Internal Notes</th>
+                    </tr>
+                    <tr class="filter-row" id="filterRow">
+                        <th><input type="text" class="filter-input" placeholder="Filter..." data-column="0"></th>
+                        <th><input type="text" class="filter-input" placeholder="Filter..." data-column="1"></th>
+                        <th><input type="text" class="filter-input" placeholder="Filter..." data-column="2"></th>
+                        <th><input type="text" class="filter-input" placeholder="Filter..." data-column="3"></th>
+                        <th><input type="text" class="filter-input" placeholder="Filter..." data-column="4"></th>
+                        <th><input type="text" class="filter-input" placeholder="Filter..." data-column="5"></th>
+                        <th>
+                            <select class="filter-input" data-column="6">
+                                <option value="">All Products</option>
+                                {% for product in product_options %}
+                                <option value="{{ product|lower }}">{{ product }}</option>
+                                {% endfor %}
+                            </select>
+                        </th>
+                        <th>
+                            <select class="filter-input" data-column="7">
+                                <option value="">All Status</option>
+                                <option value="new">New</option>
+                                <option value="in progress">In Progress</option>
+                                <option value="taken up">Taken Up</option>
+                                <option value="not taken up">Not Taken Up</option>
+                                <option value="parked">Parked</option>
+                            </select>
+                        </th>
+                        <th>
+                            <select class="filter-input" data-column="8">
+                                <option value="">All Staff</option>
+                                {% for consultant in consultant_options %}
+                                <option value="{{ consultant|lower }}">{{ consultant|upper }}</option>
+                                {% endfor %}
+                            </select>
+                        </th>
+                        <th><input type="text" class="filter-input" placeholder="Filter..." data-column="9"></th>
+                        <th><input type="text" class="filter-input" placeholder="Filter..." data-column="10"></th>
+                        <th><input type="text" class="filter-input" placeholder="Filter..." data-column="11"></th>
+                        <th><input type="text" class="filter-input" placeholder="Filter..." data-column="12"></th>
+                    </tr>
+                </thead>
+                <tbody id="leadTableBody">
+                    {% for lead in leads %}
+                    <tr data-lead-id="{{ lead.id }}" data-status="{{ lead.status|lower|cut:' ' }}">
+                        <td>{{ lead.lead_received_from }}</td>
+                        <td style="font-weight: 600;">{{ lead.date_received|date:"Y-m-d" }}</td>
+                        <td style="font-weight: 700; color: var(--accent-green);">{{ lead.company_name|upper }}</td>
+                        <td>{{ lead.contact_person }}</td>
+                        <td>{{ lead.contact_number|default:"N/A" }}</td>
+                        <td>{{ lead.contact_email|default:"N/A" }}</td>
+                        <td>{{ lead.product_required }}</td>
+                        <td>
+                            {% with status_class=lead.status|lower|cut:' ' %}
+                            <span class="lead-status status-{{ status_class }}">{{ lead.status|upper }}</span>
+                            {% endwith %}
+                        </td>
+                        <td>{{ lead.assigned_to|upper|default:"UNASSIGNED" }}</td>
+                        <td>{{ lead.date_accepted|default:"N/A"|date:"Y-m-d" }}</td>
+                        <td>{{ lead.start_date|default:"N/A"|date:"Y-m-d" }}</td>
+                        <td style="color: var(--export-blue); font-weight: 500;">{{ lead.last_follow_up|default:"N/A"|date:"Y-m-d" }}</td>
+                        <td title="{{ lead.internal_notes|default:'No notes' }}" style="color: var(--text-muted);">{{ lead.internal_notes|truncatechars:30 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="13" style="text-align: center; padding: 60px; color: var(--text-muted);">
+                            No new leads found in the database.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <script>
-    // Wait for the document to be fully loaded
     document.addEventListener('DOMContentLoaded', function () {
-        
-        // --- Core Filtering Logic ---
         const globalSearch = document.getElementById('globalSearchInput'); 
         const filterInputs = document.querySelectorAll('#filterRow .filter-input');
         const tableBody = document.getElementById('leadTableBody');
@@ -321,7 +349,6 @@
                 
                 let rowVisible = true; 
 
-                // 1. Global Search Filter 
                 if (globalSearchValue) {
                     const companyName = cells[2].textContent.toLowerCase();
                     const contactPerson = cells[3].textContent.toLowerCase();
@@ -335,21 +362,18 @@
                     }
                 }
 
-                // 2. Column Filters
                 if (rowVisible) {
                     for (const filter of columnFilters) {
-                        if (filter.value === "") continue; // Skip if filter is empty
+                        if (filter.value === "") continue; 
                         
                         const cellValue = cells[filter.column].textContent.toLowerCase().trim();
                         
-                        // Dropdowns (Product (6), Status (7), Assigned To (8)) use exact match
                         if ([6, 7, 8].includes(filter.column)) { 
                             if (cellValue !== filter.value) {
                                 rowVisible = false;
                                 break;
                             }
                         } else {
-                            // Text input filters use 'includes' (wildcard search).
                             if (!cellValue.includes(filter.value)) {
                                 rowVisible = false;
                                 break; 
@@ -361,21 +385,16 @@
             }
         }
 
-        // Attach event listeners
-        if (globalSearch) {
-            globalSearch.addEventListener('input', filterTable);
-        }
+        if (globalSearch) { globalSearch.addEventListener('input', filterTable); }
         filterInputs.forEach(input => {
             input.addEventListener('input', filterTable);
             input.addEventListener('change', filterTable);
         });
         
-        // --- Sorting Logic (Using URL parameters to trigger server-side sort) ---
         window.sortLeads = function(sortKey) {
             const currentSort = "{{ current_sort }}";
             let newSort;
             
-            // Toggle between ascending and descending for Last Follow Up
             if (sortKey === 'last_follow_up') {
                 if (currentSort === 'last_follow_up_asc') {
                     newSort = 'last_follow_up_desc';
@@ -383,30 +402,27 @@
                     newSort = 'last_follow_up_asc';
                 }
             } else if (sortKey === '-date_received') {
-                 // Re-assert descending order for date received if clicked
                  newSort = '-date_received';
             } else {
                 newSort = sortKey;
             }
             
-            // Build the new URL, preserving current location but replacing the sort param
             const url = new URL(window.location.href);
             url.searchParams.set('sort', newSort);
             window.location.href = url.toString();
         }
 
-        // --- Row Click Handler (UPDATED to redirect to lead_info) ---
+        // --- FIXED ROW CLICK HANDLER ---
         document.querySelectorAll('#leadTableBody tr').forEach(row => {
             row.addEventListener('click', function(event) {
                 const leadId = row.dataset.leadId;
                 if (leadId) {
-                    // Redirect to the new lead info page (e.g., /leads/1/info/)
-                    window.location.href = `/leads/${leadId}/info/`; 
+                    // Correcting path to include 'consulting' prefix as per URL patterns
+                    window.location.href = `/consulting/leads/${leadId}/info/`; 
                 }
             });
         });
     });
     </script>
-
 </body>
 </html>

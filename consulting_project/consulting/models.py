@@ -346,11 +346,15 @@ class ClientReminder(models.Model):
     """
     Unmanaged model for client-specific calendar reminders.
     Table created manually via SQL referencing 'client_client'.
+    Now supports hourly time slots for Teams-style planning.
     """
     client = models.ForeignKey(ClientClient, on_delete=models.CASCADE, db_column='client_id')
     title = models.CharField(max_length=200)
     note = models.TextField()
     reminder_date = models.DateField()
+    # NEW FIELD: Stores the specific hour/time for the reminder
+    reminder_time = models.TimeField(null=True, blank=True) 
+    
     # Using Django's built-in User table for auth_user reference
     created_by = models.ForeignKey('auth.User', on_delete=models.CASCADE, db_column='created_by_id')
     is_dismissed = models.BooleanField(default=False)
@@ -363,4 +367,5 @@ class ClientReminder(models.Model):
         verbose_name_plural = 'Client Reminders'
 
     def __str__(self):
-        return f"{self.title} - {self.client.client_name}"
+        time_str = f" at {self.reminder_time}" if self.reminder_time else ""
+        return f"{self.title} - {self.client.client_name}{time_str}"

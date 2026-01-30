@@ -10,33 +10,51 @@
         .main-wrapper { max-width: 1400px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
         .worksheet-container { background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .top-nav-bar { display: flex; justify-content: space-between; align-items: center; background: white; padding: 15px 25px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        
+        /* Double Scrollbar Styles */
+        .top-scrollbar-wrapper { width: 100%; overflow-x: auto; overflow-y: hidden; height: 20px; margin-bottom: -10px; }
+        .top-scrollbar-scroll { height: 20px; display: block; }
+        
+        .table-responsive { width: 100%; overflow-x: auto; margin-top: 10px; border: 1px solid #eee; border-radius: 5px; }
+        
         .fiscal-selector { display: flex; align-items: center; gap: 15px; }
         .fiscal-selector select { padding: 8px 12px; border: 1px solid #aed581; border-radius: 5px; font-weight: 600; color: #2e7d32; outline: none; background: white; }
         .header-section { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
         .fiscal-info h1 { margin: 0; color: #1b5e20; font-size: 1.8rem; }
         .fiscal-info p { margin: 5px 0; color: #666; font-weight: 500; }
-        .table-responsive { width: 100%; overflow-x: auto; margin-top: 10px; border: 1px solid #eee; border-radius: 5px; }
+        
         .search-container { margin-bottom: 20px; position: relative; max-width: 450px; }
         .search-input { width: 100%; padding: 12px 40px 12px 15px; border: 2px solid #e0e0e0; border-radius: 25px; font-size: 14px; transition: all 0.3s; }
         .search-input:focus { border-color: #2e7d32; outline: none; box-shadow: 0 0 8px rgba(46, 125, 50, 0.2); }
         .search-icon { position: absolute; right: 15px; top: 13px; color: #999; }
-        .recon-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-        .recon-table th { background-color: #2e7d32; color: white; padding: 12px 8px; text-align: left; position: sticky; top: 0; white-space: nowrap; z-index: 10; border-right: 1px solid #388e3c; }
-        .recon-table td { padding: 8px; border-bottom: 1px solid #eee; border-right: 1px solid #f5f5f5; min-width: 130px; }
+        
+        .recon-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; table-layout: auto; }
+        .recon-table th { background-color: #2e7d32; color: white; padding: 8px 8px; text-align: left; position: sticky; top: 0; white-space: nowrap; z-index: 10; border-right: 1px solid #388e3c; }
+        .recon-table td { padding: 8px; border-bottom: 1px solid #eee; border-right: 1px solid #f5f5f5; min-width: 50px; }
         .recon-table tr:hover { background-color: #f9f9f9; }
+        
         .readonly-val { font-weight: 700; color: #1b5e20; padding: 6px; display: block; background: #f1f8e9; border-radius: 4px; text-align: center; }
         .input-field { width: 100%; padding: 6px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-size: 13px; }
+        
+        select.status-active { border-left: 4px solid #2e7d32; }
+        select.status-nomember { border-left: 4px solid #d32f2f; }
+
         .btn { padding: 10px 16px; border-radius: 6px; font-weight: bold; text-decoration: none; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-size: 14px; transition: 0.3s; }
         .btn-save { background-color: #1976d2; color: white; }
         .btn-export { background-color: #43a047; color: white; }
         .btn-close { background-color: #d32f2f; color: white; }
         .btn-back { background-color: #616161; color: white; }
+        
         .status-badge { padding: 4px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; text-transform: uppercase; }
         .status-unreconciled { background: #fff3e0; color: #e65100; }
         .status-reconciled { background: #e8f5e9; color: #2e7d32; }
-        
-        .badge-current { background-color: #e8f5e9; color: #2e7d32; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
         .overdue-icon { color: #d32f2f; margin-left: 5px; }
+
+        /* Arrears styling inside the red block */
+        .arrears-input { border: 2px solid #d32f2f !important; background-color: #fff5f5 !important; color: #b71c1c; font-weight: bold; text-align: center; }
+        
+        /* Member count styling */
+        .member-input { border: 1px solid #1976d2 !important; font-weight: bold; text-align: center; color: #0d47a1; background: #e3f2fd; }
     </style>
 </head>
 <body>
@@ -88,20 +106,23 @@
         </div>
 
         <div class="search-container">
-            <input type="text" id="reconSearch" class="search-input" placeholder="Search by MG Name or MG Code...">
+            <input type="text" id="reconSearch" class="search-input" placeholder="Search by MG Code...">
             <i class="fas fa-search search-icon"></i>
         </div>
 
         <form method="post">
             {% csrf_token %}
-            <div class="table-responsive">
+            
+            <div class="top-scrollbar-wrapper" id="topScrollWrapper">
+                <div class="top-scrollbar-scroll" id="topScrollDiv"></div>
+            </div>
+
+            <div class="table-responsive" id="tableWrapper">
                 <table class="recon-table" id="reconTable">
                     <thead>
                         <tr>
-                            <th>MG Name</th>
                             <th>MG Code</th>
                             <th>Company Status</th> 
-                            <th>Payment Method</th>
                             <th>Last Fiscal Reconciled</th> 
                             <th>Arrears</th>
                             <th>Member Count Reconciled</th> 
@@ -115,19 +136,18 @@
                     <tbody>
                         {% for r in records %}
                         <tr class="recon-row">
-                            <td class="search-name"><strong>{{ r.mg_name }}</strong></td>
-                            <td class="search-code">{{ r.mg_code }}</td>
+                            <td class="search-code"><strong>{{ r.mg_code }}</strong></td>
                             
                             <td>
-                                <span class="readonly-val">{{ r.acvv_status|default:"-" }}</span>
-                            </td>
-
-                            <td>
-                                <select name="payment_method_{{ r.id }}" class="input-field" {% if is_closed %}disabled{% endif %}>
-                                    <option value="Debit Order" {% if r.payment_method == 'Debit Order' %}selected{% endif %}>Debit Order</option>
-                                    <option value="EFT" {% if r.payment_method == 'EFT' %}selected{% endif %}>EFT</option>
+                                <select name="company_status_{{ r.id }}" 
+                                        class="input-field {% if r.company_status == 'Active' %}status-active{% else %}status-nomember{% endif %}" 
+                                        {% if is_closed %}disabled{% endif %}>
+                                    <option value="Active" {% if r.company_status == 'Active' %}selected{% endif %}>Active</option>
+                                    <option value="No Member" {% if r.company_status == 'No Member' %}selected{% endif %}>No Member</option>
                                 </select>
                             </td>
+
+                            <input type="hidden" name="payment_method_{{ r.id }}" value="{{ r.payment_method }}">
 
                             <td>
                                 <span class="readonly-val">
@@ -140,8 +160,10 @@
 
                             <td>
                                 {% if r.is_overdue %}
-                                    <input type="text" name="arrears_{{ r.id }}" value="{{ r.arrears|default:'' }}" 
-                                           class="input-field" style="border: 1px solid #ffb300; background: #fffde7;"
+                                    <input type="text" name="arrears_{{ r.id }}" 
+                                           value="{% if r.arrears %}{{ r.arrears }}{% else %}Arrears{% endif %}" 
+                                           class="input-field arrears-input"
+                                           placeholder="Arrears"
                                            {% if is_closed %}disabled{% endif %}>
                                 {% else %}
                                     <div class="text-center">
@@ -151,7 +173,10 @@
                             </td>
 
                             <td>
-                                <span class="readonly-val">{{ r.acvv_member_count|default:"0" }}</span>
+                                <input type="number" name="member_count_{{ r.id }}" 
+                                       value="{{ r.member_count_reconciled|default:r.acvv_member_count|default:'0' }}" 
+                                       class="input-field member-input" 
+                                       {% if is_closed %}disabled{% endif %}>
                             </td>
 
                             <td>
@@ -191,15 +216,38 @@
 </div>
 
 <script>
+    // --- 🟢 SEARCH LOGIC ---
     document.getElementById('reconSearch').addEventListener('keyup', function() {
         let filter = this.value.toLowerCase();
         let rows = document.querySelectorAll('.recon-row');
         rows.forEach(row => {
-            let name = row.querySelector('.search-name').textContent.toLowerCase();
+            // Note: search now only checks MG Code as Name is hidden
             let code = row.querySelector('.search-code').textContent.toLowerCase();
-            row.style.display = (name.includes(filter) || code.includes(filter)) ? "" : "none";
+            row.style.display = (code.includes(filter)) ? "" : "none";
         });
+        syncScrollWidth();
     });
+
+    // --- 🟢 DOUBLE SCROLLBAR SYNC LOGIC ---
+    const topScrollWrapper = document.getElementById('topScrollWrapper');
+    const topScrollDiv = document.getElementById('topScrollDiv');
+    const tableWrapper = document.getElementById('tableWrapper');
+    const table = document.getElementById('reconTable');
+
+    function syncScrollWidth() {
+        topScrollDiv.style.width = table.scrollWidth + "px";
+    }
+
+    topScrollWrapper.onscroll = function() {
+        tableWrapper.scrollLeft = topScrollWrapper.scrollLeft;
+    };
+
+    tableWrapper.onscroll = function() {
+        topScrollWrapper.scrollLeft = tableWrapper.scrollLeft;
+    };
+
+    window.onload = syncScrollWidth;
+    window.onresize = syncScrollWidth;
 </script>
 
 </body>

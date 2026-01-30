@@ -77,16 +77,6 @@
         <hr style="border-top: 1px solid #eee; margin-bottom: 25px;">
     </div>
 
-    {% if messages %}
-        <div class="message-area">
-        {% for message in messages %}
-            <div class="alert alert-{{ message.tags }}" role="alert" style="padding: 10px; border-radius: 4px; background: #fff3cd; border: 1px solid #ffeeba; margin-bottom: 10px;">
-                {{ message }}
-            </div>
-        {% endfor %}
-        </div>
-    {% endif %}
-
     {# --- RESTORE BUTTON --- #}
     {% if delegation.status == 'DLT' %}
     <form method="POST" action="{% url 'outlook_delegated_action' delegation_id=delegation.pk %}">

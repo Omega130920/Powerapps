@@ -32,7 +32,6 @@
             color: #1b5e20;
         }
 
-        /* This container is what makes the buttons look organized */
         .button-container {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -138,19 +137,20 @@
 
     <div class="button-container">
         
-        {% if user.username == 'omega' %}
-        <a href="{% url 'fetch_emails' %}" class="button-block">
-            Delegations
-            {% if new_emails_count > 0 %}
-                <span class="badge blue-badge">{{ new_emails_count }}</span>
-            {% endif %}
+        {% if user.username == 'omega' or user.username == 'Manager' %}
+            <a href="{% url 'fetch_emails' %}" class="button-block">
+                Delegations
+                {% if new_emails_count > 0 %}
+                    <span class="badge blue-badge">{{ new_emails_count }}</span>
+                {% endif %}
+            </a>
 
             <a href="{% url 'recycle_bin' %}" class="button-block">
-            Recycle Bin
-            {% if recycled_count > 0 %}
-                <span class="badge grey-badge">{{ recycled_count }}</span>
-            {% endif %}
-        </a>
+                Recycle Bin
+                {% if recycled_count > 0 %}
+                    <span class="badge grey-badge">{{ recycled_count }}</span>
+                {% endif %}
+            </a>
         {% endif %}
         
         <a href="{% url 'tasks' %}" class="button-block">
@@ -158,11 +158,11 @@
             {% if my_pending_delegations_count > 0 %}
                 <span class="badge orange-badge">{{ my_pending_delegations_count }}</span>
             {% endif %}
-            <a href="{% url 'email_workflow_log' %}" class="button-block">Email List</a>
         </a>
+
+        <a href="{% url 'email_workflow_log' %}" class="button-block">Email List</a>
         <a href="{% url 'global_members_list' %}" class="button-block">Global List</a>    
         <a href="{% url 'import_global_data' %}" class="button-block">Update Global List Import</a>
-        <!--<a href="{% url 'delegation_report' %}" class="button-block">Reports</a>-->
         <a href="{% url 'complaint_log' %}" class="button-block">Complaint Log</a>
         <a href="{% url 'final_sla_report' %}" class="button-block">View Final SLA Report</a>
     </div>

@@ -1,13 +1,72 @@
 {% block content %}
+<link href='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css' rel='stylesheet' />
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js'></script>
+
 <style>
     :root {
         --primary-green: #4CAF50;
         --accent-green: #2e7d32;
         --bg-light-green: #f1f8e9;
         --danger-red: #d32f2f;
+        --info-blue: #0288d1;
     }
 
     .container { font-family: sans-serif; }
+
+    /* Modal (Popup) Styles */
+    .modal {
+        display: none; 
+        position: fixed; 
+        z-index: 1000; 
+        left: 0; top: 0;
+        width: 100%; height: 100%;
+        background-color: rgba(0,0,0,0.5);
+    }
+    .modal-content {
+        background-color: #fff;
+        margin: 1% auto;
+        padding: 20px;
+        border-radius: 12px;
+        width: 95%;
+        max-height: 98vh;
+        overflow-y: auto;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }
+    .close-modal {
+        color: #aaa;
+        float: right;
+        font-size: 28px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    .close-modal:hover { color: var(--danger-red); }
+
+    /* Master Layout inside Modal */
+    .modal-grid {
+        display: grid;
+        grid-template-columns: 1fr 300px;
+        gap: 20px;
+        margin-top: 15px;
+    }
+
+    #calendar-widget, #global-calendar-widget { 
+        background: white; 
+        padding: 10px; 
+        border-radius: 8px; 
+        border: 1px solid #ddd; 
+        font-size: 0.9em; 
+    }
+    
+    .time-slot {
+        padding: 12px;
+        border-bottom: 1px solid #eee;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        transition: background 0.2s;
+    }
+    .time-slot:hover { background-color: var(--bg-light-green); }
+    .time-slot.booked { background-color: #ffebee; cursor: not-allowed; color: var(--danger-red); pointer-events: none; }
 
     .transaction-table {
         width: 100%;
@@ -39,155 +98,338 @@
         cursor: pointer;
         font-weight: bold;
         transition: background 0.3s;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
     }
 
     .save-button:hover { background-color: var(--accent-green); }
 
     .filter-bar {
-        background: var(--bg-light-green);
-        padding: 15px;
+        background: white;
+        padding: 20px;
         border-radius: 8px;
         margin-bottom: 20px;
-        border: 1px solid #e0e0e0;
+        border: 2px solid var(--primary-green);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
     }
 
-    /* Action Button Styles */
     .action-container {
         display: flex;
         gap: 8px;
         justify-content: center;
     }
 
-    .btn-done {
-        background: #e8f5e9;
-        border: 1px solid var(--primary-green);
-        color: var(--accent-green);
-        padding: 6px 12px;
-        cursor: pointer;
-        border-radius: 4px;
-        font-weight: bold;
-        text-decoration: none;
-    }
-
-    .btn-delete {
-        background: #ffebee;
-        border: 1px solid var(--danger-red);
-        color: var(--danger-red);
-        padding: 6px 12px;
-        cursor: pointer;
-        border-radius: 4px;
-        font-weight: bold;
-    }
+    .btn-done { background: #e8f5e9; border: 1px solid var(--primary-green); color: var(--accent-green); padding: 6px 12px; cursor: pointer; border-radius: 4px; font-weight: bold; }
+    .btn-delete { background: #ffebee; border: 1px solid var(--danger-red); color: var(--danger-red); padding: 6px 12px; cursor: pointer; border-radius: 4px; font-weight: bold; }
+    .btn-edit { background: #e3f2fd; border: 1px solid var(--info-blue); color: var(--info-blue); padding: 6px 12px; cursor: pointer; border-radius: 4px; font-weight: bold; }
 
     .btn-done:hover { background: var(--primary-green); color: white; }
     .btn-delete:hover { background: var(--danger-red); color: white; }
+    .btn-edit:hover { background: var(--info-blue); color: white; }
+
+    .history-row { background-color: #fcfcfc; color: #777; }
+    .status-tag { padding: 2px 6px; border-radius: 4px; font-size: 11px; text-transform: uppercase; font-weight: bold; }
+    .tag-pending { background: #fff3e0; color: #ef6c00; }
+    .tag-complete { background: #e8f5e9; color: #2e7d32; }
 </style>
 
-<div class="container" style="max-width: 98%; margin: 20px auto; padding: 25px; background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+<div class="container" style="max-width: 98%; margin: 20px auto; padding: 25px; background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
     
-    <h2 style="color: var(--accent-green); border-bottom: 3px solid var(--primary-green); padding-bottom: 10px;">📅 Client Reminders & Future Planning</h2>
-
-    <fieldset style="border: 1px solid #ddd; padding: 20px; border-radius: 8px; margin-bottom: 30px; background-color: #fafafa;">
-        <legend style="padding: 0 10px; font-weight: bold; color: var(--accent-green);">Add New Note/Reminder</legend>
-        <form method="POST" action="{% url 'add_reminder' %}">
-            {% csrf_token %}
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
-                <div class="form-group">
-                    <label style="font-weight:600;">Client</label>
-                    <select name="client_id" required style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
-                        <option value="">-- Select Client --</option>
-                        {% for client in clients %}
-                        <option value="{{ client.id }}">{{ client.client_name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label style="font-weight:600;">Date</label>
-                    <input type="date" name="date" required style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
-                </div>
-                <div class="form-group">
-                    <label style="font-weight:600;">Title</label>
-                    <input type="text" name="title" required placeholder="e.g. FICA Review" style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
-                </div>
-            </div>
-            <div style="margin-top: 15px;">
-                <label style="font-weight:600;">Notes</label>
-                <textarea name="note" rows="2" placeholder="Enter specific instructions or notes..." style="width: 100%; padding: 10px; border-radius: 5px; border: 1px solid #ccc;"></textarea>
-            </div>
-            <button type="submit" class="save-button" style="margin-top: 15px; width: 100%;">💾 Save to Calendar</button>
-        </form>
-    </fieldset>
-
-<div class="filter-bar">
-    <form method="GET" action="{% url 'client_calendar' %}" style="display: flex; align-items: center; gap: 15px;">
-        <label style="font-weight: bold; color: var(--accent-green);">View Future Schedule For:</label>
-        
-        <select name="view_client" style="flex: 1; padding: 10px; border-radius: 5px; border: 1px solid #ccc;">
-            <option value="">-- All Clients --</option>
-            {% for client in clients %}
-                <option value="{{ client.id }}" {% if selected_client and selected_client.id == client.id %}selected{% endif %}>
-                    {{ client.client_name }}
-                </option>
-            {% endfor %}
-        </select>
-
-        <button type="submit" style="padding: 10px 25px; background: var(--accent-green); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold;">
-            View Calendar
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 3px solid var(--primary-green); padding-bottom: 10px; margin-bottom: 25px;">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <a href="{% url 'home' %}" class="save-button" style="background-color: #666;">
+                🏠 Back to Home Screen
+            </a>
+            <h2 style="color: var(--accent-green); margin: 0;">📅 Client Planner & Reminder History</h2>
+        </div>
+        <button type="button" class="save-button" id="openGlobalCal" style="background-color: var(--info-blue);">
+            👁️ View My Full Calendar
         </button>
-    </form>
-</div>
+    </div>
 
-    <h3 style="color: var(--accent-green); margin-top: 30px;">
-        {% if selected_client %} 
-            Upcoming Schedule for: <span style="color: #333;">{{ selected_client.client_name }}</span>
-        {% else %} 
-            All Future Reminders 
-        {% endif %}
-    </h3>
-
-    <table class="transaction-table">
-        <thead>
-            <tr>
-                <th style="width: 15%;">Date</th>
-                {% if not selected_client %}
-                <th style="width: 25%;">Client</th>
-                {% endif %}
-                <th style="width: 20%;">Reminder</th>
-                <th>Notes</th>
-                <th style="width: 15%; text-align: center;">Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for rem in reminders_list %}
-            <tr>
-                <td style="font-weight: bold; color: var(--danger-red);">{{ rem.reminder_date|date:"D, d M Y" }}</td>
-                {% if not selected_client %}
-                <td style="font-weight: 600;">{{ rem.client.client_name }}</td>
-                {% endif %}
-                <td><strong>{{ rem.title }}</strong></td>
-                <td style="color: #555;">{{ rem.note }}</td>
-                <td>
-                    <div class="action-container">
-                        <form method="POST" action="{% url 'dismiss_single_reminder' rem.id %}" style="margin:0;">
-                            {% csrf_token %}
-                            <button type="submit" class="btn-done" title="Complete">Done</button>
-                        </form>
-                        
-                        <form method="POST" action="{% url 'delete_reminder' rem.id %}" onsubmit="return confirm('Are you sure you want to delete this reminder?');" style="margin:0;">
-                            {% csrf_token %}
-                            <button type="submit" class="btn-delete" title="Delete Permanent">Delete</button>
-                        </form>
+    <div id="calendarModal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h3 style="color: var(--info-blue); margin-top: 0;">My Full Schedule (Complete Overview)</h3>
+            
+            <div class="modal-grid">
+                <div id="global-calendar-widget"></div>
+                
+                <div id="modal-availability-section" style="background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd; display: none;">
+                    <h4 style="margin-top: 0; color: var(--accent-green);" id="modal-target-date-label">Schedule</h4>
+                    <div id="modal-time-slots-container" style="max-height: 600px; overflow-y: auto; border-top: 1px solid #eee;">
                     </div>
-                </td>
-            </tr>
-            {% empty %}
-            <tr>
-                <td colspan="6" style="text-align: center; padding: 40px; color: #888; font-style: italic;">
-                    No future reminders found for this selection.
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="filter-bar">
+        <form method="GET" action="{% url 'client_calendar' %}" id="searchForm" style="display: flex; align-items: center; gap: 15px;">
+            <label style="font-weight: bold; color: var(--accent-green); min-width: 150px;">Search/Select Client:</label>
+            
+            <input list="clientOptions" id="clientSearch" placeholder="Type client name..." 
+                   value="{% if selected_client %}{{ selected_client.client_name }}{% endif %}"
+                   style="flex: 1; padding: 12px; border-radius: 5px; border: 1px solid #ccc; font-size: 16px;">
+            
+            <datalist id="clientOptions">
+                {% for client in clients %}
+                    <option data-id="{{ client.id }}" value="{{ client.client_name }}">
+                {% endfor %}
+            </datalist>
+
+            <input type="hidden" name="view_client" id="selected_client_id" value="{% if selected_client %}{{ selected_client.id }}{% endif %}">
+
+            <button type="submit" class="save-button" style="background-color: var(--accent-green);">
+                🔍 Open Client Planner
+            </button>
+            
+            {% if selected_client %}
+                <a href="{% url 'client_calendar' %}" style="text-decoration: none; color: #666; font-size: 14px;">Clear Search</a>
+            {% endif %}
+        </form>
+    </div>
+
+    {% if selected_client %}
+        <div style="display: grid; grid-template-columns: 350px 300px 1fr; gap: 20px; margin-top: 20px;">
+            <div style="background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd;">
+                <h4 style="margin-top: 0; color: var(--accent-green);">1. Select Date</h4>
+                <div id="calendar-widget"></div>
+            </div>
+
+            <div id="availability-section" style="background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd; display: none;">
+                <h4 style="margin-top: 0; color: var(--accent-green);" id="target-date-label">Schedule</h4>
+                <div id="time-slots-container" style="max-height: 500px; overflow-y: auto; border-top: 1px solid #eee;">
+                </div>
+            </div>
+
+            <div id="details-section" style="background: #fafafa; padding: 20px; border-radius: 8px; border: 1px solid #ddd; height: fit-content;">
+                <h4 style="margin-top: 0; color: var(--accent-green); border-bottom: 1px solid #ddd; padding-bottom: 10px;" id="formTitle">
+                    Appointment Details
+                </h4>
+                <form method="POST" action="{% url 'add_reminder' %}" id="reminderForm">
+                    {% csrf_token %}
+                    <input type="hidden" name="client_id" value="{{ selected_client.id }}">
+                    <input type="hidden" name="reminder_id" id="edit_reminder_id" value="">
+                    <input type="hidden" name="time" id="form_time">
+
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 5px;">Action Date</label>
+                        <input type="date" name="date" id="form_date" required style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; background: #eee;" readonly>
+                    </div>
+
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 5px;">Subject</label>
+                        <input type="text" name="title" id="form_title" required placeholder="e.g. Annual Review" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;">
+                    </div>
+
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; font-weight: 600; margin-bottom: 5px;">Notes/Instructions</label>
+                        <textarea name="note" id="form_note" rows="4" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc;"></textarea>
+                    </div>
+
+                    <button type="submit" class="save-button" style="width: 100%;" id="submitBtn">💾 Save Reminder</button>
+                    <button type="button" onclick="resetForm()" id="cancelBtn" style="width: 100%; margin-top: 10px; display: none; background: #999; border: none; color: white; padding: 8px; border-radius: 5px; cursor: pointer;">Cancel Edit</button>
+                </form>
+            </div>
+        </div>
+
+        <div style="margin-top: 40px;">
+            <h3 style="margin-top: 0; color: var(--accent-green);">History & Schedule: {{ selected_client.client_name }}</h3>
+            <table class="transaction-table">
+                <thead>
+                    <tr>
+                        <th style="width: 15%;">Date</th>
+                        <th style="width: 10%;">Status</th>
+                        <th style="width: 25%;">Reminder</th>
+                        <th>Notes</th>
+                        <th style="width: 180px; text-align: center;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rem in reminders_list %}
+                    <tr class="{% if rem.is_dismissed %}history-row{% endif %}">
+                        <td style="font-weight: bold;">{{ rem.reminder_date|date:"d M Y" }} {% if rem.reminder_time %}({{ rem.reminder_time|time:"H:i" }}){% endif %}</td>
+                        <td><span class="status-tag {% if rem.is_dismissed %}tag-complete{% else %}tag-pending{% endif %}">{% if rem.is_dismissed %}DONE{% else %}PENDING{% endif %}</span></td>
+                        <td><strong>{{ rem.title }}</strong></td>
+                        <td style="font-size: 13px;">{{ rem.note|truncatechars:100 }}</td>
+                        <td>
+                            <div class="action-container">
+                                {% if not rem.is_dismissed %}
+                                <button type="button" class="btn-edit" onclick="editReminder('{{ rem.id }}', '{{ rem.reminder_date|date:'Y-m-d' }}', '{{ rem.title|escapejs }}', '{{ rem.note|escapejs }}')">Edit</button>
+                                <form method="POST" action="{% url 'dismiss_single_reminder' rem.id %}" style="margin:0;">{% csrf_token %}<button type="submit" class="btn-done">Done</button></form>
+                                {% endif %}
+                                <form method="POST" action="{% url 'delete_reminder' rem.id %}" onsubmit="return confirm('Delete?');" style="margin:0;">{% csrf_token %}<button type="submit" class="btn-delete">🗑️</button></form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="5" style="text-align: center; padding: 30px; color: #999;">No history found for this client.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% endif %}
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const allEvents = [
+            {% for rem in all_reminders_full %}
+            { 
+                date: '{{ rem.reminder_date|date:"Y-m-d" }}',
+                time: '{{ rem.reminder_time|time:"H:i" }}',
+                client: '{{ rem.client.client_name|escapejs }}'
+            },
+            {% endfor %}
+        ];
+
+        const modal = document.getElementById("calendarModal");
+        const btn = document.getElementById("openGlobalCal");
+        const span = document.getElementsByClassName("close-modal")[0];
+
+        btn.onclick = function() {
+            modal.style.display = "block";
+            var globalCalEl = document.getElementById('global-calendar-widget');
+            var globalCal = new FullCalendar.Calendar(globalCalEl, {
+                initialView: 'dayGridMonth',
+                contentHeight: 'auto',
+                headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
+                dateClick: function(info) {
+                    openModalAvailability(info.dateStr);
+                },
+                events: [
+                    {% for rem in all_reminders_full %}
+                    { 
+                        title: '{{ rem.client.client_name|escapejs }}: {{ rem.title|escapejs }}', 
+                        start: '{{ rem.reminder_date|date:"Y-m-d" }}', 
+                        color: '{% if rem.is_dismissed %}#999{% else %}#0288d1{% endif %}'
+                    },
+                    {% endfor %}
+                ]
+            });
+            globalCal.render();
+        }
+
+        span.onclick = function() { modal.style.display = "none"; }
+        window.onclick = function(event) { if (event.target == modal) { modal.style.display = "none"; } }
+
+        // SEARCH LOGIC
+        const searchInput = document.getElementById('clientSearch');
+        const hiddenIdInput = document.getElementById('selected_client_id');
+        const dataList = document.getElementById('clientOptions');
+
+        searchInput.addEventListener('input', function() {
+            const selectedOption = Array.from(dataList.options).find(option => option.value === this.value);
+            if (selectedOption) {
+                hiddenIdInput.value = selectedOption.getAttribute('data-id');
+                document.getElementById('searchForm').submit();
+            }
+        });
+
+        // CLIENT SPECIFIC CALENDAR
+        {% if selected_client %}
+        var calendarEl = document.getElementById('calendar-widget');
+        var calendar = new FullCalendar.Calendar(calendarEl, {
+            initialView: 'dayGridMonth',
+            contentHeight: 'auto',
+            headerToolbar: { left: 'prev,next', center: 'title', right: '' },
+            dateClick: function(info) {
+                openMainAvailability(info.dateStr);
+            },
+            events: [
+                {% for rem in reminders_list %}
+                { title: '{{ rem.title|escapejs }}', start: '{{ rem.reminder_date|date:"Y-m-d" }}', color: '{% if rem.is_dismissed %}#999{% else %}#4CAF50{% endif %}' },
+                {% endfor %}
+            ]
+        });
+        calendar.render();
+        {% endif %}
+
+        // FUNCTION FOR MODAL GRID
+        function openModalAvailability(dateStr) {
+            const container = document.getElementById('modal-time-slots-container');
+            const section = document.getElementById('modal-availability-section');
+            const dateLabel = document.getElementById('modal-target-date-label');
+            
+            dateLabel.innerText = "Schedule for " + dateStr;
+            container.innerHTML = ''; 
+            section.style.display = 'block';
+
+            for (let i = 8; i <= 17; i++) {
+                const timeStr = (i < 10 ? '0' + i : i) + ':00';
+                const meeting = allEvents.find(e => e.date === dateStr && e.time === timeStr);
+                
+                const slot = document.createElement('div');
+                slot.className = 'time-slot';
+                
+                if (meeting) {
+                    slot.classList.add('booked');
+                    slot.innerHTML = `<span>${timeStr}</span> <span style="font-size:12px;">Busy: ${meeting.client}</span>`;
+                } else {
+                    slot.innerHTML = `<span>${timeStr}</span> <span style="font-size:12px; color:var(--primary-green)">Available</span>`;
+                    slot.onclick = function() {
+                        {% if selected_client %}
+                            modal.style.display = "none";
+                            document.getElementById('form_date').value = dateStr;
+                            document.getElementById('form_time').value = timeStr;
+                            document.getElementById('details-section').scrollIntoView({ behavior: 'smooth' });
+                        {% else %}
+                            alert("Please select a client on the main page first to book this slot.");
+                        {% endif %}
+                    };
+                }
+                container.appendChild(slot);
+            }
+        }
+
+        // FUNCTION FOR MAIN PAGE GRID
+        function openMainAvailability(dateStr) {
+            const container = document.getElementById('time-slots-container');
+            const section = document.getElementById('availability-section');
+            const dateLabel = document.getElementById('target-date-label');
+            
+            dateLabel.innerText = "Times for " + dateStr;
+            document.getElementById('form_date').value = dateStr;
+            container.innerHTML = ''; 
+            section.style.display = 'block';
+
+            for (let i = 8; i <= 17; i++) {
+                const timeStr = (i < 10 ? '0' + i : i) + ':00';
+                const meeting = allEvents.find(e => e.date === dateStr && e.time === timeStr);
+                
+                const slot = document.createElement('div');
+                slot.className = 'time-slot';
+                
+                if (meeting) {
+                    slot.classList.add('booked');
+                    slot.innerHTML = `<span>${timeStr}</span> <span style="font-size:12px;">Busy: ${meeting.client}</span>`;
+                } else {
+                    slot.innerHTML = `<span>${timeStr}</span> <span style="font-size:12px; color:var(--primary-green)">Available</span>`;
+                    slot.onclick = function() {
+                        document.getElementById('form_time').value = timeStr;
+                        document.getElementById('details-section').scrollIntoView({ behavior: 'smooth' });
+                    };
+                }
+                container.appendChild(slot);
+            }
+        }
+    });
+
+    function editReminder(id, date, title, note) {
+        document.getElementById('formTitle').innerText = "Update Reminder";
+        document.getElementById('edit_reminder_id').value = id;
+        document.getElementById('form_date').value = date;
+        document.getElementById('form_title').value = title;
+        document.getElementById('form_note').value = note;
+        document.getElementById('details-section').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function resetForm() {
+        document.getElementById('formTitle').innerText = "New Reminder";
+        document.getElementById('edit_reminder_id').value = "";
+        document.getElementById('reminderForm').reset();
+    }
+</script>
 {% endblock %}
