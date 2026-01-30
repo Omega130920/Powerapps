@@ -209,9 +209,18 @@
                         <div class="form-group">
                             <label class="form-label">Action Note:</label>
                             <select name="action_notes" class="form-control" required>
-                                <option value="Feedback to Member">Feedback to Member</option>
-                                <option value="Enquiry to Sanlam">Enquiry to Sanlam</option>
+                                <option value="Feedback to Sanlam">Feedback to Sanlam</option>
                                 <option value="Feedback to Employer">Feedback to Employer</option>
+                                <option value="Feedback to Member">Feedback to Member</option>
+                                <option value="Feedback to CBC">Feedback to CBC</option>
+                                <option value="Enquiry to FO">Enquiry to FO</option>
+                                <option value="Enquiry to Sanlam">Enquiry to Sanlam</option>
+                                <option value="Enquiry to Employer">Enquiry to Employer</option>
+                                <option value="Enquiry to CBC">Enquiry to CBC</option>
+                                <option value="Sent to Employer">Sent to Employer</option>
+                                <option value="Sent to Sanlam">Sent to Sanlam</option>
+                                <option value="Sent to CBC">Sent to CBC</option>
+                                <option value="Sent to FO">Sent to FO</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -235,36 +244,52 @@
 
         <div class="right-column">
             <div class="custom-card">
-                <!--<div class="card-header-dark">
-                    <i class="fas fa-clipboard-list" style="margin-right: 10px;"></i>
-                    <h5 style="margin: 0;">History</h5>
-                </div>-->
-                <div class="card-body-content">
-                    <!--<div class="notes-history-container">
-                        {% for note in notes %}
-                        <div class="note-item">
-                            <small><strong>{{ note.user.username }}</strong> - {{ note.created_at|date:"M d, H:i" }}</small>
-                            <p>{{ note.content }}</p>
+                <button class="collapse-toggle" style="border-bottom-color: #28a745;" data-target="#collapseNote">
+                    <span><i class="fas fa-plus-circle"></i> Add Note</span>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </button>
+                <div class="collapse-content" id="collapseNote">
+                    <form method="POST">
+                        {% csrf_token %}
+                        <input type="hidden" name="action_type" value="add_note">
+                        
+                        <div style="margin-bottom: 12px;">
+                            <label class="form-label">Communication Type:</label>
+                            <select name="communication_type" class="form-control">
+                                <option value="">Select Communication Type</option>
+                                <option value="Outgoing Call">Outgoing Call</option>
+                                <option value="Notes Log">Notes Log</option>
+                                <option value="Teams Meeting">Teams Meeting</option>
+                            </select>
                         </div>
-                        {% empty %}
-                        <div style="padding:10px; color:#777;">No history available.</div>
-                        {% endfor %}
-                    </div>-->
-                    {% if delegation.status != 'DLT' %}
-                    <button class="collapse-toggle" style="border-bottom: 3px solid #28a745;" type="button" data-target="#collapseAddNote">
-                        <span><i class="fas fa-plus-circle" style="color: #28a745;"></i> Add Note</span>
-                        <i class="fas fa-chevron-down toggle-icon"></i>
-                    </button>
-                    <div class="collapse-content" id="collapseAddNote">
-                        <form method="POST" style="margin-top:10px;">
-                            {% csrf_token %}
-                            <textarea class="form-control" name="note_content" rows="4" required></textarea>
-                            <button type="submit" class="custom-btn btn-success">Save Note</button>
-                        </form>
-                    </div>
-                    {% endif %}
+
+                        <div style="margin-bottom: 12px;">
+                            <label class="form-label">Action Log Type:</label>
+                            <select name="action_notes_email" class="form-control">
+                                <option value="">Select Action Note</option>
+                                <option value="Feedback to Sanlam">Feedback to Sanlam</option>
+                                <option value="Feedback to Employer">Feedback to Employer</option>
+                                <option value="Feedback to Member">Feedback to Member</option>
+                                <option value="Feedback to CBC">Feedback to CBC</option>
+                                <option value="Enquiry to FO">Enquiry to FO</option>
+                                <option value="Enquiry to Sanlam">Enquiry to Sanlam</option>
+                                <option value="Enquiry to Employer">Enquiry to Employer</option>
+                                <option value="Enquiry to CBC">Enquiry to CBC</option>
+                                <option value="Sent to Employer">Sent to Employer</option>
+                                <option value="Sent to Sanlam">Sent to Sanlam</option>
+                                <option value="Sent to CBC">Sent to CBC</option>
+                                <option value="Sent to FO">Sent to FO</option>
+                            </select>
+                        </div>
+
+                        <label class="form-label">Note Content:</label>
+                        <textarea name="internal_note" class="form-control" rows="4" required></textarea>
+                        
+                        <button type="submit" class="custom-btn btn-success" style="margin-top: 10px;">
+                            <i class="fas fa-save"></i> Save Note
+                        </button>
+                    </form>
                 </div>
-            </div>
 
             {% if delegation.status == 'DLT' %}
                 <a href="{% url 'outlook_recycle_bin' %}" class="custom-btn btn-back">

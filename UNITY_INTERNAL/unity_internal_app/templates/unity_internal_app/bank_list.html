@@ -75,7 +75,7 @@ Show Assigned / Allocated
 <tr>
 <th>ID</th>
 <th>Member Group Code</th>
-<th>Company Name</th>
+{# REMOVED: <th>Company Name</th> #}
 <th>Deposit Date</th>
 <th>Available Balance</th> 
 <th>Description</th>
@@ -91,7 +91,7 @@ Show Assigned / Allocated
 <tr data-status="{% if record.allocated_code %}assigned_or_allocated{% else %}unidentified{% endif %}">
 <td>{{ record.id }}</td>
 <td>{{ record.allocated_code|default:"-" }}</td>
-<td style="font-size: 11px;">{{ record.company_name|default:"-"|truncatechars:25 }}</td>
+{# REMOVED: <td style="font-size: 11px;">{{ record.company_name|default:"-"|truncatechars:25 }}</td> #}
 <td data-date="{{ record.transaction_date|date:'Y-m-d' }}">{{ record.transaction_date|date:"Y-m-d" }}</td>
 <td>R {{ record.remaining_balance|floatformat:2 }}</td>
 <td title="{{ record.transaction_description }}">{{ record.transaction_description|truncatechars:30 }}</td>
@@ -134,82 +134,83 @@ No bank records found. Please import data first.
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-    // Note: The toggle starts UNCHECKED, so only 'unidentified' rows will be shown initially.
-    applyFilters(); 
+    // Note: The toggle starts UNCHECKED, so only 'unidentified' rows will be shown initially.
+    applyFilters(); 
 });
 
 function applyFilters() {
-    const startDateInput = document.getElementById('startDate').value;
-    const endDateInput = document.getElementById('endDate').value;
-    // New toggle ID for filtering assigned/allocated
-    const showAssignedToggle = document.getElementById('showAssignedToggle').checked;
-    const table = document.getElementById('bankLinesTable');
-    // Check if table exists before proceeding
-    if (!table) return; 
+    const startDateInput = document.getElementById('startDate').value;
+    const endDateInput = document.getElementById('endDate').value;
+    // New toggle ID for filtering assigned/allocated
+    const showAssignedToggle = document.getElementById('showAssignedToggle').checked;
+    const table = document.getElementById('bankLinesTable');
+    // Check if table exists before proceeding
+    if (!table) return; 
 
-    const rows = table.querySelectorAll('tbody tr');
-    
-    const startDate = startDateInput ? new Date(startDateInput) : null;
-    const endDate = endDateInput ? new Date(endDateInput) : null;
+    const rows = table.querySelectorAll('tbody tr');
+    
+    const startDate = startDateInput ? new Date(startDateInput) : null;
+    const endDate = endDateInput ? new Date(endDateInput) : null;
 
-    rows.forEach(row => {
-        const dateCell = row.cells[3]; 
-        const rowDateStr = dateCell.getAttribute('data-date');
-        // Get status tag
-        const rowStatus = row.getAttribute('data-status'); // 'assigned_or_allocated' or 'unidentified'
-        
-        let showRow = true;
+    rows.forEach(row => {
+        // Adjust the cell index because we removed a column (used to be cell 3, now cell 2)
+        const dateCell = row.cells[2]; 
+        const rowDateStr = dateCell.getAttribute('data-date');
+        // Get status tag
+        const rowStatus = row.getAttribute('data-status'); // 'assigned_or_allocated' or 'unidentified'
+        
+        let showRow = true;
 
-        // --- 1. Date Filtering (Kept as provided) ---
-        if (rowDateStr) {
-            const rowDate = new Date(rowDateStr);
+        // --- 1. Date Filtering (Kept as provided) ---
+        if (rowDateStr) {
+            const rowDate = new Date(rowDateStr);
 
-            if (startDate && rowDate < startDate) {
-                showRow = false;
-            }
-            if (endDate) {
-                const inclusiveEndDate = new Date(endDate.getTime() + 86400000); // Add 1 day
-                if (rowDate >= inclusiveEndDate) {
-                    showRow = false;
-                }
-            }
-        } else {
-            showRow = false;
-        }
+            if (startDate && rowDate < startDate) {
+                showRow = false;
+            }
+            if (endDate) {
+                const inclusiveEndDate = new Date(endDate.getTime() + 86400000); // Add 1 day
+                if (rowDate >= inclusiveEndDate) {
+                    showRow = false;
+                }
+            }
+        } else {
+            showRow = false;
+        }
 
-        // --- 2. Status Filtering ---
-        
-        // If the record is NOT 'unidentified' (i.e., it's assigned/allocated)
-        if (rowStatus === 'assigned_or_allocated') {
-            // AND the toggle is UNCHECKED (default state: only show unidentified)
-            if (!showAssignedToggle) {
-                showRow = false; // HIDE assigned/allocated records
-            }
-        }
-        
-        // --- 3. Apply Visibility & Styling ---
-        
-        // Apply row visibility
-        row.style.display = showRow ? 'table-row' : 'none';
-        
-        // Apply colors based on status
-        if (showRow) {
-            let baseColor = (row.rowIndex % 2 === 0) ? '#e6ffe6' : 'white';
-            
-            if (rowStatus === 'unidentified') {
-                row.style.backgroundColor = '#fff3cd'; // Yellow for Unidentified
-            } else {
-                // This covers all other assigned/allocated statuses
-                row.style.backgroundColor = baseColor; 
-            }
-        }
-    });
+        // --- 2. Status Filtering ---
+        
+        // If the record is NOT 'unidentified' (i.e., it's assigned/allocated)
+        if (rowStatus === 'assigned_or_allocated') {
+            // AND the toggle is UNCHECKED (default state: only show unidentified)
+            if (!showAssignedToggle) {
+                showRow = false; // HIDE assigned/allocated records
+            }
+        }
+        
+        // --- 3. Apply Visibility & Styling ---
+        
+        // Apply row visibility
+        row.style.display = showRow ? 'table-row' : 'none';
+        
+        // Apply colors based on status
+        if (showRow) {
+            let baseColor = (row.rowIndex % 2 === 0) ? '#e6ffe6' : 'white';
+            
+            if (rowStatus === 'unidentified') {
+                row.style.backgroundColor = '#fff3cd'; // Yellow for Unidentified
+            } else {
+                // This covers all other assigned/allocated statuses
+                row.style.backgroundColor = baseColor; 
+            }
+        }
+    });
 }
 
 function clearDateRange() {
-    document.getElementById('startDate').value = '';
-    document.getElementById('endDate').value = '';
-    applyFilters(); // Re-run combined filter
+    document.getElementById('startDate').value = '';
+    document.getElementById('endDate').value = '';
+    applyFilters(); // Re-run combined filter
 }
 </script>
 </body>

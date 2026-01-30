@@ -107,4 +107,5 @@ urlpatterns = [
     path('emails/export/', views.export_email_list, name='export_email_list'),
     path('download-email/<str:email_id>/', views.download_email_file, name='download_email_file'),
     path('credit-note/create-manual/', views.create_manual_credit, name='create_manual_credit'),
+    path('unity-list/export/', views.export_unity_list_excel, name='export_unity_list_excel'),
 ]

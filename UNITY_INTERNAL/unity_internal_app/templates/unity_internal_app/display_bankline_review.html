@@ -153,7 +153,7 @@ h3{color:#1b5e20;margin-top:30px}
             <label for="fiscal_date">Assign Fiscal Date:</label>
             <input type="date" id="fiscal_date" name="fiscal_date" value="{{ recon_record.fiscal_date|date:'Y-m-d'|default:'' }}">
             
-            <label for="review_note">Review Note (Category):</label>
+            <label for="review_note">Note Selector:</label>
             <select id="review_note" name="review_note" required>
                 <option value="" disabled {% if not current_category %}selected{% endif %}>--- Select Note Category ---</option>
                 {% for note in review_notes %}
@@ -163,26 +163,6 @@ h3{color:#1b5e20;margin-top:30px}
 
             <label for="review_note_text">Internal Comments / Details:</label>
             <textarea id="review_note_text" name="review_note_text" placeholder="Add specific details...">{{ current_custom_text }}</textarea>
-
-            <div class="email-box">
-                <h4 style="margin: 0 0 10px 0; color: #0d47a1;"><i class="fas fa-envelope"></i> Internal Notification</h4>
-                
-                <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                    <input type="checkbox" name="send_email_toggle" id="sendEmailToggle" style="width: 18px; height: 18px;">
-                    <span style="font-weight: bold; color: #333;">Notify Team via Outlook?</span>
-                </label>
-
-                <div id="emailFields" style="display: none; margin-top: 10px; border-top: 1px solid #90caf9; padding-top: 10px;">
-                    <label for="recipient_email">Recipient (To):</label>
-                    <input type="email" name="recipient_email" placeholder="agent@futurasa.co.za">
-                    
-                    <label for="cc_email">CC:</label>
-                    <input type="email" name="cc_email" placeholder="manager@futurasa.co.za">
-
-                    <label for="email_subject">Subject:</label>
-                    <input type="text" name="email_subject" value="Bank Line Update: {{ recon_record.company_code|default:'Unallocated' }} - R {{ recon_record.transaction_amount|floatformat:2 }}">
-                </div>
-            </div>
 
             <div class="modal-footer">
                 <button type="button" class="modal-cancel-button" id="closeBtn">Cancel</button>

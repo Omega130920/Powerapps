@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Unity Management Listings</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 <style>
     body{
         font-family: sans-serif;
@@ -23,6 +24,11 @@
         margin: 2em auto;
         padding: 1em;
     }
+    /* --- BUTTON STYLES --- */
+    .header-actions {
+        display: inline-block;
+        margin-left: 10px;
+    }
     .return-button{
         display: inline-block;
         padding: 10px 20px;
@@ -38,6 +44,27 @@
     .return-button:hover{
         background-color: #66bb6a;
     }
+    /* New Export Button Styles */
+    .btn {
+        display: inline-block;
+        padding: 10px 20px;
+        border-radius: 5px;
+        text-decoration: none;
+        color: white;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        font-size: 1em;
+        border: 1px solid transparent;
+    }
+    .btn-success {
+        background-color: #2e7d32; /* Darker green for Excel */
+        border-color: #2e7d32;
+    }
+    .btn-success:hover {
+        background-color: #1b5e20;
+    }
+    
+    /* --- TABLE STYLES --- */
     table{
         width: 100%;
         border-collapse: collapse;
@@ -124,7 +151,16 @@
 <body>
 <div class="container">
     <h1>Unity Listings</h1>
-    <a href="{% url 'dashboard' %}" class="return-button">Back to Home Screen</a>
+    
+    <div>
+        <a href="{% url 'dashboard' %}" class="return-button">Back to Home Screen</a>
+        
+        <div class="header-actions">
+            <a href="{% url 'export_unity_list_excel' %}" class="btn btn-success">
+                <i class="fas fa-file-excel"></i> Export to Excel
+            </a>
+        </div>
+    </div>
 
     <div class="controls-container">
         <input type="text" id="wildcard-search" class="search-input" placeholder="Search by Company Code or Name..." onkeyup="applyFilters()">
@@ -216,7 +252,6 @@
             <tr>
                 <th>Company Code</th>
                 <th>Company Name</th>
-                <!--<th>Source</th>-->
                 <th>Agent</th>
                 <th>Company Status</th> 
                 <th>Payment Method</th>
@@ -240,7 +275,6 @@
                 
                 <td>{{ record.A_Company_Code }}</td>
                 <td>{{ record.B_Company_Name }}</td>
-                <!--<td>{{ record.Source }}</td>-->
                 <td>{{ record.c_agent|default:"N/A" }}</td>
                 <td>{{ record.D_Company_Status }}</td> 
                 <td>{{ record.e_payment_method|default:"N/A" }}</td>
