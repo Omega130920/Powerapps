@@ -146,6 +146,19 @@
         border-radius: 4px;
         background-color: white;
     }
+
+    /* --- BADGE STYLES --- */
+    .status-badge {
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.8em;
+        font-weight: bold;
+        color: white;
+        display: inline-block;
+        text-align: center;
+        width: 100%;
+        box-sizing: border-box;
+    }
 </style>
 </head>
 <body>
@@ -197,6 +210,16 @@
             </div>
 
             <div class="filter-group">
+                <label for="filter-current-status">Current Status</label>
+                <select id="filter-current-status" onchange="applyFilters()">
+                    <option value="">All Statuses</option>
+                    {% for item in distinct_current_status %}
+                        <option value="{{ item|lower }}">{{ item }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="filter-group">
                 <label for="filter-payment-method">Payment Method</label>
                 <select id="filter-payment-method" onchange="applyFilters()">
                     <option value="">All Methods</option>
@@ -221,16 +244,6 @@
                 <select id="filter-current-fiscal" onchange="applyFilters()">
                     <option value="">All Fiscals</option>
                     {% for item in distinct_fiscal %}
-                        <option value="{{ item|default:'N/A'|lower }}">{{ item|default:"N/A" }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-
-            <div class="filter-group">
-                <label for="filter-current-status">Current Status</label>
-                <select id="filter-current-status" onchange="applyFilters()">
-                    <option value="">All Statuses</option>
-                    {% for item in distinct_current_status %}
                         <option value="{{ item|default:'N/A'|lower }}">{{ item|default:"N/A" }}</option>
                     {% endfor %}
                 </select>
@@ -270,7 +283,7 @@
                 data-payment-method="{{ record.e_payment_method|default:'N/A'|lower }}"
                 data-billing-method="{{ record.f_billing_method|default:'N/A'|lower }}"
                 data-current-fiscal="{{ record.g_current_fiscal|default:'N/A'|lower }}"
-                data-current-status="{{ record.h_current_status|default:'N/A'|lower }}"
+                data-current-status="{{ record.h_current_status|lower }}"
                 data-arrears-value="{{ record.j_arrears|default:0 }}"> 
                 
                 <td>{{ record.A_Company_Code }}</td>
@@ -280,12 +293,26 @@
                 <td>{{ record.e_payment_method|default:"N/A" }}</td>
                 <td>{{ record.f_billing_method|default:"N/A" }}</td>
                 <td>{{ record.g_current_fiscal|default:"N/A" }}</td>
-                <td>{{ record.h_current_status|default:"N/A" }}</td>
+                <td>
+                    {% if record.h_current_status == "RECON COMPLETE" %}
+                        <span class="status-badge" style="background-color: #2e7d32;">RECON COMPLETE</span>
+                    {% elif record.h_current_status == "SCHEDULED" %}
+                        <span class="status-badge" style="background-color: #0277bd;">SCHEDULED</span>
+                    {% elif record.h_current_status == "OPEN" %}
+                        <span class="status-badge" style="background-color: #d32f2f;">OPEN</span>
+                    {% elif record.h_current_status == "PRE-BILL" %}
+                        <span class="status-badge" style="background-color: #f7931e;">PRE-BILL</span>
+                    {% elif record.h_current_status == "AWAITING SCHEDULE" %}
+                        <span class="status-badge" style="background-color: #7b1fa2;">AWAITING SCHEDULE</span>
+                    {% else %}
+                        <span class="status-badge" style="background-color: #757575;">{{ record.h_current_status }}</span>
+                    {% endif %}
+                </td>
                 <td>{{ record.j_arrears|default:"N/A" }}</td>
             </tr>
             {% empty %}
             <tr>
-                <td colspan="10">No records found.</td>
+                <td colspan="9">No records found.</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -297,7 +324,6 @@
         const tableBody = document.getElementById('unity-table-body');
         tableBody.addEventListener('click', function(event) {
             const row = event.target.closest('tr');
-            // Ensure we are clicking a row with data, not an empty message row
             if (row && row.hasAttribute('data-company-code')) {
                 const companyCode = row.getAttribute('data-company-code');
                 window.location.href = `{% url 'unity_information' '123' %}`.replace('123', companyCode);
@@ -308,7 +334,6 @@
     function applyFilters() {
         const searchTerm = document.getElementById('wildcard-search').value.toLowerCase().trim();
         
-        // Keys here match the part after "data-" in your HTML
         const filters = {
             'source': document.getElementById('filter-source').value,
             'agent': document.getElementById('filter-agent').value,
@@ -323,7 +348,6 @@
         const rows = document.getElementById('unity-table-body').querySelectorAll('tr');
         
         rows.forEach(row => {
-            // Skip the "No records found" row
             if (row.cells.length === 1) return;
 
             let isMatch = true;
@@ -343,7 +367,6 @@
                     const filterValue = filters[key];
                     
                     if (filterValue) {
-                        // Special case for Arrears filter
                         if (key === 'arrears') {
                             const rawArrears = row.getAttribute('data-arrears-value');
                             const arrearsAmount = parseFloat(rawArrears);
@@ -354,8 +377,6 @@
                                 if (isNaN(arrearsAmount) || arrearsAmount > 0) isMatch = false;
                             }
                         } else {
-                            // Standard filters: We assume attribute is "data-" + key
-                            // Using getAttribute is safer than dataset for hyphenated names
                             const attributeName = 'data-' + key;
                             const rawValue = row.getAttribute(attributeName);
                             const rowValue = rawValue ? rawValue.trim() : '';
@@ -369,7 +390,6 @@
                 }
             }
 
-            // --- Apply Visibility ---
             row.style.display = isMatch ? '' : 'none';
         });
     }

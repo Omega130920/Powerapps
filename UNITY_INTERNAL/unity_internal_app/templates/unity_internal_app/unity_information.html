@@ -689,7 +689,7 @@
                     {% else %}
                         <a href="{% url 'assign_fiscal_date' note_id=note.id %}?context=info" 
                            class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #3f51b5;">
-                           {% if note.schedule_amount > 0 %}Allocate{% else %}View{% endif %}
+                           {% if note.schedule_amount > 0 %}{% else %}View{% endif %}
                         </a>
                     {% endif %}
                 </td>

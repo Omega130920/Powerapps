@@ -176,133 +176,114 @@ def index(request):
 def unity_list(request):
     """
     Displays a list combining InternalFunds and UnityMgListing.
-    FIXED: Ensures newly added UnityMgListing records without InternalFunds 
-    entries are correctly displayed.
+    Calculates the 'Current Status' based on the latest UnityBill record.
     """
     
     # 1. Fetch Base Records
     internal_funds_records = InternalFunds.objects.all()
-    
-    # Create a mutable copy of the Unity listing map
-    # We use a copy so we can pop items without affecting the database iteration
     unity_listing_map = {
         record.a_company_code: record for record in UnityMgListing.objects.all()
     }
     
-    # --- NEW: Manual Calculation (Bypassing ORM Joins) ---
-    
-    # A. Create a Map: {Bill_ID : Company_Code}
+    # 2. Manual Calculation Setup
     bill_map = dict(UnityBill.objects.values_list('id', 'C_Company_Code'))
     
-    # B. Aggregate Total Surplus per Company
+    # Aggregate Surplus
     surplus_map = defaultdict(Decimal)
-    surpluses = ScheduleSurplus.objects.values('unity_bill_source_id', 'surplus_amount')
-    
-    for s in surpluses:
+    for s in ScheduleSurplus.objects.values('unity_bill_source_id', 'surplus_amount'):
         b_id = s['unity_bill_source_id']
-        amount = s['surplus_amount'] or ZERO_DECIMAL
         if b_id in bill_map:
-            company_code = bill_map[b_id]
-            surplus_map[company_code] += amount
+            surplus_map[bill_map[b_id]] += (s['surplus_amount'] or ZERO_DECIMAL)
 
-    # C. Aggregate Total Allocation (Used Journal Entries) per Company
+    # Aggregate Allocation
     allocation_map = defaultdict(Decimal)
-    allocations = JournalEntry.objects.values('target_bill_id', 'amount')
-    
-    for a in allocations:
+    for a in JournalEntry.objects.values('target_bill_id', 'amount'):
         b_id = a['target_bill_id']
-        amount = a['amount'] or ZERO_DECIMAL
         if b_id in bill_map:
-            company_code = bill_map[b_id]
-            allocation_map[company_code] += amount
+            allocation_map[bill_map[b_id]] += (a['amount'] or ZERO_DECIMAL)
 
-    # 3. Build Combined List - Phase 1: InternalFunds (primary source)
+    # --- UPDATED: Calculate "Current Billing Status" Logic ---
+    billing_status_map = {}
+    # Order by date so the latest bill for each company is processed last
+    all_bills = UnityBill.objects.all().order_by('A_CCDatesMonth')
+    
+    for b in all_bills:
+        code = b.C_Company_Code
+        # Calculate Total Covered for the specific bill
+        total_covered = JournalEntry.objects.filter(target_bill=b).aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
+        
+        # Priority Logic
+        if b.is_reconciled:
+            status = "RECON COMPLETE"
+        elif b.G_Schedule_Date and (b.H_Schedule_Amount or 0) > 0 and total_covered == 0:
+            status = "SCHEDULED"
+        elif (total_covered or 0) > 0:
+            status = "OPEN"
+        elif b.F_Pre_Bill_Date: # or G_Pre_Bill_Date based on your model
+            status = "PRE-BILL"
+        elif (b.H_Schedule_Amount or 0) == 0 and total_covered == 0:
+            status = "AWAITING SCHEDULE"
+        else:
+            status = "OPEN"
+            
+        billing_status_map[code] = status
+
+    # 3. Build Combined List
     combined_records = []
     
+    # Phase 1: InternalFunds
     for fund_record in internal_funds_records:
         company_code = fund_record.A_Company_Code
-        
-        # Pop the detail record if it exists, so we know it has been processed
         detail_record = unity_listing_map.pop(company_code, None)
         
-        # --- Calculate Active Surplus ---
-        total_gained = surplus_map.get(company_code, ZERO_DECIMAL)
-        total_used = allocation_map.get(company_code, ZERO_DECIMAL)
-        active_surplus_value = total_gained - total_used
+        active_surplus_value = surplus_map.get(company_code, ZERO_DECIMAL) - allocation_map.get(company_code, ZERO_DECIMAL)
         
-        combined_data = {
-            # Fields from InternalFunds
+        combined_records.append({
             'A_Company_Code': fund_record.A_Company_Code,
             'B_Company_Name': fund_record.B_Company_Name,
             'Source': fund_record.Source,
             'D_Company_Status': fund_record.D_Company_Status,
-            
-            # Fields from UnityMgListing (if matched)
             'c_agent': detail_record.c_agent if detail_record else None,
             'e_payment_method': detail_record.e_payment_method if detail_record else None,
             'f_billing_method': detail_record.f_billing_method if detail_record else None,
             'g_current_fiscal': detail_record.g_current_fiscal if detail_record else None,
-            'h_current_status': detail_record.h_current_status if detail_record else None,
-            'i_last_recon': detail_record.i_last_recon if detail_record else None,
+            # OVERWRITTEN WITH CALCULATED STATUS:
+            'h_current_status': billing_status_map.get(company_code, "NO BILLING"),
             'j_arrears': detail_record.j_arrears if detail_record else None,
-            'contact_email': detail_record.contact_email if detail_record else None,
-            
             'has_details': bool(detail_record),
             'active_surplus': active_surplus_value,
-        }
-        combined_records.append(combined_data)
+        })
 
-    # 3. Build Combined List - Phase 2: Remaining UnityMgListing records (System Only)
+    # Phase 2: Remaining UnityMgListing
     for company_code, detail_record in unity_listing_map.items():
+        active_surplus_value = surplus_map.get(company_code, ZERO_DECIMAL) - allocation_map.get(company_code, ZERO_DECIMAL)
         
-        # Calculate Active Surplus for this System-Only record
-        total_gained = surplus_map.get(company_code, ZERO_DECIMAL)
-        total_used = allocation_map.get(company_code, ZERO_DECIMAL)
-        active_surplus_value = total_gained - total_used
-        
-        combined_data = {
-            # Core fields from UnityMgListing
+        combined_records.append({
             'A_Company_Code': detail_record.a_company_code,
             'B_Company_Name': detail_record.b_company_name,
-            'Source': 'System Only (New)', # Explicitly mark the source
+            'Source': 'System Only (New)',
             'D_Company_Status': detail_record.d_company_status,
-            
-            # Remaining fields from UnityMgListing
             'c_agent': detail_record.c_agent,
             'e_payment_method': detail_record.e_payment_method,
             'f_billing_method': detail_record.f_billing_method,
             'g_current_fiscal': detail_record.g_current_fiscal,
-            'h_current_status': detail_record.h_current_status,
-            'i_last_recon': detail_record.i_last_recon,
+            # OVERWRITTEN WITH CALCULATED STATUS:
+            'h_current_status': billing_status_map.get(company_code, "NO BILLING"),
             'j_arrears': detail_record.j_arrears,
-            'contact_email': detail_record.contact_email,
-            
-            'has_details': True, # It definitely has details, as it came from UnityMgListing
+            'has_details': True,
             'active_surplus': active_surplus_value,
-        }
-        combined_records.append(combined_data)
+        })
         
-    # 4. Fetch Distinct Values for Filters
-    distinct_source = InternalFunds.objects.values_list('Source', flat=True).distinct().exclude(Source__isnull=True).order_by('Source')
-    # Since we are adding 'System Only (New)', we might need to update filters in the HTML/JS if we want to filter on it.
-    
-    distinct_company_status = InternalFunds.objects.values_list('D_Company_Status', flat=True).distinct().exclude(D_Company_Status__isnull=True).order_by('D_Company_Status')
-    
-    distinct_agent = UnityMgListing.objects.values_list('c_agent', flat=True).distinct().exclude(c_agent__isnull=True).order_by('c_agent')
-    distinct_payment = UnityMgListing.objects.values_list('e_payment_method', flat=True).distinct().exclude(e_payment_method__isnull=True).order_by('e_payment_method')
-    distinct_billing = UnityMgListing.objects.values_list('f_billing_method', flat=True).distinct().exclude(f_billing_method__isnull=True).order_by('f_billing_method')
-    distinct_fiscal = UnityMgListing.objects.values_list('g_current_fiscal', flat=True).distinct().exclude(g_current_fiscal__isnull=True).order_by('g_current_fiscal')
-    distinct_current_status = UnityMgListing.objects.values_list('h_current_status', flat=True).distinct().exclude(h_current_status__isnull=True).order_by('h_current_status')
-
+    # 4. Filters (Standard Logic)
     context = {
         'unity_records': combined_records,
-        'distinct_source': distinct_source,
-        'distinct_company_status': distinct_company_status,
-        'distinct_agent': distinct_agent,
-        'distinct_payment': distinct_payment,
-        'distinct_billing': distinct_billing,
-        'distinct_fiscal': distinct_fiscal,
-        'distinct_current_status': distinct_current_status,
+        'distinct_source': InternalFunds.objects.values_list('Source', flat=True).distinct().exclude(Source__isnull=True),
+        'distinct_company_status': InternalFunds.objects.values_list('D_Company_Status', flat=True).distinct(),
+        'distinct_agent': UnityMgListing.objects.values_list('c_agent', flat=True).distinct(),
+        'distinct_payment': UnityMgListing.objects.values_list('e_payment_method', flat=True).distinct(),
+        'distinct_billing': UnityMgListing.objects.values_list('f_billing_method', flat=True).distinct(),
+        'distinct_fiscal': UnityMgListing.objects.values_list('g_current_fiscal', flat=True).distinct(),
+        'distinct_current_status': ["RECON COMPLETE", "SCHEDULED", "OPEN", "PRE-BILL", "AWAITING SCHEDULE", "NO BILLING"]
     }
     return render(request, 'unity_internal_app/unity_list.html', context)
 
@@ -5113,3 +5094,59 @@ def export_unity_list_excel(request):
     response['Content-Disposition'] = 'attachment; filename="Unity_List_Export.xlsx"'
     wb.save(response)
     return response
+
+@login_required
+def apply_available_credit(request, bill_id):
+    if request.method == 'POST':
+        # 1. Get the Bill
+        bill = get_object_or_404(UnityBill, pk=bill_id)
+        
+        # 2. Get Data from Form
+        # 'credit_id' is the primary key of the CreditNote record
+        credit_id = request.POST.get('credit_id') 
+        amount_to_apply_str = request.POST.get('amount_to_apply')
+        
+        try:
+            amount_to_apply = Decimal(amount_to_apply_str)
+            
+            # --- CRITICAL FIX: Use CreditNote, not ScheduleSurplus ---
+            credit_item = get_object_or_404(CreditNote, pk=credit_id)
+            
+            # 3. Validation
+            if amount_to_apply <= 0:
+                messages.error(request, "Amount must be greater than 0.")
+                return redirect('pre_bill_reconciliation_summary', company_code=bill.C_Company_Code, bill_id=bill.id)
+
+            # Check available balance (using schedule_amount from CreditNote model)
+            if amount_to_apply > credit_item.schedule_amount: 
+                messages.error(request, "Cannot apply more than the available credit amount.")
+                return redirect('pre_bill_reconciliation_summary', company_code=bill.C_Company_Code, bill_id=bill.id)
+
+            # 4. Create the Allocation
+            with transaction.atomic():
+                # Note: We use 'source_credit_note_id' to match your BillSettlement audit trail
+                BillSettlement.objects.create(
+                    unity_bill_source=bill,
+                    settled_amount=amount_to_apply,
+                    settlement_date=timezone.now(),
+                    source_credit_note_id=credit_item.id, # Link to the credit note
+                    reconned_bank_line=None
+                )
+                
+                # Deduct the amount from the Credit Note so it isn't used twice
+                credit_item.schedule_amount -= amount_to_apply
+                
+                # If fully used, you might want to update status
+                if credit_item.schedule_amount <= Decimal('0.009'):
+                    credit_item.credit_link_status = 'Approved' # or 'Fully Used'
+                
+                credit_item.save()
+                
+                messages.success(request, f"Successfully applied R{amount_to_apply} from Credit Note.")
+
+        except Exception as e:
+            messages.error(request, f"Error applying credit: {str(e)}")
+            
+        return redirect('pre_bill_reconciliation_summary', company_code=bill.C_Company_Code, bill_id=bill.id)
+    
+    return redirect('dashboard')
