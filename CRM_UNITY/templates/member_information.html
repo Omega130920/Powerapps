@@ -503,6 +503,7 @@
                 <li data-tab-target="#compose-email">✏️ Compose Email</li> <!-- NEW TAB -->
                 <li data-tab-target="#notes">Notes</li>
                 <li data-tab-target="#pdf-documents">PDF Documents</li>
+                <li data-tab-target="#medical-correspondence">Medical Correspondence</li>
             </ul>
 
             <div class="tab-content">
@@ -1266,6 +1267,98 @@
                     </div>
                 </section>
 
+<section id="medical-correspondence" class="tab-pane">
+    <div id="medical-correspondence-display">
+        <h2>Medical Correspondence Details
+            <button class="btn btn-sm edit-toggle-btn" 
+                    data-target="medical-correspondence-edit" 
+                    data-parent-tab="medical-correspondence" 
+                    style="margin-left: 10px; padding: 5px 10px; background-color: var(--color-light-green); border: 1px solid var(--color-primary); color: var(--color-text-dark);">
+                {% if medical_info %}Edit{% else %}Add New{% endif %}
+            </button>
+        </h2>
+
+        {% if medical_info %}
+        <table class="data-table">
+            <tbody>
+                <tr><th>Title</th><td>{{ medical_info.title|default:"N/A" }}</td></tr>
+                <tr><th>First Name</th><td>{{ medical_info.first_name|default:"N/A" }}</td></tr>
+                <tr><th>Surname</th><td>{{ medical_info.surname|default:"N/A" }}</td></tr>
+                <tr><th>ID Number</th><td>{{ medical_info.id_number|default:"N/A" }}</td></tr>
+                <tr><th>E-mail</th><td>{{ medical_info.email_address|default:"N/A" }}</td></tr>
+                <tr><th>Work Number</th><td>{{ medical_info.work_dial_code|default:"" }} {{ medical_info.work_contact_number|default:"N/A" }}</td></tr>
+                <tr><th>Fax Number</th><td>{{ medical_info.fax_dial_code|default:"" }} {{ medical_info.fax_number|default:"N/A" }}</td></tr>
+                <tr><th>Mobile Number</th><td>{{ medical_info.mobile_number|default:"N/A" }}</td></tr>
+            </tbody>
+        </table>
+        {% else %}
+        <p class="empty-message">No Medical Correspondence information available. Click 'Add New' to create a record.</p>
+        {% endif %}
+    </div>
+
+    <div id="medical-correspondence-edit" style="display: none;">
+        <h2>{% if medical_info %}Edit{% else %}Add{% endif %} Medical Correspondence
+            <button class="btn btn-sm edit-toggle-btn" 
+                    data-target="medical-correspondence-display" 
+                    data-parent-tab="medical-correspondence" 
+                    style="margin-left: 10px; padding: 5px 10px; background-color: #f44336; color: white; border: 1px solid #d32f2f;">Cancel</button>
+        </h2>
+        
+        <form method="POST" action="{% url 'member_information' member_group_code=contact_info.member_group_code %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="update_medical">
+            
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="id_med_title" style="font-weight: bold;">Title</label>
+                <input type="text" id="id_med_title" name="title" class="form-control" value="{{ medical_info.title|default:'' }}" style="width: 100%; padding: 8px; border: 1px solid #ccc;">
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="id_med_first_name" style="font-weight: bold;">First Name</label>
+                <input type="text" id="id_med_first_name" name="first_name" class="form-control" value="{{ medical_info.first_name|default:'' }}" style="width: 100%; padding: 8px; border: 1px solid #ccc;">
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="id_med_surname" style="font-weight: bold;">Surname</label>
+                <input type="text" id="id_med_surname" name="surname" class="form-control" value="{{ medical_info.surname|default:'' }}" style="width: 100%; padding: 8px; border: 1px solid #ccc;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="id_med_id_number" style="font-weight: bold;">ID Number</label>
+                <input type="text" id="id_med_id_number" name="id_number" class="form-control" value="{{ medical_info.id_number|default:'' }}" style="width: 100%; padding: 8px; border: 1px solid #ccc;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="id_med_email_address" style="font-weight: bold;">E-mail</label>
+                <input type="email" id="id_med_email_address" name="email_address" class="form-control" value="{{ medical_info.email_address|default:'' }}" style="width: 100%; padding: 8px; border: 1px solid #ccc;">
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label style="font-weight: bold;">Work Contact</label>
+                <div style="display: flex; gap: 5px;">
+                    <input type="text" name="work_dial_code" placeholder="Dial Code" value="{{ medical_info.work_dial_code|default:'' }}" style="width: 30%; padding: 8px; border: 1px solid #ccc;">
+                    <input type="text" name="work_contact_number" placeholder="Number" value="{{ medical_info.work_contact_number|default:'' }}" style="width: 70%; padding: 8px; border: 1px solid #ccc;">
+                </div>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label style="font-weight: bold;">Fax Number</label>
+                <div style="display: flex; gap: 5px;">
+                    <input type="text" name="fax_dial_code" placeholder="Dial Code" value="{{ medical_info.fax_dial_code|default:'' }}" style="width: 30%; padding: 8px; border: 1px solid #ccc;">
+                    <input type="text" name="fax_number" placeholder="Number" value="{{ medical_info.fax_number|default:'' }}" style="width: 70%; padding: 8px; border: 1px solid #ccc;">
+                </div>
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="id_med_mobile_number" style="font-weight: bold;">Mobile Number</label>
+                <input type="text" id="id_med_mobile_number" name="mobile_number" class="form-control" value="{{ medical_info.mobile_number|default:'' }}" style="width: 100%; padding: 8px; border: 1px solid #ccc;">
+            </div>
+            
+            <button type="submit" class="btn btn-primary" style="background-color: var(--color-primary); color: white; padding: 10px 15px; border: none; cursor: pointer; margin-top: 15px;">Save Medical Info</button>
+        </form>
+    </div>
+</section>
+
 <section id="email-log" class="tab-pane">
     <div class="content-section">
         <h2 style="color: #38761d; border-bottom: 2px solid #38761d; padding-bottom: 10px; margin-bottom: 20px;">
@@ -1414,7 +1507,7 @@
                     <label for="direct_member_recipient_email" style="font-weight: bold; display: block; margin-bottom: 5px; color: #333;">To:</label>
                     <input type="email" id="direct_member_recipient_email" name="recipient_email" 
                         placeholder="recipient@example.com"
-                        value="{% if cbc_info.email_address %}{{ cbc_info.email_address }}{% endif %}"
+                        value="{% if communications_info.email_address %}{{ communications_info.email_address }}{% elif cbc_info.email_address %}{{ cbc_info.email_address }}{% endif %}"
                         required
                         style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 5px; box-sizing: border-box;">
                 </div>
@@ -1567,6 +1660,7 @@
                                     <option value="Notes Log">📝 Notes Log</option>
                                     <option value="Teams Meeting">📝 Teams Meeting</option>
                                     <option value="Sent E-mail">📧 Sent E-mail</option>
+                                    <option value="SMS Sent">📨 SMS Sent</option>
                                 </select>
                             </div>
                         </div>
@@ -1818,6 +1912,7 @@
                 // This updates the URL so if the user hits 'Refresh' or 'Submit', 
                 // the server knows which tab to stay on.
                 const targetHash = tab.dataset.tabTarget;
+                // 
                 window.history.replaceState(null, null, targetHash);
             });
         });
@@ -1880,6 +1975,10 @@
         } else if (activateEditMode === 'section13a') {
             initialTab = document.querySelector('.tab-nav li[data-tab-target="#section13a"]');
             editDivId = 'section13a-edit';
+        // 🟢 FIXED: MATCHED SELECTORS TO THE NEW ID "medical-correspondence"
+        } else if (activateEditMode === 'medical') {
+            initialTab = document.querySelector('.tab-nav li[data-tab-target="#medical-correspondence"]');
+            editDivId = 'medical-correspondence-edit';
         } else if (hash) {
             // Prioritize hash (e.g., #pdf-documents) for form redirects
             initialTab = document.querySelector(`.tab-nav li[data-tab-target="${hash}"]`);
@@ -1925,7 +2024,7 @@
         });
 
         // ====================================================================
-        // === NOTES TAB DYNAMIC COMMUNICATION FORM VISIBILITY AND DIALER LOGIC (Unmodified) ===
+        // === NOTES TAB DYNAMIC COMMUNICATION FORM VISIBILITY AND DIALER LOGIC ===
         // ====================================================================
         const commTypeSelect = document.getElementById('id_communication_type');
         const regularNoteArea = document.getElementById('regular-note-area');
@@ -2058,7 +2157,7 @@
         }
         
         // ====================================================================
-        // === COMPOSE EMAIL TAB LOGIC (Unmodified) ===
+        // === COMPOSE EMAIL TAB LOGIC ===
         // ====================================================================
         const composeEmailForm = document.getElementById('compose_email_form');
         const directEmailBodyEditor = document.getElementById('direct_member_email_body_editor');

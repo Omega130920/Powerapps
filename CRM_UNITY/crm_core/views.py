@@ -47,6 +47,8 @@ from .forms import (
     CommunicationsPersonForm, HumanResourcesForm, Section13aForm
 )
 
+from .models import MedicalCorrespondence 
+from .forms import MedicalCorrespondenceForm
 # Service Imports
 from .services.outlook_graph_service import OutlookGraphService
 from .services.delegation_service import delegate_email_task, add_action_note
@@ -348,15 +350,15 @@ def get_email_content_view(request, email_id):
 def delegate_email_view(request, email_id):
     """
     Handles classification and delegation for CRM_UNITY.
-    UPDATED: Allows Managers to re-delegate and explicitly set Work-Related status.
+    UPDATED: Allows Managers to re-delegate and supports Membership Number field.
     """
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     inbox_item = get_object_or_404(CrmInbox, email_id=email_id)
     
-    # 🟢 NEW: Check if this is already delegated
+    # Check if this is already delegated
     existing_delegation = CrmDelegateTo.objects.filter(email_id=email_id).first()
     
-    # 🟢 NEW: Define Manager check
+    # Define Manager check
     is_manager = request.user.groups.filter(name='Managers').exists() or request.user.is_superuser
     
     # Logic: If it's delegated and the user is NOT a manager, kick them back to tasks
@@ -374,9 +376,11 @@ def delegate_email_view(request, email_id):
         agent_name = request.POST.get('agent_name')
         work_related = request.POST.get('work_related') # 'Yes' or 'No'
         member_code = request.POST.get('mip_number') 
+        membership_num = request.POST.get('membership_number') # 🟢 NEW: Extract Membership Number
         
         form_data = {
             'member_group_code': member_code,
+            'membership_number': membership_num, # 🟢 NEW: Add to form_data dictionary
             'category': request.POST.get('email_category'),
             'work_related': work_related,
             'type': request.POST.get('email_type'),
@@ -409,10 +413,11 @@ def delegate_email_view(request, email_id):
                     try:
                         assignee = User.objects.get(pk=agent_name) if agent_name.isdigit() else User.objects.get(username=agent_name)
                         
-                        # Only send a reply if this is a NEW delegation (optional check)
+                        # Only send a reply if this is a NEW delegation
                         if not existing_delegation:
+                            # 🟢 UPDATED: Include Membership Number in the reference
                             reply_payload = {
-                                "comment": f"Dear Sender,\n\nThis has been delegated to: {assignee.username}.\nRef: {member_code}"
+                                "comment": f"Dear Sender,\n\nThis has been delegated to: {assignee.username}.\nMG Code: {member_code}\nMem No: {membership_num if membership_num else 'N/A'}"
                             }
                             draft = OutlookGraphService._make_graph_request(f"messages/{email_id}/createReply", method='POST', data=reply_payload)
                             if draft and isinstance(draft, dict) and 'id' in draft:
@@ -454,8 +459,8 @@ def delegate_email_view(request, email_id):
         'email_body': email_body,
         'attachments': attachments_list, 
         'inbox_item': inbox_item,
-        'existing_delegation': existing_delegation, # 🟢 Pass this to show current status
-        'is_manager': is_manager               # 🟢 Pass this to show/hide specific UI
+        'existing_delegation': existing_delegation, 
+        'is_manager': is_manager
     })
     
 @login_required
@@ -547,6 +552,7 @@ def global_members_list(request):
 
     return render(request, 'global_members_list.html', context)
 
+# --- ADDED TO RELATED FORMS ---
 RELATED_FORMS = [
     ('cbc_form', CbcForm, Cbc), 
     ('cbc_admin_form', CbcAdminPersonForm, CbcAdminPerson),
@@ -558,11 +564,12 @@ RELATED_FORMS = [
     ('communications_form', CommunicationsPersonForm, CommunicationsPerson),
     ('hr_form', HumanResourcesForm, HumanResources), 
     ('section13a_form', Section13aForm, Section13a),
+    ('medical_form', MedicalCorrespondenceForm, MedicalCorrespondence), # 🟢 Added Medical Form
 ]
 
 from django.core.mail import EmailMessage
-
-import urllib.parse # Ensure this is at the top of your file
+import urllib.parse 
+import os
 
 @login_required
 def member_information(request, member_group_code):
@@ -617,7 +624,6 @@ def member_information(request, member_group_code):
             try:
                 file_path = document.document_file.path
                 if os.path.exists(file_path):
-                    # Immediate Return to stream the file
                     response = FileResponse(open(file_path, 'rb'), as_attachment=True)
                     response['Content-Disposition'] = f'attachment; filename="{target_filename}"'
                     return response
@@ -627,7 +633,6 @@ def member_information(request, member_group_code):
             except Exception as e:
                 messages.error(request, f"System error during file access: {str(e)}")
         else:
-            # Helpful trace for you to see what is actually in your DB
             db_files = list(MemberDocument.objects.filter(
                 related_member_group_code=member_group_code
             ).values_list('document_file', flat=True))
@@ -734,6 +739,7 @@ def member_information(request, member_group_code):
         'communications_info': CommunicationsPerson.objects.filter(member_group_code=member_group_code).first(),
         'hr_info': HumanResources.objects.filter(member_group_code=member_group_code).first(),
         'section13a_info': Section13a.objects.filter(member_group_code=member_group_code).first(),
+        'medical_info': MedicalCorrespondence.objects.filter(member_group_code=member_group_code).first(), # 🟢 Added
     }
 
     combined_email_log = []
@@ -1281,7 +1287,7 @@ def complaint_log_view(request):
 
 @login_required
 def export_complaints_excel(request):
-    """Exports filtered complaints to Excel."""
+    """Exports filtered complaints to Excel, including all new fields (12.4)."""
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
 
@@ -1291,7 +1297,7 @@ def export_complaints_excel(request):
     # Fetch base records
     complaints = ComplaintLog.objects.all()
 
-    # Apply same filters as the view
+    # Apply same filters
     if is_valid_dt(start_date):
         complaints = complaints.filter(created_at__date__gte=start_date)
     if is_valid_dt(end_date):
@@ -1304,15 +1310,16 @@ def export_complaints_excel(request):
     ws = wb.active
     ws.title = "Complaint Log Export"
 
-    # Header Styling
+    # 12.4 - Header Styling with new fields
     headers = [
-        'ID', 'Complainant', 'Employer', 'Nature of Complaint', 
+        'ID', 'Complainant', 'Member Number', 'ID/Passport', 'Employer', 
+        'PFA', 'Nature of Complaint', 'Action Taken', 'Resolution',
         'Status', 'Created By', 'Created Date', 'Resolved Date'
     ]
     ws.append(headers)
 
     header_font = Font(bold=True, color="FFFFFF")
-    header_fill = PatternFill(start_color="4F46E5", end_color="4F46E5", fill_type="solid") # Indigo to match UI
+    header_fill = PatternFill(start_color="4F46E5", end_color="4F46E5", fill_type="solid")
     
     for cell in ws[1]:
         cell.font = header_font
@@ -1324,8 +1331,13 @@ def export_complaints_excel(request):
         ws.append([
             c.id,
             c.complainant,
+            c.member_number or 'N/A',
+            c.id_passport_number or 'N/A',
             c.employer or 'N/A',
+            c.pfa or 'No',
             c.nature_of_complaint,
+            c.action_taken or '',
+            c.resolution or '',
             c.current_status,
             c.created_by.username if c.created_by else 'System',
             c.created_at.replace(tzinfo=None) if c.created_at else 'N/A',
@@ -1338,10 +1350,10 @@ def export_complaints_excel(request):
         column_letter = column[0].column_letter
         for cell in column:
             try:
-                if len(str(cell.value)) > max_length:
+                if cell.value and len(str(cell.value)) > max_length:
                     max_length = len(str(cell.value))
             except: pass
-        ws.column_dimensions[column_letter].width = max_length + 2
+        ws.column_dimensions[column_letter].width = min(max_length + 2, 50) # Cap width at 50 for text fields
 
     # Return Excel File
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
@@ -2003,6 +2015,7 @@ def export_email_workflow_csv(request):
     from django.http import HttpResponse
     from django.utils import timezone
 
+    # Fetches the filtered data based on current UI filters
     data = get_unified_email_data(request)
     
     response = HttpResponse(content_type='text/csv')
@@ -2011,13 +2024,16 @@ def export_email_workflow_csv(request):
 
     writer = csv.writer(response)
     
+    # 🟢 UPDATED HEADERS
     writer.writerow([
         'Received Date', 
         'Sender', 
         'Subject', 
         'Status', 
         'Agent (Assigned)', 
-        'Member Code', 
+        'Member Group Code',    # Added
+        'Membership Number',    # Added
+        'ID/Passport Number',   # Added
         'Category',
         'Enquiry Selection', 
         'Date Replied'
@@ -2032,6 +2048,7 @@ def export_email_workflow_csv(request):
 
         agent_name = row.get('delegated_to') or 'Inbox (Unassigned)'
 
+        # 🟢 UPDATED ROW DATA
         writer.writerow([
             received_dt,
             row.get('sender', 'Unknown'),
@@ -2039,8 +2056,10 @@ def export_email_workflow_csv(request):
             row.get('status', 'New'),
             agent_name,
             row.get('member_group_code', 'N/A'),
+            row.get('membership_number', 'N/A'), # Ensure this key exists in get_unified_email_data
+            row.get('id_passport', 'N/A'),       # Ensure this key exists in get_unified_email_data
             row.get('category', 'Unclassified'),
-            row.get('type', 'None'), # This will now pull the value you added to the helper
+            row.get('type', 'None'),
             reply_dt
         ])
 

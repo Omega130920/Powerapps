@@ -116,7 +116,7 @@
             background-color: #66bb6a;
             box-shadow: 0 2px 5px rgba(0,0,0,0.2);
             transform: translateY(-1px);
-            color: white; /* Ensures text stays white on hover */
+            color: white; 
         }
     </style>
 </head>
@@ -124,7 +124,6 @@
 
 <div class="dashboard-links mt-4">
     {% if source == 'member' %}
-        {# Use the correct name 'member_information' and pass the member_group_code variable #}
         <a href="{% url 'member_information' member_group_code=task.member_group_code %}" class="return-button" style="background-color: #673ab7; border-color: #5e35b1;">
             <i class="fas fa-arrow-left" style="margin-right: 8px;"></i> Back to Member Information
         </a>
@@ -153,7 +152,6 @@
         </div>
     {% endif %}
 
-    {# --- RESTORE BUTTON --- #}
     {% if task.status == 'Recycled' %}
     <form method="POST">
         {% csrf_token %}
@@ -162,7 +160,6 @@
     </form>
     {% endif %}
 
-    {# --- METADATA SECTION --- #}
     <div class="custom-card">
         <div class="card-header-dark" style="background-color: #1e88e5;">
             <i class="fas fa-database"></i> Task Metadata & Enquiry Details
@@ -175,6 +172,10 @@
                     <div>
                         <label class="form-label">Member Group Code:</label>
                         <input type="text" name="mip_number" value="{{ task.member_group_code|default:'' }}" class="form-control" placeholder="Code">
+                    </div>
+                    <div>
+                        <label class="form-label">Membership Number:</label>
+                        <input type="text" name="membership_number" value="{{ task.membership_number|default:'' }}" class="form-control" placeholder="Member No.">
                     </div>
                     <div>
                         <label class="form-label">ID / Passport Number:</label>
@@ -324,14 +325,6 @@
                         </select>
                     </div>
                     <div>
-                        <label class="form-label">Communication Method:</label>
-                        <select name="email_method" class="form-control">
-                            <option value="Email" {% if task.method == 'Email' %}selected{% endif %}>Email</option>
-                            <option value="Call" {% if task.method == 'Call' %}selected{% endif %}>Call</option>
-                            <option value="In Person" {% if task.method == 'In Person' %}selected{% endif %}>In Person</option>
-                        </select>
-                    </div>
-                    <div>
                         <button type="submit" class="custom-btn btn-update"><i class="fas fa-save"></i> Update Info</button>
                     </div>
                 </div>
@@ -340,7 +333,6 @@
     </div>
 
     <div class="main-grid">
-        
         <div class="left-column">
             <div class="custom-card">
                 <div class="card-header-primary">
@@ -351,8 +343,6 @@
                         <small>From: <strong>{{ task.sender_email|default:task.sender }}</strong></small><br>
                         <small>Received: {{ task.received_timestamp|date:"Y-m-d H:i" }}</small>
                     </div>
-                    
-                    {# --- DIRECT EMAIL RENDERING --- #}
                     <div style="background: #f9f9f9; border: 1px solid #ddd; padding: 15px; max-height: 550px; overflow-y: auto; border-radius: 4px;">
                         {% if task.email_body_html %}
                             {{ task.email_body_html|safe }}
@@ -362,7 +352,6 @@
                     </div>
                 </div>
 
-                {# --- 🚀 ATTACHMENT SECTION (UNITY INTERNAL LOGIC) --- #}
                 {% if attachments %}
                 <div class="attachment-section">
                     <strong style="display:block; margin-bottom:10px; color:#2e7d32; font-size: 14px;">
@@ -378,7 +367,6 @@
                                 {% else %}
                                     <i class="fas fa-file-download"></i>
                                 {% endif %}
-                                
                                 {{ att.name }} 
                                 <small style="color: #666; font-weight: normal;">({{ att.size|filesizeformat }})</small>
                             </a>
@@ -399,36 +387,33 @@
                     <form method="POST" action="{% url 'send_task_email' email_id=task.email_id %}" id="email_response_form" enctype="multipart/form-data">
                         {% csrf_token %}
                         <input type="hidden" name="action_type" value="send_email">
-                        
-                        {# --- CRITICAL FIX: HIDDEN INPUT FOR BODY --- #}
                         <input type="hidden" name="email_body_reply" id="email_body_reply_hidden">
                         
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                             <div>
                                 <label class="form-label">Recipient:</label>
-                                <input type="email" name="recipient_email" value="{{ task.sender_email }}" class="form-control" required>
+                                <input type="email" name="recipient_email" value="{{ task.sender_email|default:task.sender }}" class="form-control" required>
                             </div>
                             <div>
                                 <label class="form-label">Action Log Type:</label>
                                 <select name="action_notes_email" class="form-control">
-                                <option value="">Select Action Note</option>
-                                <option value="Feedback to Sanlam">Feedback to Sanlam</option>
-                                <option value="Feedback to Employer">Feedback to Employer</option>
-                                <option value="Feedback to Member">Feedback to Member</option>
-                                <option value="Feedback to CBC">Feedback to CBC</option>
-                                <option value="Enquiry to FO">Enquiry to FO</option>
-                                <option value="Enquiry to Sanlam">Enquiry to Sanlam</option>
-                                <option value="Enquiry to Employer">Enquiry to Employer</option>
-                                <option value="Enquiry to CBC">Enquiry to CBC</option>
-                                <option value="Sent to Employer">Sent to Employer</option>
-                                <option value="Sent to Sanlam">Sent to Sanlam</option>
-                                <option value="Sent to CBC">Sent to CBC</option>
-                                <option value="Sent to FO">Sent to FO</option>
-                            </select>
-                        </div>
+                                    <option value="">Select Action Note</option>
+                                    <option value="Feedback to Sanlam">Feedback to Sanlam</option>
+                                    <option value="Feedback to Employer">Feedback to Employer</option>
+                                    <option value="Feedback to Member">Feedback to Member</option>
+                                    <option value="Feedback to CBC">Feedback to CBC</option>
+                                    <option value="Enquiry to FO">Enquiry to FO</option>
+                                    <option value="Enquiry to Sanlam">Enquiry to Sanlam</option>
+                                    <option value="Enquiry to Employer">Enquiry to Employer</option>
+                                    <option value="Enquiry to CBC">Enquiry to CBC</option>
+                                    <option value="Sent to Employer">Sent to Employer</option>
+                                    <option value="Sent to Sanlam">Sent to Sanlam</option>
+                                    <option value="Sent to CBC">Sent to CBC</option>
+                                    <option value="Sent to FO">Sent to FO</option>
+                                </select>
+                            </div>
                         </div>
 
-                        {# --- AUTO-NUMBERING SUBJECT LINE --- #}
                         <div>
                             <label class="form-label">Subject:</label>
                             <input type="text" id="email_subject_reply" name="email_subject_reply" 
@@ -470,6 +455,7 @@
                                 <option value="Outgoing Call">Outgoing Call</option>
                                 <option value="Notes Log">Notes Log</option>
                                 <option value="Teams Meeting">Teams Meeting</option>
+                                <option value="SMS Sent">SMS Sent</option>
                             </select>
                         </div>
 

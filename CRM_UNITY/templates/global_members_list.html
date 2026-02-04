@@ -180,10 +180,7 @@
                 <tr>
                     <th>Member Group Code</th>
                     <th>Member Group Name</th>
-                    <th>Commencement Date</th>
                     <th>Fund Status</th>
-                    <th>Postal Address</th>
-                    <th>Postal Code</th>
                     <th>Physical Address</th>
                     <th>Physical Code</th>
                 </tr>
@@ -193,16 +190,13 @@
                 <tr data-member-code="{{ member.member_group_code }}">
                     <td>{{ member.member_group_code }}</td>
                     <td>{{ member.member_group_name }}</td>
-                    <td>{{ member.commencement_date }}</td>
                     <td>{{ member.fund_status }}</td>
-                    <td>{{ member.business_postal_address }}</td>
-                    <td>{{ member.business_postal_address_post_code }}</td>
                     <td>{{ member.business_physical_address2 }}</td>
                     <td>{{ member.business_physical_address_post_code2 }}</td>
                 </tr>
                 {% empty %}
                 <tr class="no-results-row">
-                    <td colspan="8">No members found matching the criteria.</td>
+                    <td colspan="5">No members found matching the criteria.</td>
                 </tr>
                 {% endfor %}
             </tbody>
@@ -221,7 +215,7 @@
                 noResultsRow = document.createElement('tr');
                 noResultsRow.className = 'no-results-row';
                 noResultsRow.style.display = 'none';
-                noResultsRow.innerHTML = '<td colspan="8">No matches found in current list.</td>';
+                noResultsRow.innerHTML = '<td colspan="5">No matches found in current list.</td>';
                 tableBody.appendChild(noResultsRow);
             }
 

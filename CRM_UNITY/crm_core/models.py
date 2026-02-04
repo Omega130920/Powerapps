@@ -229,6 +229,23 @@ class Section13a(models.Model):
         managed = False
         db_table = 'section_13a'
 
+class MedicalCorrespondence(models.Model):
+    member_group_code = models.CharField(db_column='Member_Group_Code', max_length=255, primary_key=True)
+    title = models.CharField(db_column='Title', max_length=255, null=True, blank=True)
+    first_name = models.CharField(db_column='First_Name', max_length=255, null=True, blank=True)
+    surname = models.CharField(db_column='Surname', max_length=255, null=True, blank=True)
+    id_number = models.CharField(db_column='ID_Number', max_length=255, null=True, blank=True)
+    email_address = models.CharField(db_column='Email_Address', max_length=255, null=True, blank=True)
+    work_dial_code = models.CharField(db_column='Work_Dial_Code', max_length=10, null=True, blank=True)
+    work_contact_number = models.CharField(db_column='Work_Contact_Number', max_length=255, null=True, blank=True)
+    fax_dial_code = models.CharField(db_column='Fax_Dial_Code', max_length=10, null=True, blank=True)
+    fax_number = models.CharField(db_column='Fax_Number', max_length=255, null=True, blank=True)
+    mobile_number = models.CharField(db_column='Mobile_Number', max_length=255, null=True, blank=True)
+
+    class Meta:
+        managed = False
+        db_table = 'medical_correspondence'
+
 # ==============================================================================
 # LOGGING & TRACKING TABLES (UNMANAGED)
 # ==============================================================================
@@ -310,6 +327,7 @@ class CrmDelegateTo(models.Model):
     delegated_by = models.CharField(max_length=100, null=True, blank=True)
     delegated_to = models.CharField(max_length=100, null=True, blank=True)
     work_related = models.CharField(max_length=5, default='Yes')
+    membership_number = models.CharField(db_column='membership_number', max_length=100, blank=True, null=True)
     
     # SYNCED: Replaced mip_number with member_group_code pointing to correct db_column
     member_group_code = models.CharField(db_column='Member_Group_Code', max_length=255, null=True, blank=True)
@@ -359,18 +377,51 @@ class DelegationReport(models.Model):
         ordering = ['-received_timestamp']
 
 class ComplaintLog(models.Model):
+    # Status Choices for 12.2
+    STATUS_CHOICES = [
+        ('Open', 'Open'),
+        ('In Progress', 'In Progress'),
+        ('Pending Claim Form', 'Pending Claim Form'),
+        ('Liquidation FSCA', 'Liquidation FSCA'),
+        ('Closed', 'Closed'),
+        ('Overdue', 'Overdue'),
+    ]
+
+    # PFA Choices for 12.1
+    PFA_CHOICES = [
+        ('No', 'No'),
+        ('Yes', 'Yes'),
+    ]
+
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='complaints_created')
     complainant = models.CharField(max_length=255)
     employer = models.CharField(max_length=255, blank=True, null=True)
+    
+    # New Fields for 12.1
+    member_number = models.CharField(max_length=100, blank=True, null=True)
+    id_passport_number = models.CharField(max_length=100, blank=True, null=True)
+    pfa = models.CharField(max_length=3, choices=PFA_CHOICES, default='No')
+
     nature_of_complaint = models.TextField()
+    
+    # New Field for 12.3
+    action_taken = models.TextField(blank=True, null=True)
+    
     resolution = models.TextField(blank=True, null=True)
     created_date = models.DateField(blank=True, null=True)
     resolved_date = models.DateTimeField(blank=True, null=True)
-    current_status = models.CharField(max_length=50, default='Open')
+    
+    # Updated field with choices for 12.2
+    current_status = models.CharField(
+        max_length=50, 
+        choices=STATUS_CHOICES, 
+        default='Open'
+    )
+    
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        managed = False
+        managed = False  # Reminder: Manually add columns to crm_complaint_log table
         db_table = 'crm_complaint_log'
         ordering = ['-created_at']
 

@@ -69,8 +69,8 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
 .form-group label { display: block; margin-bottom: 5px; font-weight: 700; color: #333; font-size: 14px; }
 .form-group input[type=text], .form-group select { width: 100%; padding: 8px 10px; border: 1px solid #aed581; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
 
-.btn-back { padding: 10px 18px; background-color: #757575; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; transition: background-color .3s ease; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
-.btn-back:hover { background-color: #616161; }
+.btn-back { padding: 10px 18px; background-color: #81c784; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; transition: background-color .3s ease; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+.btn-back:hover { background-color: #81c784; }
 
 .btn-delegate { 
     display: flex; align-items: center; justify-content: center; gap: 10px;
@@ -183,6 +183,11 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
                 <div class="form-group">
                     <label for="mip_number">Member Group Code:</label>
                     <input type="text" id="mip_number" name="mip_number" placeholder="Enter Member Group Code" value="{{ existing_delegation.member_group_code|default:'' }}">
+                </div>
+                
+                <div class="form-group">
+                    <label for="membership_number">Membership Number:</label>
+                    <input type="text" id="membership_number" name="membership_number" placeholder="Enter Membership Number" value="{{ existing_delegation.membership_number|default:'' }}">
                 </div>
                 
                 <div class="form-group">
@@ -392,7 +397,7 @@ document.addEventListener('DOMContentLoaded', function(){
             typeOptions.forEach(option => {
                 if (option.getAttribute('data-category') === selectedCategory) {
                     option.classList.remove('hidden');
-                    // 🟢 NEW: Match the saved value during re-delegation
+                    // Match the saved value during re-delegation
                     if (savedValue && option.value === savedValue) {
                         option.selected = true;
                     }
@@ -420,7 +425,7 @@ document.addEventListener('DOMContentLoaded', function(){
             classificationWrapper.style.display = 'block';
             submitButtons.forEach(btn => btn.style.backgroundColor = '#81c784');
             btnIcons.forEach(icon => icon.textContent = '👤');
-            btnTexts.forEach(txt => txt.textContent = '{% if existing_delegation %}Update Assignment{% else %}Assign Task{% endif %}');
+            btnTexts.forEach(txt => txt.textContent = "{% if existing_delegation %}Update Assignment{% else %}Assign Task{% endif %}");
             agentSelect.setAttribute('required', 'required');
         }
     }

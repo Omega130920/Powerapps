@@ -158,17 +158,6 @@
             border-color: #43a047;
         }
 
-        /* 🟢 NEW: Work Related Indicator Styles */
-        .work-indicator {
-            font-size: 10px;
-            font-weight: bold;
-            padding: 2px 6px;
-            border-radius: 4px;
-            text-transform: uppercase;
-        }
-        .work-yes { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
-        .work-no { background: #fff3e0; color: #ef6c00; border: 1px solid #ffe0b2; }
-
         /* Pagination */
         .pagination {
             margin-top: 30px;
@@ -206,7 +195,6 @@
             <i class="fas fa-home"></i> Back To Home Screen
         </a>
         
-        {# --- DYNAMIC EXPORT LINK --- #}
         <a href="{% url 'export_email_workflow' %}?start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&search={{ request.GET.search }}" class="export-btn">
             <i class="fas fa-file-csv"></i> 📊 Export Filtered History (CSV)
         </a>
@@ -228,18 +216,17 @@
         <table class="task-table" id="main_table">
             <thead>
                 <tr>
-                    <th style="width: 11%;">Received Date</th>
-                    <th style="width: 24%;">Subject</th>
-                    <th style="width: 16%;">From</th>
-                    <th style="width: 8%;">MG Code</th>
-                    <th style="width: 7%;">Work?</th> <th style="width: 9%;">Status</th>
+                    <th style="width: 12%;">Received Date</th>
+                    <th style="width: 25%;">Subject</th>
+                    <th style="width: 17%;">From</th>
+                    <th style="width: 9%;">MG Code</th>
+                    <th style="width: 10%;">Status</th>
                     <th style="width: 12%;">Delegated To</th>
-                    <th style="width: 13%;">Last Replied</th>
+                    <th style="width: 15%;">Last Replied</th>
                 </tr>
             </thead>
             <tbody id="table_body">
                 {% for row in page_obj %}
-                {# 🟢 UPDATED REDIRECTION LOGIC: Managers always go to delegate_email for re-delegation #}
                 <tr onclick="window.location.href='{% if request.user.is_superuser or request.user.groups.all.0.name == 'Managers' %}{% url 'delegate_email' email_id=row.email_id %}{% elif row.is_delegated %}{% url 'delegate_action' email_id=row.email_id %}{% else %}{% url 'delegate_email' email_id=row.email_id %}{% endif %}';" class="clickable-row">
                     <td class="font-mono">{{ row.received_timestamp|date:"Y-m-d H:i" }}</td>
                     <td>
@@ -249,17 +236,6 @@
                     <td style="color: #555;">{{ row.sender|truncatechars:40 }}</td>
                     <td class="font-bold">{{ row.member_group_code }}</td>
                     
-                    {# 🟢 NEW: Work Related Status Indicator #}
-                    <td style="text-align: center;">
-                        {% if row.work_related == 'Yes' or row.work_related == True %}
-                            <span class="work-indicator work-yes">YES</span>
-                        {% elif row.work_related == 'No' or row.work_related == False %}
-                            <span class="work-indicator work-no">NO</span>
-                        {% else %}
-                            <span style="color:#ccc;">-</span>
-                        {% endif %}
-                    </td>
-
                     <td>
                         <span class="status-badge 
                             {% if row.status == 'New' %}status-new
@@ -285,7 +261,6 @@
             </tbody>
         </table>
 
-        {# --- PAGINATION CONTROLS --- #}
         <div class="pagination">
             {% if page_obj.has_previous %}
                 <a href="?page=1&search={{ request.GET.search }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}">First</a>
