@@ -520,28 +520,44 @@ def send_task_email_view(request, email_id):
 
 @login_required
 def global_members_list(request):
-    # 1. Get all members initially
+    # 1. Fetch base members
     members = GlobalFundContact.objects.all().order_by('member_group_code')
     
-    # 2. Get the unique statuses for the dropdown menu
-    # This ensures your dropdown always matches what is actually in the database
+    # 2. Get unique statuses for the dropdown
     fund_statuses = GlobalFundContact.objects.values_list('fund_status', flat=True).distinct().order_by('fund_status')
 
-    # 3. Get filter values from the URL
+    # 3. Get filter values
     search_query = request.GET.get('search_query')
     status_filter = request.GET.get('fund_status_filter')
 
-    # 4. Apply Search Filter (Text box)
+    # 4. Apply Filters
     if search_query:
         members = members.filter(
             Q(member_group_code__icontains=search_query) |
             Q(member_group_name__icontains=search_query)
         )
 
-    # 5. Apply Fund Status Filter (Dropdown)
-    # We only filter if a status is selected and it's not "all"
     if status_filter and status_filter != 'all':
         members = members.filter(fund_status=status_filter)
+
+    # --- 5. Fetch Related Data from separate tables (Requirement 12.1/12.4) ---
+    # We use dictionaries for O(1) lookup speed to keep the page load fast
+    comm_map = {c.member_group_code: c for c in CommunicationsPerson.objects.all()}
+    cbc_map = {c.member_group_code: c for c in Cbc.objects.all()}
+
+    # 6. Attach data to the member objects for the template
+    for member in members:
+        # Get Communication Person details
+        comm = comm_map.get(member.member_group_code)
+        member.comm_data = comm
+        if comm:
+            # Create full name for the "Communications Contact Name" column
+            member.comm_full_name = f"{comm.first_name or ''} {comm.surname or ''}".strip()
+        else:
+            member.comm_full_name = "N/A"
+
+        # Get CBC details
+        member.cbc_data = cbc_map.get(member.member_group_code)
 
     context = {
         'members': members,

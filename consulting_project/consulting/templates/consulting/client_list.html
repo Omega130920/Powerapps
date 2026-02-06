@@ -6,12 +6,12 @@
     <title>Client List | Consulting Management</title>
     
     <style>
-        /* --- Root Colors (Enhanced for Professionalism) --- */
+        /* --- Root Colors --- */
         :root {
             --primary-green: #77ce61;
             --accent-green: #69bb55;
             --bg-light-green: #f4f9f1; 
-            --page-bg: #f0f4f8; /* Soft slate gray-blue for a corporate feel */
+            --page-bg: #f0f4f8; 
             --text-default: #2d3436;
             --text-muted: #636e72;
             --export-blue: #0984e3;
@@ -90,6 +90,8 @@
             font-weight: 600;
             cursor: pointer;
             transition: transform 0.1s, background-color 0.2s;
+            display: flex;
+            align-items: center;
         }
 
         .export-button:hover {
@@ -124,7 +126,6 @@
             font-size: 0.9rem;
         }
 
-        /* Header Styling */
         .client-table thead .header-row {
             background-color: var(--accent-green);
             color: white;
@@ -138,7 +139,6 @@
             border: none;
         }
 
-        /* Filter Row Styling */
         .client-table thead .filter-row {
             background-color: #fbfdfa;
         }
@@ -157,7 +157,6 @@
             border-color: var(--primary-green);
         }
 
-        /* Body Styling */
         .client-table tbody tr {
             transition: background-color 0.2s;
         }
@@ -171,7 +170,6 @@
             background-color: #fcfdfb;
         }
 
-        /* FICA Status Badges */
         .fica-badge {
             padding: 4px 10px;
             border-radius: 20px;
@@ -192,7 +190,6 @@
             accent-color: var(--primary-green);
             cursor: pointer;
         }
-
     </style>
 </head>
 <body>
@@ -204,7 +201,7 @@
         </a>
         <div class="header-controls">
             <input type="text" class="search-box" id="globalSearchInput" placeholder="Quick search Code or Name..."> 
-            <button class="export-button">
+            <button class="export-button" id="exportBtn">
                 <svg style="margin-right:8px" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                 Export CSV
             </button>
@@ -311,7 +308,9 @@
         const filterInputs = document.querySelectorAll('#filterRow .filter-input');
         const tableBody = document.getElementById('clientTableBody');
         const tableRows = tableBody.getElementsByTagName('tr');
+        const exportBtn = document.getElementById('exportBtn');
 
+        // --- Table Filtering Logic ---
         function filterTable() {
             if (!globalSearch) return; 
 
@@ -328,6 +327,7 @@
                 
                 let rowVisible = true; 
 
+                // Global Search Logic (Scheme Code or Name)
                 if (globalSearchValue && cells.length >= 3) {
                     const schemeCode = cells[0].textContent.toLowerCase();
                     const clientName = cells[2].textContent.toLowerCase();
@@ -336,6 +336,7 @@
                     }
                 }
 
+                // Column Filter Logic
                 if (rowVisible) {
                     for (const filter of columnFilters) {
                         if (filter.value && cells.length > filter.column) {
@@ -358,11 +359,47 @@
             }
         }
 
+        // --- Export Logic ---
+        function downloadCSV() {
+            let csv = [];
+            const headers = ["Scheme Code", "Ref No 2", "Client Name", "Consultant", "Administrator", "Umbrella Option", "FICA Completed"];
+            csv.push(headers.join(","));
+
+            for (let i = 0; i < tableRows.length; i++) {
+                // Only include visible rows in the export
+                if (tableRows[i].style.display !== 'none') {
+                    let rowData = [];
+                    const cols = tableRows[i].querySelectorAll("td");
+                    
+                    // Column mapping (0-6)
+                    for (let j = 0; j < 7; j++) {
+                        let text = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, "").replace(/,/g, ";");
+                        rowData.push('"' + text.trim() + '"');
+                    }
+                    csv.push(rowData.join(","));
+                }
+            }
+
+            const csvContent = "data:text/csv;charset=utf-8," + csv.join("\n");
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "Client_List_Export_" + new Date().toISOString().slice(0,10) + ".csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // --- Listeners ---
         globalSearch.addEventListener('input', filterTable);
         filterInputs.forEach(input => {
             input.addEventListener('input', filterTable);
             input.addEventListener('change', filterTable);
         });
+
+        if (exportBtn) {
+            exportBtn.addEventListener('click', downloadCSV);
+        }
 
         document.querySelectorAll('#clientTableBody tr').forEach(row => {
             row.addEventListener('click', function(event) {
@@ -376,7 +413,7 @@
             });
         });
     });
-</script>
+    </script>
 
 </body>
 </html>

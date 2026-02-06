@@ -89,6 +89,8 @@
             font-weight: 600;
             cursor: pointer;
             transition: background-color 0.2s;
+            display: flex;
+            align-items: center;
         }
 
         .export-button:hover { background-color: #0771c1; }
@@ -211,7 +213,7 @@
         </a>
         <div class="header-controls">
              <input type="text" class="search-box" id="globalSearchInput" placeholder="Company, Contact or Notes..."> 
-             <button class="export-button">
+             <button class="export-button" id="exportLeadsBtn">
                  <svg style="margin-right:8px" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                  Export
              </button>
@@ -331,8 +333,10 @@
         const filterInputs = document.querySelectorAll('#filterRow .filter-input');
         const tableBody = document.getElementById('leadTableBody');
         const tableRows = tableBody.getElementsByTagName('tr');
+        const exportBtn = document.getElementById('exportLeadsBtn'); // Reference to button
         const TOTAL_COLUMNS = 13; 
 
+        // --- 1. Table Filtering Logic ---
         function filterTable() {
             if (!globalSearch) return; 
 
@@ -385,11 +389,59 @@
             }
         }
 
+        // --- 2. CSV Export Logic (Blob API) ---
+        function downloadCSV() {
+            let csv = [];
+            const headers = [
+                "Lead From", "Date Received", "Company Name", "Contact Person", 
+                "Number", "Email", "Product Required", "Status", "Assigned To", 
+                "Date Accepted", "Start Date", "Last Follow Up", "Internal Notes"
+            ];
+            csv.push(headers.join(","));
+
+            for (let i = 0; i < tableRows.length; i++) {
+                // Only include visible rows in the export
+                if (tableRows[i].style.display !== 'none') {
+                    let rowData = [];
+                    const cols = tableRows[i].querySelectorAll("td");
+                    
+                    if (cols.length >= TOTAL_COLUMNS) {
+                        for (let j = 0; j < TOTAL_COLUMNS; j++) {
+                            // Extract text, remove line breaks, and escape commas for CSV safety
+                            let text = cols[j].innerText.replace(/(\r\n|\n|\r)/gm, " ").replace(/"/g, '""');
+                            rowData.push('"' + text.trim() + '"');
+                        }
+                        csv.push(rowData.join(","));
+                    }
+                }
+            }
+
+            const csvString = csv.join("\n");
+            const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            
+            const link = document.createElement("a");
+            link.setAttribute("href", url);
+            link.setAttribute("download", "New_Leads_Pipeline_" + new Date().toISOString().slice(0, 10) + ".csv");
+            link.style.visibility = 'hidden';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+
+        // --- 3. Listeners & Handlers ---
         if (globalSearch) { globalSearch.addEventListener('input', filterTable); }
         filterInputs.forEach(input => {
             input.addEventListener('input', filterTable);
             input.addEventListener('change', filterTable);
         });
+
+        // Bind the export function
+        if (exportBtn) {
+            exportBtn.addEventListener('click', downloadCSV);
+        }
         
         window.sortLeads = function(sortKey) {
             const currentSort = "{{ current_sort }}";
@@ -412,12 +464,10 @@
             window.location.href = url.toString();
         }
 
-        // --- FIXED ROW CLICK HANDLER ---
         document.querySelectorAll('#leadTableBody tr').forEach(row => {
             row.addEventListener('click', function(event) {
                 const leadId = row.dataset.leadId;
                 if (leadId) {
-                    // Correcting path to include 'consulting' prefix as per URL patterns
                     window.location.href = `/consulting/leads/${leadId}/info/`; 
                 }
             });
