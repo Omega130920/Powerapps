@@ -154,6 +154,9 @@ class UnityBill(models.Model):
     def __str__(self):
         return f"Bill for {self.C_Company_Code} (ID: {self.id})"
     
+from django.db import models
+from decimal import Decimal
+
 # --- CORRECTED MODEL: ReconnedBank (CRITICAL FIXES APPLIED) ---
 class ReconnedBank(models.Model):
     """
@@ -170,17 +173,17 @@ class ReconnedBank(models.Model):
         db_column='bank_line_id', # Explicitly map to the FK column in MySQL
         related_name='reconned_segments',
         verbose_name="Original Bank Line",
-        # NOTE: If ImportBank had an explicit 'id' field, we'd use to_field='id'. Since ImportBank has 'id' as PK, this is implicit.
     )
     
-    company_code = models.CharField(max_length=225)
+    company_code = models.CharField(max_length=225, null=True, blank=True)
     transaction_amount = models.DecimalField(max_digits=15, decimal_places=2)
     transaction_date = models.DateField()
     
     fiscal_date = models.DateField(null=True, blank=True)
     review_note = models.CharField(max_length=255, null=True, blank=True)
     recon_status = models.CharField(max_length=50, default='Reconciled')
-    review_note_text = models.TextField(null=True, blank=True)
+    
+    # REMOVED: review_note_text removed to resolve database sync issues
     
     # CRITICAL: Tracks how much of the original transaction_amount has been paid.
     amount_settled = models.DecimalField(
@@ -191,15 +194,12 @@ class ReconnedBank(models.Model):
         blank=False
     )
     
-    # 3. REMOVED OBSOLETE FIELD: BillSettlement was dropped from MySQL.
-
     class Meta:
-        managed = False
+        managed = False  # Tells Django not to touch the DB schema
         db_table = 'reconned_bank'
         verbose_name = 'Reconciled Bank Line'
 
     def __str__(self):
-        # Access bank_line ID directly via the FK
         return f"Recon {self.bank_line_id} segment {self.id} to {self.company_code}"
 
 # User alias is defined at the top
