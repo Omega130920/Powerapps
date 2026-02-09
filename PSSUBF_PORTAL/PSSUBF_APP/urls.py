@@ -34,4 +34,8 @@ urlpatterns = [
     path('delete-permanent/<str:email_id>/', views.pssubf_delete_permanent, name='pssubf_delete_permanent'),
     path('bulk-delete/', views.pssubf_bulk_delete, name='pssubf_bulk_delete'),
     path('history-preview/<str:email_id>/', views.pssubf_history_preview, name='pssubf_history_preview'),
+    path('pssubf/beneficiaries/import/', views.beneficiary_import_view, name='beneficiary_import'),
+    path('pssubf/beneficiaries/list/', views.beneficiary_list_view, name='beneficiary_list'),
+    path('beneficiaries/export/', views.export_beneficiaries_excel, name='export_beneficiaries'),
+    path('pssubf/beneficiaries/details/<str:membership_number>/', views.beneficiary_details_view, name='beneficiary_details'),
 ]

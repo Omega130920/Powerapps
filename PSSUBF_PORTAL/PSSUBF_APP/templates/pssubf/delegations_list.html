@@ -24,7 +24,7 @@
 
         /* --- GLASS CONTAINER --- */
         .container-custom {
-            max-width: 1400px; 
+            max-width: 1550px; 
             width: 100%;
             margin: 0 auto;
             padding: 35px;
@@ -69,12 +69,8 @@
             border-color: var(--accent-green);
         }
         .search-icon {
-            position: absolute;
-            left: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-dark);
-            opacity: 0.6;
+            position: absolute; left: 15px; top: 50%; transform: translateY(-50%);
+            color: var(--text-dark); opacity: 0.6;
         }
 
         /* --- MODERN TABLE STYLING --- */
@@ -89,8 +85,8 @@
             color: var(--text-dark);
             padding: 15px;
             text-transform: uppercase;
-            font-size: 11px; 
-            font-weight: 700;
+            font-size: 10px; 
+            font-weight: 800;
             border: none;
         }
 
@@ -99,7 +95,7 @@
             padding: 18px 15px;
             border-top: 1px solid var(--glass-border);
             border-bottom: 1px solid var(--glass-border);
-            font-size: 14px;
+            font-size: 13px;
             vertical-align: middle;
         }
 
@@ -122,11 +118,7 @@
             border-radius: 10px;
             font-size: 13px;
             font-weight: 600;
-            box-shadow: 0 4px 10px rgba(67, 160, 71, 0.2);
-            transition: 0.2s;
-            display: inline-block;
         }
-        .btn-open-task:hover { background-color: #2e7d32; transform: translateY(-2px); color: white; }
 
         .btn-ogie {
             background: rgba(255, 255, 255, 0.5);
@@ -136,69 +128,24 @@
             border-radius: 10px;
             transition: 0.2s;
             display: inline-block;
-            margin-right: 8px;
         }
         .btn-ogie:hover { background: var(--accent-green); color: white; transform: scale(1.1); }
 
-        /* --- PAGINATION STYLING --- */
         .pagination-container {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 20px;
-            padding-top: 20px;
-            border-top: 1px solid var(--glass-border);
+            display: flex; justify-content: space-between; align-items: center;
+            margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--glass-border);
         }
-        .page-link-custom {
-            background: rgba(255, 255, 255, 0.3);
-            border: 1px solid var(--glass-border);
-            color: var(--text-dark);
-            padding: 8px 16px;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 600;
-            transition: 0.3s;
-        }
-        .page-link-custom:hover:not(.disabled) {
-            background: var(--accent-green);
-            color: white;
-        }
-        .page-link-custom.disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-        }
-
+        
         .btn-menu {
-            background: var(--glass-bg);
-            border: 1px solid var(--glass-border);
-            color: var(--text-dark);
-            border-radius: 10px;
-            font-weight: 600;
-            padding: 8px 16px;
-            text-decoration: none;
-            transition: 0.2s;
+            background: var(--glass-bg); border: 1px solid var(--glass-border);
+            color: var(--text-dark); border-radius: 10px; font-weight: 600;
+            padding: 8px 16px; text-decoration: none;
         }
-        .btn-menu:hover { background: rgba(255,255,255,0.4); color: var(--text-dark); }
 
         .glass-modal {
             background: rgba(255, 255, 255, 0.5) !important;
-            backdrop-filter: blur(25px);
-            -webkit-backdrop-filter: blur(25px);
-            border-radius: 24px;
-            border: 1px solid var(--glass-border);
-            color: var(--text-dark);
-        }
-        .modal-header, .modal-footer { border: none; }
-
-        .badge-classification {
-            background: rgba(255, 255, 255, 0.6);
-            color: #2e7d32;
-            border: 1px solid var(--glass-border);
-            padding: 5px 10px;
-            border-radius: 8px;
-            font-size: 0.75rem;
-            font-weight: 700;
-            text-transform: capitalize;
+            backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
+            border-radius: 24px; border: 1px solid var(--glass-border); color: var(--text-dark);
         }
     </style>
 </head>
@@ -209,73 +156,84 @@
     <div class="header-section">
         <div>
             <h2 class="header-title"><i class="bi bi-person-workspace me-2"></i> Active Delegations</h2>
-            <small class="text-muted opacity-75">Tracking operational tasks and agent progress</small>
+            <small class="text-muted opacity-75">Work Management: PSSUBF Delegation Queue</small>
         </div>
         <a href="{% url 'pssubf_switchboard' %}" class="btn-menu">
-            <i class="bi bi-house-door me-1"></i> Back to Home Screen
+            <i class="bi bi-house-door me-1"></i> Home Screen
         </a>
     </div>
 
     <div class="search-container">
         <i class="bi bi-search search-icon"></i>
-        <input type="text" id="liveSearch" class="search-input" placeholder="Search subject, sender, or classification...">
+        <input type="text" id="liveSearch" class="search-input" placeholder="Search entries...">
     </div>
 
     <table class="task-table" id="delegationTable">
         <thead>
             <tr>
-                <th style="width: 25%;">Subject</th> 
-                <th style="width: 20%;">From</th> 
-                <th style="width: 15%;">Classification</th> 
-                <th style="width: 10%;">MIP Number</th>
+                <th style="width: 22%;">Email Subject</th> 
+                <th style="width: 10%;">Email Received</th> 
+                <th style="width: 10%;">Delegated Date</th>
+                <th style="width: 18%;">Email From</th> 
                 <th style="width: 10%;">Status</th>
-                <th style="width: 20%;" class="text-end">Action</th>
+                <th style="width: 10%;" class="text-center">Linked</th>
+                <th style="width: 10%;" class="text-center">Response</th>
+                <th style="width: 10%;" class="text-end">Action</th>
             </tr>
         </thead>
         <tbody id="tableBody">
             {% for task in delegations %}
             <tr class="task-row">
                 <td>
-                    <div class="text-truncate fw-bold search-field" style="max-width: 350px;" title="{{ task.subject }}">
+                    <div class="text-truncate fw-bold search-field" style="max-width: 320px;" title="{{ task.subject }}">
                         {{ task.subject|default:"(No Subject)" }}
                     </div>
-                    <small class="text-muted" style="font-size: 0.75rem;">Received: {{ task.created_at|date:"d M H:i" }}</small>
                 </td>
+
+                <td class="small fw-bold">{{ task.received_timestamp|date:"d M H:i" }}</td>
+
+                <td>
+                    <div class="small fw-bold text-success">{{ task.created_at|date:"d M" }}</div>
+                    <div class="text-muted small" style="font-size: 0.75rem;">{{ task.created_at|date:"H:i" }}</div>
+                </td>
+
                 <td class="search-field">
                     <div class="small fw-bold">{{ task.sender }}</div>
                 </td>
-                <td class="search-field">
-                    <span class="badge-classification shadow-sm">
-                        <i class="bi bi-tag-fill me-1 small"></i> {{ task.email_category|default:"General" }}
-                    </span>
-                </td>
-                <td>
-                    <span class="badge bg-white text-dark border shadow-sm" style="border-radius: 6px;">
-                        {{ task.member_group_code|default:"--" }}
-                    </span>
-                </td>
+
                 <td>
                     <span class="badge-status {% if task.status == 'Completed' %}bg-success text-white{% elif task.status == 'In Progress' %}bg-warning text-dark{% else %}bg-info text-white{% endif %}">
                         {{ task.status }}
                     </span>
                 </td>
-                <td class="text-end">
+
+                <td class="text-center">
                     <button class="btn-ogie" 
                             onclick="openHistoryModal('{{ task.email_id }}', '{{ task.sender }}')"
-                            title="View Interaction History">
+                            title="View Linked History">
                         <i class="bi bi-eye"></i>
                     </button>
+                </td>
 
+                <td class="text-center">
+                    {% if task.has_replied %}
+                        <i class="bi bi-reply-all-fill text-success fs-5" title="Reply Sent"></i>
+                    {% else %}
+                        <i class="bi bi-envelope-exclamation text-muted opacity-50 fs-5" title="No Reply Yet"></i>
+                    {% endif %}
+                </td>
+
+                <td class="text-end">
                     <a href="{% url 'pssubf_action' task.email_id %}" class="btn-open-task">
-                        <i class="bi bi-folder2-open me-1"></i> Open Task
+                        Open <i class="bi bi-folder2-open ms-1"></i>
                     </a>
                 </td>
             </tr>
             {% empty %}
             <tr id="emptyRow">
-                <td colspan="6" class="text-center py-5">
+                <td colspan="8" class="text-center py-5">
                     <i class="bi bi-clipboard-x fs-1 opacity-25"></i>
-                    <p class="text-muted mt-3">No active work tasks found in the queue.</p>
+                    <p class="text-muted mt-3">No active delegations found.</p>
                 </td>
             </tr>
             {% endfor %}
@@ -284,10 +242,10 @@
 
     <div class="pagination-container" id="paginationControls">
         <div class="small fw-bold opacity-75">
-            Showing <span id="startRange">0</span> - <span id="endRange">0</span> of <span id="totalCount">0</span> tasks
+            Total Records: <span id="totalCount">0</span>
         </div>
         <div class="d-flex gap-2">
-            <a href="javascript:void(0)" class="page-link-custom" id="prevBtn" onclick="prevPage()"><i class="bi bi-chevron-left"></i> Previous</a>
+            <a href="javascript:void(0)" class="page-link-custom" id="prevBtn" onclick="prevPage()"><i class="bi bi-chevron-left"></i> Prev</a>
             <a href="javascript:void(0)" class="page-link-custom" id="nextBtn" onclick="nextPage()">Next <i class="bi bi-chevron-right"></i></a>
         </div>
     </div>
@@ -297,18 +255,10 @@
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content glass-modal shadow-lg">
             <div class="modal-header">
-                <h5 class="modal-title fw-bold text-success"><i class="bi bi-clock-history me-2"></i> Communication History</h5>
+                <h5 class="modal-title fw-bold text-success"><i class="bi bi-clock-history me-2"></i> Interaction History</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <div class="modal-body" id="historyModalBody">
-                <div class="text-center py-5">
-                    <div class="spinner-border text-success" role="status"></div>
-                    <p class="mt-2 text-muted">Retrieving sender history...</p>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Close</button>
-            </div>
+            <div class="modal-body" id="historyModalBody"></div>
         </div>
     </div>
 </div>
@@ -316,71 +266,43 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-    /* --- LIVE SEARCH & PAGINATION LOGIC --- */
+    /* --- LIVE SEARCH & PAGINATION --- */
     const rowsPerPage = 20;
     let currentPage = 1;
     let filteredRows = [];
-
     const searchInput = document.getElementById('liveSearch');
-    const tableBody = document.getElementById('tableBody');
     const allRows = Array.from(document.querySelectorAll('.task-row'));
 
     function updateTable() {
         const searchTerm = searchInput.value.toLowerCase();
-        
-        // Filter rows based on search
-        filteredRows = allRows.filter(row => {
-            const text = row.innerText.toLowerCase();
-            return text.includes(searchTerm);
-        });
-
-        // Calculate pagination
+        filteredRows = allRows.filter(row => row.innerText.toLowerCase().includes(searchTerm));
         const totalRows = filteredRows.length;
         const totalPages = Math.ceil(totalRows / rowsPerPage);
-        
         if (currentPage > totalPages) currentPage = Math.max(1, totalPages);
-
         const start = (currentPage - 1) * rowsPerPage;
         const end = start + rowsPerPage;
 
-        // Hide all, then show only range
         allRows.forEach(row => row.style.display = 'none');
         filteredRows.slice(start, end).forEach(row => row.style.display = '');
 
-        // Update UI counters
         document.getElementById('totalCount').innerText = totalRows;
-        document.getElementById('startRange').innerText = totalRows === 0 ? 0 : start + 1;
-        document.getElementById('endRange').innerText = Math.min(end, totalRows);
-
-        // Update Buttons
         document.getElementById('prevBtn').classList.toggle('disabled', currentPage === 1);
         document.getElementById('nextBtn').classList.toggle('disabled', currentPage === totalPages || totalPages === 0);
-        
-        // Show empty state if no results
-        const emptyRow = document.getElementById('emptyRow');
-        if(emptyRow) emptyRow.style.display = totalRows === 0 ? '' : 'none';
     }
 
     function nextPage() { currentPage++; updateTable(); }
     function prevPage() { currentPage--; updateTable(); }
-
-    searchInput.addEventListener('input', () => {
-        currentPage = 1;
-        updateTable();
-    });
-
-    // Initialize
+    searchInput.addEventListener('input', () => { currentPage = 1; updateTable(); });
     updateTable();
 
-    /* --- HISTORY MODAL SCRIPT (Kept as is) --- */
+    /* --- OGIE MODAL SCRIPT --- */
     const historyModal = new bootstrap.Modal(document.getElementById('historyModal'));
     function openHistoryModal(emailId, senderEmail) {
-        document.getElementById('historyModalBody').innerHTML = `<div class="text-center py-5"><div class="spinner-border text-success" role="status"></div><p class="mt-2 text-muted">Checking history for <b>${senderEmail}</b>...</p></div>`;
+        document.getElementById('historyModalBody').innerHTML = `<div class="text-center py-5"><div class="spinner-border text-success"></div><p class="mt-2 text-muted">Fetching history for <b>${senderEmail}</b>...</p></div>`;
         historyModal.show();
         fetch(`/pssubf/history-preview/${emailId}/`)
-            .then(response => response.text())
-            .then(html => { document.getElementById('historyModalBody').innerHTML = html; })
-            .catch(err => { document.getElementById('historyModalBody').innerHTML = `<div class="alert alert-danger m-3">Error retrieving history.</div>`; });
+            .then(res => res.text())
+            .then(html => { document.getElementById('historyModalBody').innerHTML = html; });
     }
 </script>
 

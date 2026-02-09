@@ -23,7 +23,6 @@
             color: var(--text-dark);
         }
 
-        /* --- GLASS CONTAINER --- */
         .log-container {
             max-width: 1400px;
             width: 100%;
@@ -53,7 +52,6 @@
             color: var(--text-dark);
         }
 
-        /* --- MODERN TABLE STYLING --- */
         .task-table {
             width: 100%;
             border-collapse: separate;
@@ -99,7 +97,6 @@
             font-weight: bold;
         }
 
-        /* --- ACTION BUTTONS --- */
         .btn-ogie {
             background: rgba(255, 255, 255, 0.5);
             border: 1px solid var(--glass-border);
@@ -136,7 +133,6 @@
             color: white;
         }
 
-        /* --- GLASS MODAL STYLING --- */
         .modal-content.glass-modal {
             background: rgba(255, 255, 255, 0.4);
             backdrop-filter: blur(20px);
@@ -145,10 +141,6 @@
             border-radius: 20px;
             color: var(--text-dark);
         }
-        .modal-header { border-bottom: 1px solid var(--glass-border); }
-        .modal-footer { border-top: 1px solid var(--glass-border); }
-
-        .history-loading { padding: 40px; text-align: center; }
 
         .btn-menu {
             background: var(--glass-bg);
@@ -183,32 +175,33 @@
             </tr>
         </thead>
         <tbody>
-            {% for message in messages %}
+            {% for item in inbox_items %}
             <tr>
-                <td><span class="status-new">NEW</span></td>
-                <td class="small fw-bold">{{ message.receivedDateTime|date:"d M H:i" }}</td>
+                <td><span class="status-new">{{ item.status|upper }}</span></td>
+                
+                <td class="small fw-bold">{{ item.received_timestamp|date:"d M H:i" }}</td>
+                
                 <td>
-                    <div class="fw-bold">{{ message.subject|default:"(No Subject)" }}</div>
-                    <div class="text-muted small text-truncate" style="max-width: 500px;">{{ message.bodyPreview }}</div>
+                    <div class="fw-bold">{{ item.subject|default:"(No Subject)" }}</div>
+                    <div class="text-muted small text-truncate" style="max-width: 500px;">{{ item.snippet }}</div>
                 </td>
                 <td>
-                    <div class="small fw-bold">{{ message.from.emailAddress.name }}</div>
-                    <div class="small text-muted">{{ message.from.emailAddress.address }}</div>
+                    <div class="small fw-bold">{{ item.sender }}</div>
                 </td>
                 <td class="text-center">
                     <button class="btn-ogie" 
-                            onclick="openHistoryModal('{{ message.id }}', '{{ message.from.emailAddress.address }}')"
+                            onclick="openHistoryModal('{{ item.email_id }}', '{{ item.sender }}')"
                             title="View History">
                         <i class="bi bi-eye"></i>
                     </button>
 
-                    <a href="{% url 'pssubf_delegate' message.id %}" class="btn-delegate-link">
+                    <a href="{% url 'pssubf_delegate' item.email_id %}" class="btn-delegate-link">
                         <i class="bi bi-share-fill me-1"></i> Delegate
                     </a>
                 </td>
             </tr>
             {% empty %}
-            <tr><td colspan="5" class="text-center py-5">All caught up!</td></tr>
+            <tr><td colspan="5" class="text-center py-5">All caught up! The database table is empty.</td></tr>
             {% endfor %}
         </tbody>
     </table>
@@ -250,8 +243,6 @@
         
         historyModal.show();
 
-        // AJAX call to get the history HTML
-        // Note: You will need a Django view that returns just the history partial HTML
         fetch(`/pssubf/history-preview/${messageId}/`)
             .then(response => response.text())
             .then(html => {
@@ -261,7 +252,7 @@
                 document.getElementById('historyModalBody').innerHTML = `
                     <div class="alert alert-danger m-3">
                         <i class="bi bi-exclamation-triangle me-2"></i> 
-                        Error loading history. The system could not retrieve previous logs for this address.
+                        Error loading history.
                     </div>
                 `;
             });

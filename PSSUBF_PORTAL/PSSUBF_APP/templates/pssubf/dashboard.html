@@ -50,7 +50,8 @@
 
         .button-container {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            /* Updated to 3 columns to fit 6 buttons nicely */
+            grid-template-columns: repeat(3, 1fr);
             gap: 25px;
             width: 100%;
             max-width: 1200px;
@@ -88,21 +89,21 @@
         }
 
         .button-block i {
-            font-size: 3rem;
+            font-size: 2.5rem; /* Slightly smaller to fit grid better */
             margin-bottom: 15px;
             color: var(--text-dark);
             opacity: 0.8;
         }
 
         .button-text {
-            font-size: 1.2rem;
+            font-size: 1.1rem;
             font-weight: 600;
             line-height: 1.2;
             margin-bottom: 8px;
         }
 
         .button-desc {
-            font-size: 0.85rem;
+            font-size: 0.8rem;
             opacity: 0.7;
             padding: 0 10px;
         }
@@ -125,9 +126,10 @@
             justify-content: center;
         }
 
-        .badge.blue-badge { background-color: #42a5f5; box-shadow: 0 2px 8px rgba(66, 165, 245, 0.4); }
-        .badge.orange-badge { background-color: #ffa726; box-shadow: 0 2px 8px rgba(255, 167, 38, 0.4); }
-        .badge.dark-badge { background-color: #455a64; box-shadow: 0 2px 8px rgba(69, 90, 100, 0.4); }
+        .badge.blue-badge { background-color: #42a5f5; }
+        .badge.orange-badge { background-color: #ffa726; }
+        .badge.dark-badge { background-color: #455a64; }
+        .badge.green-badge { background-color: #66bb6a; }
 
         /* --- LOGOUT & FOOTER --- */
         .logout-wrapper { position: absolute; top: 20px; right: 20px; }
@@ -178,23 +180,39 @@
         <a href="{% url 'pssubf_dashboard' %}" class="button-block">
             <i class="fas fa-envelope-open-text"></i>
             <span class="button-text">Delegations</span>
+            <span class="button-desc">Process incoming mail</span>
             <span id="badge-new-emails" class="badge blue-badge" {% if not new_emails_count %}style="display:none;"{% endif %}>{{ new_emails_count }}</span>
         </a>
 
         <a href="{% url 'pssubf_delegations_list' %}" class="button-block">
             <i class="fas fa-tasks"></i>
             <span class="button-text">Dashboard</span>
+            <span class="button-desc">Track active work</span>
             <span id="badge-my-delegations" class="badge orange-badge" {% if not my_pending_delegations_count %}style="display:none;"{% endif %}>{{ my_pending_delegations_count }}</span>
+        </a>
+
+        <a href="{% url 'beneficiary_list' %}" class="button-block">
+            <i class="fas fa-users"></i>
+            <span class="button-text">Beneficiaries</span>
+            <span class="button-desc">Member list & details</span>
+            </a>
+
+        <a href="{% url 'beneficiary_import' %}" class="button-block">
+            <i class="fas fa-file-import"></i>
+            <span class="button-text">Import Members</span>
+            <span class="button-desc">Sync Excel Master List</span>
         </a>
 
         <a href="{% url 'pssubf_audit_logs' %}" class="button-block">
             <i class="fas fa-clipboard-list"></i>
             <span class="button-text">Email List</span>
+            <span class="button-desc">Complete interaction log</span>
         </a>
 
         <a href="{% url 'pssubf_recycle_bin' %}" class="button-block">
             <i class="fas fa-trash-can"></i>
             <span class="button-text">Recycle Bin</span>
+            <span class="button-desc">Recover deleted tasks</span>
             <span id="badge-recycled" class="badge dark-badge" {% if not recycled_count %}style="display:none;"{% endif %}>{{ recycled_count }}</span>
         </a>
     </div>

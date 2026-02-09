@@ -1,4 +1,6 @@
 import base64
+from datetime import date
+from time import timezone
 from django.shortcuts import render, get_object_or_404, redirect
 from django.conf import settings
 from django.contrib import messages
@@ -7,10 +9,17 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 import logging
 from django.db.models import Q
+import pandas as pd
+from django.db import transaction
+from dateutil.relativedelta import relativedelta
+from django.core.paginator import Paginator
+from datetime import datetime
+from .services.outlook_graph_service import OutlookGraphService
+
 logger = logging.getLogger(__name__)
 
 # Import your unmanaged models
-from .models import PssubfInbox, PssubfDelegate, PssubfAction, PssubfNote
+from .models import PssubfBeneficiary, PssubfDirectEmail, PssubfInbox, PssubfDelegate, PssubfAction, PssubfNote, PssubfProfileNote
 # Import your verified services
 from PSSUBF_APP.services.outlook_graph_service import OutlookGraphService
 from PSSUBF_APP.services.delegation_service import delegate_pssubf_task
@@ -26,40 +35,25 @@ def pssubf_switchboard(request):
 
 @login_required
 def pssubf_dashboard(request):
-    """Hybrid Dashboard: Fetches live data and filters against local status."""
-    target_email = settings.OUTLOOK_EMAIL_ADDRESS
-    
-    # Call the newly added method
-    inbox_data = OutlookGraphService.fetch_inbox_messages(top_count=50) 
-    
-    if 'error' in inbox_data:
-        messages.error(request, f"Graph Error: {inbox_data['error']}")
-        return render(request, 'pssubf/inbox_list.html', {'messages': []})
+    """
+    Fetches data directly from the local pssubf_inbox database table 
+    instead of the live Outlook Graph API.
+    """
+    # 1. Pull directly from your Local DB Model
+    # This matches your PssubfInbox model defined with managed=False
+    inbox_items = PssubfInbox.objects.all().order_by('-received_timestamp')
 
-    all_emails = inbox_data.get('value', [])
-    email_ids = [e['id'] for e in all_emails]
-    
-    # Filter out anything already delegated (using PssubfDelegate table)
-    delegated_ids = PssubfDelegate.objects.filter(
-        email_id__in=email_ids
-    ).exclude(status='Pending').values_list('email_id', flat=True)
-
-    filtered_emails = []
-    for email in all_emails:
-        if email['id'] in delegated_ids:
-            continue
-        filtered_emails.append(email)
-
+    # 2. Render to your template
     return render(request, 'pssubf/inbox_list.html', {
-        'messages': filtered_emails, 
-        'target_email': target_email
+        'inbox_items': inbox_items
     })
 
 @login_required
 def pssubf_delegate_view(request, email_id):
     """View to fetch live email details, resolve inline images, and delegate to an agent."""
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
-    # Fetch local record if it exists for fallback
+    
+    # 1. Fetch local record: This is the anchor for your "Email Received" date
     inbox_item = PssubfInbox.objects.filter(email_id=email_id).first()
     
     # Get list of agents for the dropdown
@@ -98,36 +92,31 @@ def pssubf_delegate_view(request, email_id):
         # Fetch Attachments
         attachments = OutlookGraphService.fetch_attachments(target_email, email_id)
         
-        # 🚀 FIX: Resolve Inline Images (Signatures, etc.)
+        # Resolve Inline Images
         for att in attachments:
-            # Handle inline images specifically for the email body
             if att.get('isInline') and att.get('contentId'):
                 cid = att.get('contentId')
                 raw = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
                 if raw and isinstance(raw, dict) and 'contentBytes' in raw:
                     base64_data = raw['contentBytes']
                     content_type = att.get('contentType', 'image/png')
-                    
-                    # Replace CID link with Base64 Data URI
                     data_url = f"data:{content_type};base64,{base64_data}"
                     email_content = email_content.replace(f"cid:{cid}", data_url)
-                    
-                    # Attach bytes to object for potential gallery use
                     att['contentBytes'] = base64_data
             
-            # Handle standard image attachments (thumbnails)
             elif 'image' in att.get('contentType', '').lower() and not att.get('contentBytes'):
                 raw = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
                 if raw and isinstance(raw, dict) and 'contentBytes' in raw:
                     att['contentBytes'] = raw['contentBytes']
 
+    # We return inbox_item so your "Email Received" date is always available
     return render(request, 'pssubf/delegate.html', {
         'email_id': email_id,
         'email_subject': email_subject,
         'email_content': email_content,
         'attachments': attachments,
         'available_users': available_users,
-        'inbox_item': inbox_item
+        'inbox_item': inbox_item  # This carries the received_timestamp
     })
 
 @login_required
@@ -536,3 +525,425 @@ def pssubf_history_preview(request, email_id):
 
     # 3. Render the partial HTML that "pops up" in the modal
     return render(request, 'pssubf/partials/history_preview_content.html', context)
+
+from django.db import connection # Import this at the top
+
+@login_required
+def beneficiary_import_view(request):
+    if request.method == 'POST' and request.FILES.get('file'):
+        excel_file = request.FILES['file']
+        
+        try:
+            # Read as string to preserve IDs, then handle the "nan" values
+            df = pd.read_excel(excel_file, dtype=str)
+            df.columns = [c.strip() for c in df.columns]
+            
+            total_excel_rows = len(df)
+            created_count = 0
+            updated_count = 0
+            import_errors = []
+
+            with transaction.atomic():
+                for index, row in df.iterrows():
+                    
+                    def to_date(val):
+                        # Handle various "null" string versions from Excel/Pandas
+                        s_val = str(val).strip().lower()
+                        if pd.isna(val) or s_val in ['', 'nan', 'none', 'null']: 
+                            return None
+                        try: 
+                            return pd.to_datetime(val).date()
+                        except: 
+                            return None
+
+                    def to_float(val):
+                        # FIXED: Specifically check for "nan" string before conversion
+                        s_val = str(val).strip().lower()
+                        if pd.isna(val) or s_val in ['', 'nan', 'none', 'null']:
+                            return 0.00
+                        try:
+                            clean_val = s_val.replace(',', '').replace('r', '').strip()
+                            return float(clean_val)
+                        except: 
+                            return 0.00
+
+                    # Identification
+                    m_no = str(row.get('Membership Number', '')).strip()
+                    id_no = str(row.get('ID Number', '')).strip()
+
+                    if not m_no or m_no.lower() == 'nan':
+                        continue
+
+                    try:
+                        dob = to_date(row.get('DOB'))
+                        cessation = dob + relativedelta(years=18) if dob else None
+
+                        beneficiary_data = {
+                            'old_membership_number': row.get('Old membership Number'),
+                            'title': row.get('Title'),
+                            'initials': row.get('Initials'),
+                            'first_name': row.get('First Name'),
+                            'second_name': row.get('Second Name'),
+                            'last_name': row.get('Last Name'),
+                            'id_number': id_no,
+                            'dob': dob,
+                            'cessation_date': cessation,
+                            'gender': row.get('Gender'),
+                            'employee_number': row.get('Employee Number'),
+                            'fund_join_date': to_date(row.get('Fund Join Date')),
+                            'stipened_frequency': row.get('Stipened Frequency'),
+                            'stipened': to_float(row.get('Stipened')), # Now safe from "nan"
+                            'mobile_1': row.get('Mobile 1'),
+                            'email_1': row.get('Email 1'),
+                            'mobile_2': row.get('Mobile 2'),
+                            'email_2': row.get('Email 2'),
+                            'mobile_3': row.get('Mobile 3'),
+                            'email_3': row.get('Email 3'),
+                            'guardian_mobile': row.get('Guardian Mobile'),
+                            'guardian_email': row.get('Guaridan Email'),
+                            'guardian_title': row.get('Guardian Title'),
+                            'guardian_first_name': row.get('Guardian First Name'),
+                            'guardian_second_name': row.get('Guardian Second Name'),
+                            'guardian_last_name': row.get('Guardian Last Name'),
+                            'guardian_initial': row.get('Guardian Initial'),
+                            'guardian_dob': to_date(row.get('Guardian DOB')),
+                            'guardian_id_number': row.get('Guardian ID Number'),
+                            'guardian_id_type': row.get('Guardian ID Type'),
+                            'guardian_gender': row.get('Guardian Gender'),
+                            'guardian_address': row.get('Guardian Address'),
+                        }
+
+                        # Data Cleanup: Remove keys that are None if they are not allowed in DB
+                        # (Membership Number and ID Number are handled separately)
+                        beneficiary_data = {k: v for k, v in beneficiary_data.items() if pd.notnull(v) or v is None}
+
+                        obj, created = PssubfBeneficiary.objects.update_or_create(
+                            membership_number=m_no,
+                            defaults=beneficiary_data
+                        )
+                        
+                        if created:
+                            created_count += 1
+                        else:
+                            updated_count += 1
+
+                    except Exception as e:
+                        import_errors.append({"row": index + 2, "m_no": m_no, "reason": str(e)})
+
+            # Session data for the list view
+            request.session['import_stats'] = {
+                'total': total_excel_rows,
+                'created': created_count,
+                'updated': updated_count,
+                'failed': len(import_errors)
+            }
+            request.session['import_errors'] = import_errors
+            
+            return redirect('beneficiary_list')
+
+        except Exception as e:
+            messages.error(request, f"File Error: {str(e)}")
+
+    return render(request, 'pssubf/beneficiary_import.html')
+
+@login_required
+def beneficiary_list_view(request):
+    # 1. Get all records
+    queryset = PssubfBeneficiary.objects.all().order_by('last_name')
+
+    # 2. Filter Logic (Age Status)
+    status_filter = request.GET.get('status')
+    today = date.today()
+
+    if status_filter == 'expired':
+        # Members 18 and older
+        queryset = queryset.filter(cessation_date__lte=today)
+    elif status_filter == 'active':
+        # Members under 18
+        queryset = queryset.filter(cessation_date__gt=today)
+
+    # 3. Pagination (36 per page)
+    paginator = Paginator(queryset, 36)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    # 4. Handle Session Errors
+    import_errors = request.session.pop('import_errors', [])
+    
+    return render(request, 'pssubf/beneficiary_list.html', {
+        'page_obj': page_obj,  # We use page_obj in the loop now
+        'import_errors': import_errors,
+        'current_status': status_filter,
+        'total_count': queryset.count()
+    })
+
+from django.utils import timezone  # Ensure this is at the top of your file
+
+from django.utils import timezone # Ensure this is at the top of your views.py
+
+@login_required
+def beneficiary_details_view(request, membership_number):
+    member = get_object_or_404(PssubfBeneficiary, membership_number=membership_number)
+    
+    if request.method == 'POST':
+        # --- 1. HANDLE DIRECT EMAIL (COMPOSITION TAB) ---
+        if request.POST.get('action') == 'send_direct_email':
+            recipient = request.POST.get('to_email')
+            subject = request.POST.get('subject')
+            body_html = request.POST.get('email_html_content')
+
+            if recipient and subject and body_html:
+                result = OutlookGraphService.send_outlook_email(settings.OUTLOOK_EMAIL_ADDRESS, recipient, subject, body_html)
+                
+                if result.get('success') or result == {}:
+                    PssubfDirectEmail.objects.create(
+                        membership_number=membership_number,
+                        agent_name=request.user.username,
+                        recipient=recipient,
+                        subject=subject,
+                        body_html=body_html
+                    )
+                    PssubfAction.objects.create(
+                        task_email_id=f"DIRECT_{membership_number}",
+                        action_type="Direct Email Sent",
+                        action_user=request.user.username,
+                        note_content=f"Sent to: {recipient} | Subject: {subject}",
+                        action_timestamp=timezone.now()
+                    )
+                    messages.success(request, f"Direct email sent successfully to {recipient}.")
+                else:
+                    messages.error(request, f"Email failed to send: {result.get('error')}")
+            return redirect('beneficiary_details', membership_number=membership_number)
+
+        # --- 2. HANDLE GENERAL NOTES (NOTES TAB) ---
+        # Changed 'elif' to 'if' and verified the button name matches 'save_note'
+        elif 'save_note' in request.POST:
+            note_text = request.POST.get('note_text')
+            if note_text:
+                PssubfProfileNote.objects.create(
+                    membership_number=membership_number,
+                    agent_name=request.user.username,
+                    note_content=note_text
+                )
+                # Also log note creation to System History for visibility
+                PssubfAction.objects.create(
+                    task_email_id=f"NOTE_{membership_number}",
+                    action_type="Internal Note",
+                    action_user=request.user.username,
+                    note_content=f"Added profile note: {note_text[:50]}...",
+                    action_timestamp=timezone.now()
+                )
+                messages.success(request, "Internal note added to profile.")
+            else:
+                messages.warning(request, "Note content cannot be empty.")
+            return redirect('beneficiary_details', membership_number=membership_number)
+
+        # --- 3. HANDLE CORE PROFILE UPDATES ---
+        # This only runs if the above two specific actions weren't triggered
+        else:
+            try:
+                member.old_membership_number = request.POST.get('old_membership_number')
+                member.title = request.POST.get('title')
+                member.initials = request.POST.get('initials')
+                member.first_name = request.POST.get('first_name')
+                member.second_name = request.POST.get('second_name')
+                member.last_name = request.POST.get('last_name')
+                member.id_number = request.POST.get('id_number')
+                member.gender = request.POST.get('gender')
+                
+                dob_str = request.POST.get('dob')
+                if dob_str:
+                    dob_date = datetime.strptime(dob_str, '%Y-%m-%d').date()
+                    member.dob = dob_date
+                    member.cessation_date = dob_date + relativedelta(years=18)
+                
+                member.employee_number = request.POST.get('employee_number')
+                member.stipened_frequency = request.POST.get('stipened_frequency')
+                
+                stipend_raw = request.POST.get('stipened', '0').replace('R', '').replace(',', '').strip()
+                member.stipened = float(stipend_raw) if stipend_raw else 0.00
+                
+                join_date_str = request.POST.get('fund_join_date')
+                if join_date_str:
+                    member.fund_join_date = datetime.strptime(join_date_str, '%Y-%m-%d').date()
+
+                member.mobile_1 = request.POST.get('mobile_1')
+                member.email_1 = request.POST.get('email_1')
+                member.mobile_2 = request.POST.get('mobile_2')
+                member.email_2 = request.POST.get('email_2')
+                member.mobile_3 = request.POST.get('mobile_3')
+                member.email_3 = request.POST.get('email_3')
+
+                member.guardian_title = request.POST.get('guardian_title')
+                member.guardian_first_name = request.POST.get('guardian_first_name')
+                member.guardian_second_name = request.POST.get('guardian_second_name')
+                member.guardian_last_name = request.POST.get('guardian_last_name')
+                member.guardian_initial = request.POST.get('guardian_initial')
+                member.guardian_mobile = request.POST.get('guardian_mobile')
+                member.guardian_email = request.POST.get('guardian_email')
+                member.guardian_address = request.POST.get('guardian_address')
+                
+                member.save()
+
+                PssubfAction.objects.create(
+                    task_email_id=f"PROFILE_MOD_{membership_number}",
+                    action_type="Profile Update",
+                    action_user=request.user.username,
+                    note_content="Modified beneficiary personal/financial details.",
+                    action_timestamp=timezone.now()
+                )
+
+                messages.success(request, f"Changes saved for Member {member.membership_number}.")
+                return redirect('beneficiary_details', membership_number=member.membership_number)
+                
+            except Exception as e:
+                messages.error(request, f"Error updating record: {str(e)}")
+
+    # --- 4. FETCH DATA FOR TABS ---
+    # (Existing fetch logic continues here...)
+    incoming_emails = PssubfDelegate.objects.filter(member_group_code=membership_number)
+    outgoing_emails = PssubfDirectEmail.objects.filter(membership_number=membership_number)
+
+    combined_emails = []
+    for e in incoming_emails:
+        combined_emails.append({
+            'agent': e.assigned_agent or "Unassigned",
+            'subject': e.subject,
+            'date': e.created_at,
+            'status': e.status,
+            'type': 'INCOMING'
+        })
+
+    for e in outgoing_emails:
+        combined_emails.append({
+            'agent': e.agent_name,
+            'subject': e.subject,
+            'date': e.sent_at,
+            'status': 'Sent',
+            'type': 'OUTGOING'
+        })
+
+    combined_emails.sort(key=lambda x: x['date'] if x['date'] else timezone.now(), reverse=True)
+    internal_notes = PssubfProfileNote.objects.filter(membership_number=membership_number).order_by('-created_at')
+    pssubf_actions = PssubfAction.objects.filter(Q(task_email_id__icontains=membership_number)).order_by('-action_timestamp')
+
+    context = {
+        'member': member,
+        'email_logs': combined_emails,
+        'internal_notes': internal_notes,
+        'pssubf_actions': pssubf_actions
+    }
+
+    return render(request, 'pssubf/beneficiary_details.html', context)
+
+from datetime import date
+from django.utils import timezone
+from django.http import HttpResponse
+import pandas as pd
+
+@login_required
+def export_beneficiaries_excel(request):
+    """Exports the complete filtered beneficiary list with all columns to Excel."""
+    status_filter = request.GET.get('status')
+    queryset = PssubfBeneficiary.objects.all().order_by('last_name')
+
+    # Apply same filter logic as the list view
+    today = date.today()
+    if status_filter == 'expired':
+        queryset = queryset.filter(cessation_date__lte=today)
+    elif status_filter == 'active':
+        queryset = queryset.filter(cessation_date__gt=today)
+
+    # Fetching EVERY column from the schema provided
+    data = list(queryset.values(
+        'membership_number', 'old_membership_number', 'title', 'initials', 
+        'first_name', 'second_name', 'last_name', 'id_number', 'dob', 'gender', 
+        'employee_number', 'fund_join_date', 'cessation_date', 
+        'stipened_frequency', 'stipened', 
+        'mobile_1', 'email_1', 'mobile_2', 'email_2', 'mobile_3', 'email_3',
+        'guardian_title', 'guardian_initial', 'guardian_first_name', 
+        'guardian_second_name', 'guardian_last_name', 'guardian_dob',
+        'guardian_id_number', 'guardian_id_type', 'guardian_gender',
+        'guardian_mobile', 'guardian_email', 'guardian_address',
+        'created_at', 'updated_at'
+    ))
+
+    # Create DataFrame
+    df = pd.DataFrame(data)
+
+    # --- FIX FOR TIMEZONE ERROR ---
+    # Convert timezone-aware datetimes to naive datetimes
+    for col in df.columns:
+        if pd.api.types.is_datetime64tz_dtype(df[col]):
+            df[col] = df[col].dt.tz_localize(None)
+    
+    # Optional: Ensure Decimals are floats for Excel compatibility
+    if 'stipened' in df.columns:
+        df['stipened'] = df['stipened'].apply(lambda x: float(x) if x is not None else 0.0)
+
+    # Mapping internal field names to readable Excel Headers
+    column_mapping = {
+        'membership_number': 'Membership Number',
+        'old_membership_number': 'Old Membership Number',
+        'title': 'Title',
+        'initials': 'Initials',
+        'first_name': 'First Name',
+        'second_name': 'Second Name',
+        'last_name': 'Last Name',
+        'id_number': 'ID Number',
+        'dob': 'Date of Birth',
+        'gender': 'Gender',
+        'employee_number': 'Employee Number',
+        'fund_join_date': 'Fund Join Date',
+        'cessation_date': 'Cessation Date',
+        'stipened_frequency': 'Stipend Frequency',
+        'stipened': 'Stipend Amount',
+        'mobile_1': 'Mobile 1',
+        'email_1': 'Email 1',
+        'mobile_2': 'Mobile 2',
+        'email_2': 'Email 2',
+        'mobile_3': 'Mobile 3',
+        'email_3': 'Email 3',
+        'guardian_title': 'Guardian Title',
+        'guardian_initial': 'Guardian Initials',
+        'guardian_first_name': 'Guardian First Name',
+        'guardian_second_name': 'Guardian Second Name',
+        'guardian_last_name': 'Guardian Last Name',
+        'guardian_dob': 'Guardian DOB',
+        'guardian_id_number': 'Guardian ID Number',
+        'guardian_id_type': 'Guardian ID Type',
+        'guardian_gender': 'Guardian Gender',
+        'guardian_mobile': 'Guardian Mobile',
+        'guardian_email': 'Guardian Email',
+        'guardian_address': 'Guardian Address',
+        'created_at': 'Created At',
+        'updated_at': 'Updated At'
+    }
+    
+    df.rename(columns=column_mapping, inplace=True)
+
+    # Set up the response as an Excel file
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename=PSSUBF_Master_Export_{timezone.now().strftime("%Y%m%d_%H%M")}.xlsx'
+
+    # Write the dataframe to the response
+    with pd.ExcelWriter(response, engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='Beneficiaries')
+        
+        # Access the openpyxl worksheet object to adjust column widths
+        worksheet = writer.sheets['Beneficiaries']
+        for col in worksheet.columns:
+            max_length = 0
+            column = col[0].column_letter # Get the column name
+            for cell in col:
+                try:
+                    if cell.value:
+                        val_len = len(str(cell.value))
+                        if val_len > max_length:
+                            max_length = val_len
+                except:
+                    pass
+            adjusted_width = (max_length + 2)
+            worksheet.column_dimensions[column].width = min(adjusted_width, 50) # Cap width at 50 for readability
+
+    return response
