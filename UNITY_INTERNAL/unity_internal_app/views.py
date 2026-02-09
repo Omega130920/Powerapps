@@ -293,8 +293,15 @@ from django.db.models import Sum, Max, Q # Ensure Max is imported
 def unity_information(request: HttpRequest, company_code):
     """
     Displays detailed information for a single record.
-    UPDATED: Fixed General Tab POST logic to ensure member info saves correctly.
+    UPDATED: Applied CRM_UNITY mapping pattern for robust email history retrieval.
+    UPDATED: Fixed status filtering to ensure 'DEL' (Delegated) items are visible.
+    UPDATED: Integrated DelegationTransactionLog to show sent replies in the history.
     """
+    from .models import EmailDelegation, DelegationTransactionLog, UnityNotes, OutlookInbox
+    from django.db.models import Q, Sum
+    from decimal import Decimal
+    from django.utils import timezone
+    from django.urls import reverse
 
     # =========================================================
     # 0. DOWNLOAD HANDLER (Matches CRM_UNITY Logic)
@@ -307,13 +314,8 @@ def unity_information(request: HttpRequest, company_code):
             messages.warning(request, "The physical .eml file for this older record is not available.")
             return redirect('unity_information', company_code=company_code)
             
-        # Redirect to the dedicated download view that handles the Graph API fetch
         return redirect('download_email_file', email_id=email_id)
 
-    # =========================================================
-    # END DOWNLOAD HANDLER
-    # =========================================================
-    
     # --- 1. Fetch Main Unity Record ---
     try:
         unity_record = UnityMgListing.objects.filter(a_company_code=company_code).first()
@@ -397,26 +399,34 @@ def unity_information(request: HttpRequest, company_code):
     except Exception:
         communication_logs = []
     
-    # --- 4. Build Unified Email History ---
+    # --- 4. Build Unified Email History (CRM_UNITY Mapping Style) ---
     combined_email_log = []
+    clean_lookup = str(lookup_code).strip()
 
-    # A. Fetch Delegated Items (Original / Complete)
-    delegated_items = EmailDelegation.objects.filter(
-        company_code=lookup_code
-    ).exclude(status__in=['DEL', 'DELETED', 'TRASH'])
+    # 4.1 Fetch all delegations for this company to build maps
+    all_delegations = EmailDelegation.objects.filter(company_code__iexact=clean_lookup)
+    all_del_ids = [item.id for item in all_delegations]
+    related_string_ids = [item.email_id for item in all_delegations]
     
-    related_delegation_ids = [item.id for item in delegated_items]
+    # Maps for thread lookups
+    thread_status_map = {item.id: item.status for item in all_delegations}
+    thread_email_id_map = {item.id: item.email_id for item in all_delegations}
     
-    # Map for parent status lookup
-    thread_status_map = {item.id: item.status for item in delegated_items}
+    # Map True Arrival Timestamps from Inbox
+    inbox_records = OutlookInbox.objects.filter(email_id__in=related_string_ids)
+    inbox_map = {email.email_id: email.received_at for email in inbox_records}
 
-    for item in delegated_items:
+    # A. Fetch Original Items (Excluding Trash/Deleted only)
+    for item in all_delegations:
+        if item.status in ['DLT', 'DELETED', 'TRASH']:
+            continue
+
         is_completed = item.status in ['COMP', 'DONE', 'CLS']
         display_type = 'Completed' if is_completed else 'Delegated'
         
         combined_email_log.append({
             'timestamp': item.received_at, 
-            'arrival_timestamp': item.received_at, 
+            'arrival_timestamp': inbox_map.get(item.email_id, item.received_at),
             'delegation_timestamp': item.delegated_at,
             'type': 'Original', 
             'display_type': display_type,
@@ -429,33 +439,34 @@ def unity_information(request: HttpRequest, company_code):
             'icon': '📥'
         })
 
-    # B. Fetch Replies (Reply - Reply sent)
+    # B. Fetch ALL Replies from Transaction Log
     threaded_replies = DelegationTransactionLog.objects.filter(
-        delegation__id__in=related_delegation_ids,
-        action_type__icontains='REPLY'
-    )
+        delegation_id__in=all_del_ids,
+        action_type='REPLIED'
+    ).select_related('user')
 
     for reply in threaded_replies:
-        parent_status = thread_status_map.get(reply.delegation_id, 'OPEN')
+        parent_status = thread_status_map.get(reply.delegation_id, "SENT")
+        outlook_id = thread_email_id_map.get(reply.delegation_id)
         
         combined_email_log.append({
             'timestamp': reply.timestamp,
             'arrival_timestamp': None,
             'delegation_timestamp': None,
             'type': 'Reply',
-            'display_type': 'Reply sent',
+            'display_type': 'Reply Sent',
             'subject': reply.subject or "Reply to Task",
             'assigned_to': reply.recipient_email,
             'status': parent_status,
-            'email_id': reply.delegation.email_id, 
+            'email_id': outlook_id,
             'action_user': reply.user.username if reply.user else 'System',
-            'badge_color': '#9c27b0',
-            'icon': '↩️'
+            'badge_color': '#673ab7',
+            'icon': '📤'
         })
 
-    # C. Fetch Direct Emails (Direct - Email sent)
+    # C. Fetch Direct Emails
     direct_emails = UnityNotes.objects.filter(
-        member_group_code=lookup_code, 
+        member_group_code__iexact=clean_lookup, 
         communication_type='Sent Email'
     )
 
@@ -479,7 +490,7 @@ def unity_information(request: HttpRequest, company_code):
             'icon': '📤'
         })
 
-    # Sort everything by timestamp (newest first)
+    # Sort newest first
     combined_email_log.sort(key=lambda x: x['timestamp'], reverse=True)
 
     # --- 5. Billing Logic ---
@@ -505,8 +516,6 @@ def unity_information(request: HttpRequest, company_code):
 
     # --- 6. HANDLE POST REQUESTS ---
     if request.method == 'POST':
-        
-        # A. SEND EMAIL
         is_email_send = request.POST.get('email_submission_action') == 'send_email_and_log' or \
                         request.POST.get('action') == 'send_outgoing_member_note'
 
@@ -514,6 +523,7 @@ def unity_information(request: HttpRequest, company_code):
             subject = request.POST.get('member_email_subject_reply', 'Claim Update')
             recipient = request.POST.get('member_recipient_email')
             email_body_html = request.POST.get('email_body_html_content')
+            action_note_val = request.POST.get('action_notes', 'Email Composed')
             
             if recipient and email_body_html:
                 response = OutlookGraphService.send_outlook_email(settings.OUTLOOK_EMAIL_ADDRESS, recipient, subject, email_body_html, 'HTML')
@@ -525,7 +535,7 @@ def unity_information(request: HttpRequest, company_code):
                         user=request.user.username,
                         date=timezone.now(),
                         communication_type='Sent Email', 
-                        action_notes=subject[:90], 
+                        action_notes=action_note_val[:90], 
                         attached_email_id=graph_id, 
                         notes=f"To: {recipient}\nSubject: {subject}\n{email_body_html}"
                     )
@@ -535,24 +545,20 @@ def unity_information(request: HttpRequest, company_code):
             
             return redirect(f"{reverse('unity_information', kwargs={'company_code': company_code})}#email-log")
 
-        # B. UPDATE GENERAL INFO (COMPLETELY UPDATED FOR MEMBER DETAILS)
         if 'update_general_info' in request.POST:
             if unity_record and not is_fallback:
                 try:
-                    # 1. Contact Information
                     unity_record.recon_contact_1_name = request.POST.get('recon_contact_1_name')
                     unity_record.recon_contact_1_email = request.POST.get('recon_contact_1_email')
                     unity_record.recon_contact_2_name = request.POST.get('recon_contact_2_name')
                     unity_record.recon_contact_2_email = request.POST.get('recon_contact_2_email')
 
-                    # 2. Dates (Handle empty strings)
                     comm_date = request.POST.get('commencement_date')
                     unity_record.commencement_date = comm_date if comm_date else None
                     
                     fund_date = request.POST.get('fund_status_date')
                     unity_record.fund_status_date = fund_date if fund_date else None
 
-                    # 3. Status & Classification
                     unity_record.fund_status = request.POST.get('fund_status')
                     unity_record.i_last_recon = request.POST.get('last_recon_note')
                     unity_record.c_agent = request.POST.get('agent')
@@ -563,17 +569,13 @@ def unity_information(request: HttpRequest, company_code):
                     unity_record.h_current_status = request.POST.get('current_status')
                     unity_record.j_arrears = request.POST.get('arrears')
                     
-                    # 4. Save
                     unity_record.save()
                     messages.success(request, "General Information updated successfully.")
                 except Exception as e:
                     messages.error(request, f"Error saving record: {e}")
-            elif is_fallback:
-                 messages.error(request, "Cannot update General Information on a fallback/internal record.")
             
             return redirect('unity_information', company_code=company_code)
         
-        # C. ADD NOTE
         elif request.POST.get('note_content') or request.POST.get('action_notes'):
             UnityNotes.objects.create(
                 member_group_code=company_code,
@@ -586,7 +588,6 @@ def unity_information(request: HttpRequest, company_code):
             messages.success(request, "Note added.")
             return redirect(f"{reverse('unity_information', kwargs={'company_code': company_code})}#notes-log")
 
-    # --- 7. RENDER ---
     context = {
         'unity_record': unity_record,
         'notes': notes, 
@@ -1024,7 +1025,7 @@ def bank_list(request):
 def bankline_recon(request, record_id):
     """
     Handles the reconciliation/assignment of bank lines OR Approved Credits.
-    UPDATED: If source='credit', it skips assignment and routes to Bill Summary.
+    UPDATED: Returns to bank_list.html after successful assignment.
     """
     from django.urls import reverse
     
@@ -1032,11 +1033,8 @@ def bankline_recon(request, record_id):
     is_credit = request.GET.get('source') == 'credit'
     
     if is_credit:
-        # 1. Fetch the Credit Note instead of ReconnedBank
         credit_note = get_object_or_404(CreditNote, id=record_id)
         
-        # 2. Logic Check: Since it's already "Approved" for a specific company,
-        # we find the first open bill for that company to help the clerk.
         open_bill = UnityBill.objects.filter(
             C_Company_Code=credit_note.member_group_code,
             is_reconciled=False
@@ -1048,8 +1046,8 @@ def bankline_recon(request, record_id):
                             company_code=credit_note.member_group_code, 
                             bill_id=open_bill.id)
         else:
-            # Fallback if no open bill exists yet
             messages.warning(request, f"Credit is ready, but no open bills were found for {credit_note.member_group_code}.")
+            # Note: Decided to keep this redirect to unity_info as a fallback for credits
             return redirect('unity_information', company_code=credit_note.member_group_code)
 
     # --- STANDARD BANK LINE LOGIC ---
@@ -1077,20 +1075,22 @@ def bankline_recon(request, record_id):
 
         try:
             code_exists = InternalFunds.objects.filter(A_Company_Code=allocated_company_code_value).exists() or \
-                          UnityMgListing.objects.filter(a_company_code=allocated_company_code_value).exists()
+                         UnityMgListing.objects.filter(a_company_code=allocated_company_code_value).exists()
 
             if not code_exists:
                 messages.error(request, f"Company code '{allocated_company_code_value}' is not recognized.")
                 return redirect('bankline_recon', record_id=record_id)
 
-            # ASSIGNMENT
+            # --- ASSIGNMENT ---
             recon_segment.company_code = allocated_company_code_value
             recon_segment.agent = request.user.get_full_name() or request.user.username
             recon_segment.recon_status = 'Unreconciled - Assigned'
             recon_segment.save()
             
             messages.success(request, f"Bank line segment {record_id} assigned to Code: {allocated_company_code_value}.")
-            return redirect(f"{reverse('unity_information', kwargs={'company_code': allocated_company_code_value})}#recon")
+            
+            # --- FIX: REDIRECT TO BANK LIST INSTEAD OF UNITY_INFORMATION ---
+            return redirect('bank_list')
 
         except Exception as e:
             messages.error(request, f"Error saving assignment: {e}")
@@ -1199,13 +1199,12 @@ def generate_recon_statement(request, recon_id):
 def display_bankline_review(request, recon_id):
     """Displays a single reconciled bank line for review, unpacking the note field."""
     # --- CAPTURE NAVIGATION SOURCE ---
-    # We check if it's from Unity Information or Global Bank Archive
     source_param = request.GET.get('from')
     is_from_unity_info = request.GET.get('source') == 'unity' or source_param == 'unity'
     
     recon_record = get_object_or_404(ReconnedBank.objects.select_related('bank_line'), pk=recon_id)
     
-    # --- UNPACK THE NOTE FIELD ---
+    # --- UNPACK THE NOTE FIELD (The "Pipe" Logic) ---
     unpacked_category = ""
     unpacked_custom_text = ""
 
@@ -1216,9 +1215,11 @@ def display_bankline_review(request, recon_id):
             unpacked_category = parts[0]
             unpacked_custom_text = parts[1]
         else:
-            # If no pipe, assume the whole thing is the category
+            # Fallback: Check if the raw string matches a known category
             unpacked_category = recon_record.review_note
+            unpacked_custom_text = ""
 
+    # Fetch unique company codes for the selection dropdown
     company_codes = InternalFunds.objects.values_list('A_Company_Code', flat=True).distinct().order_by('A_Company_Code')
 
     context = {
@@ -1226,10 +1227,10 @@ def display_bankline_review(request, recon_id):
         'bank_record': recon_record.bank_line,
         'company_codes': company_codes,
         'review_notes': REVIEW_NOTES_OPTIONS,
-        'current_category': unpacked_category,        # Separate variable for dropdown
-        'current_custom_text': unpacked_custom_text,  # Separate variable for textarea
+        'current_category': unpacked_category,      
+        'current_custom_text': unpacked_custom_text, 
         'is_from_unity_info': is_from_unity_info,
-        'source': source_param,                       # Pass 'global' to template for the back button
+        'source': source_param,                       
     }
     return render(request, 'unity_internal_app/display_bankline_review.html', context)
 
@@ -3771,9 +3772,7 @@ def outlook_delegated_action(request, delegation_id):
 def outlook_delegate_to(request, email_id):
     """
     Handles delegation and re-delegation of Outlook tasks.
-    FIXED: Explicitly handles record updates to ensure testuser1 -> testuser2 re-assignment works.
-    UPDATED: Supports 'current_delegation' context for manager re-assignment logic.
-    UPDATED: Detects re-delegation and logs the transition.
+    UPDATED: All successful POST actions now redirect back to 'outlook_dashboard'.
     """
     from .models import EmailDelegation, DelegationTransactionLog
     
@@ -3809,7 +3808,8 @@ def outlook_delegate_to(request, email_id):
                 }
             )
             messages.error(request, "Email moved to Recycle Bin (Status: DLT).")
-            return redirect('email_list')
+            # REDIRECT: Back to Dashboard
+            return redirect('outlook_dashboard')
 
         # --- HANDLE DELEGATION / RE-DELEGATION ---
         else:
@@ -3819,9 +3819,8 @@ def outlook_delegate_to(request, email_id):
                 # Fetch new assignee object
                 assignee = User.objects.get(pk=assignee_pk)
 
-                # FIX: Check if this is a re-assignment of an existing record
+                # Check if this is a re-assignment of an existing record
                 if current_delegation:
-                    # Logic for RE-ASSIGNMENT (testuser1 -> testuser2)
                     old_agent_name = current_delegation.assigned_user.username if current_delegation.assigned_user else "Unassigned"
                     
                     # Update existing record fields
@@ -3841,10 +3840,11 @@ def outlook_delegate_to(request, email_id):
                         recipient_email=assignee.email or "N/A"
                     )
                     messages.success(request, f"Task successfully re-assigned to {assignee.username}.")
-                    return redirect('email_list')
+                    # REDIRECT: Back to Dashboard
+                    return redirect('outlook_dashboard')
 
                 else:
-                    # Logic for NEW DELEGATION (Task was 'NEW')
+                    # Logic for NEW DELEGATION
                     success, message = delegate_email_task(
                         email_id, 
                         assignee_pk, 
@@ -3853,7 +3853,7 @@ def outlook_delegate_to(request, email_id):
                     )
                     
                     if success:
-                        # Standard Auto-Reply for NEW delegations only
+                        # Auto-Reply Logic
                         reply_endpoint = f"messages/{email_id}/createReply"
                         reply_payload = {
                             "comment": f"Dear Sender,\n\nThis request has been successfully received and delegated to our agent: {assignee.username}.\n\nPlease use Reference: {data_for_delegation['company_code'] or 'N/A'} for future queries.\n\nRegards,\nMIP Support Team"
@@ -3867,7 +3867,8 @@ def outlook_delegate_to(request, email_id):
                         except Exception as e:
                             messages.warning(request, f"Task assigned, but auto-reply failed: {str(e)}")
                         
-                        return redirect('email_list')
+                        # REDIRECT: Back to Dashboard
+                        return redirect('outlook_dashboard')
                     else:
                         messages.error(request, message)
 
@@ -3877,12 +3878,12 @@ def outlook_delegate_to(request, email_id):
 
     if 'error' in email_data:
         messages.error(request, f"Error fetching email content: {email_data.get('error')}")
-        return redirect('email_list')
+        # REDIRECT: Back to Dashboard on error
+        return redirect('outlook_dashboard')
 
     # Fetch Attachments Metadata
     attachments_data = OutlookGraphService.fetch_attachments(target_email, email_id)
     
-    # Process image previews
     for att in attachments_data:
         content_type = att.get('contentType', '').lower()
         if 'image' in content_type:
@@ -3893,7 +3894,6 @@ def outlook_delegate_to(request, email_id):
     raw_content = email_data.get('body', {}).get('content', '')
     received_date_str = email_data.get('receivedDateTime')
     
-    # Sync status in background if missing
     if not current_delegation:
         current_delegation = get_or_create_delegation_status(email_id, received_date_str=received_date_str)
     
@@ -4624,8 +4624,10 @@ def global_bank_view(request):
 def export_global_bank_excel(request):
     """
     Exports the Global Bank history to Excel.
-    UPDATED: Now includes 'Approved Overs' (Credit Notes) merged with physical Bank Lines.
+    UPDATED: Splits review_note into 'Note Category' and 'Internal Note' columns.
     """
+    import openpyxl
+    from django.http import HttpResponse
     from django.db.models import Q
     from decimal import Decimal
     
@@ -4638,11 +4640,11 @@ def export_global_bank_excel(request):
         bank_records = bank_records.filter(
             Q(company_code__icontains=query) |
             Q(bank_line__transaction_description__icontains=query) |
-            Q(recon_status__icontains=query)
+            Q(recon_status__icontains=query) |
+            Q(review_note__icontains=query)
         )
 
     # --- 2. Fetch Approved Virtual Credits (Overs) ---
-    # Logic matches 'global_bank_view'
     credit_records = CreditNote.objects.filter(
         Q(note_selection='OVERS') | Q(link_request_reason='Overs credit line'),
         credit_link_status='Approved',
@@ -4656,7 +4658,6 @@ def export_global_bank_excel(request):
         )
 
     # --- 3. Build Company Lookup Map ---
-    # We need codes from both lists to look up names efficiently
     bank_codes = list(bank_records.values_list('company_code', flat=True).distinct())
     credit_codes = list(credit_records.values_list('member_group_code', flat=True).distinct())
     all_codes = set(bank_codes + credit_codes)
@@ -4675,6 +4676,20 @@ def export_global_bank_excel(request):
     # Process Bank Lines
     for r in bank_records:
         mg_info = mg_map.get(r.company_code, {})
+        
+        # --- UNPACK NOTE FOR EXCEL (TWO COLUMNS) ---
+        note_category = ""
+        internal_note_text = ""
+        
+        if r.review_note:
+            if " | " in r.review_note:
+                parts = r.review_note.split(" | ", 1)
+                note_category = parts[0]
+                internal_note_text = parts[1]
+            else:
+                note_category = r.review_note
+                internal_note_text = ""
+
         export_rows.append({
             'date': r.transaction_date,
             'description': r.bank_line.transaction_description,
@@ -4684,15 +4699,14 @@ def export_global_bank_excel(request):
             'settled': r.amount_settled,
             'remaining': (r.transaction_amount - r.amount_settled),
             'status': r.recon_status,
-            'agent': mg_info.get('agent', "System")
+            'agent': mg_info.get('agent', "System"),
+            'note_category': note_category,      # Column 10
+            'internal_note': internal_note_text  # Column 11
         })
 
     # Process Credit Notes (Overs)
     for c in credit_records:
-        # Use member_group_name if available on the record, otherwise fallback to the map
         c_name = c.member_group_name or mg_map.get(c.member_group_code, {}).get('name', "Verified Credit")
-        
-        # Use authorized_at date, fallback to processed_date
         c_date = c.authorized_at.date() if c.authorized_at else c.processed_date
 
         export_rows.append({
@@ -4700,14 +4714,16 @@ def export_global_bank_excel(request):
             'description': "APPROVED OVERS (Virtual Credit)",
             'code': c.member_group_code,
             'name': c_name,
-            'deposit': c.schedule_amount,    # Treat credit amount as the deposit
-            'settled': Decimal('0.00'),      # It is available, so 0 is settled
-            'remaining': c.schedule_amount,  # Full amount is remaining
+            'deposit': c.schedule_amount,
+            'settled': Decimal('0.00'),
+            'remaining': c.schedule_amount,
             'status': "APPROVED VIRTUAL",
-            'agent': c.authorized_by or "Manager"
+            'agent': c.authorized_by or "Manager",
+            'note_category': "OVERS",
+            'internal_note': "Virtual Credit Line"
         })
 
-    # --- 5. Sort Combined List by Date Descending ---
+    # --- 5. Sort Combined List ---
     export_rows.sort(key=lambda x: x['date'], reverse=True)
 
     # --- 6. Write to Excel ---
@@ -4715,22 +4731,29 @@ def export_global_bank_excel(request):
     ws = wb.active
     ws.title = "Global Bank Export"
 
-    headers = ["Date", "Description", "Company Code", "Company Name", "Deposit Amount", "Settled Amount", "Remaining Balance", "Status", "Agent"]
+    # HEADERS WITH BOTH COLUMNS
+    headers = [
+        "Date", "Description", "Company Code", "Company Name", 
+        "Deposit Amount", "Settled Amount", "Remaining Balance", 
+        "Status", "Agent", "Note Category", "Internal Note"
+    ]
     ws.append(headers)
+
+    for cell in ws[1]:
+        cell.font = openpyxl.styles.Font(bold=True)
 
     for row in export_rows:
         ws.append([
-            row['date'],
-            row['description'],
-            row['code'],
-            row['name'],
-            row['deposit'],
-            row['settled'],
-            row['remaining'],
-            row['status'],
-            row['agent']
+            row['date'], row['description'], row['code'], row['name'],
+            row['deposit'], row['settled'], row['remaining'],
+            row['status'], row['agent'], 
+            row['note_category'], row['internal_note']
         ])
 
+    # Styling for readability
+    ws.column_dimensions['J'].width = 25 # Note Category
+    ws.column_dimensions['K'].width = 60 # Internal Note
+    
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = 'attachment; filename="Global_Bank_Export.xlsx"'
     wb.save(response)

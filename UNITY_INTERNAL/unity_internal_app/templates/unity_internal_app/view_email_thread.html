@@ -205,7 +205,7 @@
         .bg-reply { background-color: #f3e5f5; color: #7b1fa2; }
         .bg-direct { background-color: #fff3e0; color: #e65100; }
         .bg-default { background-color: #f0fff4; color: #2f855a; }
-        .bg-note { background-color: #e3f2fd; color: #0d47a1; } /* Blue for Unity Notes */
+        .bg-note { background-color: #e3f2fd; color: #0d47a1; } 
 
         .event-meta {
             display: block;
@@ -268,15 +268,12 @@
                 {% for att in attachments %}
                 <div class="attachment-card">
                     <div class="preview-container">
-                        {# --- IMAGE THUMBNAIL (Base64) --- #}
                         {% if att.contentBytes %}
                             <img src="data:{{ att.contentType }};base64,{{ att.contentBytes }}" 
                                  onclick="window.open(this.src)" 
                                  title="Click to expand"
                                  onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
                             <i class="fas fa-file-image file-icon" style="color: #607d8b; display:none;"></i>
-                        
-                        {# --- DOCUMENT ICONS --- #}
                         {% else %}
                             {% if "spreadsheet" in att.contentType or "excel" in att.name|lower %}
                                 <i class="fas fa-file-excel file-icon" style="color: #1D6F42;"></i>
@@ -300,28 +297,15 @@
         {% endif %}
     </div>
 
-    <h2 style="font-size: 1.2em; color: #4a5568; margin-bottom: 20px; padding-left: 10px;">Activity Timeline</h2>
+    <h2 style="font-size: 1.2em; color: #4a5568; margin-bottom: 20px; padding-left: 10px;">Activity Timeline (Newest First)</h2>
 
     <div class="timeline-container">
         
-        {# --- Start with Original Delegation if it exists --- #}
-        {% if task %}
-        <div class="timeline-event">
-            <div class="timeline-icon" style="background-color: #2b6cb0;"></div>
-            <span class="badge-status bg-delegated">Delegation Created</span>
-            <p class="event-text">
-                Task was delegated to <strong>{{ task.assigned_user.username|default:"Unassigned" }}</strong>.
-            </p>
-            <span class="event-meta">
-                Date: {{ task.received_at|date:"d M Y, H:i" }}
-            </span>
-        </div>
-        {% endif %}
-
-        {# --- Unified Timeline Loop --- #}
+        {# --- Start Loop: The sorting MUST be handled in the view using combined_timeline.sort(key=..., reverse=True) --- #}
         {% for item in combined_timeline %}
         <div class="timeline-event">
             
+            {# --- ACTIONS (REPLY / DIRECT) --- #}
             {% if item.type == 'action' %}
                 <div class="timeline-icon" 
                      style="background-color: {% if item.obj.email_type == 'REPLY' %}#9c27b0{% elif item.obj.email_type == 'DIRECT' %}#f7931e{% else %}#2f855a{% endif %};">
@@ -346,6 +330,7 @@
                     Action by: <strong>{{ item.obj.user.username }}</strong> | {{ item.date|date:"d M Y, H:i" }}
                 </span>
 
+            {# --- UNITY NOTES --- #}
             {% elif item.type == 'unity_note' %}
                 <div class="timeline-icon" style="background-color: #0d47a1;"></div>
                 <span class="badge-status bg-note">Unity Management Note</span>
@@ -362,6 +347,7 @@
                     Logged by: <strong>{{ item.obj.user }}</strong> | {{ item.date|date:"d M Y, H:i" }}
                 </span>
 
+            {# --- DELEGATION NOTES --- #}
             {% elif item.type == 'del_note' %}
                 <div class="timeline-icon" style="background-color: #4a5568;"></div>
                 <span class="badge-status" style="background-color: #edf2f7; color: #4a5568;">Internal Task Note</span>
@@ -376,11 +362,21 @@
             {% endif %}
 
         </div>
-        {% empty %}
-        <div style="padding-left: 20px; color: #888; font-style: italic;">
-            No additional activity recorded for this thread.
-        </div>
         {% endfor %}
+
+        {# --- THE ORIGINAL DELEGATION (This is always the "Oldest" event) --- #}
+        {% if task %}
+        <div class="timeline-event">
+            <div class="timeline-icon" style="background-color: #2b6cb0;"></div>
+            <span class="badge-status bg-delegated">Delegation Created (Original)</span>
+            <p class="event-text">
+                Task was delegated to <strong>{{ task.assigned_user.username|default:"Unassigned" }}</strong>.
+            </p>
+            <span class="event-meta">
+                Date: {{ task.received_at|date:"d M Y, H:i" }}
+            </span>
+        </div>
+        {% endif %}
 
     </div>
 </div>

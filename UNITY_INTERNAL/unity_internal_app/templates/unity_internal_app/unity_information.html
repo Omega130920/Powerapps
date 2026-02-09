@@ -440,14 +440,6 @@
         <div></div>
     </div>
 
-    {% if messages %}
-    <div class="messages-container">
-        {% for message in messages %}
-        <div class="fallback-warning">{{ message }}</div>
-        {% endfor %}
-    </div>
-    {% endif %}
-
     <div class="profile-layout">
         
         <ul class="tab-nav">
@@ -1175,7 +1167,7 @@
 
 <div id="email-log" class="tab-pane">
     
-    {# --- HEADER SECTION (CRM STYLE + UNITY BUTTON) --- #}
+    {# --- HEADER SECTION --- #}
     <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 20px;">
         <div style="width: 100%;">
             <h2 style="color: #38761d; border-bottom: 2px solid #38761d; padding-bottom: 10px; margin: 0;">
@@ -1189,37 +1181,64 @@
         </div>
     </div>
 
-    {# --- HIDDEN COMPOSE FORM (PRESERVED FROM UNITY) --- #}
+    {# --- HIDDEN COMPOSE FORM --- #}
     <div id="standalone-email-container" style="display: none; margin-bottom: 20px;">
         <form method="post" action="{% url 'unity_information' company_code=unity_record.A_Company_Code|default:unity_record.a_company_code %}" id="standalone_email_master_form" enctype="multipart/form-data" style="background-color: #fffaf5; border: 2px dashed #ff9800; border-radius: 8px; padding: 20px;">
             {% csrf_token %}
             <h3 style="color: #ff9800; margin-top: 0;">Compose Outgoing Email</h3>
+            
             <input type="hidden" name="action" value="send_outgoing_member_note">
             <input type="hidden" name="communication_type" value="Sent Email">
-            <input type="hidden" name="action_notes" value="Email Composed"> 
             <input type="hidden" name="note_content" id="standalone_hidden_note_content"> 
             <input type="hidden" name="email_body_html_content" id="standalone_email_html_content">
 
-            <div class="form-group" style="margin-bottom: 10px;">
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="standalone_action_notes" style="font-weight: bold; display: block; margin-bottom: 5px;">Action Note:*</label>
+                <select name="action_notes" id="standalone_action_notes" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" required>
+                    <option value="" disabled selected>-- Select Action Note --</option>
+                    <option value="Feedback to Sanlam">Feedback to Sanlam</option>
+                    <option value="Feedback to Employer">Feedback to Employer</option>
+                    <option value="Feedback to Member">Feedback to Member</option>
+                    <option value="Feedback to CBC">Feedback to CBC</option>
+                    <option value="Enquiry to FO">Enquiry to FO</option>
+                    <option value="Enquiry to Sanlam">Enquiry to Sanlam</option>
+                    <option value="Enquiry to Employer">Enquiry to Employer</option>
+                    <option value="Enquiry to CBC">Enquiry to CBC</option>
+                    <option value="Sent to Employer">Sent to Employer</option>
+                    <option value="Sent to Sanlam">Sent to Sanlam</option>
+                    <option value="Sent to CBC">Sent to CBC</option>
+                    <option value="Sent to FO">Sent to FO</option>
+                </select>
+            </div>
+
+            <div class="form-group" style="margin-bottom: 15px;">
                 <label for="standalone_recipient" style="font-weight: bold; display: block; margin-bottom: 5px;">To (Recipient's Email):</label>
                 {% with e1=unity_record.recon_contact_1_email|default:"" e2=unity_record.recon_contact_2_email|default:"" %}
                     <input type="text" id="standalone_recipient" name="member_recipient_email" value="{% if e1 and e2 %}{{ e1 }},{{ e2 }}{% else %}{{ e1 }}{{ e2 }}{% endif %}" placeholder="Enter email addresses..." style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" required>
                 {% endwith %}
             </div>
+
             <div class="form-group" style="margin-bottom: 15px;">
                 <label style="font-weight: bold; display: block; margin-bottom: 5px;">Subject:</label>
-                <input type="text" name="member_email_subject_reply" value="[MIP: {{ unity_record.A_Company_Code|default:unity_record.a_company_code }}] New Communication" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                <input type="text" name="member_email_subject_reply" value="[MIP: {{ unity_record.A_Company_Code|default:unity_record.a_company_code }}] New Communication" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" required>
             </div>
+
             <div class="form-group" style="margin-bottom: 15px;">
                 <label style="font-weight: bold; display: block; margin-bottom: 5px;">Email Body:</label>
                 <div id="standalone_email_body_editor" class="rich-text-editor" contenteditable="true" style="min-height: 200px; border: 1px solid #ccc; padding: 10px; border-radius: 4px; background-color: white;">
-                    <p>Dear Sir/Madam,</p><p>Regarding Member Group Code {{ unity_record.A_Company_Code|default:unity_record.a_company_code }},</p><p><br></p><p>Kind regards,</p><p>{{ request.user.username }}</p>
+                    <p>Dear Sir/Madam,</p>
+                    <p>Regarding Member Group Code {{ unity_record.A_Company_Code|default:unity_record.a_company_code }},</p>
+                    <p><br></p>
+                    <p>Kind regards,</p>
+                    <p>{{ request.user.username }}</p>
                 </div>
             </div>
-            <div class="form-group" style="margin-bottom: 10px;">
+
+            <div class="form-group" style="margin-bottom: 15px;">
                 <label style="font-weight: bold; display: block; margin-bottom: 5px;">Attach Documents:</label>
                 <input type="file" name="attachments" multiple style="padding: 10px; background: #fff; border: 1px solid #ccc; width: 100%;">
             </div>
+
             <div style="text-align: right;">
                 <button type="button" class="cancel-btn" style="margin-right: 10px; padding: 10px 20px; border: 1px solid #ccc; background: #eee; border-radius: 4px; cursor: pointer;" onclick="toggleStandaloneEmailForm()">Cancel</button>
                 <button type="submit" name="email_submission_action" value="send_email_and_log" style="padding: 10px 20px; background-color: #f7931e; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Send Email & Log</button>
@@ -1227,7 +1246,7 @@
         </form>
     </div>
 
-    {# --- TABLE SECTION (CRM STYLING APPLIED) --- #}
+    {# --- TABLE SECTION --- #}
     <div style="overflow-x: auto;">
         <table style="width: 100%; border-collapse: collapse; background-color: white; font-size: 0.9em;">
             <thead>
@@ -1236,7 +1255,7 @@
                     <th style="padding: 12px; border-bottom: 2px solid #aed581;">Subject</th>
                     <th style="padding: 12px; border-bottom: 2px solid #aed581;">Received Date</th>
                     <th style="padding: 12px; border-bottom: 2px solid #aed581;">Delegated Date</th>
-                    <th style="padding: 12px; border-bottom: 2px solid #aed581;">Assigned To</th>
+                    <th style="padding: 12px; border-bottom: 2px solid #aed581;">Assigned To/Recipient</th>
                     <th style="padding: 12px; border-bottom: 2px solid #aed581;">Status</th>
                     <th style="padding: 12px; border-bottom: 2px solid #aed581;">Actioned Date</th>
                     <th style="padding: 12px; border-bottom: 2px solid #aed581; text-align: center;">Actions</th>
@@ -1246,7 +1265,7 @@
                 {% for email in combined_email_log %}
                 <tr style="border-bottom: 1px solid #eee; transition: background-color 0.2s; {% if email.status == 'COMP' or email.status == 'DONE' or email.status == 'CLS' %}background-color: #f9f9f9; color: #888;{% endif %}">
                     
-                    {# COLUMN 1: TYPE #}
+                    {# COLUMN 1: TYPE BADGES #}
                     <td style="padding: 10px;">
                         {% if email.type == 'Original' %}
                             <span style="font-weight: bold; color: #1976d2;">📥 ORIGINAL</span>
@@ -1257,14 +1276,14 @@
                         {% endif %}
                     </td>
 
-                    {# COLUMN 2: SUBJECT #}
+                    {# COLUMN 2: SUBJECT + THREAD LINK #}
                     <td style="padding: 10px;">
                         {% if email.status == 'COMP' or email.status == 'DONE' or email.status == 'CLS' %}
                             <span style="color: #666; font-weight: 500; cursor: not-allowed;" title="Thread is completed and locked">
                                 <i class="fas fa-lock" style="font-size: 0.8em; margin-right: 5px; color: #999;"></i> {{ email.subject|truncatechars:45 }}
                             </span>
-                        {% elif email.type == 'Direct' %}
-                            <span style="color: #666;">{{ email.subject|truncatechars:45 }}</span>
+                        {% elif not email.email_id or email.email_id == "MANUAL_SEND_SUCCESS" %}
+                             <span style="color: #666;">{{ email.subject|truncatechars:45 }}</span>
                         {% else %}
                             <a href="{% url 'view_email_thread' email_id=email.email_id %}" style="color: #2e7d32; text-decoration: none; font-weight: 500;">
                                 {{ email.subject|truncatechars:45 }}
@@ -1272,31 +1291,34 @@
                         {% endif %}
                     </td>
 
-                    {# COLUMN 3: RECEIVED DATE #}
+                    {# COLUMN 3: RECEIVED DATE (Original arrival) #}
                     <td style="padding: 10px;">{{ email.arrival_timestamp|date:"Y-m-d H:i"|default:"-" }}</td>
 
                     {# COLUMN 4: DELEGATED DATE #}
                     <td style="padding: 10px;">{{ email.delegation_timestamp|date:"Y-m-d H:i"|default:"-" }}</td>
 
-                    {# COLUMN 5: ASSIGNED TO #}
-                    <td style="padding: 10px;">{{ email.assigned_to }}</td>
+                    {# COLUMN 5: ASSIGNED TO / RECIPIENT #}
+                    <td style="padding: 10px;">{{ email.assigned_to|default:"-" }}</td>
 
-                    {# COLUMN 6: STATUS #}
+                    {# COLUMN 6: STATUS BADGE #}
                     <td style="padding: 10px;">
                         {% if email.type == 'Direct' %}
                             <span style="color: #e91e63; font-weight: bold;">SENT</span>
+                        {% elif email.type == 'Reply' %}
+                            <span style="color: #673ab7; font-weight: bold;">REPLIED</span>
                         {% elif email.status == 'COMP' or email.status == 'DONE' or email.status == 'CLS' %}
                             <span style="color: #388e3c; font-weight: bold;"><i class="fas fa-check-circle"></i> Actioned</span>
-                        {% elif email.type == 'Original' %}
-                            <span style="color: #1976d2; font-weight: bold;">Delegated</span>
                         {% else %}
                             <span style="color: #f57c00; font-weight: bold;">{{ email.status }}</span>
                         {% endif %}
                     </td>
 
-                    {# COLUMN 7: ACTIONED DATE #}
+                    {# COLUMN 7: ACTIONED DATE (Reply/Direct send time) #}
                     <td style="padding: 10px;">
-                        {% if email.actioned_at %}
+                        {# Use 'timestamp' as the master date for actioned items #}
+                        {% if email.type == 'Reply' or email.type == 'Direct' %}
+                            {{ email.timestamp|date:"Y-m-d H:i" }}
+                        {% elif email.actioned_at %}
                             {{ email.actioned_at|date:"Y-m-d H:i" }}
                         {% else %}
                             -
@@ -1306,28 +1328,20 @@
                     {# COLUMN 8: ACTIONS #}
                     <td style="padding: 10px; text-align: center;">
                         <div class="email-log-actions" style="display: flex; gap: 5px; justify-content: center;">
-                            
-                            {# 1. VIEW THREAD BUTTON #}
                             {% if email.email_id and email.email_id != "MANUAL_SEND_SUCCESS" %}
                                 <a href="{% url 'view_email_thread' email_id=email.email_id %}" 
                                    class="action-btn" 
                                    title="View Full Thread" 
                                    style="background-color: #43a047; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 0.85em;">
-                                    <i class="fas fa-eye"></i> View
+                                     <i class="fas fa-eye"></i> View
                                 </a>
-                            {% endif %}
-
-                            {# 2. DOWNLOAD BUTTON #}
-                            {# We use the ?download_email_id= param to match the handler we added to the View #}
-                            {% if email.email_id and email.email_id != "MANUAL_SEND_SUCCESS" %}
                                 <a href="?download_email_id={{ email.email_id }}" 
                                    class="action-btn" 
                                    title="Download Sent .eml"
                                    style="background-color: #0277bd; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 0.85em;">
-                                    <i class="fas fa-download"></i> Download
+                                     <i class="fas fa-download"></i> Download
                                 </a>
                             {% else %}
-                                {# Placeholder for items with no ID (Manual Logs) #}
                                 <span style="color: #ccc; cursor: help; font-size: 1.2em; padding: 5px;" title="No ID available for older/manual logs">
                                     <i class="fas fa-ban"></i>
                                 </span>

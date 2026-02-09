@@ -180,6 +180,7 @@ class ReconnedBank(models.Model):
     fiscal_date = models.DateField(null=True, blank=True)
     review_note = models.CharField(max_length=255, null=True, blank=True)
     recon_status = models.CharField(max_length=50, default='Reconciled')
+    review_note_text = models.TextField(null=True, blank=True)
     
     # CRITICAL: Tracks how much of the original transaction_amount has been paid.
     amount_settled = models.DecimalField(

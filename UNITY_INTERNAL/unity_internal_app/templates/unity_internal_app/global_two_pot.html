@@ -251,8 +251,8 @@
             </div>
             </div>
             
-
-            <div class="pot-section">
+            {# --- POT SECTION HIDDEN AS REQUESTED --- #}
+            <div class="pot-section" style="display: none;">
                 <h4 style="margin-top: 0; color: #1565c0; border-bottom: 1px solid #1e88e5; padding-bottom: 5px;">Pot Availability & Certificates</h4>
                 <div class="pot-grid">
                     <div class="pot-box">
@@ -285,20 +285,7 @@
                     <input type="date" name="infund_cert_date" id="id_infund_cert_date" class="form-input" style="width: auto;">
                 </div>
             </div>
-            <div id="div_two_pot_withdrawal_details" style="display:none; margin-top: 15px; margin-bottom: 15px; padding: 15px; background: #fffde7; border: 1px solid #fbc02d; border-radius: 5px;">
-                <label style="font-weight:bold; color: #bc5100;">Note Generator Helper</label>
-                <select id="two_pot_withdrawal_status" class="form-select" onchange="handleWithdrawalStatusChange()">
-                    <option value="">-- Select Note Template --</option>
-                    <option value="Withdrawal - Not Allowed">Insufficient Funds</option>
-                    <option value="Withdrawal - Already claim in current financial year">Already Claimed this Year</option>
-                </select>
-                <div id="div_prev_claim_date" style="display:none; margin-top: 10px;">
-                    <label>Member Previous Claim Date:</label>
-                    <input type="date" id="prev_claim_date_input" class="form-input" onchange="handleWithdrawalStatusChange()">
-                </div>
-            </div>
-            
-
+            {# --- END HIDDEN SECTION --- #}
 
             <div class="row" style="margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 15px; margin-bottom: 15px;">
                 <div class="col-md-12">
@@ -373,7 +360,7 @@
         document.querySelector('input[name="claim_amount"]').value = d.claim_amount;
         document.querySelector('input[name="claim_created_date"]').value = d.claim_created_date;
 
-        // Populate Pot Data
+        // Populate Pot Data (Still works background, elements are just hidden)
         document.getElementById('id_vested_pot_available').checked = (d.vested_pot_available === 'True');
         document.getElementById('id_vested_pot_paid_date').value = (d.vested_pot_paid_date !== 'None') ? d.vested_pot_paid_date : '';
         document.getElementById('id_savings_pot_available').checked = (d.savings_pot_available === 'True');
