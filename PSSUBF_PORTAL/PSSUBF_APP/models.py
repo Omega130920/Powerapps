@@ -17,11 +17,19 @@ class PssubfDelegate(models.Model):
     email_id = models.CharField(max_length=255, primary_key=True)
     assigned_agent = models.CharField(max_length=150, blank=True, null=True)
     member_group_code = models.CharField(max_length=100, blank=True, null=True)
-    email_category = models.CharField(max_length=100, blank=True, null=True) # Added
-    subject = models.CharField(max_length=255, blank=True, null=True)        # Added
-    sender = models.CharField(max_length=255, blank=True, null=True)         # Added
+    email_category = models.CharField(max_length=100, blank=True, null=True)
+    subject = models.CharField(max_length=255, blank=True, null=True)
+    sender = models.CharField(max_length=255, blank=True, null=True)
     status = models.CharField(max_length=50, default='Assigned')
     created_at = models.DateTimeField(auto_now_add=True)
+
+    @property
+    def received_timestamp(self):
+        """Fetches the original received time from the Inbox table"""
+        # We import inside the method to avoid circular import errors
+        from .models import PssubfInbox 
+        inbox_item = PssubfInbox.objects.filter(email_id=self.email_id).first()
+        return inbox_item.received_timestamp if inbox_item else None
 
     class Meta:
         managed = False

@@ -502,7 +502,6 @@
             
             <form method="POST" action="{% url 'unity_information' company_code=unity_record.A_Company_Code|default:unity_record.a_company_code %}">
                 {% csrf_token %}
-                {# The trigger for the Python view #}
                 <input type="hidden" name="update_general_info" value="true">
                 
                 <table style="width: 100%; border-collapse: collapse;">
@@ -536,7 +535,6 @@
                             </select>
                         </td></tr>
 
-                        {# --- UPDATED DROPDOWN FOR COMPANY STATUS --- #}
                         <tr><th style="padding: 8px;">Company Status (D)</th><td>
                             <select name="company_status" class="form-select" style="width: 100%; padding: 5px;">
                                 <option value="Active" {% if unity_record.d_company_status == 'Active' %}selected{% endif %}>Active</option>
@@ -548,12 +546,42 @@
                                 <option value="Terminated" {% if unity_record.d_company_status == 'Terminated' %}selected{% endif %}>Terminated</option>
                             </select>
                         </td></tr>
-                        {# ---------------------------------------------------- #}
 
-                        <tr><th style="padding: 8px;">Payment Method (E)</th><td><input type="text" name="payment_method" value="{{ unity_record.e_payment_method|default:'' }}" class="form-input" style="width: 100%; padding: 5px;"></td></tr>
-                        <tr><th style="padding: 8px;">Billing Method (F)</th><td><input type="text" name="billing_method" value="{{ unity_record.f_billing_method|default:'' }}" class="form-input" style="width: 100%; padding: 5px;"></td></tr>
+                        {# --- UPDATED DROPDOWN FOR PAYMENT METHOD (E) --- #}
+                        <tr><th style="padding: 8px;">Payment Method (E)</th><td>
+                            <select name="payment_method" class="form-select" style="width: 100%; padding: 5px;">
+                                <option value="N/A" {% if unity_record.e_payment_method == 'N/A' %}selected{% endif %}>N/A</option>
+                                <option value="Cash" {% if unity_record.e_payment_method == 'Cash' %}selected{% endif %}>Cash</option>
+                                <option value="Debit Order" {% if unity_record.e_payment_method == 'Debit Order' %}selected{% endif %}>Debit Order</option>
+                                <option value="EFT" {% if unity_record.e_payment_method == 'EFT' %}selected{% endif %}>EFT</option>
+                            </select>
+                        </td></tr>
+
+                        {# --- UPDATED DROPDOWN FOR BILLING METHOD (F) --- #}
+                        <tr><th style="padding: 8px;">Billing Method (F)</th><td>
+                            <select name="billing_method" class="form-select" style="width: 100%; padding: 5px;">
+                                <option value="All Billing" {% if unity_record.f_billing_method == 'All Billing' %}selected{% endif %}>All Billing</option>
+                                <option value="Pre-Bill Send" {% if unity_record.f_billing_method == 'Pre-Bill Send' %}selected{% endif %}>Pre-Bill Send</option>
+                                <option value="Schedule Received" {% if unity_record.f_billing_method == 'Schedule Received' %}selected{% endif %}>Schedule Received</option>
+                                <option value="Schedule Request" {% if unity_record.f_billing_method == 'Schedule Request' %}selected{% endif %}>Schedule Request</option>
+                            </select>
+                        </td></tr>
+
                         <tr><th style="padding: 8px;">Current Fiscal (G)</th><td><input type="text" name="current_fiscal" value="{{ unity_record.g_current_fiscal|default:'' }}" class="form-input" style="width: 100%; padding: 5px;"></td></tr>
-                        <tr><th style="padding: 8px;">Current Status (H)</th><td><input type="text" name="current_status" value="{{ unity_record.h_current_status|default:'' }}" class="form-input" style="width: 100%; padding: 5px;"></td></tr>
+                        
+                        {# --- UPDATED DROPDOWN FOR CURRENT STATUS (H) --- #}
+                        <tr><th style="padding: 8px;">Current Status (H)</th><td>
+                            <select name="current_status" class="form-select" style="width: 100%; padding: 5px;">
+                                <option value="Active" {% if unity_record.h_current_status == 'Active' %}selected{% endif %}>Active</option>
+                                <option value="External" {% if unity_record.h_current_status == 'External' %}selected{% endif %}>External</option>
+                                <option value="Section 14" {% if unity_record.h_current_status == 'Section 14' %}selected{% endif %}>Section 14</option>
+                                <option value="Section 27" {% if unity_record.h_current_status == 'Section 27' %}selected{% endif %}>Section 27</option>
+                                <option value="Section 28" {% if unity_record.h_current_status == 'Section 28' %}selected{% endif %}>Section 28</option>
+                                <option value="Section 28 Approved" {% if unity_record.h_current_status == 'Section 28 Approved' %}selected{% endif %}>Section 28 Approved</option>
+                                <option value="Terminated" {% if unity_record.h_current_status == 'Terminated' %}selected{% endif %}>Terminated</option>
+                            </select>
+                        </td></tr>
+
                         <tr><th style="padding: 8px;">Arrears (J)</th><td><input type="text" name="arrears" value="{{ unity_record.j_arrears|default:'' }}" class="form-input" style="width: 100%; padding: 5px;"></td></tr>
                     </tbody>
                 </table>
@@ -566,7 +594,8 @@
             </form>
         </div>
     {% endif %}
-    
+</div>
+
     <script>
         function toggleEditMode(showEdit) {
             const viewMode = document.getElementById('view-mode-container');

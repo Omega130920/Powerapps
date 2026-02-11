@@ -1212,9 +1212,8 @@ def display_bankline_review(request, recon_id):
         'bank_record': recon_record.bank_line,
         'company_codes': company_codes,
         'review_notes': REVIEW_NOTES_OPTIONS,
-        # UPDATED: Direct access to fields, no more "pipe" unpacking
         'current_category': recon_record.review_note,      
-        'current_custom_text': recon_record.review_note_text, 
+        # REMOVED: 'current_custom_text': recon_record.review_note_text, <--- THIS LINE WAS CAUSING THE ERROR
         'is_from_unity_info': is_from_unity_info,
         'source': source_param,                       
     }

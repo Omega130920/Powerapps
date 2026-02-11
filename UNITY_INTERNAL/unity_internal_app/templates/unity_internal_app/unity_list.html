@@ -295,15 +295,13 @@
                 <td>{{ record.g_current_fiscal|default:"N/A" }}</td>
                 <td>
                     {% if record.h_current_status == "RECON COMPLETE" %}
-                        <span class="status-badge" style="background-color: #2e7d32;">RECON COMPLETE</span>
+                        <span class="status-badge" style="background-color: #2e7d32;">Reconciled</span>
                     {% elif record.h_current_status == "SCHEDULED" %}
-                        <span class="status-badge" style="background-color: #0277bd;">SCHEDULED</span>
+                        <span class="status-badge" style="background-color: #0277bd;">Schedule</span>
                     {% elif record.h_current_status == "OPEN" %}
-                        <span class="status-badge" style="background-color: #d32f2f;">OPEN</span>
+                        <span class="status-badge" style="background-color: #d32f2f;">N/A</span>
                     {% elif record.h_current_status == "PRE-BILL" %}
                         <span class="status-badge" style="background-color: #f7931e;">PRE-BILL</span>
-                    {% elif record.h_current_status == "AWAITING SCHEDULE" %}
-                        <span class="status-badge" style="background-color: #7b1fa2;">AWAITING SCHEDULE</span>
                     {% else %}
                         <span class="status-badge" style="background-color: #757575;">{{ record.h_current_status }}</span>
                     {% endif %}

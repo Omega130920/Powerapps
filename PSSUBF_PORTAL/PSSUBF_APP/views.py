@@ -33,17 +33,21 @@ def pssubf_switchboard(request):
     """
     return render(request, 'pssubf/dashboard.html')
 
+from django.db.models import Q
+
 @login_required
 def pssubf_dashboard(request):
     """
-    Fetches data directly from the local pssubf_inbox database table 
-    instead of the live Outlook Graph API.
+    Shows all emails that haven't been processed yet.
+    Excludes emails with 'Delegated' or 'Completed' status.
     """
-    # 1. Pull directly from your Local DB Model
-    # This matches your PssubfInbox model defined with managed=False
-    inbox_items = PssubfInbox.objects.all().order_by('-received_timestamp')
+    # We exclude specific statuses. This ensures that 'New', NULL, 
+    # or empty statuses still show up in your triage list.
+    inbox_items = PssubfInbox.objects.exclude(
+        Q(status__iexact='Delegated') | 
+        Q(status__iexact='Completed')
+    ).order_by('-received_timestamp')
 
-    # 2. Render to your template
     return render(request, 'pssubf/inbox_list.html', {
         'inbox_items': inbox_items
     })
@@ -146,22 +150,19 @@ def pssubf_action_view(request, email_id):
             )
             messages.success(request, "Task information updated successfully.")
 
-        # 2. Add Internal Note (UPDATED to include Status/Classification and PssubfNote saving)
+        # 2. Add Internal Note
         elif action_type == 'add_note':
             note_text = request.POST.get('note_content')
-            
-            # Capture the confirmation dropdowns from the note form
             new_category = request.POST.get('email_category')
             new_status = request.POST.get('status')
             
-            # Sync the main task state
             if new_category:
                 task.email_category = new_category
             if new_status:
                 task.status = new_status
             task.save()
 
-            # Save to the new unmanaged table: pssubf_notes
+            # Save to pssubf_notes
             PssubfNote.objects.create(
                 task_email_id=email_id,
                 agent_name=request.user.username,
@@ -170,14 +171,14 @@ def pssubf_action_view(request, email_id):
                 status_at_time=task.status
             )
 
-            # Keep the existing PssubfAction log for the timeline
+            # Save to pssubf_actions
             PssubfAction.objects.create(
                 task_email_id=email_id,
                 action_user=request.user.username,
                 action_type="NOTE",
                 note_content=note_text
             )
-            messages.success(request, "Internal note saved and task status synchronized.")
+            messages.success(request, "Internal note saved.")
 
         # 3. Handle External Email Reply
         elif action_type == 'send_reply':
@@ -201,6 +202,7 @@ def pssubf_action_view(request, email_id):
                 except Exception as e:
                     logger.error(f"Attachment encoding error: {e}")
 
+            # Send via Outlook
             response = OutlookGraphService.send_outlook_email(
                 sender=target_email,
                 recipient=recipient,
@@ -212,12 +214,23 @@ def pssubf_action_view(request, email_id):
             if isinstance(response, dict) and 'error' in response:
                 messages.error(request, f"Email failed: {response.get('error')}")
             else:
+                # LOGGING FIX: Save actual body to pssubf_actions
                 PssubfAction.objects.create(
                     task_email_id=email_id,
                     action_user=request.user.username,
                     action_type="EMAIL_REPLY",
-                    note_content=f"Sent reply to {recipient} with {len(uploaded_files)} files."
+                    note_content=f"To: {recipient}\nSubject: {subject}\n\n{body_content}"
                 )
+
+                # LOGGING FIX: Save to pssubf_notes so it appears in the Communication Log
+                PssubfNote.objects.create(
+                    task_email_id=email_id,
+                    agent_name=request.user.username,
+                    note_text=f"REPLY SENT TO {recipient}: {body_content}",
+                    classification_at_time=task.email_category,
+                    status_at_time=task.status
+                )
+                
                 messages.success(request, "Reply sent and logged.")
 
         # 4. Mark as Complete
@@ -236,11 +249,12 @@ def pssubf_action_view(request, email_id):
 
         return redirect('pssubf_action', email_id=email_id)
 
-    # --- GET Logic: Fetch context for the page ---
+    # --- GET Logic ---
     email_data = OutlookGraphService._make_graph_request(f"messages/{email_id}", method='GET')
     attachments = OutlookGraphService.fetch_attachments(target_email, email_id)
     email_content = email_data.get('body', {}).get('content', 'Content unavailable.')
 
+    # Inline Image Resolution
     for att in attachments:
         if att.get('isInline') and att.get('contentId'):
             cid = att.get('contentId')
@@ -252,6 +266,7 @@ def pssubf_action_view(request, email_id):
                 email_content = email_content.replace(f"cid:{cid}", data_url)
                 att['contentBytes'] = base64_data
 
+    # Fetch History
     history = PssubfAction.objects.filter(task_email_id=email_id).order_by('-action_timestamp')
 
     return render(request, 'pssubf/action_detail.html', {
@@ -329,12 +344,18 @@ def sync_pssubf_inbox(request):
 @login_required
 def pssubf_delegations_list(request):
     """
-    Displays the active queue. 
-    EXCLUDES items marked as 'Recycled' so they only show in the Recycle Bin.
+    Displays the active queue with the original Email Received timestamp.
     """
-    # We exclude 'Recycled' to keep this list strictly for work tasks
+    # If your model has a ForeignKey to the inbox:
+    # delegations = PssubfDelegate.objects.exclude(status='Recycled').select_related('inbox').order_by('-created_at')
+
+    # If they are just linked by email_id (common in managed=False models):
     delegations = PssubfDelegate.objects.exclude(status='Recycled').order_by('-created_at')
     
+    # We will pass the delegations. Your template will access the inbox timestamp 
+    # via the relationship (e.g., task.inbox_reference.received_timestamp)
+    # OR if you have a property/method on the model to fetch it.
+
     return render(request, 'pssubf/delegations_list.html', {
         'delegations': delegations
     })

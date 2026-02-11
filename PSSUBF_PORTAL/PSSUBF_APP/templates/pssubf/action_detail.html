@@ -35,7 +35,6 @@
             border: 1px solid var(--glass-border);
         }
         
-        /* Glass Cards */
         .glass-card {
             background: rgba(255, 255, 255, 0.3);
             border: 1px solid var(--glass-border);
@@ -53,16 +52,6 @@
             letter-spacing: 0.5px;
         }
 
-        /* Timeline Styles */
-        .timeline { border-left: 3px solid var(--glass-border); padding-left: 20px; position: relative; max-height: 350px; overflow-y: auto; }
-        .timeline-item { position: relative; margin-bottom: 1.2rem; padding: 12px; background: rgba(255,255,255,0.4); border-radius: 12px; border: 1px solid var(--glass-border); }
-        .timeline-item::before { 
-            content: ""; position: absolute; left: -27.5px; top: 15px; 
-            width: 12px; height: 12px; background: var(--accent-green); border-radius: 50%; 
-            box-shadow: 0 0 0 4px rgba(67, 160, 71, 0.2);
-        }
-
-        /* Email Content Area */
         .email-body-scroll { height: 450px; overflow-y: auto; padding: 25px; background: rgba(255,255,255,0.6); line-height: 1.7; font-size: 0.95rem; }
 
         .attachment-pill { 
@@ -72,7 +61,6 @@
         }
         .attachment-pill:hover { background: rgba(255,255,255,0.5); transform: translateY(-1px); }
         
-        /* Reply Section */
         .reply-card { border: 2px solid var(--accent-green); border-radius: 16px; background: rgba(255,255,255,0.2); }
         .reply-header { background: var(--accent-green); color: white; padding: 12px 20px; cursor: pointer; border-radius: 12px 12px 0 0; }
 
@@ -83,7 +71,6 @@
             color: var(--text-dark) !important;
         }
 
-        /* ADDED: Floating Success Toast Styles */
         .toast-container-custom {
             position: fixed;
             top: 20px;
@@ -136,38 +123,15 @@
                                 <option value="Claim" {% if task.email_category == 'Claim' %}selected{% endif %}>Claim</option>
                                 <option value="Schedule" {% if task.email_category == 'Schedule' %}selected{% endif %}>Schedule</option>
                                 <option value="Fund Value Confirmation" {% if task.email_category == 'Fund Value Confirmation' %}selected{% endif %}>Fund Value Confirmation</option>
-                                <option value="How to claim - Ad Hoc" {% if task.email_category == 'How to claim - Ad Hoc' %}selected{% endif %}>How to claim - Ad Hoc</option>
-                                <option value="How to claim - Monthly Income" {% if task.email_category == 'How to claim - Monthly Income' %}selected{% endif %}>How to claim - Monthly Income</option>
-                                <option value="How to claim - Termination" {% if task.email_category == 'How to claim - Termination' %}selected{% endif %}>How to claim - Termination</option>
-                                <option value="New Claim Form Request" {% if task.email_category == 'New Claim Form Request' %}selected{% endif %}>New Claim Form Request</option>
-                                <option value="Overdue Payment - Termination Query" {% if task.email_category == 'Overdue Payment - Termination Query' %}selected{% endif %}>Overdue Payment - Termination Query</option>
-                                <option value="Overdue Payment - Ad-Hoc" {% if task.email_category == 'Overdue Payment - Ad-Hoc' %}selected{% endif %}>Overdue Payment - Ad-Hoc</option>
-                                <option value="Overdue Payment - Monthly Income" {% if task.email_category == 'Overdue Payment - Monthly Income' %}selected{% endif %}>Overdue Payment - Monthly Income</option>
-                                <option value="Fund Rules" {% if task.email_category == 'Fund Rules' %}selected{% endif %}>Fund Rules</option>
-                                <option value="Change in Guardianship" {% if task.email_category == 'Change in Guardianship' %}selected{% endif %}>Change in Guardianship</option>
-                                <option value="SALT - New Entrance Pack Received (Complete)" {% if task.email_category == 'SALT - New Entrance Pack Received (Complete)' %}selected{% endif %}>SALT - New Entrance Pack Received (Complete)</option>
-                                <option value="Duplicate Claim Received" {% if task.email_category == 'Duplicate Claim Received' %}selected{% endif %}>Duplicate Claim Received</option>
-                                <option value="Claim Received from Tracing Agency" {% if task.email_category == 'Claim Received from Tracing Agency' %}selected{% endif %}>Claim Received from Tracing Agency</option>
-                                <option value="SALT - New Entrance Pack Received (Incomplete)" {% if task.email_category == 'SALT - New Entrance Pack Received (Incomplete)' %}selected{% endif %}>SALT - New Entrance Pack Received (Incomplete)</option>
-                                <option value="Sanlam - Welcome Pack Received" {% if task.email_category == 'Sanlam - Welcome Pack Received' %}selected{% endif %}>Sanlam - Welcome Pack Received</option>
-                                <option value="Guardian - Monthly Income Requested" {% if task.email_category == 'Guardian - Monthly Income Requested' %}selected{% endif %}>Guardian - Monthly Income Requested</option>
-                                <option value="New Claim Pack Received (Complete)" {% if task.email_category == 'New Claim Pack Received (Complete)' %}selected{% endif %}>New Claim Pack Received (Complete)</option>
-                                <option value="Proof of Payment Received" {% if task.email_category == 'Proof of Payment Received' %}selected{% endif %}>Proof of Payment Received</option>
-                                <option value="New Claim Pack Received (Incomplete)" {% if task.email_category == 'New Claim Pack Received (Incomplete)' %}selected{% endif %}>New Claim Pack Received (Incomplete)</option>
-                                <option value="Feedback from Sanlam" {% if task.email_category == 'Feedback from Sanlam' %}selected{% endif %}>Feedback from Sanlam</option>
-                                <option value="Feedback from SALT" {% if task.email_category == 'Feedback from SALT' %}selected{% endif %}>Feedback from SALT</option>
-                                <option value="Fund Depleted Letters Received" {% if task.email_category == 'Fund Depleted Letters Received' %}selected{% endif %}>Fund Depleted Letters Received</option>
-                                <option value="Acknowledgement Letter Received" {% if task.email_category == 'Acknowledgement Letter Received' %}selected{% endif %}>Acknowledgement Letter Received</option>
                                 <option value="Unsure" {% if task.email_category == 'Unsure' %}selected{% endif %}>Unsure</option>
-                            </select>
+                                </select>
                         </div>
 
                         <div class="mb-3">
                             <label class="small fw-bold opacity-75">Status:</label>
                             <select name="status" class="form-select form-select-sm form-control-glass">
-                                <option value="Default" {% if task.status == 'Default' %}selected{% endif %}>Default</option>
                                 <option value="In Progress" {% if task.status == 'In Progress' %}selected{% endif %}>In Progress</option>
-                                <option value="Completed" {% if task.status == 'Completed' %}selected{% endif %}>Completed</option>
+                                <option value="Delegated" {% if task.status == 'Delegated' %}selected{% endif %}>Delegated</option>
                             </select>
                         </div>
                         <button type="submit" class="btn btn-success btn-sm w-100 fw-bold rounded-pill">Update Metadata</button>
@@ -176,74 +140,34 @@
             </div>
 
             <div class="glass-card shadow-sm">
-                <div class="glass-card-header bg-success text-white">ACTION HISTORY & NOTES</div>
+                <div class="glass-card-header bg-success text-white">ADD INTERNAL NOTE & RESOLVE</div>
                 <div class="card-body p-4">
-                    <div class="timeline mb-4">
-                        {% for action in history %}
-                        <div class="timeline-item shadow-sm">
-                            <div class="d-flex justify-content-between align-items-center mb-1">
-                                <span class="badge bg-success bg-opacity-75" style="font-size: 10px;">{{ action.action_type }}</span>
-                                <span class="text-muted" style="font-size: 10px;">{{ action.action_timestamp|date:"d M H:i" }}</span>
-                            </div>
-                            <div class="small fw-bold">{{ action.note_content }}</div>
-                            <div class="text-muted fst-italic mt-1" style="font-size: 10px;">User: {{ action.action_user }}</div>
-                        </div>
-                        {% empty %}
-                        <p class="text-muted small text-center">No notes recorded yet.</p>
-                        {% endfor %}
-                    </div>
-
-                    <form method="POST" class="border-top border-white border-opacity-25 pt-3" id="noteForm">
+                    <form method="POST" class="pt-2" id="noteForm">
                         {% csrf_token %}
                         <input type="hidden" name="action_type" value="add_note">
                         
                         <div class="mb-2">
-                            <label class="small fw-bold opacity-75">Category Confirmation:</label>
+                            <label class="small fw-bold opacity-75">Confirm Category:</label>
                             <select name="email_category" class="form-select form-select-sm form-control-glass">
                                 <option value="Query" {% if task.email_category == 'Query' %}selected{% endif %}>Query</option>
                                 <option value="Claim" {% if task.email_category == 'Claim' %}selected{% endif %}>Claim</option>
-                                <option value="Schedule" {% if task.email_category == 'Schedule' %}selected{% endif %}>Schedule</option>
-                                <option value="Fund Value Confirmation" {% if task.email_category == 'Fund Value Confirmation' %}selected{% endif %}>Fund Value Confirmation</option>
-                                <option value="How to claim - Ad Hoc" {% if task.email_category == 'How to claim - Ad Hoc' %}selected{% endif %}>How to claim - Ad Hoc</option>
-                                <option value="How to claim - Monthly Income" {% if task.email_category == 'How to claim - Monthly Income' %}selected{% endif %}>How to claim - Monthly Income</option>
-                                <option value="How to claim - Termination" {% if task.email_category == 'How to claim - Termination' %}selected{% endif %}>How to claim - Termination</option>
-                                <option value="New Claim Form Request" {% if task.email_category == 'New Claim Form Request' %}selected{% endif %}>New Claim Form Request</option>
-                                <option value="Overdue Payment - Termination Query" {% if task.email_category == 'Overdue Payment - Termination Query' %}selected{% endif %}>Overdue Payment - Termination Query</option>
-                                <option value="Overdue Payment - Ad-Hoc" {% if task.email_category == 'Overdue Payment - Ad-Hoc' %}selected{% endif %}>Overdue Payment - Ad-Hoc</option>
-                                <option value="Overdue Payment - Monthly Income" {% if task.email_category == 'Overdue Payment - Monthly Income' %}selected{% endif %}>Overdue Payment - Monthly Income</option>
-                                <option value="Fund Rules" {% if task.email_category == 'Fund Rules' %}selected{% endif %}>Fund Rules</option>
-                                <option value="Change in Guardianship" {% if task.email_category == 'Change in Guardianship' %}selected{% endif %}>Change in Guardianship</option>
-                                <option value="SALT - New Entrance Pack Received (Complete)" {% if task.email_category == 'SALT - New Entrance Pack Received (Complete)' %}selected{% endif %}>SALT - New Entrance Pack Received (Complete)</option>
-                                <option value="Duplicate Claim Received" {% if task.email_category == 'Duplicate Claim Received' %}selected{% endif %}>Duplicate Claim Received</option>
-                                <option value="Claim Received from Tracing Agency" {% if task.email_category == 'Claim Received from Tracing Agency' %}selected{% endif %}>Claim Received from Tracing Agency</option>
-                                <option value="SALT - New Entrance Pack Received (Incomplete)" {% if task.email_category == 'SALT - New Entrance Pack Received (Incomplete)' %}selected{% endif %}>SALT - New Entrance Pack Received (Incomplete)</option>
-                                <option value="Sanlam - Welcome Pack Received" {% if task.email_category == 'Sanlam - Welcome Pack Received' %}selected{% endif %}>Sanlam - Welcome Pack Received</option>
-                                <option value="Guardian - Monthly Income Requested" {% if task.email_category == 'Guardian - Monthly Income Requested' %}selected{% endif %}>Guardian - Monthly Income Requested</option>
-                                <option value="New Claim Pack Received (Complete)" {% if task.email_category == 'New Claim Pack Received (Complete)' %}selected{% endif %}>New Claim Pack Received (Complete)</option>
-                                <option value="Proof of Payment Received" {% if task.email_category == 'Proof of Payment Received' %}selected{% endif %}>Proof of Payment Received</option>
-                                <option value="New Claim Pack Received (Incomplete)" {% if task.email_category == 'New Claim Pack Received (Incomplete)' %}selected{% endif %}>New Claim Pack Received (Incomplete)</option>
-                                <option value="Feedback from Sanlam" {% if task.email_category == 'Feedback from Sanlam' %}selected{% endif %}>Feedback from Sanlam</option>
-                                <option value="Feedback from SALT" {% if task.email_category == 'Feedback from SALT' %}selected{% endif %}>Feedback from SALT</option>
-                                <option value="Fund Depleted Letters Received" {% if task.email_category == 'Fund Depleted Letters Received' %}selected{% endif %}>Fund Depleted Letters Received</option>
-                                <option value="Acknowledgement Letter Received" {% if task.email_category == 'Acknowledgement Letter Received' %}selected{% endif %}>Acknowledgement Letter Received</option>
                                 <option value="Unsure" {% if task.email_category == 'Unsure' %}selected{% endif %}>Unsure</option>
                             </select>
                         </div>
 
                         <div class="mb-3">
-                            <label class="small fw-bold opacity-75">Status Confirmation:</label>
+                            <label class="small fw-bold opacity-75">Confirm Status:</label>
                             <select name="status" class="form-select form-select-sm form-control-glass">
-                                <option value="Default" {% if task.status == 'Default' %}selected{% endif %}>Default</option>
                                 <option value="In Progress" {% if task.status == 'In Progress' %}selected{% endif %}>In Progress</option>
-                                <option value="Completed" {% if task.status == 'Completed' %}selected{% endif %}>Completed</option>
+                                <option value="Delegated" {% if task.status == 'Delegated' %}selected{% endif %}>Delegated</option>
                             </select>
                         </div>
 
-                        <textarea name="note_content" class="form-control form-control-sm form-control-glass mb-2" rows="3" placeholder="Add internal note..." required></textarea>
-                        <button type="submit" class="btn btn-primary btn-sm w-100 rounded-pill shadow-sm">Save Note</button>
+                        <textarea name="note_content" class="form-control form-control-sm form-control-glass mb-2" rows="4" placeholder="Add an internal note to the audit trail..." required></textarea>
+                        <button type="submit" class="btn btn-primary btn-sm w-100 rounded-pill shadow-sm mb-3">Save Internal Note</button>
                     </form>
 
-                    <form method="POST" class="mt-4">
+                    <form method="POST" class="border-top border-white border-opacity-25 pt-3">
                         {% csrf_token %}
                         <input type="hidden" name="action_type" value="mark_complete">
                         <button type="submit" class="btn btn-outline-success w-100 fw-bold rounded-pill shadow-sm bg-white bg-opacity-50"><i class="bi bi-check2-all"></i> MARK COMPLETE</button>
@@ -336,7 +260,7 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // 1. Auto-close standard Django alerts after 3 seconds
+        // Auto-close standard Django alerts after 3 seconds
         const alerts = document.querySelectorAll('.auto-close-alert');
         alerts.forEach(function(alert) {
             setTimeout(function() {
@@ -345,7 +269,7 @@
             }, 3000);
         });
 
-        // 2. Add "Processing" visuals when submitting forms
+        // Add "Processing" visuals when submitting forms
         const forms = ['metadataForm', 'noteForm', 'replyFormContent'];
         forms.forEach(function(formId) {
             const form = document.getElementById(formId);
