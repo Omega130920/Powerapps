@@ -547,7 +547,6 @@
                             </select>
                         </td></tr>
 
-                        {# --- UPDATED DROPDOWN FOR PAYMENT METHOD (E) --- #}
                         <tr><th style="padding: 8px;">Payment Method (E)</th><td>
                             <select name="payment_method" class="form-select" style="width: 100%; padding: 5px;">
                                 <option value="N/A" {% if unity_record.e_payment_method == 'N/A' %}selected{% endif %}>N/A</option>
@@ -557,7 +556,6 @@
                             </select>
                         </td></tr>
 
-                        {# --- UPDATED DROPDOWN FOR BILLING METHOD (F) --- #}
                         <tr><th style="padding: 8px;">Billing Method (F)</th><td>
                             <select name="billing_method" class="form-select" style="width: 100%; padding: 5px;">
                                 <option value="All Billing" {% if unity_record.f_billing_method == 'All Billing' %}selected{% endif %}>All Billing</option>
@@ -569,7 +567,6 @@
 
                         <tr><th style="padding: 8px;">Current Fiscal (G)</th><td><input type="text" name="current_fiscal" value="{{ unity_record.g_current_fiscal|default:'' }}" class="form-input" style="width: 100%; padding: 5px;"></td></tr>
                         
-                        {# --- UPDATED DROPDOWN FOR CURRENT STATUS (H) --- #}
                         <tr><th style="padding: 8px;">Current Status (H)</th><td>
                             <select name="current_status" class="form-select" style="width: 100%; padding: 5px;">
                                 <option value="Active" {% if unity_record.h_current_status == 'Active' %}selected{% endif %}>Active</option>
@@ -585,6 +582,30 @@
                         <tr><th style="padding: 8px;">Arrears (J)</th><td><input type="text" name="arrears" value="{{ unity_record.j_arrears|default:'' }}" class="form-input" style="width: 100%; padding: 5px;"></td></tr>
                     </tbody>
                 </table>
+
+                {# --- RE-INSERTED: Pot Availability Section --- #}
+                <div class="pot-availability-section" style="margin-top: 25px; border: 1px solid #007bff; border-radius: 8px; overflow: hidden; font-family: sans-serif;">
+                    <div style="background-color: #f0f7ff; padding: 10px; border-bottom: 1px solid #007bff; color: #0056b3; font-weight: bold;">
+                        Pot Availability & Certificates
+                    </div>
+                    <div style="padding: 20px;">
+                        <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+                            <label style="flex: 1; display: flex; align-items: center; gap: 10px; border: 1px solid #dee2e6; padding: 15px; border-radius: 4px; cursor: pointer;">
+                                <input type="checkbox" name="vested_pot_available" id="info_vested_pot_available" {% if unity_record.vested_pot_available %}checked{% endif %}>
+                                <strong>Vested Pot Funds available for payout</strong>
+                            </label>
+                            <label style="flex: 1; display: flex; align-items: center; gap: 10px; border: 1px solid #dee2e6; padding: 15px; border-radius: 4px; cursor: pointer;">
+                                <input type="checkbox" name="savings_pot_available" id="info_savings_pot_available" {% if unity_record.savings_pot_available %}checked{% endif %}>
+                                <strong>Savings Pot available</strong>
+                            </label>
+                        </div>
+                        <div style="background-color: #fff9e6; border: 1px solid #ffeeba; padding: 15px; border-radius: 4px; display: flex; align-items: center; gap: 15px;">
+                            <span style="color: #f7931e; font-weight: bold;">In-Fund Preservation Paid Up Certificate Received Date:</span>
+                            <input type="date" name="preservation_cert_date" value="{{ unity_record.preservation_cert_date|date:'Y-m-d' }}" style="padding: 5px; border: 1px solid #ced4da; border-radius: 4px;">
+                        </div>
+                    </div>
+                </div>
+
                 <div style="text-align: right; padding-top: 10px; margin-top: 20px;">
                     <button type="button" class="cancel-btn" style="padding: 8px 15px; margin-right: 10px;" onclick="toggleEditMode(false)">Cancel</button>
                     <button type="submit" class="save-info-btn" style="background-color: #2e7d32; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
@@ -594,22 +615,19 @@
             </form>
         </div>
     {% endif %}
-</div>
-
-    <script>
-        function toggleEditMode(showEdit) {
-            const viewMode = document.getElementById('view-mode-container');
-            const editMode = document.getElementById('edit-mode-container');
-            if (showEdit) {
-                viewMode.style.display = 'none';
-                editMode.style.display = 'block';
-            } else {
-                viewMode.style.display = 'block';
-                editMode.style.display = 'none';
-            }
+</div> <script>
+    function toggleEditMode(showEdit) {
+        const viewMode = document.getElementById('view-mode-container');
+        const editMode = document.getElementById('edit-mode-container');
+        if (showEdit) {
+            viewMode.style.display = 'none';
+            editMode.style.display = 'block';
+        } else {
+            viewMode.style.display = 'block';
+            editMode.style.display = 'none';
         }
-    </script>
-</div>
+    }
+</script>
 
             <div id="bank-lines" class="tab-pane">
                 <h2 style="color:#388e3c; border-bottom: 2px solid #aed581; padding-bottom: 5px;">
@@ -1269,7 +1287,7 @@
             </div>
 
             <div style="text-align: right;">
-                <button type="button" class="cancel-btn" style="margin-right: 10px; padding: 10px 20px; border: 1px solid #ccc; background: #eee; border-radius: 4px; cursor: pointer;" onclick="toggleStandaloneEmailForm()">Cancel</button>
+                <button type="button" class="cancel-btn" style="margin-right: 10px; padding: 10px 20px; border: 1px solid #ccc; background-color: #f7931e; border-radius: 4px; cursor: pointer;" onclick="toggleStandaloneEmailForm()">Cancel</button>
                 <button type="submit" name="email_submission_action" value="send_email_and_log" style="padding: 10px 20px; background-color: #f7931e; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Send Email & Log</button>
             </div>
         </form>

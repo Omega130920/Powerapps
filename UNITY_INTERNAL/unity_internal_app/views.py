@@ -4530,7 +4530,6 @@ def global_bank_view(request):
         credit_qs = credit_qs.filter(Q(member_group_code__icontains=query))
 
     # --- 3. Build MG Map for Names and Agents ---
-    # We collect all unique codes from both querysets to minimize DB hits
     all_codes = list(bank_qs.values_list('company_code', flat=True).distinct()) + \
                 list(credit_qs.values_list('member_group_code', flat=True).distinct())
     
@@ -4555,8 +4554,10 @@ def global_bank_view(request):
             'status': r.recon_status or "Unidentified",
             'company_code': r.company_code or "—",
             'company_name': mg_info.get('name', "Unassigned") if r.company_code else "—",
-            'note_selection': "Bank Statement",
-            # FIX: Pull agent from MG Map, not the record
+            
+            # UPDATED: Pull review_note from database, fallback to "Bank Statement" if empty
+            'review_note': r.review_note if r.review_note else "Bank Statement",
+            
             'agent': mg_info.get('agent', "System") if r.company_code else "—",
         })
 
@@ -4572,7 +4573,10 @@ def global_bank_view(request):
             'status': "APPROVED VIRTUAL",
             'company_code': c.member_group_code,
             'company_name': c.member_group_name or mg_map.get(c.member_group_code, {}).get('name', "Verified Credit"),
-            'note_selection': "APPROVED OVERS",
+            
+            # Using 'review_note' key for consistency across the unified list
+            'review_note': "APPROVED OVERS",
+            
             'agent': c.authorized_by or "Manager",
         })
 
@@ -4586,7 +4590,7 @@ def global_bank_view(request):
 
     context = {
         'page_obj': page_obj,
-        'global_records': page_obj, # This is our unified paginated list
+        'global_records': page_obj, 
         'search_query': query,
         'start_date': start_date,
         'end_date': end_date,

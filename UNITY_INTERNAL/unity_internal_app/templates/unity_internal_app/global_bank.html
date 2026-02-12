@@ -56,6 +56,18 @@
     .badge-credit { background-color: #ef6c00; color: white; }
     .badge-bank { background-color: #2196F3; color: white; }
 
+    /* Note Color Helpers */
+    .note-badge { 
+        font-size: 11px; 
+        font-weight: 600; 
+        padding: 3px 6px; 
+        border-radius: 12px; 
+        border: 1px solid transparent; 
+    }
+    .note-blue { background-color: #e3f2fd; color: #1565c0; border-color: #bbdefb; }
+    .note-orange { background-color: #fff3e0; color: #e65100; border-color: #ffe0b2; }
+    .note-gray { background-color: #f5f5f5; color: #616161; border-color: #e0e0e0; }
+
     /* Filter Styling */
     .filter-container { display: flex; gap: 1em; align-items: center; padding: 0.8em 1em; background-color: #f0fff0; border-radius: 6px; border: 1px solid #aed581; flex-wrap: wrap; margin-bottom: 15px;}
     .filter-container label { font-weight: bold; color: #1b5e20; }
@@ -134,7 +146,21 @@
                     <td style="{% if item.remaining > 0 %}color: #d32f2f; font-weight: bold;{% endif %}">
                         R {{ item.remaining|floatformat:2 }}
                     </td>
-                    <td><small>{{ item.note_selection|default:"Bank Statement" }}</small></td>
+
+                    {# --- UPDATED COLUMN: Displaying 'review_note' with Category Badges --- #}
+                    <td>
+                        {% if item.review_note %}
+                            <span class="note-badge 
+                                {% if 'BALANCE' in item.review_note %}note-blue
+                                {% elif 'AD HOC' in item.review_note %}note-orange
+                                {% else %}note-gray{% endif %}">
+                                {{ item.review_note }}
+                            </span>
+                        {% else %}
+                            <small style="color:#999;">Bank Statement</small>
+                        {% endif %}
+                    </td>
+
                     <td>{{ item.agent }}</td>
                     <td style="text-align: center;">
                         {% if item.source == 'CREDIT' %}

@@ -744,9 +744,11 @@ from .services.outlook_graph_service import _make_graph_request # Assuming your 
 
 @login_required
 def global_claims_view(request):
-    """Dashboard for all claims EXCEPT Two Pot."""
+    """Register for ALL claims EXCEPT Two Pot."""
     query = request.GET.get('q')
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
+    
+    # --- HARD FILTER: Exclude Two Pot ---
     base_claims = AcvvClaim.objects.exclude(claim_type='Two Pot')
 
     if query:
@@ -758,7 +760,7 @@ def global_claims_view(request):
     else:
         claims = base_claims.order_by('-claim_created_date')[:50] 
 
-    # --- 1. PRE-FETCH EMAIL CONTENT VIA GRAPH API ---
+    # Email Preview Logic (Keep as is)
     delegation_pks = [c.linked_email_id for c in claims if c.linked_email_id]
     if delegation_pks:
         delegations_map = EmailDelegation.objects.in_bulk(list(set(delegation_pks)))
@@ -776,25 +778,22 @@ def global_claims_view(request):
                             claim.email_preview_date = email_data.get('receivedDateTime')
                 except: continue
 
-    all_companies = Globalacvv.objects.values('mip_names', 'branch_code')
-    my_delegated_emails = EmailDelegation.objects.filter(assigned_user=request.user, status='DEL')
-
     return render(request, 'acvv_app/global_claims.html', {
         'claims': claims,
-        'all_companies': all_companies,
-        'my_delegated_emails': my_delegated_emails,
-        'is_two_pot_view': False
+        'all_companies': Globalacvv.objects.values('mip_names', 'branch_code'),
+        'my_delegated_emails': EmailDelegation.objects.filter(assigned_user=request.user, status='DEL'),
+        'is_two_pot_view': False # Tag for template logic
     })
 
 @login_required
 def global_two_pot_view(request):
-    """Dedicated Dashboard for ONLY Two Pot claims with Pagination."""
+    """Dedicated Register for ONLY Two Pot claims."""
     query = request.GET.get('q')
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
 
-    # Filter for Two Pot only
+    # --- HARD FILTER: Only Two Pot ---
     base_claims = AcvvClaim.objects.filter(claim_type='Two Pot').order_by('-claim_created_date')
 
     if query:
@@ -808,14 +807,13 @@ def global_two_pot_view(request):
         base_claims = base_claims.filter(claim_created_date__range=[parse_date(start_date), parse_date(end_date)])
 
     # Pagination
-    paginator = Paginator(base_claims, 12) 
+    paginator = Paginator(base_claims, 15) 
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
-    # --- PRE-FETCH EMAIL CONTENT FOR PAGE ---
+    # Email Preview Logic (Keep as is)
     delegation_pks = [c.linked_email_id for c in page_obj if c.linked_email_id]
     if delegation_pks:
-        # Map IDs to objects for fast lookup
         delegations_map = EmailDelegation.objects.in_bulk(list(set(delegation_pks)))
         for claim in page_obj:
             if claim.linked_email_id:
@@ -830,9 +828,8 @@ def global_two_pot_view(request):
                             claim.email_preview_date = email_data.get('receivedDateTime')
                 except: continue
 
-    # Using 'acvv_app/global_claims.html' to avoid TemplateDoesNotExist
-    # We pass 'claims': page_obj so the template loop {% for claim in claims %} works
-    return render(request, 'acvv_app/global_claims.html', {
+    # Rendering the SPECIFIC Two Pot HTML
+    return render(request, 'acvv_app/two_pot_global.html', {
         'page_obj': page_obj, 
         'claims': page_obj, 
         'all_companies': Globalacvv.objects.values('mip_names', 'branch_code'),
@@ -842,13 +839,14 @@ def global_two_pot_view(request):
         'start_date': start_date,
         'end_date': end_date,
     })
-    
+
 @login_required
 def save_global_claim(request):
+    """Unified save view with email sending and intelligent redirect."""
     if request.method == 'POST':
         claim_id = request.POST.get('claim_id')
+        claim_type = request.POST.get('claim_type') 
         
-        # 1. Data Extraction (Matching your updated MySQL Schema)
         data = {
             'company_code': request.POST.get('company_code'),
             'agent': request.POST.get('agent'),
@@ -856,67 +854,63 @@ def save_global_claim(request):
             'member_name': request.POST.get('member_name'),
             'member_surname': request.POST.get('member_surname'),
             'mip_number': request.POST.get('mip_number'),
-            'claim_type': request.POST.get('claim_type'),
-            'exit_reason': request.POST.get('exit_reason'),
-            'claim_allocation': request.POST.get('claim_allocation'),
+            'claim_type': claim_type,
             'claim_status': request.POST.get('claim_status'),
             'payment_option': request.POST.get('payment_option'),
             'claim_amount': request.POST.get('claim_amount') or None,
             'claim_created_date': request.POST.get('claim_created_date') or None,
-            'last_contribution_date': request.POST.get('last_contribution_date') or None,
-            'date_submitted': request.POST.get('date_submitted') or None,
-            'date_paid': request.POST.get('date_paid') or None,
+            'linked_email_id': request.POST.get('linked_email_id') or None,
             'vested_pot_available': request.POST.get('vested_pot_available') == 'on',
             'vested_pot_paid_date': request.POST.get('vested_pot_paid_date') or None,
             'savings_pot_available': request.POST.get('savings_pot_available') == 'on',
             'savings_pot_paid_date': request.POST.get('savings_pot_paid_date') or None,
             'infund_cert_date': request.POST.get('infund_cert_date') or None,
-            'linked_email_id': request.POST.get('linked_email_id'),
         }
 
-        # 2. Save or Update Claim
         if claim_id:
             AcvvClaim.objects.filter(id=claim_id).update(**data)
             claim_obj = AcvvClaim.objects.get(id=claim_id)
-            messages.success(request, f"Claim for {data['member_surname']} updated successfully.")
+            messages.success(request, "Claim updated.")
         else:
             claim_obj = AcvvClaim.objects.create(**data)
-            messages.success(request, f"New claim created for {data['member_surname']}.")
+            messages.success(request, "New claim created.")
 
-        # 3. Handle Note Creation & File Upload
+        # 1. Handle Notes & Attachments
         n_desc = request.POST.get('note_description')
-        n_sel = request.POST.get('note_selection')
         n_file = request.FILES.get('claim_attachment')
-
-        if n_desc or n_sel or n_file:
+        if n_desc or n_file:
             ClaimNote.objects.create(
                 claim=claim_obj,
-                note_selection=n_sel,
                 note_description=n_desc,
                 attachment=n_file,
                 created_by=request.user
             )
 
-        # 4. Handle Outlook Email Dispatch (Compose Form)
+        # 2. ADDED: Handle Email Composition (This was missing!)
         recipient = request.POST.get('member_recipient_email')
         subject = request.POST.get('member_email_subject_reply')
-        body_html = request.POST.get('member_email_body_editor') # Matches your textarea ID
+        body = request.POST.get('email_body_html_content')
+        email_action = request.POST.get('email_submission_action')
 
-        if recipient and subject and body_html:
-            from django.conf import settings
+        if email_action == 'send_email_and_log' and recipient and subject and body:
             target_email = settings.OUTLOOK_EMAIL_ADDRESS
-            
-            # Send via Graph API
-            result = send_outlook_email(target_email, recipient, subject, body_html, content_type='Html')
+            result = send_outlook_email(target_email, recipient, subject, body, content_type='Html')
             
             if result.get('success'):
-                messages.success(request, f"Email sent to {recipient}.")
+                # Log the sent email as a note so it shows in history
+                ClaimNote.objects.create(
+                    claim=claim_obj,
+                    note_description=f"OUTGOING EMAIL SENT to {recipient}\nSubject: {subject}",
+                    note_selection="SUBMITTED VIA E-MAIL",
+                    created_by=request.user
+                )
+                messages.success(request, f"Email sent successfully to {recipient}.")
             else:
                 messages.error(request, f"Claim saved, but email failed: {result.get('error')}")
 
-    # Determine redirect based on claim type to keep user in context
-    if data.get('claim_type') == 'Two Pot':
-        return redirect('two_pot_global')
+    # 3. FIXED: Intelligent Redirect (Using 'global_two_pot' as per your URL names)
+    if claim_type == 'Two Pot':
+        return redirect('global_two_pot')
     return redirect('global_claims')
 
 import openpyxl
