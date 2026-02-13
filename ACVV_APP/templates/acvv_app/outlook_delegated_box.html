@@ -1,7 +1,5 @@
 {% load static %}
 
-{% block title %}My Delegated Tasks{% endblock %}
-
 {% block content %}
 <style>
 /* -------------------------------------- */
@@ -105,17 +103,9 @@ body {
 
 <div class="log-container">
     <div class="log-header">
-        <h1><i class="fas fa-tasks"></i> My Delegated Outlook Tasks</h1>
+        <h1><i class="fas fa-tasks"></i> My Dashboard</h1>
         <p>Total Tasks: <strong>{{ tasks|length }}</strong></p>
     </div>
-    
-    {% if messages %}
-        {% for message in messages %}
-        <div class="alert alert-{{ message.tags }}" style="padding: 10px; margin-bottom: 20px; border-radius: 4px; background-color: #e8f5e9; color: #2e7d32;">
-            {{ message }}
-        </div>
-        {% endfor %}
-    {% endif %}
 
     {% if tasks %}
     <table class="task-table">

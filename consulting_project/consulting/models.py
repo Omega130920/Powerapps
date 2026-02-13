@@ -369,3 +369,27 @@ class ClientReminder(models.Model):
     def __str__(self):
         time_str = f" at {self.reminder_time}" if self.reminder_time else ""
         return f"{self.title} - {self.client.client_name}{time_str}"
+    
+# ====================================================================
+# 7. CLIENT INTERACTION NOTES (New Table)
+# ====================================================================
+
+class ClientInteractionNote(models.Model):
+    # Links to the ClientClient table via the ID
+    client = models.ForeignKey(ClientClient, on_delete=models.DO_NOTHING, db_column='client_id')
+    
+    comm_type = models.CharField(max_length=50) # e.g., 'Inbound Call'
+    note_type = models.CharField(max_length=100) # e.g., 'General Enquiry'
+    note_text = models.TextField()
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.CharField(max_length=100)
+
+    class Meta:
+        managed = False # We will create the table manually in SQL
+        db_table = 'client_interaction_notes'
+        verbose_name = 'Client Note'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.comm_type} - {self.client.future_client_number}"

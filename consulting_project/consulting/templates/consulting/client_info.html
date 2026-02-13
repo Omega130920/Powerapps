@@ -309,11 +309,37 @@
         <div id="tab1" class="tab-content active">
             <h2>General Business Information</h2>
             <div class="data-grid">
-                <div class="data-item"><label>Client Number</label><p>{{ client.future_client_number }}</p></div>
+                <div class="data-item"><label>Scheme Code</label><p>{{ client.future_client_number }}</p></div>
                 <div class="data-item"><label>Client Name</label><p>{{ client.client_name }}</p></div>
                 <div class="data-item"><label>Consultant</label><p>{{ client.consultant }}</p></div>
                 <div class="data-item"><label>Industry</label><p>{{ client.industry }}</p></div>
                 <div class="data-item"><label>Status</label><p>{{ client.status }}</p></div>
+                
+                {% with main_contact=client_contacts|first %}
+                <div class="data-item">
+                    <label>Primary Contact Birthday</label>
+                    <p>
+                        {% if main_contact and main_contact.birthday %}
+                            <span style="background: #f0f9ff; color: #0070c0; padding: 2px 6px; border-radius: 4px; font-weight: 600;">
+                                🎂 {{ main_contact.birthday }}
+                            </span>
+                        {% else %}
+                            <span style="color: #ccc; font-style: italic;">No Info</span>
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="data-item">
+                    <label>Primary Contact Interests</label>
+                    <p>
+                        {% if main_contact and main_contact.interests %}
+                            {{ main_contact.interests }}
+                        {% else %}
+                            <span style="color: #ccc; font-style: italic;">No Info</span>
+                        {% endif %}
+                    </p>
+                </div>
+                {% endwith %}
+
                 <div class="data-item"><label>Start Date</label><p>{{ date_added_formatted }}</p></div>
                 <div class="data-item"><label>Date Added</label><p>{{ date_added_formatted }}</p></div>
                 <div class="data-item"><label>Years Active</label><p>{{ client.years_active }}</p></div>
@@ -347,16 +373,39 @@
             <h2>Authorized Client Contacts</h2>
             <table class="contacts-table">
                 <thead>
-                    <tr><th>Name</th><th>Job Title</th><th>Contact Info</th><th>Email</th><th>Address Details</th><th>Notes</th></tr>
+                    <tr>
+                        <th>Name</th>
+                        <th>Job Title</th>
+                        <th>Birthday</th>
+                        <th>Contact Info</th>
+                        <th>Email</th>
+                        <th>Address Details</th>
+                        <th>Interests</th>
+                        <th>Notes</th>
+                    </tr>
                 </thead>
                 <tbody>
                     {% for contact in client_contacts %}
                     <tr>
                         <td style="font-weight: 700;">{{ contact.name }} {{ contact.surname }}</td>
                         <td>{{ contact.job_title|default:'N/A' }}</td>
+                        
+                        <td>
+                            {% if contact.birthday %}
+                                <span style="background: #f0f9ff; color: #0070c0; padding: 2px 8px; border-radius: 4px; font-size: 0.85em; font-weight: 600; white-space: nowrap;">
+                                    🎂 {{ contact.birthday }}
+                                </span>
+                            {% else %}
+                                <span style="color: #ccc;">-</span>
+                            {% endif %}
+                        </td>
+
                         <td>Cell: {{ contact.cell_no|default:'N/A' }}<br>Landline: {{ contact.landline|default:'N/A' }}</td>
                         <td style="color: var(--action-blue);">{{ contact.email|default:'N/A' }}</td>
                         <td style="font-size: 0.8em;">Physical: {{ contact.physical_address|default:'N/A' }}<br>Postal: {{ contact.postal_address|default:'N/A' }}</td>
+                        
+                        <td style="font-style: italic; color: #555;">{{ contact.interests|default:'-' }}</td>
+                        
                         <td>{{ contact.notes|default:'N/A' }}</td>
                     </tr>
                     {% endfor %}
@@ -369,14 +418,14 @@
         
         <div id="tab3" class="tab-content">
             <h2>Log Communication Activity</h2>
-            <div class="note-section-container">
+            <div class="note-section-container" id="noteForm">
                 <h3>Record New Interaction</h3>
                 <p style="color: #888; font-size: 0.9em; margin-bottom: 20px;">Use this section to log calls, emails, and general notes regarding client interactions.</p>
                 
                 <div class="data-grid" style="gap: 15px; margin-bottom: 10px;">
                     <div class="data-item">
                         <label for="comm_type">Communication Type</label>
-                        <select id="comm_type">
+                        <select id="comm_type" name="comm_type">
                             <option value="Inbound Email">Inbound Email</option>
                             <option value="Outbound Email">Outbound Email</option>
                             <option value="Inbound Call">Inbound Call</option>
@@ -385,7 +434,7 @@
                     </div>
                     <div class="data-item">
                         <label for="note_type">Activity Classification</label>
-                        <select id="note_type">
+                        <select id="note_type" name="note_type">
                             <option value="Schedule">Schedule</option>
                             <option value="Claims">Claims</option>
                             <option value="Two-Pot Claims">Two-Pot Claims</option>
@@ -396,23 +445,35 @@
                 </div>
                 
                 <div class="data-item full-width" style="margin-top: 10px;">
-                    <label>Interaction Details</label>
-                    <textarea placeholder="Summarize the discussion or record specific details..."></textarea>
+                    <label for="note_text">Interaction Details</label>
+                    <textarea id="note_text" name="note_text" placeholder="Summarize the discussion or record specific details..."></textarea>
                 </div>
                 
                 <div class="data-item full-width" style="margin-top: 10px;">
                     <label>Attachments & Documentation</label>
                     <div style="border: 2px dashed #edf2f7; padding: 15px; border-radius: 8px; background: white; display: flex; align-items: center; justify-content: space-between;">
                         <span style="color: #aaa;">Drag files here or click to browse.</span>
-                        <input type="file" multiple>
+                        <input type="file" id="note_files" multiple>
                     </div>
                 </div>
                 
-                <button class="edit-button" style="margin-top: 20px; background-color: var(--primary-green); width: 100%;">💾 Post Activity to History</button>
+                <button type="button" id="submitNoteBtn" class="edit-button" style="margin-top: 20px; background-color: var(--primary-green); width: 100%;">💾 Post Activity to History</button>
             </div>
 
-            <h2 style="margin-top: 50px;">Complete Activity Log</h2>
-            <p style="color: #777; font-style: italic;">Note: Interaction history is sorted by most recent first.</p>
+            <h2 style="margin-top: 50px;">Note History</h2>
+            <div id="activityLogContainer">
+                {% for note in client_notes %}
+                <div class="note-history-item">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <strong style="color: var(--accent-green);">{{ note.comm_type }} ({{ note.note_type }})</strong>
+                        <small style="color: #999;">{{ note.created_at|date:"Y-m-d H:i" }}</small>
+                    </div>
+                    <p style="margin-top: 10px; color: var(--text-dark);">{{ note.note_text }}</p>
+                </div>
+                {% empty %}
+                <p id="noNotesMsg" style="color: #777; font-style: italic;">No interaction history available.</p>
+                {% endfor %}
+            </div>
         </div>
         
         <div id="tab4" class="tab-content">
@@ -533,6 +594,7 @@
     </div>
 
     <script>
+        // Tab switching logic
         function openTab(evt, tabName) {
             let tabContent = document.getElementsByClassName("tab-content");
             for (let i = 0; i < tabContent.length; i++) { tabContent[i].style.display = "none"; tabContent[i].classList.remove("active"); }
@@ -543,6 +605,64 @@
             evt.currentTarget.classList.add("active");
         }
 
+        // AJAX Note Posting Logic
+        document.getElementById('submitNoteBtn').addEventListener('click', function() {
+            const clientCode = "{{ client.future_client_number }}";
+            const commType = document.getElementById('comm_type').value;
+            const noteType = document.getElementById('note_type').value;
+            const noteText = document.getElementById('note_text').value;
+
+            if (!noteText.trim()) {
+                alert("Please enter interaction details.");
+                return;
+            }
+
+            // AJAX call to Django view
+            fetch("{% url 'post_client_note' %}", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": "{{ csrf_token }}"
+                },
+                body: JSON.stringify({
+                    client_code: clientCode,
+                    comm_type: commType,
+                    note_type: noteType,
+                    note_text: noteText
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Prepend new note to the list
+                    const container = document.getElementById('activityLogContainer');
+                    const noNotesMsg = document.getElementById('noNotesMsg');
+                    if (noNotesMsg) noNotesMsg.remove();
+
+                    const newNote = `
+                        <div class="note-history-item" style="border-left-color: var(--primary-green); animation: fadeIn 0.5s ease;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <strong style="color: var(--accent-green);">${commType} (${noteType})</strong>
+                                <small style="color: #999;">Just now</small>
+                            </div>
+                            <p style="margin-top: 10px; color: var(--text-dark);">${noteText}</p>
+                        </div>
+                    `;
+                    container.insertAdjacentHTML('afterbegin', newNote);
+                    
+                    // Clear field
+                    document.getElementById('note_text').value = '';
+                } else {
+                    alert("Error posting note: " + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert("An error occurred while posting the note.");
+            });
+        });
+
+        // Initialize active tab
         document.addEventListener('DOMContentLoaded', function() {
             const defaultTabButton = document.querySelector('.tab-button.active');
             if (defaultTabButton) {

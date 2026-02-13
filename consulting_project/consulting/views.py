@@ -9,13 +9,14 @@ from django.views.decorators.csrf import csrf_exempt
 from django.db import IntegrityError, transaction
 from django.contrib import messages
 from django.utils import timezone
-from .models import ClientClient, ClientReminder
 from django.contrib.auth.decorators import login_required
 
-# Import all models
+# --- Consolidated Imports ---
 from .models import (
     ClientClient, 
     ClientContact, 
+    ClientInteractionNote, 
+    ClientReminder,
     FicaAddress, 
     FicaResponsiblePerson, 
     FicaDirector, 
@@ -51,61 +52,63 @@ def get_next_client_number():
     return "FUT00001"
 
 def safe_parse_date(date_string):
-    """Parses DD/MM/YYYY to YYYY-MM-DD format."""
+    """Parses DD/MM/YYYY to YYYY-MM-DD format (Python Date Object)."""
     if not date_string:
         return None
     try:
-        return datetime.strptime(date_string, '%d/%m/%Y').strftime('%Y-%m-%d')
+        return datetime.strptime(date_string, '%d/%m/%Y').date()
     except ValueError:
         try:
-            return datetime.strptime(date_string, '%Y-%m-%d').strftime('%Y-%m-%d')
+            return datetime.strptime(date_string, '%Y-%m-%d').date()
         except ValueError:
             return None
 
-def parse_repeating_data(request_data, prefix, field_names):
-    """Parses dynamic, repeating form data (directors, contacts, etc)."""
-    data = request_data.POST
-    files = request_data.FILES if hasattr(request_data, 'FILES') and request_data.FILES else {}
-    entities = []
+def parse_repeating_data(request, prefix, fields, file_fields=None):
+    """
+    Parses dynamic repeating form data.
+    Robustly handles 'contact-name-0' (hyphen) and 'dir_name_0' (underscore) differences.
+    """
+    data = request.POST
+    files = request.FILES
+    items = []
     index = 0
-    while True:
-        if prefix == 'contact':
-            name_key = f'{prefix}-name-{index}'
-        else:
-            name_key = f'{prefix}_name_{index}'
+    
+    # Determine separator based on prefix (Contacts use hyphens, FICA entities use underscores in your HTML)
+    separator = "-" if prefix == "contact" else "_"
 
-        if index > 0 and (name_key not in data or not data.get(name_key)):
-            break
-        if prefix in ('dir', 'owner') and index == 0 and not data.get(f'{prefix}_name_0'):
-            break
-        if index > 100: 
-            break
+    while True:
+        # Check if the primary identifier exists (e.g., contact-name-0 or dir_name_0)
+        name_key = f"{prefix}{separator}name{separator}{index}"
         
-        entity_data = {}
-        found_entity = False
-        for field in field_names:
-            key = f'{prefix}-{field}-{index}' if prefix == 'contact' else f'{prefix}_field_{index}'
-            # Fix for specific field naming conventions in your frontend
-            if prefix != 'contact': key = f'{prefix}_{field}_{index}'
+        # If we can't find the name key, assume end of list
+        if name_key not in data:
+            if index > 50: break # Safety break
+            if index == 0: break # List is empty
+            break
+
+        row_data = {}
+        
+        # 1. Parse Text Fields
+        for field in fields:
+            key = f"{prefix}{separator}{field}{separator}{index}"
+            val = data.get(key, '')
             
-            value = data.get(key)
-            if 'postal_check' in field or field.endswith('_q'):
-                if 'check' in field: entity_data[field] = (value == 'on')
-                elif '_q' in field: entity_data[field] = (value == 'Yes')
-            elif field.endswith('_file'):
-                file_key = key
-                file_obj = files.get(file_key) 
-                entity_data[field] = file_obj.name if file_obj else None
-                if file_obj: found_entity = True
+            # Handle Checkboxes (returns 'on' or None) and Yes/No radios
+            if field.endswith('_q'):
+                row_data[field] = (val == 'Yes')
             else:
-                entity_data[field] = value
-            if value: found_entity = True
-                
-        if found_entity:
-            entity_data['index'] = index
-            entities.append(entity_data)
+                row_data[field] = val
+
+        # 2. Parse File Fields (if any)
+        if file_fields:
+            for file_key_name in file_fields:
+                file_input_name = f"{prefix}{separator}{file_key_name}{separator}{index}"
+                if file_input_name in files:
+                    row_data[file_key_name] = files[file_input_name]
+
+        items.append(row_data)
         index += 1
-    return entities
+    return items
 
 # ------------------------------------------------------
 # Core Client Views
@@ -129,7 +132,6 @@ def client_list_view(request):
 
 def client_info_view(request, client_code):
     """Detail view fetching ALL related FICA data."""
-    # Optimized with prefetch to make the CRM snappier
     client = get_object_or_404(
         ClientClient.objects.prefetch_related(
             'clientcontact_set', 'ficaaddress_set', 'ficadirector_set', 
@@ -138,6 +140,8 @@ def client_info_view(request, client_code):
         future_client_number=client_code
     )
     
+    client_notes = ClientInteractionNote.objects.filter(client=client).order_by('-created_at')
+
     client_contacts = client.clientcontact_set.all().order_by('id')
     fica_addresses = client.ficaaddress_set.all().order_by('id')
     fica_resp_person = client.ficaresponsibleperson_set.all().order_by('id')
@@ -149,6 +153,7 @@ def client_info_view(request, client_code):
 
     context = {
         'client': client,
+        'client_notes': client_notes,
         'client_contacts': client_contacts,
         'physical_addr': physical_addr,
         'postal_addr': postal_addr,
@@ -162,15 +167,18 @@ def client_info_view(request, client_code):
 
 @require_http_methods(["GET", "POST"])
 def edit_client_view(request, client_code):
+    # --- FIXED: Function name changed from edit_client to edit_client_view ---
     client = get_object_or_404(ClientClient, future_client_number=client_code)
-    
+
     if request.method == 'POST':
         data = request.POST
         files = request.FILES
-        
+
         try:
             with transaction.atomic():
-                # 1. Update Core Client Fields
+                # ============================================
+                # 1. UPDATE CORE CLIENT FIELDS
+                # ============================================
                 client.client_name = data.get('client_name')
                 client.consultant = data.get('consultant')
                 client.industry = data.get('industry')
@@ -178,6 +186,8 @@ def edit_client_view(request, client_code):
                 client.date_added = safe_parse_date(data.get('date'))
                 client.years_active = data.get('years')
                 client.employees = data.get('employees') or 0
+                
+                # Product & Agreement
                 client.product = data.get('product')
                 client.third_party_contract = (data.get('third_party_contract') == 'yes')
                 client.third_party_contact = data.get('third_party_contact')
@@ -186,116 +196,243 @@ def edit_client_view(request, client_code):
                 client.insurer = data.get('insurer')
                 client.assets = data.get('assets')
                 
-                # FICA Step 1 & 6 core fields
+                # Checkbox/Radio logic
+                client.consulting_letter_status = (data.get('consulting_letter') == 'yes')
+                client.sla_status = (data.get('sla') == 'yes')
+                client.third_party_doc_status = (data.get('third_party_doc') == 'yes')
+
+                # FICA Core Info
+                client.company_type = data.get('company_type')
                 client.company_registration_number = data.get('reg_number')
+                client.contact_number1 = data.get('contact1')
+                client.contact_email1 = data.get('email1')
+                client.benefit_note = data.get('benefit_note')
+                
+                # FICA Step 6 (Nature of Relationship)
                 client.nature_of_relationship = data.get('nat_rel')
                 client.purpose_of_relationship = data.get('purp_rel')
                 client.source_of_funds = data.get('source_funds')
+                
+                # Declaration
                 client.due_diligence_form_name = data.get('due_diligence_form_name')
                 client.declaration_name = data.get('declaration_name')
                 client.declaration_delegation = data.get('declaration_delegation')
                 client.declaration_date = safe_parse_date(data.get('declaration_date'))
 
-                # Handle File Uploads (Only update if a new file is provided)
-                file_map = {
-                    'consulting_letter_file': 'consulting_letter_file',
-                    'sla_file': 'sla_file',
-                    'third_party_doc_file': 'third_party_doc_file',
-                    'reg_docs': 'reg_docs_file',
-                    'proof_address': 'proof_address_file',
-                    'signed_form_upload': 'signed_form_upload'
-                }
-                for form_key, model_attr in file_map.items():
-                    if form_key in files:
-                        setattr(client, model_attr, files[form_key])
-                
+                # --- Core File Uploads ---
+                if 'consulting_letter_file' in files: client.consulting_letter_file = files['consulting_letter_file']
+                if 'sla_file' in files: client.sla_file = files['sla_file']
+                if 'third_party_doc_file' in files: client.third_party_doc_file = files['third_party_doc_file']
+                if 'reg_docs' in files: client.reg_docs_file = files['reg_docs']
+                if 'proof_address' in files: client.proof_address_file = files['proof_address']
+                if 'signed_form_upload' in files: client.signed_form_upload = files['signed_form_upload']
+
                 client.save()
 
-                # 2. Update Addresses (Physical & Postal)
-                # Clear and recreate to handle the "Same as physical" checkbox logic
+                # ============================================
+                # 2. UPDATE COMPANY ADDRESSES
+                # ============================================
                 FicaAddress.objects.filter(client=client).delete()
-                
-                # Physical
+
+                # Physical Address
                 FicaAddress.objects.create(
-                    client=client, address_type='physical',
-                    line1=data.get('physical_line1'), line2=data.get('physical_line2'),
-                    city=data.get('physical_city'), province=data.get('physical_province'),
-                    suburb=data.get('physical_suburb'), postal_code=data.get('physical_code')
+                    client=client,
+                    address_type='physical',
+                    line1=data.get('physical_line1'),
+                    line2=data.get('physical_line2'),
+                    city=data.get('physical_city'),
+                    province=data.get('physical_province'),
+                    suburb=data.get('physical_suburb'),
+                    postal_code=data.get('physical_code')
                 )
-                
-                # Postal (Only if "same_as_physical" is NOT checked)
+
+                # Postal Address (Only if NOT "Same as physical")
                 if not data.get('same_as_physical'):
                     FicaAddress.objects.create(
-                        client=client, address_type='postal',
-                        line1=data.get('postal_line1'), line2=data.get('postal_line2'),
-                        city=data.get('postal_city'), province=data.get('postal_province'),
-                        suburb=data.get('postal_suburb'), postal_code=data.get('postal_code')
+                        client=client,
+                        address_type='postal',
+                        line1=data.get('postal_line1'),
+                        line2=data.get('postal_line2'),
+                        city=data.get('postal_city'),
+                        province=data.get('postal_province'),
+                        suburb=data.get('postal_suburb'),
+                        postal_code=data.get('postal_code')
                     )
 
-                # 3. Handle Dynamic Rows (Contacts, Directors, Owners, Responsible Persons)
-                # We delete existing relations and re-add them based on the form data
-                
-                # -- CONTACTS --
+                # ============================================
+                # 3. UPDATE CONTACTS (Tab 2)
+                # ============================================
                 ClientContact.objects.filter(client=client).delete()
-                contact_fields = ['name', 'surname', 'job_title', 'email', 'cell', 'landline', 'birthday', 'interests', 'notes']
-                for c_data in parse_repeating_data(request, 'contact', contact_fields):
-                    ClientContact.objects.create(
-                        client=client, name=c_data.get('name'), surname=c_data.get('surname'),
-                        job_title=c_data.get('job_title'), email=c_data.get('email'),
-                        cell_no=c_data.get('cell'), landline=c_data.get('landline'),
-                        birthday=c_data.get('birthday'), interests=c_data.get('interests'),
-                        notes=c_data.get('notes')
-                    )
+                
+                contact_fields = ['name', 'surname', 'job_title', 'email', 'cell', 'landline', 'birthday', 'interests', 'notes', 
+                                  'phys_line1', 'phys_line2', 'phys_city', 'phys_province',
+                                  'postal_line1', 'postal_line2', 'postal_city', 'postal_province']
+                
+                contacts_data = parse_repeating_data(request, 'contact', contact_fields)
+                
+                for c in contacts_data:
+                    if c['name']: 
+                        ClientContact.objects.create(
+                            client=client,
+                            name=c['name'],
+                            surname=c['surname'],
+                            job_title=c['job_title'],
+                            email=c['email'],
+                            cell_no=c['cell'],
+                            landline=c['landline'],
+                            birthday=c['birthday'],
+                            interests=c['interests'],
+                            notes=c['notes'],
+                            physical_address=c['phys_line1'],
+                            city_town=c['phys_city'],
+                            province=c['phys_province'],
+                            postal_address=c['postal_line1']
+                        )
 
-                # -- DIRECTORS --
+                # ============================================
+                # 4. RESPONSIBLE PERSONS
+                # ============================================
+                FicaResponsiblePerson.objects.filter(client=client).delete()
+                
+                resp_fields = ['name', 'surname', 'designation', 'contact', 'email', 'id_num',
+                               'line1', 'line2', 'city', 'province', 'suburb', 'code']
+                resp_files = ['circular_upload', 'doc_signed_upload']
+                
+                resp_data = parse_repeating_data(request, 'resp', resp_fields, resp_files)
+                
+                for r in resp_data:
+                    if r['name']:
+                        new_resp = FicaResponsiblePerson(
+                            client=client,
+                            name=r['name'],
+                            surname=r['surname'],
+                            designation=r['designation'],
+                            contact_number=r['contact'],
+                            email_address=r['email'],
+                            id_number=r['id_num'],
+                            resp_line1=r['line1'],
+                            resp_line2=r['line2'],
+                            resp_city=r['city'],
+                            resp_province=r['province'],
+                            resp_suburb=r['suburb'],
+                            resp_code=r['code']
+                        )
+                        if 'circular_upload' in r: new_resp.circular_upload_file = r['circular_upload']
+                        if 'doc_signed_upload' in r: new_resp.doc_signed_upload_file = r['doc_signed_upload']
+                        new_resp.save()
+
+                # ============================================
+                # 5. DIRECTORS
+                # ============================================
                 FicaDirector.objects.filter(client=client).delete()
+                
                 dir_fields = [
                     'name', 'surname', 'contact', 'email', 'id', 'designation',
-                    'phys_line1', 'phys_line2', 'phys_city', 'phys_province', 'phys_suburb', 'phys_code',
+                    'phys_line1', 'phys_line2', 'phys_province', 'phys_city', 'phys_suburb', 'phys_code',
+                    'postal_line1', 'postal_line2', 'postal_province', 'postal_city', 'postal_suburb', 'postal_code',
                     'pep_q', 'pep_reason', 'pip_q', 'pip_reason', 'ppo_q', 'ppo_reason', 'kca_q', 'kca_reason'
                 ]
-                for d_data in parse_repeating_data(request, 'dir', dir_fields):
-                    FicaDirector.objects.create(
-                        client=client, name=d_data.get('name'), surname=d_data.get('surname'),
-                        contact_number=d_data.get('contact'), email_address=d_data.get('email'),
-                        id_number=d_data.get('id'), designation=d_data.get('designation'),
-                        is_pep=(d_data.get('pep_q') == 'Yes'), pep_reason=d_data.get('pep_reason'),
-                        is_pip=(d_data.get('pip_q') == 'Yes'), pip_reason=d_data.get('pip_reason')
-                        # ... continue mapping other fields ...
-                    )
+                dir_files = ['proof_addr', 'id_copy'] 
+                
+                dir_data = parse_repeating_data(request, 'dir', dir_fields, dir_files)
+                
+                for d in dir_data:
+                    if d['name']:
+                        new_dir = FicaDirector(
+                            client=client,
+                            name=d['name'],
+                            surname=d['surname'],
+                            contact_number=d['contact'],
+                            email_address=d['email'],
+                            id_number=d['id'],
+                            designation=d['designation'],
+                            
+                            phys_line1=d['phys_line1'], phys_line2=d['phys_line2'],
+                            phys_city=d['phys_city'], phys_province=d['phys_province'],
+                            phys_suburb=d['phys_suburb'], phys_code=d['phys_code'],
 
-                # -- RESPONSIBLE PERSONS --
-                FicaResponsiblePerson.objects.filter(client=client).delete()
-                resp_fields = ['name', 'surname', 'designation', 'id_num', 'contact', 'email', 'line1', 'line2', 'city', 'province', 'suburb', 'code']
-                for r_data in parse_repeating_data(request, 'resp', resp_fields):
-                    FicaResponsiblePerson.objects.create(
-                        client=client, name=r_data.get('name'), surname=r_data.get('surname'),
-                        designation=r_data.get('designation'), id_number=r_data.get('id_num'),
-                        email_address=r_data.get('email'), contact_number=r_data.get('contact')
-                    )
+                            postal_line1=d['postal_line1'], postal_line2=d['postal_line2'],
+                            postal_city=d['postal_city'], postal_province=d['postal_province'],
+                            postal_suburb=d['postal_suburb'], postal_code=d['postal_code'],
 
-            messages.success(request, f"Client {client_code} updated successfully!")
+                            is_pep=(d.get('pep_q') == True), pep_reason=d.get('pep_reason'),
+                            is_pip=(d.get('pip_q') == True), pip_reason=d.get('pip_reason'),
+                            is_ppo=(d.get('ppo_q') == True), ppo_reason=d.get('ppo_reason'),
+                            is_kca=(d.get('kca_q') == True), kca_reason=d.get('kca_reason'),
+                        )
+
+                        if 'proof_addr' in d: new_dir.proof_addr_file = d['proof_addr']
+                        if 'id_copy' in d: new_dir.id_copy_file = d['id_copy']
+                        new_dir.save()
+
+                # ============================================
+                # 6. BENEFICIAL OWNERS
+                # ============================================
+                FicaBeneficialOwner.objects.filter(client=client).delete()
+                
+                owner_fields = dir_fields 
+                owner_files = dir_files
+                
+                owner_data = parse_repeating_data(request, 'owner', owner_fields, owner_files)
+                
+                for o in owner_data:
+                    if o['name']:
+                        new_owner = FicaBeneficialOwner(
+                            client=client,
+                            name=o['name'],
+                            surname=o['surname'],
+                            contact_number=o['contact'],
+                            cell_number=o.get('cell'), 
+                            email_address=o['email'],
+                            id_number=o['id'],
+                            designation=o['designation'],
+                            
+                            phys_line1=o['phys_line1'], phys_line2=o['phys_line2'],
+                            phys_city=o['phys_city'], phys_province=o['phys_province'],
+                            phys_suburb=o['phys_suburb'], phys_code=o['phys_code'],
+
+                            postal_line1=o['postal_line1'], postal_line2=o['postal_line2'],
+                            postal_city=o['postal_city'], postal_province=o['postal_province'],
+                            postal_suburb=o['postal_suburb'], postal_code=o['postal_code'],
+
+                            is_pep=(o.get('pep_q') == True), pep_reason=o.get('pep_reason'),
+                            is_pip=(o.get('pip_q') == True), pip_reason=o.get('pip_reason'),
+                            is_ppo=(o.get('ppo_q') == True), ppo_reason=o.get('ppo_reason'),
+                            is_kca=(o.get('kca_q') == True), kca_reason=o.get('kca_reason'),
+                        )
+
+                        if 'proof_addr' in o: new_owner.proof_addr_file = o['proof_addr']
+                        if 'id_copy' in o: new_owner.id_copy_file = o['id_copy']
+                        new_owner.save()
+
+            messages.success(request, f"Client {client.client_name} updated successfully!")
             return redirect('client_info', client_code=client_code)
-            
-        except Exception as e:
-            messages.error(request, f"Critical Error during save: {str(e)}")
-            print(f"Error: {e}")
 
-    # GET Request: Prepare context
-    contacts = client.clientcontact_set.all()
-    addresses = client.ficaaddress_set.all()
-    
+        except Exception as e:
+            messages.error(request, f"Error updating client: {e}")
+            print(f"DEBUG ERROR: {e}") 
+
+    # ============================================
+    # GET REQUEST - Render Form
+    # ============================================
+    contacts = ClientContact.objects.filter(client=client)
+    addresses = FicaAddress.objects.filter(client=client)
+    fica_resp = FicaResponsiblePerson.objects.filter(client=client)
+    fica_directors = FicaDirector.objects.filter(client=client)
+    fica_owners = FicaBeneficialOwner.objects.filter(client=client)
+
     context = {
         'client': client,
         'client_contacts': contacts,
         'physical_addr': addresses.filter(address_type='physical').first(),
         'postal_addr': addresses.filter(address_type='postal').first(),
-        'fica_resp_person': client.ficaresponsibleperson_set.all(),
-        'fica_directors': client.ficadirector_set.all(),
-        'fica_owners': client.ficabeneficialowner_set.all(),
+        'fica_resp_person': fica_resp,
+        'fica_directors': fica_directors,
+        'fica_owners': fica_owners,
         'date_added_formatted': client.date_added.strftime('%d/%m/%Y') if client.date_added else '',
         'declaration_date_formatted': client.declaration_date.strftime('%d/%m/%Y') if client.declaration_date else '',
     }
+    
     return render(request, 'consulting/edit_client.html', context)
 
 @require_http_methods(["GET", "POST"])
@@ -385,26 +522,49 @@ def lead_edit_view(request, lead_id):
 # Claims & Dashboards
 # ------------------------------------------------------
 
+# ------------------------------------------------------
+# Claims & Dashboards
+# ------------------------------------------------------
+
 def claims_dashboard(request):
     claims_queryset = Claims.objects.all().order_by('-created_date')
     all_notes = ClaimsNotes.objects.all().order_by('-created_at')
     
     notes_by_claim = {}
     for note in all_notes:
-        note_data = {'body': note.note_body, 'user': note.created_by, 'date': note.created_at.strftime("%Y-%m-%d")}
+        note_data = {
+            'title': note.note_type if hasattr(note, 'note_type') else 'General Note', 
+            'body': note.note_body, 
+            'createdBy': note.created_by, 
+            'date': note.created_at.strftime("%Y-%m-%d")
+        }
         notes_by_claim.setdefault(note.claim_id, []).append(note_data)
         
     claims_list = []
     for c in claims_queryset:
+        # We must add ALL fields so the JS popup can read them
         claims_list.append({
-            'id': c.id, 'memberNo': c.member_no, 'firstName': c.first_name, 'surname': c.surname,
-            'status': c.status, 'notes': notes_by_claim.get(c.id, [])
+            'id': c.id, 
+            'memberNo': c.member_no, 
+            'firstName': c.first_name, 
+            'surname': c.surname,
+            'idPassport': c.id_passport if hasattr(c, 'id_passport') else '',
+            'employerName': c.employer_name if hasattr(c, 'employer_name') else '',
+            'insurer': c.insurer,
+            'claimType': c.claim_type,
+            'consultant': c.consultant,
+            'status': c.status, 
+            'lastAction': c.last_action if hasattr(c, 'last_action') else '',
+            'initialNotes': c.initial_notes if hasattr(c, 'initial_notes') else '',
+            'notes': notes_by_claim.get(c.id, [])
         })
         
     context = {
         'claims': claims_queryset,
-        'claims_json': json.dumps(claims_list),
-        'consultants': CONSULTANTS, 'insurers': INSURERS, 'claim_types': CLAIM_TYPES
+        'claims_json': json.dumps(claims_list, default=str),
+        'consultants': CONSULTANTS, 
+        'insurers': INSURERS, 
+        'claim_types': CLAIM_TYPES
     }
     return render(request, 'consulting/claims_dashboard.html', context)
 
@@ -413,9 +573,19 @@ def update_claim_details(request):
     claim_id = request.POST.get('claim_id')
     claim = get_object_or_404(Claims, pk=claim_id)
     try:
+        # Update ALL fields from the edit form
+        claim.member_no = request.POST.get('member_no')
+        claim.id_passport = request.POST.get('id_passport')
+        claim.first_name = request.POST.get('first_name')
+        claim.surname = request.POST.get('surname')
+        claim.claim_type = request.POST.get('claim_type')
+        claim.insurer = request.POST.get('insurer')
+        claim.consultant = request.POST.get('consultant')
         claim.status = request.POST.get('status')
+        claim.initial_notes = request.POST.get('initial_notes')
+        
         claim.save()
-        messages.success(request, "Claim updated.")
+        messages.success(request, f"Claim #{claim_id} updated.")
     except Exception as e:
         messages.error(request, f"Error: {e}")
     return redirect('claims_dashboard')
@@ -423,8 +593,11 @@ def update_claim_details(request):
 @require_POST
 def create_claim_note(request):
     claim = get_object_or_404(Claims, pk=request.POST.get('note_claim_id'))
+    # If your model supports note_type, add it here. otherwise just note_body.
     ClaimsNotes.objects.create(
-        claim=claim, note_body=request.POST.get('note_body'),
+        claim=claim, 
+        note_body=request.POST.get('note_body'),
+        # note_type=request.POST.get('note_comm_type'), # Uncomment if model has this field
         created_by=request.user.username if request.user.is_authenticated else "System"
     )
     return redirect('claims_dashboard')
@@ -442,13 +615,24 @@ def create_claim_reminder(request):
 @require_POST
 def create_new_claim(request):
     try:
+        # Capture ALL fields from the create form
         Claims.objects.create(
             member_no=request.POST.get('new_member_no'),
+            id_passport=request.POST.get('new_id_passport'),
             first_name=request.POST.get('new_first_name'),
             surname=request.POST.get('new_surname'),
+            employer_code=request.POST.get('new_employer_code'),
+            employer_name=request.POST.get('new_employer_name'),
+            insurer=request.POST.get('new_insurer'),
+            claim_type=request.POST.get('new_claim_type'),
+            consultant=request.POST.get('new_consultant'),
+            initial_notes=request.POST.get('new_notes'),
+            status='Pending',
             created_date=date.today()
         )
+        messages.success(request, "New claim created!")
     except Exception as e:
+        messages.error(request, f"Error creating claim: {e}")
         print(f"Error: {e}")
     return redirect('claims_dashboard')
 
@@ -556,3 +740,27 @@ def delete_reminder(request, reminder_id):
     
     # Redirect back, staying on the same filtered page if possible
     return redirect(request.META.get('HTTP_REFERER', 'client_calendar'))
+
+@require_POST
+def post_client_note(request):
+    try:
+        # 1. Parse JSON data from the fetch request
+        data = json.loads(request.body)
+        client_code = data.get('client_code')
+        
+        # 2. Find the client using the code (e.g., FUT00004)
+        client = get_object_or_404(ClientClient, future_client_number=client_code)
+        
+        # 3. Create the note record
+        ClientInteractionNote.objects.create(
+            client=client,
+            comm_type=data.get('comm_type'),
+            note_type=data.get('note_type'),
+            note_text=data.get('note_text'),
+            created_by=request.user.username if request.user.is_authenticated else "System"
+        )
+        
+        return JsonResponse({'status': 'success'})
+    except Exception as e:
+        print(f"Error saving note: {e}")
+        return JsonResponse({'status': 'error', 'message': str(e)}, status=500)

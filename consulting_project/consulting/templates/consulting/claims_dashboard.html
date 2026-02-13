@@ -8,7 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     
-<style>
+    <style>
         /* --- Root Colors (Consistent Professional Palette) --- */
         :root {
             --primary-green: #4CAF50;
@@ -27,22 +27,22 @@
             background: linear-gradient(135deg, #e8f5e9 0%, #ffffff 100%);
             color: var(--text-default);
             margin: 0;
-            padding: 10px; /* Reduced padding to allow container to grow */
+            padding: 10px;
         }
         .container {
-            max-width: 100%; /* Changed from 1600px to 98% for maximum width */
-            margin: 5px auto; /* Reduced margin */
-            padding: 20px; /* Increased internal padding for better spacing at large scales */
+            max-width: 98%; 
+            margin: 5px auto; 
+            padding: 20px;
             background-color: #ffffff;
             border-radius: 16px;
             box-shadow: var(--card-shadow);
-            min-height: 95vh; /* Ensures the container covers most of the vertical screen */
+            min-height: 95vh;
         }
         .section-header {
             color: var(--accent-green);
             border-bottom: 4px solid var(--bg-light-green);
             padding-bottom: 15px;
-            font-size: 2.2rem; /* Slightly larger for the bigger container */
+            font-size: 2.2rem;
             font-weight: 800;
             margin-bottom: 30px;
             letter-spacing: -0.5px;
@@ -73,15 +73,15 @@
             width: 100%;
         }
         .claims-table th, .claims-table td {
-            padding: 8px;
+            padding: 12px 8px; /* Increased padding slightly */
             text-align: left;
             border-bottom: 1px solid var(--border-light);
         }
         .claims-table th {
             background-color: #f8f9fa;
             color: var(--accent-green);
-            font-weight: 1200;
-            font-size: 0.9rem; /* Increased slightly */
+            font-weight: 800;
+            font-size: 0.85rem;
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
@@ -138,10 +138,10 @@
         }
         .modal-content {
             background: white;
-            padding: 20px;
+            padding: 30px;
             border-radius: 20px;
-            width: 95%; /* Increased modal width */
-            max-width: 1400px; /* Increased modal max-width */
+            width: 95%;
+            max-width: 1400px;
             box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
             max-height: 90vh;
             overflow-y: auto;
@@ -150,14 +150,18 @@
         /* Detail Modal Specific Styles */
         .detail-item {
             display: grid;
-            grid-template-columns: 1fr 2fr;
+            grid-template-columns: 140px 1fr; /* Fixed width for labels */
+            align-items: center;
             padding: 12px 0;
             border-bottom: 1px solid #f1f2f6;
+            min-height: 48px;
         }
         .detail-item label { font-weight: 700; color: var(--accent-green); font-size: 0.9rem; }
-        .edit-input { display: none; }
-
+        .edit-input { display: none; width: 100%; }
+        
+        /* Notes Table */
         .note-list-header th { background-color: var(--accent-green); color: white; }
+        
         .notes-section-header, .reminder-section-header {
             color: var(--accent-green);
             font-size: 1.5rem;
@@ -171,7 +175,7 @@
 <body>
     <div class="container">
         
-        <a href="{% url 'consulting_home' %}" class="text-lg font-bold text-green-700 hover:text-green-900 transition flex items-center">
+        <a href="{% url 'consulting_home' %}" class="text-lg font-bold text-green-700 hover:text-green-900 transition flex items-center w-fit">
             <i class="fas fa-arrow-left mr-2"></i> Back to Home Screen
         </a>
         
@@ -346,43 +350,88 @@
                 {% csrf_token %}
                 <input type="hidden" id="update_claim_id" name="claim_id">
 
-                <div id="detail-content" class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-x-10">
+                <div id="detail-content" class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-8">
+                    
                     <div>
-                        <h3 class="text-lg font-extrabold mb-4 text-gray-500 uppercase tracking-widest">Client Information</h3>
-                        <div class="detail-item"><label>Member No:</label><span data-key="memberNo" data-type="static"></span><input type="text" name="member_no" id="edit_memberNo" class="edit-input border p-2 rounded-lg text-sm"></div>
-                        <div class="detail-item"><label>ID/Passport No:</label><span data-key="idPassport" data-type="static"></span><input type="text" name="id_passport" id="edit_idPassport" class="edit-input border p-2 rounded-lg text-sm"></div>
-                        <div class="detail-item"><label>Name:</label><span data-key="firstName" data-type="static"></span><input type="text" name="first_name" id="edit_firstName" class="edit-input border p-2 rounded-lg text-sm"></div>
-                        <div class="detail-item"><label>Surname:</label><span data-key="surname" data-type="static"></span><input type="text" name="surname" id="edit_surname" class="edit-input border p-2 rounded-lg text-sm"></div>
+                        <h3 class="text-lg font-extrabold mb-4 text-gray-500 uppercase tracking-widest border-b pb-2">Client Information</h3>
+                        
+                        <div class="detail-item">
+                            <label>Member No:</label>
+                            <span data-key="memberNo" data-type="static"></span>
+                            <input type="text" name="member_no" id="edit_memberNo" class="edit-input border p-2 rounded-lg text-sm">
+                        </div>
+                        
+                        <div class="detail-item">
+                            <label>ID/Passport:</label>
+                            <span data-key="idPassport" data-type="static"></span>
+                            <input type="text" name="id_passport" id="edit_idPassport" class="edit-input border p-2 rounded-lg text-sm">
+                        </div>
+                        
+                        <div class="detail-item">
+                            <label>First Name:</label>
+                            <span data-key="firstName" data-type="static"></span>
+                            <input type="text" name="first_name" id="edit_firstName" class="edit-input border p-2 rounded-lg text-sm">
+                        </div>
+                        
+                        <div class="detail-item">
+                            <label>Surname:</label>
+                            <span data-key="surname" data-type="static"></span>
+                            <input type="text" name="surname" id="edit_surname" class="edit-input border p-2 rounded-lg text-sm">
+                        </div>
+
+                        <div class="detail-item">
+                            <label>Employer:</label>
+                            <span data-key="employerName" data-type="static"></span>
+                            <input type="text" name="employer_name" id="edit_employerName" class="edit-input border p-2 rounded-lg text-sm" readonly title="Cannot change employer here">
+                        </div>
                     </div>
 
                     <div>
-                        <h3 class="text-lg font-extrabold mb-4 text-gray-500 uppercase tracking-widest">Claim Status</h3>
-                        <div class="detail-item"><label>Claim Type:</label><span data-key="claimType" data-type="static"></span>
+                        <h3 class="text-lg font-extrabold mb-4 text-gray-500 uppercase tracking-widest border-b pb-2">Claim Status</h3>
+                        
+                        <div class="detail-item">
+                            <label>Claim Type:</label>
+                            <span data-key="claimType" data-type="static"></span>
                             <select name="claim_type" id="edit_claimType" class="edit-input border p-2 rounded-lg text-sm">
                                 {% for type in claim_types %}<option value="{{ type }}">{{ type }}</option>{% endfor %}
                             </select>
                         </div>
-                        <div class="detail-item"><label>Insurer:</label><span data-key="insurer" data-type="static"></span>
+                        
+                        <div class="detail-item">
+                            <label>Insurer:</label>
+                            <span data-key="insurer" data-type="static"></span>
                             <select name="insurer" id="edit_insurer" class="edit-input border p-2 rounded-lg text-sm">
                                 {% for insurer in insurers %}<option value="{{ insurer }}">{{ insurer }}</option>{% endfor %}
                             </select>
                         </div>
-                        <div class="detail-item"><label>Consultant:</label><span data-key="consultant" data-type="static"></span>
+                        
+                        <div class="detail-item">
+                            <label>Consultant:</label>
+                            <span data-key="consultant" data-type="static"></span>
                             <select name="consultant" id="edit_consultant" class="edit-input border p-2 rounded-lg text-sm">
                                 {% for consultant in consultants %}<option value="{{ consultant }}">{{ consultant }}</option>{% endfor %}
                             </select>
                         </div>
-                        <div class="detail-item"><label>Status:</label><span data-key="status" data-type="static"></span>
+                        
+                        <div class="detail-item">
+                            <label>Status:</label>
+                            <span data-key="status" data-type="static"></span>
                             <select name="status" id="edit_status" class="edit-input border p-2 rounded-lg text-sm">
-                                <option value="InProgress">In Progress</option><option value="Pending">Pending</option><option value="Resolved">Resolved</option>
+                                <option value="InProgress">In Progress</option>
+                                <option value="Pending">Pending</option>
+                                <option value="Resolved">Resolved</option>
                             </select>
                         </div>
-                        <div class="detail-item"><label>Last Action:</label><span data-key="lastAction"></span></div>
+                        
+                        <div class="detail-item">
+                            <label>Last Action:</label>
+                            <span data-key="lastAction"></span>
+                            </div>
                     </div>
 
-                    <div class="lg:col-span-2 mt-8 border-t pt-6">
-                        <h3 class="text-md font-bold mb-4 text-gray-700">Initial Request Notes</h3>
-                        <div id="detail-notes" class="bg-gray-50 p-4 rounded-xl text-sm text-gray-700 whitespace-pre-wrap border border-gray-100" data-type="static"></div>
+                    <div class="lg:col-span-2 mt-4">
+                        <h3 class="text-md font-bold mb-2 text-gray-700">Initial Request Notes</h3>
+                        <div id="detail-notes" class="bg-gray-50 p-4 rounded-xl text-sm text-gray-700 whitespace-pre-wrap border border-gray-100 min-h-[80px]" data-type="static"></div>
                         <textarea name="initial_notes" id="edit_initialNotes" rows="3" class="edit-input border p-3 rounded-xl w-full text-sm"></textarea>
                     </div>
                 </div>
@@ -397,11 +446,22 @@
                 </h2>
                 <div id="reminder-creation-area" class="bg-orange-50 p-6 rounded-2xl border border-orange-100 hidden mb-6 mt-4">
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
-                        <div class="input-group"><label>Reminder Date</label><input type="date" id="reminder_date" class="p-3 border rounded-xl w-full"></div>
-                        <div class="input-group md:col-span-2"><label>Recipient Email(s)</label><input type="email" id="reminder_email" class="p-3 border rounded-xl w-full" placeholder="comma separated" multiple></div>
+                        <div class="input-group">
+                            <label>Reminder Date</label>
+                            <input type="date" id="reminder_date" class="p-3 border rounded-xl w-full">
+                        </div>
+                        <div class="input-group md:col-span-2">
+                            <label>Recipient Email(s)</label>
+                            <input type="email" id="reminder_email" class="p-3 border rounded-xl w-full" placeholder="comma separated" multiple>
+                        </div>
                     </div>
-                    <div class="input-group"><label>Reminder Note</label><textarea id="reminder_note" rows="2" class="w-full p-3 border rounded-xl"></textarea></div>
-                    <div class="flex justify-end mt-4"><button onclick="saveReminder()" class="action-button bg-orange-600">Set Schedule</button></div>
+                    <div class="input-group">
+                        <label>Reminder Note</label>
+                        <textarea id="reminder_note" rows="2" class="w-full p-3 border rounded-xl"></textarea>
+                    </div>
+                    <div class="flex justify-end mt-4">
+                        <button onclick="saveReminder()" class="action-button bg-orange-600">Set Schedule</button>
+                    </div>
                 </div>
             </div>
 
@@ -412,24 +472,37 @@
                         <i class="fas fa-plus mr-1"></i> Add Note
                     </button>
                 </h2>
+                
                 <div id="note-creation-area" class="bg-green-50 p-6 rounded-2xl border border-green-100 hidden mb-6 mt-4">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
-                        <div class="select-group"><label>Comm Type</label><select id="new_note_type" class="p-3 border rounded-xl" onchange="updateNoteSelections()">
-                            <option value="Inbound Email">Inbound Email</option><option value="Outbound Email">Outbound Email</option><option value="Inbound Call">Inbound Call</option><option value="Outbound Call">Outbound Call</option><option value="General Note">General Note</option>
-                        </select></div>
-                        <div class="select-group"><label>Note Selection</label><select id="new_note_selection" class="p-3 border rounded-xl"></select></div>
+                        <div class="select-group">
+                            <label>Comm Type</label>
+                            <select id="new_note_type" class="p-3 border rounded-xl" onchange="updateNoteSelections()">
+                                <option value="Inbound Email">Inbound Email</option>
+                                <option value="Outbound Email">Outbound Email</option>
+                                <option value="Inbound Call">Inbound Call</option>
+                                <option value="Outbound Call">Outbound Call</option>
+                                <option value="General Note">General Note</option>
+                            </select>
+                        </div>
+                        <div class="select-group">
+                            <label>Note Selection</label>
+                            <select id="new_note_selection" class="p-3 border rounded-xl"></select>
+                        </div>
                     </div>
                     <textarea id="new_note_body" rows="3" placeholder="Enter note body..." class="w-full p-3 border rounded-xl mb-4"></textarea>
-                    <div class="flex justify-end"><button onclick="saveNewNote()" class="action-button">Post Note</button></div>
+                    <div class="flex justify-end">
+                        <button onclick="saveNewNote()" class="action-button">Post Note</button>
+                    </div>
                 </div>
 
                 <div class="overflow-y-auto max-h-72 mt-4 rounded-xl border border-gray-100">
                     <table class="w-full text-sm">
-                        <thead class="sticky top-0 bg-white">
+                        <thead class="sticky top-0 bg-white shadow-sm z-10">
                             <tr class="note-list-header">
-                                <th class="p-3 text-left">Title</th>
-                                <th class="p-3 text-left">Body Preview</th>
-                                <th class="p-3 text-left">User/Date</th>
+                                <th class="p-3 text-left w-1/4">Title</th>
+                                <th class="p-3 text-left w-1/2">Body Preview</th>
+                                <th class="p-3 text-left w-1/4">User/Date</th>
                             </tr>
                         </thead>
                         <tbody id="existing-notes-body">
@@ -449,14 +522,21 @@
     <form id="new-note-form" method="POST" action="{% url 'create_claim_note' %}" class="hidden">
         {% csrf_token %}
         <input type="hidden" id="note_claim_id" name="note_claim_id">
-        <input type="hidden" id="note_comm_type_hidden" name="note_comm_type"><input type="hidden" id="note_selection_hidden" name="note_selection"><textarea id="note_body_hidden" name="note_body"></textarea>
+        <input type="hidden" id="note_comm_type_hidden" name="note_comm_type">
+        <input type="hidden" id="note_selection_hidden" name="note_selection">
+        <textarea id="note_body_hidden" name="note_body"></textarea>
     </form>
+    
     <form id="new-reminder-form" method="POST" action="{% url 'create_claim_reminder' %}" class="hidden">
         {% csrf_token %}
-        <input type="hidden" id="reminder_claim_id" name="reminder_claim_id"><input type="hidden" id="reminder_date_hidden" name="reminder_date_hidden"><input type="hidden" id="reminder_email_hidden" name="reminder_email_hidden"><textarea id="reminder_note_hidden" name="reminder_note_hidden"></textarea>
+        <input type="hidden" id="reminder_claim_id" name="reminder_claim_id">
+        <input type="hidden" id="reminder_date_hidden" name="reminder_date_hidden">
+        <input type="hidden" id="reminder_email_hidden" name="reminder_email_hidden">
+        <textarea id="reminder_note_hidden" name="reminder_note_hidden"></textarea>
     </form>
 
     <script>
+        // --- Note Types Configuration ---
         const NOTE_SELECTIONS = {
             'Inbound Email': ['New Claim Received', 'Outstanding documents received', 'Employer follow up', 'Enquiry from Insurer', 'Feedback from Insurer'],
             'Outbound Email': ['Requested outstanding docs', 'Claim docs submitted', 'Feedback to employer', 'Enquiry to insurer'],
@@ -465,11 +545,21 @@
             'General Note': ['Internal File Note', 'Reminder Set']
         };
 
+        // --- Data Initialization ---
         let CLAIMS_DATA;
-        try { CLAIMS_DATA = JSON.parse('{{ claims_json|escapejs }}'); } catch (e) { CLAIMS_DATA = []; }
+        try { 
+            // Parsing JSON securely
+            CLAIMS_DATA = JSON.parse('{{ claims_json|escapejs }}'); 
+        } catch (e) { 
+            console.error("JSON Parse Error:", e);
+            CLAIMS_DATA = []; 
+        }
+        
         let currentClaimId = null; 
         let currentClaimData = null;
 
+        // --- Core Functions ---
+        
         function updateNoteSelections() {
             const type = document.getElementById('new_note_type').value;
             const sel = document.getElementById('new_note_selection');
@@ -480,47 +570,80 @@
         }
 
         function showClaimDetails(id) {
-            exitEditMode(false);
+            exitEditMode(false); // Reset to View Mode
             const claim = CLAIMS_DATA.find(c => c.id === id);
             if (!claim) return;
-            currentClaimId = id; currentClaimData = claim;
+            
+            currentClaimId = id; 
+            currentClaimData = claim;
+            
+            // Set Hidden ID for Update Form
             document.getElementById('update_claim_id').value = id;
             document.getElementById('detail-claim-title').textContent = `Claim Details: #${claim.id}`;
             
-            const map = { memberNo: claim.memberNo, idPassport: claim.idPassport, firstName: claim.firstName, surname: claim.surname, claimType: claim.claimType, insurer: claim.insurer, consultant: claim.consultant, status: claim.status };
+            // Map JSON keys to HTML Elements
+            const map = { 
+                memberNo: claim.memberNo, 
+                idPassport: claim.idPassport, 
+                firstName: claim.firstName, 
+                surname: claim.surname, 
+                employerName: claim.employerName, // New Field
+                claimType: claim.claimType, 
+                insurer: claim.insurer, 
+                consultant: claim.consultant, 
+                status: claim.status,
+                lastAction: claim.lastAction // New Field
+            };
+            
             for (const k in map) {
+                // Populate Static Span
                 const s = document.querySelector(`[data-key="${k}"][data-type="static"]`);
+                if (s) s.textContent = map[k] || '-'; // Show dash if empty
+                
+                // Populate Edit Input (if exists)
                 const i = document.getElementById(`edit_${k}`);
-                if (s) s.textContent = map[k];
-                if (i) i.value = map[k];
+                if (i) i.value = map[k] || '';
             }
+            
+            // Populate Notes
             document.getElementById('detail-notes').textContent = claim.initialNotes || 'No notes.';
             document.getElementById('edit_initialNotes').value = claim.initialNotes || '';
             populateNotes(claim.notes || []);
+            
+            // Show Modal
             document.getElementById('claim-detail-modal').classList.remove('hidden');
         }
 
         function enableEditMode() {
             toggleEditModeDisplay(true);
             const btn = document.getElementById('edit-save-button');
-            btn.textContent = 'Save Changes'; btn.classList.replace('bg-blue-50', 'bg-green-600'); btn.classList.replace('text-blue-700', 'text-white');
+            btn.textContent = 'Save Changes'; 
+            btn.classList.replace('bg-blue-50', 'bg-green-600'); 
+            btn.classList.replace('text-blue-700', 'text-white');
             btn.setAttribute('onclick', 'saveClaimChanges()');
             document.getElementById('bottom-save-button').classList.remove('hidden');
         }
 
-        function saveClaimChanges() { if (confirm("Save changes?")) document.getElementById('update-claim-form').submit(); }
+        function saveClaimChanges() { 
+            if (confirm("Are you sure you want to save these changes?")) {
+                document.getElementById('update-claim-form').submit(); 
+            }
+        }
 
         function exitEditMode(update = true) {
             toggleEditModeDisplay(false);
             if (update) {
                 const btn = document.getElementById('edit-save-button');
-                btn.textContent = 'Edit Details'; btn.classList.replace('bg-green-600', 'bg-blue-50'); btn.classList.replace('text-white', 'text-blue-700');
+                btn.textContent = 'Edit Details'; 
+                btn.classList.replace('bg-green-600', 'bg-blue-50'); 
+                btn.classList.replace('text-white', 'text-blue-700');
                 btn.setAttribute('onclick', 'enableEditMode()');
             }
             document.getElementById('bottom-save-button').classList.add('hidden');
         }
 
         function toggleEditModeDisplay(isEdit) {
+            // Toggle visibility of spans vs inputs
             document.querySelectorAll('[data-type="static"]').forEach(el => el.style.display = isEdit ? 'none' : 'block');
             document.querySelectorAll('.edit-input').forEach(el => el.style.display = isEdit ? 'block' : 'none');
         }
@@ -528,28 +651,51 @@
         function toggleReminderArea() { document.getElementById('reminder-creation-area').classList.toggle('hidden'); }
 
         function saveReminder() {
-            const d = document.getElementById('reminder_date').value, e = document.getElementById('reminder_email').value, n = document.getElementById('reminder_note').value;
-            if (!d || !e || !n) return alert("Fill all fields");
+            const d = document.getElementById('reminder_date').value;
+            const e = document.getElementById('reminder_email').value;
+            const n = document.getElementById('reminder_note').value;
+            
+            if (!d || !e || !n) return alert("Please fill all reminder fields");
+            
             document.getElementById('reminder_claim_id').value = currentClaimId;
-            document.getElementById('reminder_date_hidden').value = d; document.getElementById('reminder_email_hidden').value = e; document.getElementById('reminder_note_hidden').value = n;
+            document.getElementById('reminder_date_hidden').value = d; 
+            document.getElementById('reminder_email_hidden').value = e; 
+            document.getElementById('reminder_note_hidden').value = n;
             document.getElementById('new-reminder-form').submit();
         }
 
         function populateNotes(arr) {
             const tb = document.getElementById('existing-notes-body');
             document.getElementById('note-count').textContent = arr.length;
-            tb.innerHTML = arr.length ? '' : '<tr><td colspan="3" class="text-center py-6">No notes.</td></tr>';
+            
+            if (!arr || arr.length === 0) {
+                tb.innerHTML = '<tr><td colspan="3" class="text-center py-6 text-gray-400">No notes recorded yet.</td></tr>';
+                return;
+            }
+            
+            tb.innerHTML = '';
             arr.forEach(n => {
-                const r = tb.insertRow(); r.className = 'note-row border-b hover:bg-gray-50';
-                r.innerHTML = `<td class="p-3 font-bold">${n.title}</td><td class="p-3 text-gray-600">${n.body.substring(0,40)}...</td><td class="p-3 text-xs">${n.createdBy}<br>${n.date.split(' ')[0]}</td>`;
+                const r = tb.insertRow(); 
+                r.className = 'note-row border-b hover:bg-gray-50';
+                r.innerHTML = `
+                    <td class="p-3 font-bold text-gray-700">${n.title}</td>
+                    <td class="p-3 text-gray-600">${n.body}</td>
+                    <td class="p-3 text-xs text-gray-500">
+                        ${n.createdBy}<br>
+                        ${n.date}
+                    </td>`;
             });
         }
 
-        function addNote() { document.getElementById('note-creation-area').classList.toggle('hidden'); updateNoteSelections(); }
+        function addNote() { 
+            document.getElementById('note-creation-area').classList.toggle('hidden'); 
+            updateNoteSelections(); 
+        }
 
         function saveNewNote() {
             const b = document.getElementById('new_note_body').value;
-            if (!b) return;
+            if (!b) return alert("Please enter a note body.");
+            
             document.getElementById('note_claim_id').value = currentClaimId;
             document.getElementById('note_comm_type_hidden').value = document.getElementById('new_note_type').value;
             document.getElementById('note_selection_hidden').value = document.getElementById('new_note_selection').value;
@@ -564,10 +710,15 @@
         function exportClaims() {
             let csv = "ID,Member No,First Name,Surname,ID/Passport,Employer,Insurer,Last Action,Type,Consultant,Status,Date\n";
             document.querySelectorAll('#claims-table-body tr').forEach(row => {
-                if (row.cells.length > 1) csv += Array.from(row.cells).map(c => `"${c.innerText.trim()}"`).join(",") + "\n";
+                // Ensure we skip the 'empty' row if table is empty
+                if (row.cells.length > 1) {
+                    csv += Array.from(row.cells).map(c => `"${c.innerText.trim()}"`).join(",") + "\n";
+                }
             });
-            const link = document.createElement("a"); link.href = 'data:text/csv;charset=utf-8,' + encodeURI(csv);
-            link.download = `claims_export_${new Date().toISOString().slice(0,10)}.csv`; link.click();
+            const link = document.createElement("a"); 
+            link.href = 'data:text/csv;charset=utf-8,' + encodeURI(csv);
+            link.download = `claims_export_${new Date().toISOString().slice(0,10)}.csv`; 
+            link.click();
         }
     </script>
 </body>

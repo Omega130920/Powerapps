@@ -5,11 +5,16 @@ from . import views
 urlpatterns = [
     # Core Application Routes
     path('', views.consulting_home, name='consulting_home'),
-    path('home/', views.home_view, name='home'), # Added 'home' name for consistency if used elsewhere
+    path('home/', views.home_view, name='home'),
+
+    # --- Client Management Routes ---
     
-    # Client Management Routes
+    # 1. SPECIFIC PATHS FIRST (Fixes the 404 error)
+    path('client/post-note/', views.post_client_note, name='post_client_note'),
+    
+    # 2. GENERIC PATHS AFTER
     path('clients/', views.client_list_view, name='client_list'),
-    path('client/<str:client_code>/', views.client_info_view, name='client_info'),
+    path('client/<str:client_code>/', views.client_info_view, name='client_info'), # Now this won't "eat" the post-note request
     path('clients/add/', views.add_client_view, name='add_client'),
     path('clients/edit/<str:client_code>/', views.edit_client_view, name='edit_client'),
 
@@ -21,6 +26,7 @@ urlpatterns = [
     
     # Path for logging a new note/follow-up
     path('leads/<int:lead_id>/log_note/', views.log_lead_note_view, name='log_lead_note'),
+    
     # URL for the Claims Dashboard
     path('claims/', views.claims_dashboard, name='claims_dashboard'),
     

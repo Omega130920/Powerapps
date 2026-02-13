@@ -163,10 +163,10 @@
                         <th>Member Group Name</th>
                         <th>Member Group Code</th>
                         <th>Member</th>
-                        <th>Member Group Status</th>
+                        <!--<th>Member Group Status</th>-->
                         <th>Contribution</th>
-                        <th>Notes</th>
-                        <th>Email Address</th>
+                        <!--<th>Notes</th>
+                        <th>Email Address</th>-->
                         <th>MG Contact Tel. 1</th>
                         <th>MG Contact Tel. 2</th>
                     </tr>
@@ -177,10 +177,10 @@
                         <td><strong>{{ record.mip_names }}</strong></td>
                         <td>{{ record.branch_code|default:"-" }}</td>
                         <td>{{ record.member|default:"-" }}</td>
-                        <td>{{ record.status|default:"-" }}</td>
+                        <!--<td>{{ record.status|default:"-" }}</td>-->
                         <td>{{ record.contribution_amount|default:"-" }}</td>
-                        <td>{{ record.notes|truncatechars:30 }}</td>
-                        <td>{{ record.mg_email_address|default:"-" }}</td>
+                        <!--<td>{{ record.notes|truncatechars:30 }}</td>
+                        <td>{{ record.mg_email_address|default:"-" }}</td>-->
                         <td>{{ record.tel|default:"-" }}</td>
                         <td>-</td>
                     </tr>

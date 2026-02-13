@@ -248,7 +248,7 @@ def unity_list(request):
             'f_billing_method': detail_record.f_billing_method if detail_record else None,
             'g_current_fiscal': detail_record.g_current_fiscal if detail_record else None,
             # OVERWRITTEN WITH CALCULATED STATUS:
-            'h_current_status': billing_status_map.get(company_code, "NO BILLING"),
+            'h_current_status': billing_status_map.get(company_code, "N/A"),
             'j_arrears': detail_record.j_arrears if detail_record else None,
             'has_details': bool(detail_record),
             'active_surplus': active_surplus_value,
@@ -4162,18 +4162,27 @@ def email_list_view(request):
         'all_agents': User.objects.filter(is_active=True).order_by('username'),
         'status_filter': status_filter,
     })
+
+
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter
     
+# ==============================================================================
+# CORRECTED EXPORT FUNCTIONS
+# ==============================================================================
+
 @login_required
 def export_two_pot_excel(request):
     """
-    Exports Two-Pot claims to Excel.
-    UPDATED: Branch now maps to Member Group Name (MGC Name).
+    Exports Two-Pot claims to the EXACT Yellow Billing format shown in image_b3cad9.png.
+    Fixed: 'NoneType' object has no attribute 'strftime' error.
     """
     query = request.GET.get('q')
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
 
-    claims_queryset = UnityClaim.objects.filter(claim_type='Two Pot').order_by('-claim_created_date')
+    # 1. Filter for Two Pot claims
+    claims_queryset = UnityClaim.objects.filter(claim_type='Two Pot').order_by('claim_created_date')
 
     if query:
         claims_queryset = claims_queryset.filter(
@@ -4189,8 +4198,7 @@ def export_two_pot_excel(request):
         except ValueError:
             pass
 
-    # --- PRE-FETCH MEMBER GROUP NAMES FOR THE BRANCH COLUMN ---
-    # Fetch distinct company codes from the queryset to minimize DB hits
+    # 2. Company mapping for the 'Branch' column
     company_codes = claims_queryset.values_list('company_code', flat=True).distinct()
     mg_map = {
         item['a_company_code']: item['b_company_name'] 
@@ -4199,79 +4207,119 @@ def export_two_pot_excel(request):
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Two Pot Extract"
+    ws.title = "Two-Pot Billing"
 
+    # --- Styles Definition ---
+    yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+    
+    # 3. Create Row Offsets (The image shows the header starting at Row 4)
+    now = timezone.now()
+    display_start = start_date if start_date else now.replace(day=1).strftime('%d.%m.%Y')
+    display_end = end_date if end_date else now.strftime('%d.%m.%Y')
+    
+    title_text = f"Billing - Member Emergency Savings Pot Withdrawal Requested - {display_start} to {display_end}"
+    
+    # Merge and style Row 4
+    ws.merge_cells('A4:O4')
+    header_cell = ws['A4']
+    header_cell.value = title_text
+    header_cell.font = Font(bold=True, size=11, underline="single")
+    header_cell.fill = yellow_fill
+    header_cell.alignment = Alignment(horizontal='left', vertical='center')
+    header_cell.border = thin_border
+    ws.row_dimensions[4].height = 25
+
+    # 4. Column Headers at Row 5
     headers = [
-        "DATE EXTRACT INFO / FORM FROM WEB - Savings Form Request",
-        "Initials",
-        "Surname",
-        "Member number",
-        "ID NUMBER",
-        "Fund",
-        "Branch", # Maps to Member Group Name
-        "Query",
-        "Claim",
-        "Qualified",
-        "Date submitted/ online",
-        "Succesfull Loaded confirmation",
-        "Amount Apply for",
-        "Admin Fee R33 + 15% Vat",
-        "Note"
+        "DATE EXTRACT INFO / FORM FROM WEB - Savings Form Request", "Initials", "Surname", 
+        "Member number", "ID NUMBER", "Fund", "Branch", "Query", "Claim", 
+        "Qualified", "Date submitted/ online", "Succesfull Loaded confirmation", 
+        "Amount Apply for", "Admin Fee R33 + 15% Vat", "Note"
     ]
-    ws.append(headers)
+    
+    # Fill empty rows to reach row 5
+    ws.append([]) # Row 1
+    ws.append([]) # Row 2
+    ws.append([]) # Row 3
+    ws.append(headers) # This becomes Row 5
+    
+    for cell in ws[5]:
+        cell.font = Font(bold=True, size=9)
+        cell.fill = yellow_fill
+        cell.border = thin_border
+        cell.alignment = Alignment(wrap_text=True, horizontal='center', vertical='center')
+    ws.row_dimensions[5].height = 50
 
+    # 5. Add Data starting from Row 6
     for claim in claims_queryset:
-        initials = claim.member_name[:1] if claim.member_name else ""
-        
-        # Qualified Logic
-        status_text = str(claim.claim_status).strip()
-        if "Withdraw" in status_text: 
-            qualified_logic = "No"
-        else:
-            qualified_logic = "Yes"
-        
-        latest_note_obj = claim.notes.last()
-        note_content = latest_note_obj.note_description if latest_note_obj else ""
-
-        # Fetch the Member Group Name using the company_code
+        initials = "".join([n[0] for n in claim.member_name.split() if n]) if claim.member_name else ""
         branch_name = mg_map.get(claim.company_code, "Unknown Group")
+        status_text = str(claim.claim_status).upper().strip()
+        
+        is_paid = status_text == "PAID"
+        qualified_val = "YES" if is_paid else "NO"
+        # Claim logic mapped to template
+        claim_label = "Savings Form Submitted" if is_paid else "Member Emergency Savings Pot Withdrawal Requested"
+        
+        # --- FIX: Safe date handling for strftime error ---
+        if is_paid:
+            # Check if date exists before calling strftime
+            submit_date_label = claim.date_submitted.strftime('%d.%m.%Y') if claim.date_submitted else "Pending"
+        else:
+            submit_date_label = "Withdrawal Not Allowed"
+            
+        loaded_confirm = "YES" if is_paid else ""
+        last_note = claim.notes.last().note_description if claim.notes.exists() else ""
 
         row = [
-            claim.claim_created_date,               # DATE EXTRACT
-            initials,                               # Initials
-            claim.member_surname,                   # Surname
-            claim.mip_number,                       # Member number
-            claim.id_number,                        # ID NUMBER
-            claim.company_code,                     # Fund (MG)
-            branch_name,                            # Branch (MGC Name) - UPDATED
-            'Savings form request',                 # Query
-            claim.claim_status,                     # Claim
-            qualified_logic,                        # Qualified
-            claim.date_submitted,                   # Date submitted
-            qualified_logic,                        # Succesfull Loaded
-            claim.claim_amount,                     # Amount Apply for
-            37.95,                                  # Admin Fee
-            note_content                            # Note
+            claim.claim_created_date.strftime('%d/%m/%Y') if claim.claim_created_date else '', # A
+            initials, # B
+            claim.member_surname, # C
+            claim.mip_number, # D
+            claim.id_number, # E
+            claim.company_code, # F
+            branch_name, # G
+            "Savings Form Request", # H
+            claim_label, # I
+            qualified_val, # J
+            submit_date_label, # K
+            loaded_confirm, # L
+            float(claim.claim_amount or 0), # M
+            37.95, # N (R33 + 15% VAT)
+            last_note # O
         ]
         ws.append(row)
 
+        # Style the row and handle Red text for "NO" status
+        for cell in ws[ws.max_row]:
+            cell.border = thin_border
+            cell.alignment = Alignment(vertical='center', horizontal='left')
+            if qualified_val == "NO":
+                cell.font = Font(size=9, color="FF0000") # Red text for unqualified rows
+            else:
+                cell.font = Font(size=9)
+
+    # 6. Set Column Widths to match template visual density
+    widths = [22, 8, 18, 14, 18, 10, 25, 20, 35, 10, 22, 18, 14, 14, 40]
+    for i, width in enumerate(widths):
+        ws.column_dimensions[get_column_letter(i+1)].width = width
+
+    # Download response
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = 'attachment; filename="Two_Pot_Export.xlsx"'
+    response['Content-Disposition'] = f'attachment; filename="Two_Pot_Billing_{now.strftime("%Y_%m_%d")}.xlsx"'
     wb.save(response)
     return response
 
 @login_required
 def export_global_claims_excel(request):
     """
-    Exports Global Claims to Excel.
-    UPDATED: Excludes Two-Pot, Branch = Member Group Name lookup.
+    STRICT: Excludes all 'Two Pot' claims.
+    Format: Green Audit Spreadsheet matching the database-style layout.
     """
     query = request.GET.get('q')
-    start_date = request.GET.get('start_date')
-    end_date = request.GET.get('end_date')
-    claim_type_filter = request.GET.get('claim_type')
-
-    # FIX: Exclude Two Pot from the Global Export
+    
+    # 1. Filter: Exclude 'Two Pot' to keep this as a standard audit export
     claims_queryset = UnityClaim.objects.exclude(claim_type='Two Pot').order_by('-claim_created_date')
 
     if query:
@@ -4282,17 +4330,7 @@ def export_global_claims_excel(request):
             Q(mip_number__icontains=query)
         )
 
-    if start_date and end_date:
-        try:
-            claims_queryset = claims_queryset.filter(claim_created_date__range=[start_date, end_date])
-        except ValueError:
-            pass
-
-    if claim_type_filter and claim_type_filter != "All":
-        claims_queryset = claims_queryset.filter(claim_type=claim_type_filter)
-
-    # Pre-fetch Company Names for the "Branch" requirement
-    # This avoids doing a database query inside the loop for every single row
+    # 2. Map Branch Names
     company_codes = claims_queryset.values_list('company_code', flat=True).distinct()
     mg_map = {
         item['a_company_code']: item['b_company_name'] 
@@ -4301,67 +4339,72 @@ def export_global_claims_excel(request):
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Global Claims Extract"
+    ws.title = "Withdrawal Audit"
 
+    # --- Styles Definition ---
+    # Light green fill matching the dashboard style
+    green_fill = PatternFill(start_color="C8E6C9", end_color="C8E6C9", fill_type="solid")
+    thin_border = Border(
+        left=Side(style='thin'), 
+        right=Side(style='thin'), 
+        top=Side(style='thin'), 
+        bottom=Side(style='thin')
+    )
+    header_font = Font(bold=True, size=11)
+
+    # 3. Headers (Row 1) - Standard Audit Layout
     headers = [
-        "Company Code",
-        "Branch", # Was Agent, now Branch (Member Group Name)
-        "Agent",
-        "ID Number",
-        "Member Name",
-        "Member Surname",
-        "MIP Number",
-        "Claim Type",
-        "Exit Reason",
-        "Claim Allocation",
-        "Claim Status",
-        "Payment Option",
-        "Claim Created Date",
-        "Last Contribution Date",
-        "Date Submitted",
-        "Date Paid",
-        "Vested Pot available",
-        "Vested Pot Paid",
-        "Savings Pot available",
-        "Savings Pot Paid",
-        "Infund Preservation"
+        "Co Code", "Branch", "Agent", "MIP Number", "ID Number", 
+        "Name", "Surname", "Type", "Status", "Exit Reason", 
+        "Created", "Submitted", "Paid"
     ]
     ws.append(headers)
+    
+    for cell in ws[1]:
+        cell.fill = green_fill
+        cell.font = header_font
+        cell.border = thin_border
+        cell.alignment = Alignment(horizontal='center', vertical='center')
 
+    # 4. Add Data
     for claim in claims_queryset:
-        vested_avail = "Yes" if claim.vested_pot_available else ""
-        savings_avail = "Yes" if claim.savings_pot_available else ""
-        
-        # Look up Member Group Name for the Branch column
         branch_name = mg_map.get(claim.company_code, "Unknown Group")
+        
+        # Safe Date Formatting to prevent NoneType errors
+        created = claim.claim_created_date.strftime('%Y-%m-%d') if claim.claim_created_date else ''
+        submitted = claim.date_submitted.strftime('%Y-%m-%d') if claim.date_submitted else ''
+        paid = claim.date_paid.strftime('%Y-%m-%d') if claim.date_paid else ''
 
-        row = [
+        row_data = [
             claim.company_code,
-            branch_name,            # Branch = Member_Group_Name
-            claim.agent,
+            branch_name,
+            claim.agent if claim.agent else '',
+            claim.mip_number if claim.mip_number else '',
             claim.id_number,
             claim.member_name,
             claim.member_surname,
-            claim.mip_number,
             claim.claim_type,
-            claim.exit_reason,
-            claim.claim_allocation,
             claim.claim_status,
-            claim.payment_option,
-            claim.claim_created_date,
-            claim.last_contribution_date,
-            claim.date_submitted,
-            claim.date_paid,
-            vested_avail,
-            claim.vested_pot_paid_date,
-            savings_avail,
-            claim.savings_pot_paid_date,
-            claim.infund_preservation_cert_received_date
+            claim.exit_reason if claim.exit_reason else '',
+            created,
+            submitted,
+            paid
         ]
-        ws.append(row)
+        ws.append(row_data)
 
+        # Apply borders to data rows
+        for cell in ws[ws.max_row]:
+            cell.border = thin_border
+            cell.alignment = Alignment(vertical='center')
+
+    # 5. Set column widths for professional spacing
+    column_widths = [12, 35, 20, 15, 20, 20, 20, 15, 15, 20, 15, 15, 15]
+    for i, width in enumerate(column_widths):
+        ws.column_dimensions[get_column_letter(i+1)].width = width
+
+    # 6. Generate Response
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = 'attachment; filename="Global_Claims_Export.xlsx"'
+    response['Content-Disposition'] = 'attachment; filename="Global_Claims_Audit_Export.xlsx"'
     wb.save(response)
     return response
 

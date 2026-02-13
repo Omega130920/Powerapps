@@ -20,8 +20,8 @@ urlpatterns = [
     # --- Outlook DELEGATED Paths (Assigned User Workflow) ---
     path('outlook/delegated/', views.outlook_delegated_box, name='outlook_delegated_box'),
     path('outlook/delegated/<int:delegation_id>/action/', 
-         views.outlook_delegated_action, 
-         name='outlook_delegated_action'),
+          views.outlook_delegated_action, 
+          name='outlook_delegated_action'),
     path('outlook/delegate/<str:email_id>/', views.outlook_delegate_to, name='outlook_delegate_to'),
     
     # --- Global Claims & Two-Pot Management ---
@@ -40,19 +40,20 @@ urlpatterns = [
     
     # --- Exports & Utilities ---
     path('acvv/export/', views.export_acvv_list_excel, name='export_acvv_excel'),
-    path('outlook/thread/<int:delegation_id>/', views.outlook_view_thread, name='outlook_view_thread'),
-    path('export/temp-exists/', views.export_temp_exists, name='export_temp_exists'), #
+    path('export/temp-exists/', views.export_temp_exists, name='export_temp_exists'), 
+    
+    # 🛑 UPDATED: One path to rule them all (String based)
+    path('outlook/thread/<str:delegation_id>/', views.outlook_view_thread, name='outlook_view_thread'),
+    path('outlook/download/<str:delegation_id>/', views.download_acvv_email, name='download_acvv_email'),
     
     # --- Reconciliation Worksheet Paths ---
-    #
     path('reconciliation-worksheet/', views.reconciliation_worksheet, name='reconciliation_worksheet'),
     path('reconciliation-worksheet/export/<str:date_str>/', 
-         views.export_reconciliation_worksheet, 
-         name='export_reconciliation_worksheet'),
+          views.export_reconciliation_worksheet, 
+          name='export_reconciliation_worksheet'),
     path('outlook/email-list/', views.outlook_email_list, name='outlook_email_list'),
     
     path('temp-exists/', views.temp_exists_list, name='temp_exists_list'),
     path('temp-exists/export/', views.export_temp_exists, name='export_temp_exists_excel'),
-    path('outlook/thread/<int:delegation_id>/', views.outlook_view_thread, name='outlook_view_thread'),
-    path('outlook/download/<int:delegation_id>/', views.download_acvv_email, name='download_acvv_email'),
+    path('export-two-pot-billing/', views.export_two_pot_billing_excel, name='export_two_pot_billing'),
 ]

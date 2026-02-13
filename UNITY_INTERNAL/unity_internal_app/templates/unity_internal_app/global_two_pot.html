@@ -52,7 +52,7 @@
     /* PAGINATION */
     .pagination-nav { display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 15px; padding: 10px; background: #f1f8e9; border-radius: 8px; }
 
-    /* MODAL STYLES (MATCHING GLOBAL_CLAIMS) */
+    /* MODAL STYLES */
     .email-preview-modal-content { background: #ffffff; width: 85%; max-width: 900px; margin: 40px auto; padding: 0; border-radius: 12px; box-shadow: 0 20px 50px rgba(0,0,0,0.4); border: none; overflow: hidden; }
     .email-header-box { background: #f1f3f4; padding: 25px 35px; border-bottom: 1px solid #e0e0e0; }
     .email-header-title { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
@@ -87,7 +87,7 @@
             <input type="date" name="end_date" class="search-input" value="{{ end_date|default:'' }}">
         </div>
         <button type="submit" class="dashboard-button">Filter Results</button>
-        <button type="button" class="dashboard-button" style="background-color: #217346;" onclick="triggerExcelExport()">📊 Export Excel</button>
+        <button type="button" class="dashboard-button" style="background-color: #217346;" onclick="triggerExcelExport()">📊 Export Yellow Billing</button>
         <a href="{% url 'global_two_pot' %}" class="dashboard-button" style="background-color: #757575;">Reset</a>
     </form>
 
@@ -150,7 +150,6 @@
                             {% endfor %}
                         </template>
 
-                        {# --- ADDED EMAIL CONTENT TEMPLATE --- #}
                         {% if claim.linked_email_id %}
                         <template id="email-content-{{ claim.id }}">
                             <div class="p-sender">{{ claim.email_preview_sender|default:"Unknown" }}</div>
@@ -233,46 +232,6 @@
                 <div><label style="font-weight:bold;">Created Date *</label><input type="date" name="claim_created_date" class="form-input" required></div>
             </div>
 
-            {# --- ATTACH DELEGATED EMAIL SECTION --- #}
-            <div class="row" style="margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 15px; margin-bottom: 15px;">
-                <div class="col-md-12">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 5px;">
-                        <label for="linked_email_id" style="font-weight: bold; color: #1e88e5;">🔗 Attach Delegated Email (Optional)</label>
-                        <button type="button" onclick="toggleEmailForm()" style="background-color: #ff9800; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">✉️ Compose Email</button>
-                    </div>
-                    
-                    <select id="linked_email_id" name="linked_email_id" class="form-select" style="border: 1px solid #1e88e5; width: 100%;">
-                        <option value="">-- Select an email to link to this claim --</option>
-                        {% for email in my_delegated_emails %}
-                            <option value="{{ email.id }}">📅 {{ email.received_at|date:"Y-m-d" }} | ✉️ {% firstof email.subject email.email_subject "(No Subject)" as subject_text %}{{ subject_text|slice:":40" }}... (From: {% firstof email.sender email.sender_email "Unknown" %})</option>
-                        {% empty %}
-                            <option value="" disabled>No delegated emails found for you.</option>
-                        {% endfor %}
-                    </select>
-
-                    <div id="email-composition-container" style="display: none; margin-top: 15px; background-color: #fffaf5; border: 2px dashed #ff9800; border-radius: 8px; padding: 20px;">
-                        <h3 style="color: #ff9800; margin-top: 0; font-size: 16px;">Compose Outgoing Email</h3>
-                        <textarea id="email_body_html_content" name="email_body_html_content" style="display:none;"></textarea>
-                        <div class="form-group" style="margin-bottom: 10px;">
-                            <label style="font-weight: bold; display: block; margin-bottom: 5px;">To:</label>
-                            <input type="text" id="member_recipient_email" name="member_recipient_email" placeholder="Enter email addresses..." style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 15px;">
-                            <label style="font-weight: bold; display: block; margin-bottom: 5px;">Subject:</label>
-                            <input type="text" id="member_email_subject_reply" name="member_email_subject_reply" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 15px;">
-                            <label style="font-weight: bold; display: block; margin-bottom: 5px;">Email Body:</label>
-                            <textarea id="member_email_body_editor" class="form-input" rows="6" style="width: 100%;">Dear Sir/Madam,&#10;&#10;Kind regards,&#10;{{ request.user.username }}</textarea>
-                        </div>
-                        <div style="text-align: right;">
-                            <button type="button" class="cancel-btn" onclick="toggleEmailForm()" style="font-size: 12px; margin-right: 10px;">Hide Email Form</button>
-                            <button type="submit" name="email_submission_action" value="send_email_and_log" style="padding: 8px 15px; background-color: #f7931e; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Send Email & Save Claim</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <div id="div_two_pot_withdrawal_details" style="display:none; margin-top: 15px; padding: 15px; background: #fffde7; border: 1px solid #fbc02d; border-radius: 8px;">
                 <label style="font-weight:bold; color: #bc5100; display: block; margin-bottom: 5px;">Status Note Helper</label>
                 <select id="two_pot_withdrawal_status" class="form-select" onchange="handleWithdrawalStatusChange()">
@@ -309,7 +268,6 @@
     </div>
 </div>
 
-{# --- EMAIL PREVIEW MODAL --- #}
 <div id="emailPreviewModal" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); z-index: 2000;">
     <div class="email-preview-modal-content">
         <div class="email-header-box">
@@ -337,7 +295,6 @@
         document.getElementById('modal_claim_id').value = '';
         document.getElementById('modalTitle').innerText = "New Two-Pot Entry";
         document.getElementById('claim_notes_tbody').innerHTML = '<tr><td colspan="4" style="text-align:center;">New record.</td></tr>';
-        document.getElementById('email-composition-container').style.display = 'none'; // Ensure composition is hidden
         modal.style.display = 'block';
     }
 
@@ -355,10 +312,6 @@
         document.querySelector('select[name="payment_option"]').value = d.payment_option;
         document.querySelector('input[name="claim_created_date"]').value = d.claim_created_date;
 
-        // Set linked email if exists
-        const emailSelect = document.getElementById('linked_email_id');
-        if(emailSelect) emailSelect.value = d.linked_email_id || "";
-
         const notesSrc = document.getElementById('notes-data-' + d.id);
         if (notesSrc) {
             document.getElementById('claim_notes_tbody').innerHTML = notesSrc.innerHTML;
@@ -367,26 +320,38 @@
         document.getElementById('claimModal').style.display = 'block';
     }
 
-    // --- ADDED EMAIL FUNCTIONS ---
-    function previewLinkedEmail(claimId) {
-        const template = document.getElementById('email-content-' + claimId);
-        if (!template) return;
-        document.getElementById('pv_from').innerText = template.content.querySelector('.p-sender').innerText;
-        document.getElementById('pv_subject').innerText = template.content.querySelector('.p-subject').innerText;
-        document.getElementById('pv_date').innerText = template.content.querySelector('.p-date').innerText;
-        document.getElementById('pv_body').innerHTML = template.content.querySelector('.p-body').innerHTML;
-        document.getElementById('emailPreviewModal').style.display = 'block';
+    function triggerExcelExport() {
+        const q = document.querySelector('input[name="q"]').value;
+        const start = document.querySelector('input[name="start_date"]').value;
+        const end = document.querySelector('input[name="end_date"]').value;
+        
+        // Ensure this points to the NEW view function 'export_two_pot_excel'
+        // and uses the correct parameter names for start_date and end_date
+        window.location.href = "{% url 'export_two_pot_excel' %}?q=" + encodeURIComponent(q) + 
+                               "&start_date=" + start + 
+                               "&end_date=" + end;
     }
 
-    function toggleEmailForm() {
-        const container = document.getElementById('email-composition-container');
-        container.style.display = container.style.display === 'none' ? 'block' : 'none';
+    // Boilerplate for select logic and modal closing
+    document.getElementById('company_code_input').addEventListener('input', function() {
+        const val = this.value;
+        const opts = document.getElementById('company_list').childNodes;
+        for (let i = 0; i < opts.length; i++) {
+            if (opts[i].value === val) {
+                document.getElementById('agent_input').value = opts[i].getAttribute('data-agent');
+                break;
+            }
+        }
+    });
+
+    window.onclick = function(e) {
+        if (e.target == document.getElementById('claimModal')) document.getElementById('claimModal').style.display = "none";
+        if (e.target.id === 'emailPreviewModal') document.getElementById('emailPreviewModal').style.display = "none";
     }
 
     function toggleWithdrawalSubFields() {
         const status = document.getElementById('claim_status_select').value;
-        const helper = document.getElementById('div_two_pot_withdrawal_details');
-        helper.style.display = (status === "Withdraw - Not Allowed") ? 'block' : 'none';
+        document.getElementById('div_two_pot_withdrawal_details').style.display = (status === "Withdraw - Not Allowed") ? 'block' : 'none';
     }
 
     function handleWithdrawalStatusChange() {
@@ -400,33 +365,6 @@
         } else if (reason.includes("Already claim")) {
             const date = document.getElementById('prev_claim_date_input').value;
             note.value = `Withdrawal - Already claimed in current financial year (Member claim date: ${date || '[Date]'}) - Next claim allowed after March 1st.`;
-        }
-    }
-
-    function triggerExcelExport() {
-        const q = document.querySelector('input[name="q"]').value;
-        const start = document.querySelector('input[name="start_date"]').value;
-        const end = document.querySelector('input[name="end_date"]').value;
-        window.location.href = "{% url 'export_global_claims_excel' %}?q=" + encodeURIComponent(q) + "&start=" + start + "&end=" + end + "&type=Two Pot";
-    }
-
-    document.getElementById('company_code_input').addEventListener('input', function() {
-        const val = this.value;
-        const opts = document.getElementById('company_list').childNodes;
-        for (let i = 0; i < opts.length; i++) {
-            if (opts[i].value === val) {
-                document.getElementById('agent_input').value = opts[i].getAttribute('data-agent');
-                break;
-            }
-        }
-    });
-
-    window.onclick = function(e) {
-        if (e.target == document.getElementById('claimModal')) {
-            document.getElementById('claimModal').style.display = "none";
-        }
-        if (e.target.id === 'emailPreviewModal') {
-            document.getElementById('emailPreviewModal').style.display = "none";
         }
     }
 </script>

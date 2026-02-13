@@ -49,18 +49,12 @@
     .cancel-btn { background-color: #757575; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
     .save-info-btn { background-color: #1565c0; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-left: 10px; }
 
-    /* POT SECTION STYLES */
-    .pot-section { margin-top: 15px; padding: 15px; border: 1px solid #1e88e5; border-radius: 8px; background-color: #f1f8ff; }
-    .pot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px; }
-    .pot-box { background: white; padding: 12px; border-radius: 6px; border: 1px solid #bbdefb; }
-
     /* PAGINATION */
     .pagination-nav { display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 15px; padding: 10px; background: #f1f8e9; border-radius: 8px; }
 
     /* EMAIL PREVIEW MODAL STYLES */
     .email-preview-modal-content { background: #ffffff; width: 85%; max-width: 1000px; margin: 40px auto; padding: 0; border-radius: 16px; box-shadow: 0 25px 60px rgba(0,0,0,0.5); overflow: hidden; }
-    .email-header-box { background: #f8f9fa; padding: 20px 30px; border-bottom: 1px solid #e0e0e0; }
-    .email-body-container { padding: 30px 40px; background: #ffffff; max-height: 55vh; overflow-y: auto; color: #3c4043; font-size: 1rem; line-height: 1.7; }
+    .email-body-container { padding: 40px; background: #ffffff; max-height: 70vh; overflow-y: auto; color: #3c4043; font-size: 1rem; line-height: 1.7; }
 </style>
 {% endblock %}
 
@@ -131,11 +125,6 @@
                             data-payment_option="{{ claim.payment_option }}"
                             data-claim_amount="{{ claim.claim_amount|default:'' }}"
                             data-claim_created_date="{{ claim.claim_created_date|date:'Y-m-d' }}"
-                            data-vested_pot_available="{{ claim.vested_pot_available }}"
-                            data-vested_pot_paid_date="{{ claim.vested_pot_paid_date|date:'Y-m-d' }}"
-                            data-savings_pot_available="{{ claim.savings_pot_available }}"
-                            data-savings_pot_paid_date="{{ claim.savings_pot_paid_date|date:'Y-m-d' }}"
-                            data-infund_cert_date="{{ claim.infund_cert_date|date:'Y-m-d' }}"
                             data-linked_email_id="{{ claim.linked_email_id|default:'' }}"
                         >Edit</button>
 
@@ -154,9 +143,6 @@
 
                         {% if claim.linked_email_id %}
                         <template id="email-content-{{ claim.id }}">
-                            <div class="p-sender">{{ claim.email_preview_sender|default:"Unknown" }}</div>
-                            <div class="p-subject">{{ claim.email_preview_subject|default:"(No Subject)" }}</div>
-                            <div class="p-date">{{ claim.email_preview_date|date:"Y-m-d H:i" }}</div>
                             <div class="p-body">{{ claim.email_preview_body|safe }}</div>
                         </template>
                         {% endif %}
@@ -208,25 +194,23 @@
                         <option value="Withdraw - Not Allowed">Withdraw - Not Allowed</option>
                         <option value="Paid">Paid</option>
                     </select>
+
+                    <div id="div_two_pot_withdrawal_details" style="display:none; margin-top: 10px; padding: 10px; background: #fffde7; border-left: 3px solid #fbc02d;">
+                        <label style="font-size: 0.85em; font-weight: bold; color: #bc5100;">Note Helper: Reason</label>
+                        <select id="two_pot_withdrawal_status" class="form-select" onchange="handleWithdrawalStatusChange()">
+                            <option value="">-- Select Status --</option>
+                            <option value="Withdrawal - Not Allowed">Withdrawal - Not Allowed</option>
+                            <option value="Withdrawal - Already claim in current financial year">Withdrawal - Already claim in current financial year</option>
+                        </select>
+                        <div id="div_prev_claim_date" style="display:none; margin-top: 8px;">
+                            <label style="font-size: 0.85em; font-weight: bold;">Previous Claim Date</label>
+                            <input type="date" id="prev_claim_date_input" class="form-input" onchange="handleWithdrawalStatusChange()">
+                        </div>
+                    </div>
                 </div>
                 <div><label style="font-weight:bold;">Payment Option</label><select name="payment_option" class="form-select"><option value="Full Payment">Full Payment</option><option value="Partially Taken">Partially Taken</option></select></div>
                 <div><label style="font-weight:bold;">Amount (R)</label><input type="number" step="0.01" name="claim_amount" class="form-input"></div>
-                <div><label style="font-weight:bold;">Created Date *</label><input type="date" name="claim_created_date" class="form-input" required value="{% now 'Y-m-d' %}"></div>
-            </div>
-
-            <div class="pot-section">
-                <h4 style="margin-top: 0; color: #1565c0; border-bottom: 1px solid #1e88e5; padding-bottom: 5px;">Pot Availability & Certificates</h4>
-                <div class="pot-grid">
-                    <div class="pot-box">
-                        <label style="font-weight: bold; cursor: pointer;"><input type="checkbox" name="vested_pot_available" id="id_vested_pot_available" onchange="togglePotVisibility()"> Vested Pot payout available</label>
-                        <div id="div_vested_paid" style="display: none; margin-top: 10px;"><label style="font-size: 0.85em; font-weight: bold;">Vested Pot Paid Date</label><input type="date" name="vested_pot_paid_date" id="id_vested_pot_paid_date" class="form-input"></div>
-                    </div>
-                    <div class="pot-box">
-                        <label style="font-weight: bold; cursor: pointer;"><input type="checkbox" name="savings_pot_available" id="id_savings_pot_available" onchange="togglePotVisibility()"> Savings Pot available</label>
-                        <div id="div_savings_paid" style="display: none; margin-top: 10px;"><label style="font-size: 0.85em; font-weight: bold;">Savings Pot Paid Date</label><input type="date" name="savings_pot_paid_date" id="id_savings_pot_paid_date" class="form-input"></div>
-                    </div>
-                </div>
-                <div style="margin-top: 15px; background: #fffde7; padding: 10px; border-radius: 6px; border: 1px solid #fbc02d; display: flex; align-items: center; gap: 15px;"><label style="font-weight: bold; color: #f57f17; margin: 0; flex: 1;">In-Fund Preservation Paid Up Certificate Date:</label><input type="date" name="infund_cert_date" id="id_infund_cert_date" class="form-input" style="width: auto;"></div>
+                <div><label style="font-weight:bold;">Created Date *</label><input type="date" name="claim_created_date" id="claim_created_date" class="form-input" required></div>
             </div>
 
             <div style="margin-top: 20px; border-top: 1px dashed #ccc; padding-top: 15px;">
@@ -289,14 +273,6 @@
 
 <div id="emailPreviewModal" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); z-index: 2000;">
     <div class="email-preview-modal-content">
-        <div class="email-header-box">
-            <h2 style="color: #202124; margin: 0 0 15px 0;">Linked Email Details</h2>
-            <div style="font-size: 14px; color: #5f6368;">
-                <div><strong>From:</strong> <span id="pv_from"></span></div>
-                <div><strong>Subject:</strong> <span id="pv_subject"></span></div>
-                <div><strong>Date:</strong> <span id="pv_date"></span></div>
-            </div>
-        </div>
         <div id="pv_body" class="email-body-container"></div>
         <div style="padding: 20px 30px; background: #f8f9fa; text-align: right; border-top: 1px solid #eee;">
             <button type="button" class="cancel-btn" onclick="document.getElementById('emailPreviewModal').style.display='none'">Close</button>
@@ -316,11 +292,25 @@
         div.style.display = div.style.display === 'none' ? 'block' : 'none';
     }
 
-    function togglePotVisibility() {
-        const vCheck = document.getElementById('id_vested_pot_available').checked;
-        const sCheck = document.getElementById('id_savings_pot_available').checked;
-        document.getElementById('div_vested_paid').style.display = vCheck ? 'block' : 'none';
-        document.getElementById('div_savings_paid').style.display = sCheck ? 'block' : 'none';
+    function toggleWithdrawalSubFields() {
+        const status = document.getElementById('claim_status_select').value;
+        const div = document.getElementById('div_two_pot_withdrawal_details');
+        div.style.display = (status === "Withdraw - Not Allowed") ? 'block' : 'none';
+    }
+
+    function handleWithdrawalStatusChange() {
+        const reason = document.getElementById('two_pot_withdrawal_status').value;
+        const note = document.getElementById('note_description');
+        const dateInput = document.getElementById('prev_claim_date_input');
+        const dateDiv = document.getElementById('div_prev_claim_date');
+        dateDiv.style.display = reason.includes("Already claim") ? 'block' : 'none';
+
+        if (reason === "Withdrawal - Not Allowed") {
+            note.value = "Withdrawal - Not Allowed - Not enough funds available";
+        } else if (reason.includes("Already claim")) {
+            const dateStr = dateInput.value || "[Date Not Selected]";
+            note.value = `Withdrawal - Already claim in current financial year - Member claim date = ${dateStr}`;
+        }
     }
 
     function openClaimModal() {
@@ -329,9 +319,10 @@
         document.getElementById('modal_claim_id').value = '';
         document.getElementById('linked_email_id').value = '';
         document.getElementById('email-composition-container').style.display = 'none';
+        document.getElementById('div_two_pot_withdrawal_details').style.display = 'none';
+        document.getElementById('claim_created_date').value = new Date().toISOString().split('T')[0];
         document.getElementById('modalTitle').innerText = "New Two-Pot Entry";
         document.getElementById('claim_notes_tbody').innerHTML = '<tr><td colspan="4" style="text-align:center;">New record.</td></tr>';
-        togglePotVisibility();
         modal.style.display = 'block';
     }
 
@@ -347,43 +338,34 @@
         document.querySelector('input[name="member_surname"]').value = d.member_surname;
         document.querySelector('input[name="mip_number"]').value = d.mip_number;
         document.getElementById('claim_status_select').value = d.claim_status;
+        toggleWithdrawalSubFields();
         document.querySelector('select[name="payment_option"]').value = d.payment_option;
         document.querySelector('input[name="claim_amount"]').value = d.claim_amount;
         document.querySelector('input[name="claim_created_date"]').value = d.claim_created_date;
 
-        document.getElementById('id_vested_pot_available').checked = (d.vested_pot_available === 'True');
-        document.getElementById('id_savings_pot_available').checked = (d.savings_pot_available === 'True');
-        document.getElementById('id_vested_pot_paid_date').value = d.vested_pot_paid_date !== 'None' ? d.vested_pot_paid_date : '';
-        document.getElementById('id_savings_pot_paid_date').value = d.savings_pot_paid_date !== 'None' ? d.savings_pot_paid_date : '';
-        document.getElementById('id_infund_cert_date').value = d.infund_cert_date !== 'None' ? d.infund_cert_date : '';
-        
-        togglePotVisibility();
-        
         const notesSrc = document.getElementById('notes-data-' + d.id);
-        if (notesSrc) {
-            document.getElementById('claim_notes_tbody').innerHTML = notesSrc.innerHTML;
-        }
+        if (notesSrc) { document.getElementById('claim_notes_tbody').innerHTML = notesSrc.innerHTML; }
         document.getElementById('claimModal').style.display = 'block';
     }
 
     function previewLinkedEmail(claimId) {
         const template = document.getElementById('email-content-' + claimId);
         if (!template) return;
-        document.getElementById('pv_from').innerText = template.content.querySelector('.p-sender').innerText;
-        document.getElementById('pv_subject').innerText = template.content.querySelector('.p-subject').innerText;
-        document.getElementById('pv_date').innerText = template.content.querySelector('.p-date').innerText;
-        document.getElementById('pv_body').innerHTML = template.content.querySelector('.p-body').innerHTML;
+        const body = template.content.querySelector('.p-body').innerHTML;
+        document.getElementById('pv_body').innerHTML = body;
         document.getElementById('emailPreviewModal').style.display = 'block';
     }
 
+    // UPDATED EXPORT LOGIC FOR TWO-POT BILLING FORMAT
     function triggerExcelExport() {
         const q = document.querySelector('input[name="q"]').value;
-        window.location.href = "{% url 'export_global_claims_excel' %}?q=" + encodeURIComponent(q) + "&type=Two Pot";
+        // This targets the dedicated Two-Pot billing view created for the Savings Pot layout
+        window.location.href = "{% url 'export_two_pot_billing' %}?q=" + encodeURIComponent(q);
     }
 
     document.getElementById('company_code_input').addEventListener('input', function() {
         const val = this.value;
-        const opts = document.getElementById('company_list').childNodes;
+        const opts = document.getElementById('company_list').options;
         for (let i = 0; i < opts.length; i++) {
             if (opts[i].value === val) {
                 document.getElementById('agent_input').value = opts[i].getAttribute('data-agent');

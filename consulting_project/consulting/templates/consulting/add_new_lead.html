@@ -227,6 +227,13 @@
                     <label for="product_required">Required Solution *</label>
                     <select id="product_required" name="product_required" required>
                         <option value="" disabled selected>Select a product...</option>
+                        
+                        <option value="Medical Aid">Medical Aid</option>
+                        <option value="Financial Solution">Financial Solution</option>
+                        <option value="Business Advice">Business Advice</option>
+                        <option value="Death Solution">Death Solution</option>
+                        <option value="Policy Solutions">Policy Solutions</option>
+
                         {% for product in product_options %}
                         <option value="{{ product }}">{{ product }}</option>
                         {% endfor %}

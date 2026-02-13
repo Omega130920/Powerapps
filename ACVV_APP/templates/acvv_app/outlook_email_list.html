@@ -78,8 +78,10 @@
         font-weight: 600;
         text-transform: uppercase;
     }
+    /* Clickable row styling */
+    .task-row { cursor: pointer; transition: background-color 0.2s ease; }
     .task-table tr:nth-child(even) { background-color: #f9fbe7; }
-    .task-table tr:hover { background-color: #e8f5e9; }
+    .task-table tr:hover { background-color: #dcedc8 !important; }
     
     .status-new { color: #1e88e5; font-weight: bold; }
     .status-del { color: #f57c00; font-weight: bold; }
@@ -99,24 +101,15 @@
     }
     .return-button:hover { background-color: #66bb6a; }
 
-    .btn-action-link {
-        background-color: #f7931e;
-        color: white;
-        border: none;
-        padding: 8px 12px;
-        text-align: center;
-        text-decoration: none;
-        display: inline-block;
-        font-size: 12px;
-        font-weight: bold;
+    .delegated-user-badge {
+        background-color: #e3f2fd;
+        color: #0d47a1;
+        padding: 4px 8px;
         border-radius: 4px;
-        cursor: pointer;
-        transition: background-color .3s ease;
-        white-space: nowrap;
+        font-weight: bold;
+        font-size: 11px;
+        border: 1px solid #bbdefb;
     }
-    .btn-action-link:hover { background-color: #d87d16; }
-    .btn-view-thread { background-color: #1976d2; }
-    .btn-view-thread:hover { background-color: #1565c0; }
 </style>
 
 <div class="navigation-bar" style="width: 100%; max-width: 1500px; margin-top: 10px;">
@@ -125,7 +118,7 @@
 
 <div class="log-container">
     <div class="log-header">
-        <h1><i class="fas fa-tasks"></i> Active Email Tasks</h1>
+        <h1><i class="fas fa-tasks"></i> Email List</h1>
     </div>
     
     <div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
@@ -144,17 +137,22 @@
     <table class="task-table" id="emailTaskTable">
         <thead>
             <tr>
-                <th style="width: 8%;">Status</th>
+                <th style="width: 10%;">Status</th>
                 <th style="width: 12%;">Received</th>
                 <th style="width: 25%;">Subject</th>
                 <th style="width: 20%;">From</th>
                 <th style="width: 15%;">Member Group</th>
-                <th style="width: 20%;">Actions</th>
+                <th style="width: 18%;">Delegated To</th>
             </tr>
         </thead>
         <tbody>
             {% for email in emails %}
-            <tr class="task-row">
+            <tr class="task-row" 
+                {% if email.status == 'NEW' %}
+                    onclick="window.location.href='{% url 'outlook_delegate_to' email_id=email.email_id %}'"
+                {% else %}
+                    onclick="window.location.href='{% url 'outlook_view_thread' delegation_id=email.id %}'"
+                {% endif %}>
                 <td>
                     {% if email.status == 'NEW' %}
                         <span class="status-new">NEW</span>
@@ -167,14 +165,12 @@
                 <td class="search-sender">{{ email.sender_address|default:"" }}</td>
                 <td class="search-mg"><strong>{{ email.mip_names|default:"" }}</strong></td>
                 <td>
-                    {% if email.status == 'NEW' %}
-                        <a href="{% url 'outlook_delegate_to' email_id=email.email_id %}" class="btn-action-link">
-                            <i class="fas fa-user-tag"></i> Delegate
-                        </a>
+                    {% if email.assigned_user %}
+                        <span class="delegated-user-badge">
+                            <i class="fas fa-user"></i> {{ email.assigned_user.username }}
+                        </span>
                     {% else %}
-                        <a href="{% url 'outlook_view_thread' delegation_id=email.id %}" class="btn-action-link btn-view-thread">
-                            <i class="fas fa-eye"></i> View Thread
-                        </a>
+                        <em style="color: #999;">Not Assigned</em>
                     {% endif %}
                 </td>
             </tr>
@@ -206,6 +202,7 @@
         });
     });
 
+    // Auto-refresh every 30 seconds
     setTimeout(function(){
        window.location.reload();
     }, 30000);
