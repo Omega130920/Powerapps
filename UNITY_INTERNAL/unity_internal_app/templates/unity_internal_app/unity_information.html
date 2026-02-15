@@ -490,7 +490,20 @@
                     <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Payment Method</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{{ unity_record.e_payment_method }}</td></tr>
                     <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Billing Method</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{{ unity_record.f_billing_method }}</td></tr>
                     <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Current Fiscal</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{{ unity_record.g_current_fiscal }}</td></tr>
-                    <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Current Status</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{{ unity_record.h_current_status }}</td></tr>
+                    <tr>
+                        <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Current Status</th>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">
+                            {% if unity_record.h_current_status == "RECON COMPLETE" %}
+                                <span style="background-color: #2e7d32; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.85em; font-weight: bold;">Reconciled</span>
+                            {% elif unity_record.h_current_status == "SCHEDULED" %}
+                                <span style="background-color: #0277bd; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.85em; font-weight: bold;">Schedule</span>
+                            {% elif unity_record.h_current_status == "PRE-BILL" %}
+                                <span style="background-color: #f7931e; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.85em; font-weight: bold;">Pre-Bill</span>
+                            {% else %}
+                                <span style="background-color: #d32f2f; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.85em; font-weight: bold;">N/A</span>
+                            {% endif %}
+                        </td>
+                    </tr>
                     <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Arrears</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{{ unity_record.j_arrears }}</td></tr>
                 </tbody>
             </table>
@@ -569,42 +582,16 @@
                         
                         <tr><th style="padding: 8px;">Current Status (H)</th><td>
                             <select name="current_status" class="form-select" style="width: 100%; padding: 5px;">
-                                <option value="Active" {% if unity_record.h_current_status == 'Active' %}selected{% endif %}>Active</option>
-                                <option value="External" {% if unity_record.h_current_status == 'External' %}selected{% endif %}>External</option>
-                                <option value="Section 14" {% if unity_record.h_current_status == 'Section 14' %}selected{% endif %}>Section 14</option>
-                                <option value="Section 27" {% if unity_record.h_current_status == 'Section 27' %}selected{% endif %}>Section 27</option>
-                                <option value="Section 28" {% if unity_record.h_current_status == 'Section 28' %}selected{% endif %}>Section 28</option>
-                                <option value="Section 28 Approved" {% if unity_record.h_current_status == 'Section 28 Approved' %}selected{% endif %}>Section 28 Approved</option>
-                                <option value="Terminated" {% if unity_record.h_current_status == 'Terminated' %}selected{% endif %}>Terminated</option>
+                                <option value="RECON COMPLETE" {% if unity_record.h_current_status == 'RECON COMPLETE' %}selected{% endif %}>Reconciled</option>
+                                <option value="SCHEDULED" {% if unity_record.h_current_status == 'SCHEDULED' %}selected{% endif %}>Schedule</option>
+                                <option value="PRE-BILL" {% if unity_record.h_current_status == 'PRE-BILL' %}selected{% endif %}>Pre-Bill</option>
+                                <option value="OPEN" {% if unity_record.h_current_status == 'OPEN' %}selected{% endif %}>N/A</option>
                             </select>
                         </td></tr>
 
                         <tr><th style="padding: 8px;">Arrears (J)</th><td><input type="text" name="arrears" value="{{ unity_record.j_arrears|default:'' }}" class="form-input" style="width: 100%; padding: 5px;"></td></tr>
                     </tbody>
                 </table>
-
-                {# --- RE-INSERTED: Pot Availability Section --- #}
-                <div class="pot-availability-section" style="margin-top: 25px; border: 1px solid #007bff; border-radius: 8px; overflow: hidden; font-family: sans-serif;">
-                    <div style="background-color: #f0f7ff; padding: 10px; border-bottom: 1px solid #007bff; color: #0056b3; font-weight: bold;">
-                        Pot Availability & Certificates
-                    </div>
-                    <div style="padding: 20px;">
-                        <div style="display: flex; gap: 15px; margin-bottom: 20px;">
-                            <label style="flex: 1; display: flex; align-items: center; gap: 10px; border: 1px solid #dee2e6; padding: 15px; border-radius: 4px; cursor: pointer;">
-                                <input type="checkbox" name="vested_pot_available" id="info_vested_pot_available" {% if unity_record.vested_pot_available %}checked{% endif %}>
-                                <strong>Vested Pot Funds available for payout</strong>
-                            </label>
-                            <label style="flex: 1; display: flex; align-items: center; gap: 10px; border: 1px solid #dee2e6; padding: 15px; border-radius: 4px; cursor: pointer;">
-                                <input type="checkbox" name="savings_pot_available" id="info_savings_pot_available" {% if unity_record.savings_pot_available %}checked{% endif %}>
-                                <strong>Savings Pot available</strong>
-                            </label>
-                        </div>
-                        <div style="background-color: #fff9e6; border: 1px solid #ffeeba; padding: 15px; border-radius: 4px; display: flex; align-items: center; gap: 15px;">
-                            <span style="color: #f7931e; font-weight: bold;">In-Fund Preservation Paid Up Certificate Received Date:</span>
-                            <input type="date" name="preservation_cert_date" value="{{ unity_record.preservation_cert_date|date:'Y-m-d' }}" style="padding: 5px; border: 1px solid #ced4da; border-radius: 4px;">
-                        </div>
-                    </div>
-                </div>
 
                 <div style="text-align: right; padding-top: 10px; margin-top: 20px;">
                     <button type="button" class="cancel-btn" style="padding: 8px 15px; margin-right: 10px;" onclick="toggleEditMode(false)">Cancel</button>
@@ -615,19 +602,7 @@
             </form>
         </div>
     {% endif %}
-</div> <script>
-    function toggleEditMode(showEdit) {
-        const viewMode = document.getElementById('view-mode-container');
-        const editMode = document.getElementById('edit-mode-container');
-        if (showEdit) {
-            viewMode.style.display = 'none';
-            editMode.style.display = 'block';
-        } else {
-            viewMode.style.display = 'block';
-            editMode.style.display = 'none';
-        }
-    }
-</script>
+</div>
 
             <div id="bank-lines" class="tab-pane">
                 <h2 style="color:#388e3c; border-bottom: 2px solid #aed581; padding-bottom: 5px;">

@@ -67,7 +67,6 @@ urlpatterns = [
 
     # --- UPDATED EXCEL EXPORTS ---
     # Targets the Yellow Billing Theme (Only Two-Pot)
-    path('export_two_pot_excel/', views.export_two_pot_excel, name='export_two_pot_excel'),
     # Targets the Green Audit Theme (Excludes Two-Pot)
     path('export_global_claims_excel/', views.export_global_claims_excel, name='export_global_claims_excel'),
     
@@ -88,4 +87,6 @@ urlpatterns = [
     path('emails/archive/', views.email_list_view, name='email_list'),
     path('emails/export/', views.export_email_list, name='export_email_list'),
     path('download-email/<str:email_id>/', views.download_email_file, name='download_email_file'),
+    path('export_two_pot_invoice/', views.export_two_pot_invoice, name='export_two_pot_invoice'),
+    path('export_two_pot_tracking/', views.export_two_pot_tracking, name='export_two_pot_tracking'),
 ]

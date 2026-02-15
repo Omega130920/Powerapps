@@ -38,4 +38,10 @@ urlpatterns = [
     path('pssubf/beneficiaries/list/', views.beneficiary_list_view, name='beneficiary_list'),
     path('beneficiaries/export/', views.export_beneficiaries_excel, name='export_beneficiaries'),
     path('pssubf/beneficiaries/details/<str:membership_number>/', views.beneficiary_details_view, name='beneficiary_details'),
+    path('claims/', views.claim_list_view, name='claim_list'),
+    path('adhoc/', views.ad_hoc_list_view, name='adhoc_list'),
+    path('get-beneficiary-data/<str:membership_number>/', views.get_beneficiary_data, name='get_beneficiary_data'),
+    path('get-claim-details/<int:claim_id>/', views.get_claim_details, name='get_claim_details'),
+    path('export-adhoc/', views.export_adhoc_excel, name='export_adhoc'),
+    path('claims/export/', views.export_claims_excel, name='export_claims'),
 ]

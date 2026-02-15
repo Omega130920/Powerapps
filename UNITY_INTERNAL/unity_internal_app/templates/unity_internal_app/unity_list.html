@@ -213,9 +213,10 @@
                 <label for="filter-current-status">Current Status</label>
                 <select id="filter-current-status" onchange="applyFilters()">
                     <option value="">All Statuses</option>
-                    {% for item in distinct_current_status %}
-                        <option value="{{ item|lower }}">{{ item }}</option>
-                    {% endfor %}
+                    <option value="reconciled">Reconciled</option>
+                    <option value="schedule">Schedule</option>
+                    <option value="pre-bill">Pre-Bill</option>
+                    <option value="n/a">N/A</option>
                 </select>
             </div>
 
@@ -283,7 +284,7 @@
                 data-payment-method="{{ record.e_payment_method|default:'N/A'|lower }}"
                 data-billing-method="{{ record.f_billing_method|default:'N/A'|lower }}"
                 data-current-fiscal="{{ record.g_current_fiscal|default:'N/A'|lower }}"
-                data-current-status="{{ record.h_current_status|lower }}"
+                data-current-status="{% if record.h_current_status == 'RECON COMPLETE' %}reconciled{% elif record.h_current_status == 'SCHEDULED' %}schedule{% elif record.h_current_status == 'PRE-BILL' %}pre-bill{% else %}n/a{% endif %}"
                 data-arrears-value="{{ record.j_arrears|default:0 }}"> 
                 
                 <td>{{ record.A_Company_Code }}</td>
@@ -298,12 +299,10 @@
                         <span class="status-badge" style="background-color: #2e7d32;">Reconciled</span>
                     {% elif record.h_current_status == "SCHEDULED" %}
                         <span class="status-badge" style="background-color: #0277bd;">Schedule</span>
-                    {% elif record.h_current_status == "OPEN" %}
-                        <span class="status-badge" style="background-color: #d32f2f;">N/A</span>
                     {% elif record.h_current_status == "PRE-BILL" %}
-                        <span class="status-badge" style="background-color: #f7931e;">PRE-BILL</span>
+                        <span class="status-badge" style="background-color: #f7931e;">Pre-Bill</span>
                     {% else %}
-                        <span class="status-badge" style="background-color: #757575;">{{ record.h_current_status }}</span>
+                        <span class="status-badge" style="background-color: #d32f2f;">N/A</span>
                     {% endif %}
                 </td>
                 <td>{{ record.j_arrears|default:"N/A" }}</td>

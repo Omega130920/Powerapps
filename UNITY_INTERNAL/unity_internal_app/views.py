@@ -4171,78 +4171,134 @@ from openpyxl.utils import get_column_letter
 # CORRECTED EXPORT FUNCTIONS
 # ==============================================================================
 
+# --- HULPFUNKSIE VIR TAK-NAME ---
+def get_branch_map(claims_queryset):
+    company_codes = claims_queryset.values_list('company_code', flat=True).distinct()
+    return {
+        item['a_company_code']: item['b_company_name'] 
+        for item in UnityMgListing.objects.filter(
+            a_company_code__in=company_codes
+        ).values('a_company_code', 'b_company_name')
+    }
+
+# --- VERSLAG 1: TWO-POT CLAIMS INVOICE (Vir Cecile) ---
 @login_required
-def export_two_pot_excel(request):
+def export_two_pot_invoice(request):
     """
-    Exports Two-Pot claims to the EXACT Yellow Billing format shown in image_b3cad9.png.
-    Fixed: 'NoneType' object has no attribute 'strftime' error.
+    Report 1: Spesifieke faktuur-formaat vir Cecile.
     """
     query = request.GET.get('q')
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
 
-    # 1. Filter for Two Pot claims
+    claims = UnityClaim.objects.filter(claim_type='Two Pot').order_by('claim_created_date')
+    if query:
+        claims = claims.filter(Q(id_number__icontains=query) | Q(member_surname__icontains=query))
+    if start_date and end_date:
+        claims = claims.filter(claim_created_date__range=[start_date, end_date])
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Two-Pot Invoice"
+
+    # Header Styl
+    header_fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
+    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+    # Kolomtitels (R1)
+    headers = [
+        "Date", "Initials", "Surname", "Member nr", "ID NUMBER", "Fund", 
+        "Branch", "Admin From", "Qualified", "Date submitted online", 
+        "Successful Loaded confirmation", "Admin Fee R33 + 15% Vat", "SUBMIT ONLINE"
+    ]
+    ws.append(headers)
+    
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = Font(bold=True, size=10)
+        cell.border = thin_border
+        cell.alignment = Alignment(horizontal='center')
+
+    branch_map = get_branch_map(claims)
+
+    for claim in claims:
+        initials = "".join([n[0] for n in claim.member_name.split() if n]) if claim.member_name else ""
+        is_paid = str(claim.claim_status).upper().strip() == "PAID"
+        
+        ws.append([
+            claim.claim_created_date.strftime('%d/%m/%Y') if claim.claim_created_date else '',
+            initials,
+            claim.member_surname,
+            claim.mip_number,
+            claim.id_number,
+            claim.company_code,
+            branch_map.get(claim.company_code, ""),
+            claim.agent or "",
+            "yes" if is_paid else "no",
+            claim.date_submitted.strftime('%d/%m/%Y') if claim.date_submitted else '',
+            "YES" if is_paid else "NO",
+            "R37.95",
+            "SUBMIT ONLINE"
+        ])
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename="Two_Pot_Invoice_{timezone.now().strftime("%Y%m%d")}.xlsx"'
+    wb.save(response)
+    return response
+
+
+# --- VERSLAG 2: TWO-POT FULL TRACKING (Geel Formaat) ---
+@login_required
+def export_two_pot_tracking(request):
+    """
+    Report 2: Volledige Tracking lys met Geel opskrifte en rooi teks vir 'NO'.
+    """
+    query = request.GET.get('q')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+
     claims_queryset = UnityClaim.objects.filter(claim_type='Two Pot').order_by('claim_created_date')
 
     if query:
         claims_queryset = claims_queryset.filter(
-            Q(id_number__icontains=query) | 
-            Q(member_surname__icontains=query) | 
-            Q(company_code__icontains=query) |
-            Q(mip_number__icontains=query)
+            Q(id_number__icontains=query) | Q(member_surname__icontains=query) | 
+            Q(company_code__icontains=query) | Q(mip_number__icontains=query)
         )
 
     if start_date and end_date:
-        try:
-            claims_queryset = claims_queryset.filter(claim_created_date__range=[start_date, end_date])
-        except ValueError:
-            pass
+        claims_queryset = claims_queryset.filter(claim_created_date__range=[start_date, end_date])
 
-    # 2. Company mapping for the 'Branch' column
-    company_codes = claims_queryset.values_list('company_code', flat=True).distinct()
-    mg_map = {
-        item['a_company_code']: item['b_company_name'] 
-        for item in UnityMgListing.objects.filter(a_company_code__in=company_codes).values('a_company_code', 'b_company_name')
-    }
+    branch_map = get_branch_map(claims_queryset)
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Two-Pot Billing"
+    ws.title = "Two-Pot Tracking"
 
-    # --- Styles Definition ---
     yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
     thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
     
-    # 3. Create Row Offsets (The image shows the header starting at Row 4)
     now = timezone.now()
     display_start = start_date if start_date else now.replace(day=1).strftime('%d.%m.%Y')
     display_end = end_date if end_date else now.strftime('%d.%m.%Y')
     
-    title_text = f"Billing - Member Emergency Savings Pot Withdrawal Requested - {display_start} to {display_end}"
-    
-    # Merge and style Row 4
+    # Row 4 Title
     ws.merge_cells('A4:O4')
     header_cell = ws['A4']
-    header_cell.value = title_text
+    header_cell.value = f"Billing - Member Emergency Savings Pot Withdrawal Requested - {display_start} to {display_end}"
     header_cell.font = Font(bold=True, size=11, underline="single")
     header_cell.fill = yellow_fill
-    header_cell.alignment = Alignment(horizontal='left', vertical='center')
     header_cell.border = thin_border
-    ws.row_dimensions[4].height = 25
 
-    # 4. Column Headers at Row 5
+    # Row 5 Headers
     headers = [
-        "DATE EXTRACT INFO / FORM FROM WEB - Savings Form Request", "Initials", "Surname", 
+        "DATE EXTRACT INFO / FORM FROM WEB", "Initials", "Surname", 
         "Member number", "ID NUMBER", "Fund", "Branch", "Query", "Claim", 
-        "Qualified", "Date submitted/ online", "Succesfull Loaded confirmation", 
-        "Amount Apply for", "Admin Fee R33 + 15% Vat", "Note"
+        "Qualified", "Date submitted/ online", "Succesfull Loaded confirm", 
+        "Amount Apply for", "Admin Fee R33+15%", "Note"
     ]
     
-    # Fill empty rows to reach row 5
-    ws.append([]) # Row 1
-    ws.append([]) # Row 2
-    ws.append([]) # Row 3
-    ws.append(headers) # This becomes Row 5
+    for _ in range(3): ws.append([]) # Empty rows to reach R5
+    ws.append(headers)
     
     for cell in ws[5]:
         cell.font = Font(bold=True, size=9)
@@ -4251,63 +4307,47 @@ def export_two_pot_excel(request):
         cell.alignment = Alignment(wrap_text=True, horizontal='center', vertical='center')
     ws.row_dimensions[5].height = 50
 
-    # 5. Add Data starting from Row 6
     for claim in claims_queryset:
         initials = "".join([n[0] for n in claim.member_name.split() if n]) if claim.member_name else ""
-        branch_name = mg_map.get(claim.company_code, "Unknown Group")
-        status_text = str(claim.claim_status).upper().strip()
-        
-        is_paid = status_text == "PAID"
+        is_paid = str(claim.claim_status).upper().strip() == "PAID"
         qualified_val = "YES" if is_paid else "NO"
-        # Claim logic mapped to template
-        claim_label = "Savings Form Submitted" if is_paid else "Member Emergency Savings Pot Withdrawal Requested"
         
-        # --- FIX: Safe date handling for strftime error ---
         if is_paid:
-            # Check if date exists before calling strftime
             submit_date_label = claim.date_submitted.strftime('%d.%m.%Y') if claim.date_submitted else "Pending"
         else:
             submit_date_label = "Withdrawal Not Allowed"
-            
-        loaded_confirm = "YES" if is_paid else ""
-        last_note = claim.notes.last().note_description if claim.notes.exists() else ""
 
         row = [
-            claim.claim_created_date.strftime('%d/%m/%Y') if claim.claim_created_date else '', # A
-            initials, # B
-            claim.member_surname, # C
-            claim.mip_number, # D
-            claim.id_number, # E
-            claim.company_code, # F
-            branch_name, # G
-            "Savings Form Request", # H
-            claim_label, # I
-            qualified_val, # J
-            submit_date_label, # K
-            loaded_confirm, # L
-            float(claim.claim_amount or 0), # M
-            37.95, # N (R33 + 15% VAT)
-            last_note # O
+            claim.claim_created_date.strftime('%d/%m/%Y') if claim.claim_created_date else '',
+            initials,
+            claim.member_surname,
+            claim.mip_number,
+            claim.id_number,
+            claim.company_code,
+            branch_map.get(claim.company_code, "Unknown"),
+            "Savings Form Request",
+            "Savings Form Submitted" if is_paid else "Member Emergency Savings Pot Withdrawal Requested",
+            qualified_val,
+            submit_date_label,
+            "YES" if is_paid else "",
+            float(claim.claim_amount or 0),
+            "37.95",
+            claim.notes.last().note_description if claim.notes.exists() else ""
         ]
         ws.append(row)
 
-        # Style the row and handle Red text for "NO" status
+        # Rooi teks vir "NO" status
         for cell in ws[ws.max_row]:
             cell.border = thin_border
             cell.alignment = Alignment(vertical='center', horizontal='left')
-            if qualified_val == "NO":
-                cell.font = Font(size=9, color="FF0000") # Red text for unqualified rows
-            else:
-                cell.font = Font(size=9)
+            cell.font = Font(size=9, color="FF0000") if qualified_val == "NO" else Font(size=9)
 
-    # 6. Set Column Widths to match template visual density
     widths = [22, 8, 18, 14, 18, 10, 25, 20, 35, 10, 22, 18, 14, 14, 40]
     for i, width in enumerate(widths):
         ws.column_dimensions[get_column_letter(i+1)].width = width
 
-    # Download response
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = f'attachment; filename="Two_Pot_Billing_{now.strftime("%Y_%m_%d")}.xlsx"'
+    response['Content-Disposition'] = f'attachment; filename="Two_Pot_Full_Tracking_{now.strftime("%Y_%m_%d")}.xlsx"'
     wb.save(response)
     return response
 

@@ -76,18 +76,26 @@
     <form method="GET" action="" class="search-container">
         <div class="filter-group" style="flex: 2;">
             <label class="filter-label">Search Keywords</label>
-            <input type="text" name="q" class="search-input" placeholder="MIP Number, Surname, or ID..." value="{{ search_query|default:'' }}">
+            <input type="text" id="search_q" name="q" class="search-input" placeholder="MIP Number, Surname, or ID..." value="{{ search_query|default:'' }}">
         </div>
         <div class="filter-group">
             <label class="filter-label">From Date</label>
-            <input type="date" name="start_date" class="search-input" value="{{ start_date|default:'' }}">
+            <input type="date" id="search_start" name="start_date" class="search-input" value="{{ start_date|default:'' }}">
         </div>
         <div class="filter-group">
             <label class="filter-label">To Date</label>
-            <input type="date" name="end_date" class="search-input" value="{{ end_date|default:'' }}">
+            <input type="date" id="search_end" name="end_date" class="search-input" value="{{ end_date|default:'' }}">
         </div>
         <button type="submit" class="dashboard-button">Filter Results</button>
-        <button type="button" class="dashboard-button" style="background-color: #217346;" onclick="triggerExcelExport()">📊 Export Yellow Billing</button>
+        
+        <button type="button" class="dashboard-button" style="background-color: #1565c0;" onclick="triggerExport('invoice')">
+            📄 Invoice (Cecile)
+        </button>
+
+        <button type="button" class="dashboard-button" style="background-color: #217346;" onclick="triggerExport('tracking')">
+            📊 Full Tracking
+        </button>
+
         <a href="{% url 'global_two_pot' %}" class="dashboard-button" style="background-color: #757575;">Reset</a>
     </form>
 
@@ -320,19 +328,30 @@
         document.getElementById('claimModal').style.display = 'block';
     }
 
-    function triggerExcelExport() {
-        const q = document.querySelector('input[name="q"]').value;
-        const start = document.querySelector('input[name="start_date"]').value;
-        const end = document.querySelector('input[name="end_date"]').value;
+    // --- INTEGRATED EXPORT LOGIC FOR MULTIPLE REPORTS ---
+    function triggerExport(type) {
+        const q = document.getElementById('search_q').value;
+        const start = document.getElementById('search_start').value;
+        const end = document.getElementById('search_end').value;
         
-        // Ensure this points to the NEW view function 'export_two_pot_excel'
-        // and uses the correct parameter names for start_date and end_date
-        window.location.href = "{% url 'export_two_pot_excel' %}?q=" + encodeURIComponent(q) + 
+        // Maps the 'type' parameter to the correct URL configured in urls.py
+        let baseUrl = type === 'invoice' ? "{% url 'export_two_pot_invoice' %}" : "{% url 'export_two_pot_tracking' %}";
+        
+        window.location.href = baseUrl + "?q=" + encodeURIComponent(q) + 
                                "&start_date=" + start + 
                                "&end_date=" + end;
     }
 
-    // Boilerplate for select logic and modal closing
+    function previewLinkedEmail(claimId) {
+        const template = document.getElementById('email-content-' + claimId);
+        if (!template) return;
+        document.getElementById('pv_from').innerText = template.content.querySelector('.p-sender').innerText;
+        document.getElementById('pv_subject').innerText = template.content.querySelector('.p-subject').innerText;
+        document.getElementById('pv_date').innerText = template.content.querySelector('.p-date').innerText;
+        document.getElementById('pv_body').innerHTML = template.content.querySelector('.p-body').innerHTML;
+        document.getElementById('emailPreviewModal').style.display = 'block';
+    }
+
     document.getElementById('company_code_input').addEventListener('input', function() {
         const val = this.value;
         const opts = document.getElementById('company_list').childNodes;

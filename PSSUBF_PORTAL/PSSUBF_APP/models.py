@@ -153,3 +153,70 @@ class PssubfDirectEmail(models.Model):
     class Meta:
         managed = False
         db_table = 'pssubf_direct_emails'
+        
+class ClaimList(models.Model):
+    beneficiary = models.ForeignKey(
+        'PssubfBeneficiary', 
+        on_delete=models.CASCADE, 
+        db_column='beneficiary_membership_number',
+        to_field='membership_number',
+        related_name='claims'
+    )
+    reference_no = models.CharField(max_length=100)
+    claim_type = models.CharField(max_length=100)
+    description = models.TextField(blank=True, null=True)
+    date_logged = models.DateField(null=True, blank=True) # Original Claim Form Date
+    status = models.CharField(max_length=50, default='Pending')
+    
+    # NEW FIELDS
+    portfolio_value = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
+    portfolio_date = models.DateField(null=True, blank=True)
+    amount_requested = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
+    age_at_claim = models.CharField(max_length=20, blank=True, null=True)
+    supporting_docs_attached = models.CharField(max_length=10, default='No')
+    monthly_income_payment = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
+    attachment_path = models.CharField(max_length=255, blank=True, null=True)
+
+    class Meta:
+        db_table = 'pssubf_claim_list'
+        managed = False
+
+from django.db import models
+
+class AdHocList(models.Model):
+    # Foreign Key Relation to Beneficiary
+    beneficiary = models.ForeignKey(
+        'PssubfBeneficiary', 
+        on_delete=models.CASCADE, 
+        db_column='beneficiary_membership_number',
+        to_field='membership_number',
+        related_name='adhoc_records'
+    )
+    
+    # Header & Identity
+    title = models.CharField(max_length=255)  # Stores the 'Reason' selected from dropdown
+    status = models.CharField(max_length=50, default='Created')
+    
+    # Financial Fields
+    portfolio_value = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
+    portfolio_date = models.DateField(null=True, blank=True)
+    amount_requested = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
+    
+    # Calculation Results
+    years_to_maturity = models.IntegerField(default=0)
+    # Changed to CharField to store the formatted "%" string from the UI logic
+    affordability_calculation = models.CharField(max_length=20, blank=True, null=True)
+    
+    # Dates & Processing
+    claim_form_date = models.DateField(null=True, blank=True)
+    date_paid = models.DateField(null=True, blank=True)  # New Field Added
+    date_created = models.DateField(auto_now_add=True)
+    
+    # Attachments & Notes
+    supporting_docs_attached = models.CharField(max_length=10, default='No')
+    attachment_path = models.CharField(max_length=255, blank=True, null=True)
+    comments = models.TextField(blank=True, null=True)  # Stores 'Claim Note' and Agent Tracking
+
+    class Meta:
+        db_table = 'pssubf_ad_hoc_list'
+        managed = False  # Reminder: You must run the ALTER TABLE SQL manually
