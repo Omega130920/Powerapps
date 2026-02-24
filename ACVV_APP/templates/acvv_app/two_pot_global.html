@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Two-Pot Claims Register</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 <style>
     /* --- INTEGRATED GLOBAL STYLES --- */
     html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
@@ -73,14 +74,17 @@
         </div>
         <div class="filter-group">
             <label class="filter-label">From Date</label>
-            <input type="date" name="start_date" class="search-input" value="{{ request.GET.start_date|default:'' }}">
+            <input type="date" name="start_date" id="start_date_search" class="search-input" value="{{ request.GET.start_date|default:'' }}">
         </div>
         <div class="filter-group">
             <label class="filter-label">To Date</label>
-            <input type="date" name="end_date" class="search-input" value="{{ request.GET.end_date|default:'' }}">
+            <input type="date" name="end_date" id="end_date_search" class="search-input" value="{{ request.GET.end_date|default:'' }}">
         </div>
         <button type="submit" class="dashboard-button">Filter</button>
-        <button type="button" class="dashboard-button" style="background-color: #217346;" onclick="triggerExcelExport()">📊 Export Excel</button>
+        
+        <button type="button" class="dashboard-button" style="background-color: #217346;" onclick="triggerExport('tracking')">📊 Export Tracking</button>
+        <button type="button" class="dashboard-button" style="background-color: #5c5c5c;" onclick="triggerExport('cecile')">📑 Cecile Invoice</button>
+        
         <a href="{% url 'global_two_pot' %}" class="dashboard-button" style="background-color: #757575;">Reset</a>
     </form>
 
@@ -131,13 +135,20 @@
                         <template id="notes-data-{{ claim.id }}">
                             {% for note in claim.notes.all %}
                                 <tr>
-                                    <td>{{ note.note_description }}</td>
+                                    <td>{{ note.note_description|linebreaksbr }}</td>
                                     <td>{{ note.note_selection }}</td>
                                     <td>{{ note.created_at|date:"Y-m-d H:i" }}</td>
                                     <td>{{ note.created_by.username }}</td>
+                                    <td>
+                                        {% if note.attachment %}
+                                            <a href="{{ note.attachment.url }}" target="_blank" style="color: #1565c0; font-weight: bold;"><i class="fas fa-paperclip"></i> View</a>
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
                                 </tr>
                             {% empty %}
-                                <tr><td colspan="4" style="text-align:center; color:#777;">No notes found.</td></tr>
+                                <tr><td colspan="5" style="text-align:center; color:#777;">No notes found.</td></tr>
                             {% endfor %}
                         </template>
 
@@ -238,26 +249,55 @@
                         <label style="font-weight: bold; font-size: 12px;">Subject:</label>
                         <input type="text" id="member_email_subject_reply" name="member_email_subject_reply" class="form-input">
                     </div>
+
+                    <div style="margin-bottom: 10px; padding: 10px; border: 1px dashed #ff9800; background-color: #fff; border-radius: 8px;">
+                        <label style="color: #e65100; font-weight: bold; display: block; margin-bottom: 5px; font-size: 12px;"><i class="fas fa-paperclip"></i> Email Attachment:</label>
+                        <input type="file" name="email_attachment" class="form-input" style="border: none; padding: 0;">
+                    </div>
+
                     <div style="margin-bottom: 15px;">
                         <label style="font-weight: bold; font-size: 12px;">Email Body:</label>
                         <textarea id="member_email_body_editor" class="form-input" rows="6">Dear Sir/Madam,&#10;&#10;Kind regards,&#10;{{ request.user.username }}</textarea>
                     </div>
                     <div style="text-align: right;">
-                        <button type="submit" name="email_submission_action" value="send_email_and_log" style="padding: 10px 20px; background-color: #f7931e; color: white; border: none; border-radius: 6px; font-weight: 800;">Send Email & Save</button>
+                        <button type="submit" name="email_submission_action" value="send_email_and_log" onclick="syncEmailEditor()" style="padding: 10px 20px; background-color: #f7931e; color: white; border: none; border-radius: 6px; font-weight: 800;">Send Email & Save</button>
                     </div>
                 </div>
             </div>
 
-            <div style="margin-top: 15px;">
-                <label style="font-weight:bold;">Note Description</label>
-                <textarea name="note_description" id="note_description" rows="3" class="form-input"></textarea>
+            <hr style="border: 1px solid #aed581; margin: 25px 0;">
+            <h3 style="color: #38761d; font-weight: 800; font-size: 16px;">Add Claim Note</h3>
+            <div style="background-color: #f9f9f9; padding: 20px; border-radius: 10px; border: 1.5px solid #ccc;">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;">
+                    <div>
+                        <label style="font-size: 12px; font-weight: bold;">Note Type</label>
+                        <select name="note_selection" class="form-select">
+                            <option value="">-- Select Note Type --</option>
+                            <option value="CLAIM DOCUMENTS REQUESTED">DOCS REQUESTED</option>
+                            <option value="SUBMITTED VIA E-MAIL">SUBMITTED VIA EMAIL</option>
+                            <option value="BANK DETAILS FOLLOW UP WITH MEMBER/EMPLOYER">BANK DETAILS FOLLOW UP</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label style="font-size: 12px; font-weight: bold;"><i class="fas fa-paperclip"></i> Attachment</label>
+                        <input type="file" name="claim_attachment" class="form-input" style="padding: 5px;">
+                    </div>
+                </div>
+                <label style="font-size: 12px; font-weight: bold;">Note Details</label>
+                <textarea name="note_description" id="note_description" rows="3" class="form-input" placeholder="Enter note details..."></textarea>
             </div>
 
             <h3 style="color: #38761d; margin-top: 20px; font-size: 16px;">Notes History</h3>
             <div style="max-height: 180px; overflow-y: auto; border: 1px solid #ddd; border-radius: 6px;">
                 <table style="margin: 0; font-size: 11px; width:100%;">
                     <thead style="background: #f1f1f1; position: sticky; top: 0;">
-                        <tr><th>Note</th><th>Type</th><th>Date</th><th>User</th></tr>
+                        <tr>
+                            <th style="width: 40%;">Note</th>
+                            <th style="width: 20%;">Type</th>
+                            <th style="width: 15%;">Date</th>
+                            <th style="width: 10%;">User</th>
+                            <th style="width: 15%;">File</th>
+                        </tr>
                     </thead>
                     <tbody id="claim_notes_tbody"></tbody>
                 </table>
@@ -281,11 +321,11 @@
 </div>
 
 <script>
-    document.getElementById('main_claim_form').addEventListener('submit', function() {
+    function syncEmailEditor() {
         const editor = document.getElementById('member_email_body_editor');
         const hidden = document.getElementById('email_body_html_content');
-        if(editor && hidden) hidden.value = editor.value;
-    });
+        if(editor && hidden) hidden.value = editor.value.replace(/\n/g, '<br>');
+    }
 
     function toggleEmailForm() {
         const div = document.getElementById('email-composition-container');
@@ -322,7 +362,7 @@
         document.getElementById('div_two_pot_withdrawal_details').style.display = 'none';
         document.getElementById('claim_created_date').value = new Date().toISOString().split('T')[0];
         document.getElementById('modalTitle').innerText = "New Two-Pot Entry";
-        document.getElementById('claim_notes_tbody').innerHTML = '<tr><td colspan="4" style="text-align:center;">New record.</td></tr>';
+        document.getElementById('claim_notes_tbody').innerHTML = '<tr><td colspan="5" style="text-align:center;">New record.</td></tr>';
         modal.style.display = 'block';
     }
 
@@ -344,7 +384,11 @@
         document.querySelector('input[name="claim_created_date"]').value = d.claim_created_date;
 
         const notesSrc = document.getElementById('notes-data-' + d.id);
-        if (notesSrc) { document.getElementById('claim_notes_tbody').innerHTML = notesSrc.innerHTML; }
+        const notesTrg = document.getElementById('claim_notes_tbody');
+        if (notesSrc && notesTrg) { 
+            notesTrg.innerHTML = "";
+            notesTrg.appendChild(notesSrc.content.cloneNode(true));
+        }
         document.getElementById('claimModal').style.display = 'block';
     }
 
@@ -356,11 +400,19 @@
         document.getElementById('emailPreviewModal').style.display = 'block';
     }
 
-    // UPDATED EXPORT LOGIC FOR TWO-POT BILLING FORMAT
-    function triggerExcelExport() {
+    function triggerExport(type) {
         const q = document.querySelector('input[name="q"]').value;
-        // This targets the dedicated Two-Pot billing view created for the Savings Pot layout
-        window.location.href = "{% url 'export_two_pot_billing' %}?q=" + encodeURIComponent(q);
+        const start = document.getElementById('start_date_search').value;
+        const end = document.getElementById('end_date_search').value;
+        
+        let url = "";
+        if (type === 'tracking') {
+            url = "{% url 'export_two_pot_billing' %}";
+        } else {
+            url = "{% url 'export_two_pot_cecile' %}";
+        }
+        
+        window.location.href = `${url}?q=${encodeURIComponent(q)}&start_date=${start}&end_date=${end}`;
     }
 
     document.getElementById('company_code_input').addEventListener('input', function() {

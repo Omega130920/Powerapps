@@ -258,7 +258,7 @@ def outlook_delegated_box(request):
 def outlook_delegated_action(request, delegation_id):
     """
     Allows the assigned user to view the full email, add notes, 
-    update metadata, reply, and mark as completed.
+    update metadata, reply (with attachments), and mark as completed.
     """
     delegation = get_object_or_404(EmailDelegation, pk=delegation_id)
     
@@ -271,12 +271,11 @@ def outlook_delegated_action(request, delegation_id):
     if request.method == 'POST':
         action_type = request.POST.get('action_type')
 
-        # 1. Handle Task Completion (The logic you requested)
+        # 1. Handle Task Completion
         if action_type == 'complete_task':
             delegation.status = 'COM'  # Mark as Completed
             delegation.save()
             
-            # Log the completion in the transaction history/audit trail
             log_delegation_transaction(
                 delegation_id, 
                 request.user, 
@@ -313,16 +312,32 @@ def outlook_delegated_action(request, delegation_id):
                 messages.error(request, message)
             return redirect('outlook_delegated_action', delegation_id=delegation_id)
         
-        # 4. Handle Reply/Send Email Submission
+        # 4. Handle Reply/Send Email Submission (Updated for Attachments)
         elif action_type == 'send_reply' or 'reply_recipient' in request.POST:
             recipient = request.POST.get('reply_recipient')
             subject = request.POST.get('reply_subject')
             body = request.POST.get('reply_body')
             
-            result = send_outlook_email(target_email, recipient, subject, body, content_type='Html')
+            # Capture attachment from request.FILES
+            attachment = request.FILES.get('email_attachment')
+            
+            # Pass attachment to the outlook service
+            result = send_outlook_email(
+                target_email, 
+                recipient, 
+                subject, 
+                body, 
+                content_type='Html',
+                attachment=attachment
+            )
             
             if result.get('success'):
-                log_delegation_transaction(delegation_id, request.user, subject, recipient, action_type='EMAIL_REPLY')
+                # Detail the log if an attachment was included
+                log_detail = recipient
+                if attachment:
+                    log_detail = f"{recipient} (Attachment: {attachment.name})"
+                
+                log_delegation_transaction(delegation_id, request.user, subject, log_detail, action_type='EMAIL_REPLY')
 
                 new_email_id = result.get('message_id') or f"SENT-{timezone.now().timestamp()}"
 
@@ -460,7 +475,8 @@ from django.db.models import Q # For flexible filtering
 @login_required
 def acvv_information(request, mip_names):
     """
-    Detailed view for a specific ACVV record.
+    Detailed view for a specific ACVV record with unified logging for 
+    incoming delegated emails and outgoing correspondence from registers.
     """
     acvv_record = get_object_or_404(Globalacvv, mip_names=mip_names)
     
@@ -483,7 +499,7 @@ def acvv_information(request, mip_names):
                     acvv_record=acvv_record,
                     notes=note_content,
                     user=request.user.username,
-                    date=datetime.now(),
+                    date=timezone.now(), # Ensure timezone is used
                     communication_type=comm_type,
                     action_note_type=action_note,
                     attachment=file_url
@@ -515,24 +531,27 @@ def acvv_information(request, mip_names):
     branch_docs = BranchDocument.objects.filter(branch_name=mip_names).order_by('-uploaded_at')
 
     # --- EMAIL LOG LOGIC ---
+    # 1. Incoming/Delegated Emails from Outlook
     delegated_logs = EmailDelegation.objects.filter(
         Q(mip_names__icontains=acvv_record.mip_names) | Q(mip_names__icontains=acvv_record.branch_code)
     ).select_related('assigned_user')
 
+    # 2. Sent Emails logged via ClientNotes (Captured from Global & Two-Pot registers)
+    # We use a Q filter to find notes starting with either "Email Composed" or "Email Sent"
     sent_logs = ClientNotes.objects.filter(
-        acvv_record=acvv_record,
-        notes__icontains="Email Composed" 
+        Q(acvv_record=acvv_record) & 
+        (Q(notes__icontains="Email Composed") | Q(notes__icontains="Email Sent"))
     )
 
     combined_email_log = []
 
+    # Process Delegated/Incoming Logs
     for log in delegated_logs:
         is_formal_reply = (log.status == 'SENT')
         
         combined_email_log.append({
             'type': 'DIRECT' if is_formal_reply else 'ORIGINAL',
             'icon': '📤' if is_formal_reply else '📩',
-            # Blue for tasks, Green for replies, Red for deleted
             'badge_color': '#28a745' if is_formal_reply else ('#1976d2' if log.status != 'DLT' else '#ef5350'), 
             'subject': log.subject or f"[{log.email_category}] Outlook Task",
             'received_at': log.received_at,
@@ -540,29 +559,41 @@ def acvv_information(request, mip_names):
             'assigned_to': log.assigned_user.username if log.assigned_user else "Unassigned",
             'display_type': 'SENT' if is_formal_reply else log.get_status_display(),
             'actioned_at': log.received_at if is_formal_reply else None, 
-            'email_id': log.email_id, # String ID used for the URL reverse
+            'email_id': log.email_id,
             'db_id': log.id,
             'sort_date': log.received_at or log.delegated_at
         })
 
+    # Process Sent Logs from Registers
     for sent in sent_logs:
         subject_parts = sent.notes.split('\n')
-        subject = subject_parts[0].replace("Email Composed: ", "") if subject_parts else "Sent Email"
+        # Clean subject based on which prefix was used
+        raw_note = subject_parts[0]
+        subject_title = raw_note.replace("Email Composed: ", "").replace("Email Sent: ", "").strip()
         
+        # --- NEW LOOKUP LOGIC ---
+        # Look for the actual SENT record in EmailDelegation to get the real Outlook ID
+        linked_sent_record = EmailDelegation.objects.filter(
+            subject__icontains=subject_title[:50], # Partial match to be safe
+            status='SENT', 
+            mip_names=acvv_record.mip_names
+        ).order_by('-received_at').first()
+
         combined_email_log.append({
             'type': 'DIRECT',
             'icon': '📤',
-            'badge_color': '#f57c00', # Orange for legacy notes
-            'subject': subject,
+            'badge_color': '#f57c00', # Orange distinct color for register-sent mail
+            'subject': subject_title,
             'received_at': None,
             'delegated_at': None,
             'assigned_to': sent.user,
             'display_type': 'SENT',
             'actioned_at': sent.date,
-            'email_id': None,
+            'email_id': linked_sent_record.email_id if linked_sent_record else None,
             'sort_date': sent.date
         })
 
+    # Unified sorting
     combined_email_log.sort(key=lambda x: x['sort_date'] if x['sort_date'] else datetime.min, reverse=True)
 
     my_delegated_emails = EmailDelegation.objects.filter(
@@ -837,14 +868,15 @@ def global_claims_view(request):
 
 @login_required
 def global_two_pot_view(request):
-    """Dedicated Register for ONLY Two Pot claims."""
+    """Dedicated Register for ONLY Two Pot claims with Note/Attachment support."""
     query = request.GET.get('q')
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
 
     # --- HARD FILTER: Only Two Pot ---
-    base_claims = AcvvClaim.objects.filter(claim_type='Two Pot').order_by('-claim_created_date')
+    # Added prefetch_related('notes') to load history and attachments efficiently
+    base_claims = AcvvClaim.objects.filter(claim_type='Two Pot').prefetch_related('notes').order_by('-claim_created_date')
 
     if query:
         base_claims = base_claims.filter(
@@ -861,27 +893,35 @@ def global_two_pot_view(request):
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
-    # Email Preview Logic (Keep as is)
+    # Email Preview Logic
     delegation_pks = [c.linked_email_id for c in page_obj if c.linked_email_id]
     if delegation_pks:
-        delegations_map = EmailDelegation.objects.in_bulk(list(set(delegation_pks)))
+        # Filter out invalid IDs that aren't numeric to avoid the ValueError we saw earlier
+        numeric_pks = [pk for pk in delegation_pks if str(pk).isdigit()]
+        delegations_map = EmailDelegation.objects.in_bulk(numeric_pks)
+        
         for claim in page_obj:
-            if claim.linked_email_id:
+            if claim.linked_email_id and str(claim.linked_email_id).isdigit():
                 try:
                     del_obj = delegations_map.get(int(claim.linked_email_id))
                     if del_obj:
-                        email_data = _make_graph_request(f"messages/{del_obj.email_id}?$select=subject,from,body,receivedDateTime", target_email)
+                        email_data = _make_graph_request(
+                            f"messages/{del_obj.email_id}?$select=subject,from,body,receivedDateTime", 
+                            target_email
+                        )
                         if 'error' not in email_data:
                             claim.email_preview_subject = email_data.get('subject')
                             claim.email_preview_sender = email_data.get('from', {}).get('emailAddress', {}).get('address')
                             claim.email_preview_body = email_data.get('body', {}).get('content')
                             claim.email_preview_date = email_data.get('receivedDateTime')
-                except: continue
+                except Exception as e:
+                    print(f"DEBUG: Email Preview Error for Claim {claim.id}: {e}")
+                    continue
 
-    # Rendering the SPECIFIC Two Pot HTML
+    # Rendering the SPECIFIC Two Pot HTML (Ensure the template path matches your project)
     return render(request, 'acvv_app/two_pot_global.html', {
         'page_obj': page_obj, 
-        'claims': page_obj, 
+        'claims': page_obj, # This ensures the notes-templates loop works
         'all_companies': Globalacvv.objects.values('mip_names', 'branch_code'),
         'my_delegated_emails': EmailDelegation.objects.filter(assigned_user=request.user, status='DEL').order_by('-received_at'),
         'is_two_pot_view': True,
@@ -892,15 +932,16 @@ def global_two_pot_view(request):
 
 @login_required
 def save_global_claim(request):
-    """Unified save view with email sending and intelligent redirect."""
+    """Unified save view with note handling, file attachments, and email with attachments."""
     if request.method == 'POST':
         claim_id = request.POST.get('claim_id')
         claim_type = request.POST.get('claim_type') 
+        company_code = request.POST.get('company_code')
         
         linked_id = request.POST.get('linked_email_id') or None
 
         data = {
-            'company_code': request.POST.get('company_code'),
+            'company_code': company_code,
             'agent': request.POST.get('agent'),
             'id_number': request.POST.get('id_number'),
             'member_name': request.POST.get('member_name'),
@@ -919,21 +960,72 @@ def save_global_claim(request):
             'infund_cert_date': request.POST.get('infund_cert_date') or None,
         }
 
+        # 1. Save or Update the Claim
         if claim_id:
             AcvvClaim.objects.filter(id=claim_id).update(**data)
             claim_obj = AcvvClaim.objects.get(id=claim_id)
-            messages.success(request, "Claim updated.")
+            messages.success(request, f"Claim for {claim_obj.member_surname} updated.")
         else:
             claim_obj = AcvvClaim.objects.create(**data)
-            messages.success(request, "New claim created.")
+            messages.success(request, f"New {claim_type} claim created successfully.")
 
-        # Note/Email logic here...
-        # (Same as previous step)
+        # 2. HANDLE CLAIM NOTES & INTERNAL ATTACHMENTS
+        note_selection = request.POST.get('note_selection')
+        note_description = request.POST.get('note_description')
+        internal_attachment = request.FILES.get('claim_attachment')
+
+        if note_selection or note_description or internal_attachment:
+            ClaimNote.objects.create(
+                claim=claim_obj,
+                note_selection=note_selection,
+                note_description=note_description,
+                attachment=internal_attachment,
+                created_by=request.user
+            )
+            messages.info(request, "Internal claim note saved.")
+
+        # 3. HANDLE OUTGOING EMAIL LOGIC WITH ATTACHMENTS
+        recipient = request.POST.get('member_recipient_email')
+        subject = request.POST.get('member_email_subject_reply')
+        body = request.POST.get('email_body_html_content')
+        
+        # Capture the specific file meant for the email recipient
+        email_attachment = request.FILES.get('email_attachment')
+
+        if recipient and subject and body:
+            target_email = settings.OUTLOOK_EMAIL_ADDRESS
+            
+            # Pass the email_attachment to your outlook service
+            result = send_outlook_email(
+                target_email, 
+                recipient, 
+                subject, 
+                body, 
+                content_type='Html',
+                attachment=email_attachment  # Ensure your service is updated to handle this
+            )
+            
+            if result.get('success'):
+                # Log the email to branch history
+                acvv_record = Globalacvv.objects.filter(mip_names=company_code).first()
+                if acvv_record:
+                    attach_msg = f" (with attachment: {email_attachment.name})" if email_attachment else ""
+                    ClientNotes.objects.create(
+                        acvv_record=acvv_record,
+                        notes=f"Email Sent: {subject}\nRecipient: {recipient}{attach_msg}",
+                        user=request.user.username,
+                        date=timezone.now(),
+                        communication_type="Email",
+                        action_note_type="Correspondence"
+                    )
+                messages.success(request, f"Email sent successfully to {recipient}.")
+            else:
+                messages.error(request, f"Email failed: {result.get('error')}")
 
         # Final Redirects
         if claim_type == 'Two Pot':
             return redirect('global_two_pot')
-        return redirect('global_claims') # 🛑 Updated name
+        return redirect('global_claims')
 
 import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
@@ -943,12 +1035,12 @@ from django.http import HttpResponse
 @login_required
 def export_global_claims_excel(request):
     """
-    Exports claims to the specific Billing format (Yellow Theme).
-    Excludes 'Two Pot' claims from the queryset.
+    Exports claims to the standard Register format (Green Theme) matching the attachment.
+    Excludes 'Two Pot' claims.
     """
     query = request.GET.get('q')
     
-    # 1. Filter out 'Two Pot' claims
+    # 1. Fetch claims excluding 'Two Pot'
     claims = AcvvClaim.objects.all().exclude(claim_type='Two Pot').order_by('claim_created_date')
     
     if query:
@@ -960,78 +1052,63 @@ def export_global_claims_excel(request):
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Billing Export"
+    ws.title = "Claims Register"
 
-    # Define Colors and Styles
-    yellow_fill = PatternFill(start_color="FFFF99", end_color="FFFF99", fill_type="solid")
-    border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+    # Define Green Theme Styles (Matching the image)
+    green_fill = PatternFill(start_color="C6E0B4", end_color="C6E0B4", fill_type="solid")
+    border = Border(left=Side(style='thin'), right=Side(style='thin'), 
+                    top=Side(style='thin'), bottom=Side(style='thin'))
+    header_font = Font(bold=True, size=11)
+    alignment = Alignment(horizontal='center', vertical='center')
 
-    # 2. Header Row 1 - Billing Period
-    now = timezone.now()
-    first_day = now.replace(day=1).strftime('%d.%m.%Y')
-    # Get last day of current month
-    next_month = now.replace(day=28) + timezone.timedelta(days=4)
-    last_day = (next_month.replace(day=1) - timezone.timedelta(days=1)).strftime('%d.%m.%Y')
-    
-    title_text = f"Billing  - Member Emergency Savings Pot Withdrawal Requested - {first_day} to {last_day}"
-    ws.merge_cells('A1:O1')
-    ws['A1'] = title_text
-    ws['A1'].font = Font(bold=True, size=12)
-    ws['A1'].fill = yellow_fill
-
-    # 3. Header Row 2 - Column Titles (Matching Image)
+    # 2. Header Row Titles (Matching Image: Co Code, Branch, Agent, etc.)
     headers = [
-        'DATE EXTRACT INFO / FORM FROM WEB - Savings Form Request', 
-        'Initials', 'Surname', 'Member number', 'ID NUMBER', 'Fund', 
-        'Branch', 'Query', 'Claim', 'Qualified', 'Date submitted/ online', 
-        'Succesfull Loaded confirmation', 'Amount Apply for', 'Admin Fee R33 + 15% Vat', ''
+        'Co Code', 'Branch', 'Agent', 'MIP Number', 'ID Number', 
+        'Name', 'Surname', 'Type', 'Status', 'Exit Reason', 
+        'Created', 'Submitted', 'Paid'
     ]
+    
     ws.append(headers)
     
-    # Style the header row
-    for cell in ws[2]:
-        cell.font = Font(bold=True, size=10)
-        cell.fill = yellow_fill
-        cell.alignment = Alignment(wrap_text=True, horizontal='left', vertical='top')
+    # Apply styling to headers
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = green_fill
+        cell.alignment = alignment
         cell.border = border
 
-    # 4. Data Rows
+    # 3. Data Rows
     for c in claims:
-        # Calculate Initials
-        initials = "".join([n[0] for n in c.member_name.split() if n]) if c.member_name else ""
-        
-        # Determine Claim Status Text
-        claim_text = "Savings Form Submitted" if c.claim_status == 'Paid' else "Member Emergency Savings Pot Withdrawal Requested"
-        qualified_text = "YES" if c.claim_status == 'Paid' else "NO"
-        submit_date = c.date_submitted.strftime('%d.%m.%Y') if c.date_submitted else "Withdrawal Not Allowed"
-
         row = [
-            c.claim_created_date.strftime('%d/%m/%Y') if c.claim_created_date else '', # Date Extract
-            initials,                                                                  # Initials
-            c.member_surname,                                                          # Surname
-            c.mip_number if hasattr(c, 'mip_number') else '',                         # Member number
-            c.id_number,                                                               # ID NUMBER
-            '',                                                                        # Fund (Placeholder)
-            c.company_code,                                                            # Branch
-            'Savings Form Request',                                                    # Query
-            claim_text,                                                                # Claim
-            qualified_text,                                                            # Qualified
-            submit_date,                                                               # Date Submitted
-            'YES' if c.claim_status == 'Paid' else '',                                 # Successful Conf.
-            float(c.claim_amount) if c.claim_amount else '',                          # Amount Apply
-            37.95,                                                                     # Admin Fee
-            ''                                                                         # Empty col
+            c.company_code,                                      # Co Code
+            '',                                                 # Branch (Placeholder if separate)
+            c.agent if hasattr(c, 'agent') else '',             # Agent
+            c.mip_number if hasattr(c, 'mip_number') else '',   # MIP Number
+            c.id_number,                                        # ID Number
+            c.member_name,                                      # Name
+            c.member_surname,                                   # Surname
+            c.claim_type,                                       # Type
+            c.claim_status,                                     # Status
+            c.exit_reason if hasattr(c, 'exit_reason') else '', # Exit Reason
+            c.claim_created_date.strftime('%Y-%m-%d') if c.claim_created_date else '', # Created
+            c.date_submitted.strftime('%Y-%m-%d') if hasattr(c, 'date_submitted') and c.date_submitted else '', # Submitted
+            c.date_paid.strftime('%Y-%m-%d') if hasattr(c, 'date_paid') and c.date_paid else ''              # Paid
         ]
         ws.append(row)
+        
+        # Apply borders to the data row
+        for cell in ws[ws.max_row]:
+            cell.border = border
 
-    # 5. Formatting - Column Widths
-    column_widths = [20, 8, 15, 15, 18, 10, 25, 20, 30, 10, 20, 15, 15, 15, 5]
+    # 4. Formatting - Auto-adjust Column Widths
+    column_widths = [10, 20, 15, 15, 18, 15, 15, 12, 20, 15, 12, 12, 12]
     for i, width in enumerate(column_widths):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i+1)].width = width
 
     # Final response
+    now = timezone.now()
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = f'attachment; filename="Billing_Withdrawals_{now.strftime("%Y_%m")}.xlsx"'
+    response['Content-Disposition'] = f'attachment; filename="Claims_Register_{now.strftime("%Y-%m-%d")}.xlsx"'
     wb.save(response)
     
     return response
@@ -1461,12 +1538,19 @@ def export_reconciliation(request, date_str):
 @login_required
 def outlook_email_list(request):
     """
-    View to display only NEW and DELEGATED (DEL) emails.
+    View to display only NEW and DELEGATED (DEL) emails with date filtering.
     """
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+
     # Filter for NEW and DEL statuses only
     emails = EmailDelegation.objects.filter(
         status__in=['NEW', 'DEL']
     ).select_related('assigned_user').order_by('-received_at')
+
+    # Apply date filters if provided
+    if start_date and end_date:
+        emails = emails.filter(received_at__date__range=[start_date, end_date])
 
     # Status counts for badges
     new_count = emails.filter(status='NEW').count()
@@ -1478,6 +1562,58 @@ def outlook_email_list(request):
         'del_count': del_count,
     }
     return render(request, 'acvv_app/outlook_email_list.html', context)
+
+@login_required
+def export_email_tasks_excel(request):
+    """
+    Exports the filtered email task list to Excel.
+    """
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    emails = EmailDelegation.objects.filter(status__in=['NEW', 'DEL']).order_by('-received_at')
+    
+    if start_date and end_date:
+        emails = emails.filter(received_at__date__range=[start_date, end_date])
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Email Task Export"
+
+    # Styles
+    header_fill = PatternFill(start_color="43A047", end_color="43A047", fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF")
+    border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+    headers = ['Status', 'Received Date', 'Subject', 'Sender', 'Member Group', 'Assigned To', 'Category']
+    ws.append(headers)
+
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.border = border
+        cell.alignment = Alignment(horizontal='center')
+
+    for e in emails:
+        ws.append([
+            e.get_status_display(),
+            e.received_at.strftime('%Y-%m-%d %H:%M') if e.received_at else '',
+            e.subject,
+            e.sender_address,
+            e.mip_names,
+            e.assigned_user.username if e.assigned_user else 'Unassigned',
+            e.email_category
+        ])
+
+    # Column Widths
+    widths = [15, 20, 40, 30, 20, 20, 20]
+    for i, width in enumerate(widths):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(i+1)].width = width
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename="Email_Tasks_{timezone.now().strftime("%Y%m%d")}.xlsx"'
+    wb.save(response)
+    return response
 
 @login_required
 def temp_exists_list(request):
@@ -1559,7 +1695,9 @@ def download_acvv_email(request, delegation_id):
     from .services.outlook_graph_service import get_current_access_token
 
     # 1. Get the local record and the target email
-    task = get_object_or_404(EmailDelegation, pk=delegation_id)
+    # FIXED: Changed pk=delegation_id to email_id=delegation_id to handle string IDs
+    task = get_object_or_404(EmailDelegation, email_id=delegation_id) 
+    
     ms_id = task.email_id 
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
 
@@ -1599,99 +1737,183 @@ def download_acvv_email(request, delegation_id):
         print(f"DEBUG DOWNLOAD ERROR: {e}")
         return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
     
+import openpyxl
+from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
+from openpyxl.utils import get_column_letter
+from django.http import HttpResponse
+from django.utils import timezone
+from django.db.models import Q
+from .models import AcvvClaim, Globalacvv
+
+def get_branch_map_acvv(claims_queryset):
+    """ Helper to map company codes to formal Branch names for ACVV """
+    codes = claims_queryset.values_list('company_code', flat=True).distinct()
+    branches = Globalacvv.objects.filter(mip_names__in=codes)
+    return {b.mip_names: b.member for b in branches}
+
 @login_required
-def export_two_pot_billing_excel(request):
+def export_two_pot_invoice_cecile(request):
     """
-    Dedicated export for Two-Pot claims ONLY.
-    Matches the Yellow Billing format for Savings Pot Withdrawals.
+    Report 1: Cecile Invoice Format (Grey Theme)
     """
-    query = request.GET.get('q', '')
-    
-    # 1. Strict Filter: Only 'Two Pot' claims
+    query = request.GET.get('q')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+
     claims = AcvvClaim.objects.filter(claim_type='Two Pot').order_by('claim_created_date')
-    
-    # Apply search filters if present
     if query:
-        claims = claims.filter(
-            Q(id_number__icontains=query) | 
-            Q(member_surname__icontains=query) | 
-            Q(mip_number__icontains=query) |
-            Q(company_code__icontains=query)
-        )
+        claims = claims.filter(Q(id_number__icontains=query) | Q(member_surname__icontains=query))
+    if start_date and end_date:
+        claims = claims.filter(claim_created_date__range=[start_date, end_date])
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Two-Pot Savings Billing"
+    ws.title = "Cecile Invoice"
 
-    # Styling setup
-    yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
-    border = Border(left=Side(style='thin'), right=Side(style='thin'), 
-                    top=Side(style='thin'), bottom=Side(style='thin'))
+    header_fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
+    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
 
-    # 2. Header Row 1: Merged Title
-    now = timezone.now()
-    first_day = now.replace(day=1).strftime('%d.%m.%Y')
-    # Calculate last day of month
-    last_day = (now.replace(day=28) + timezone.timedelta(days=4)).replace(day=1) - timezone.timedelta(days=1)
-    
-    title_text = f"Billing - Member Emergency Savings Pot Withdrawal Requested - {first_day} to {last_day.strftime('%d.%m.%Y')}"
-    ws.merge_cells('A1:N1')
-    ws['A1'] = title_text
-    ws['A1'].font = Font(bold=True, size=12)
-    ws['A1'].fill = yellow_fill
-    ws['A1'].alignment = Alignment(horizontal='left')
-
-    # 3. Header Row 2: Column Names
     headers = [
-        'DATE EXTRACT INFO / FORM FROM WEB - Savings Form Request', 
-        'Initials', 'Surname', 'Member number', 'ID NUMBER', 'Fund', 
-        'Branch', 'Query', 'Claim', 'Qualified', 'Date submitted/ online', 
-        'Succesfull Loaded confirmation', 'Amount Apply for', 'Admin Fee R33 + 15% Vat'
+        "Date", "Initials", "Surname", "Member nr", "ID NUMBER", "Fund", 
+        "Branch", "Admin From", "Qualified", "Date submitted online", 
+        "Successful Loaded confirmation", "Admin Fee R33 + 15% Vat", "SUBMIT ONLINE"
+    ]
+    ws.append(headers)
+    
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = Font(bold=True, size=10)
+        cell.border = thin_border
+        cell.alignment = Alignment(horizontal='center')
+
+    branch_map = get_branch_map_acvv(claims)
+
+    for claim in claims:
+        initials = "".join([n[0] for n in claim.member_name.split() if n]) if claim.member_name else ""
+        is_paid = str(claim.claim_status).upper().strip() == "PAID"
+        
+        ws.append([
+            claim.claim_created_date.strftime('%d/%m/%Y') if claim.claim_created_date else '',
+            initials,
+            claim.member_surname,
+            claim.mip_number,
+            claim.id_number,
+            claim.company_code,
+            branch_map.get(claim.company_code, ""),
+            claim.agent or "",
+            "yes" if is_paid else "no",
+            claim.date_submitted.strftime('%d/%m/%Y') if claim.date_submitted else '',
+            "YES" if is_paid else "NO",
+            "R37.95",
+            "SUBMIT ONLINE"
+        ])
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename="Cecile_Invoice_{timezone.now().strftime("%Y%m%d")}.xlsx"'
+    wb.save(response)
+    return response
+
+@login_required
+def export_two_pot_tracking_acvv(request):
+    """
+    Report 2: Full Tracking (Yellow Theme) with Red text for 'NO' statuses.
+    Matches attached image format.
+    """
+    query = request.GET.get('q')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+
+    claims_queryset = AcvvClaim.objects.filter(claim_type='Two Pot').order_by('claim_created_date')
+
+    if query:
+        claims_queryset = claims_queryset.filter(
+            Q(id_number__icontains=query) | Q(member_surname__icontains=query) | 
+            Q(company_code__icontains=query) | Q(mip_number__icontains=query)
+        )
+
+    if start_date and end_date:
+        claims_queryset = claims_queryset.filter(claim_created_date__range=[start_date, end_date])
+
+    branch_map = get_branch_map_acvv(claims_queryset)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Two-Pot Tracking"
+
+    yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+    
+    now = timezone.now()
+    display_start = start_date if start_date else now.replace(day=1).strftime('%d.%m.%Y')
+    display_end = end_date if end_date else now.strftime('%d.%m.%Y')
+    
+    # Row 1 Title (Billing Period)
+    ws.merge_cells('A1:O1')
+    header_cell = ws['A1']
+    header_cell.value = f"Billing - Member Emergency Savings Pot Withdrawal Requested - {display_start} to {display_end}"
+    header_cell.font = Font(bold=True, size=11, underline="single")
+    header_cell.fill = yellow_fill
+    header_cell.border = thin_border
+
+    # Row 2 Headers
+    headers = [
+        "DATE EXTRACT INFO / FORM FROM WEB", "Initials", "Surname", 
+        "Member number", "ID NUMBER", "Fund", "Branch", "Query", "Claim", 
+        "Qualified", "Date submitted/ online", "Succesfull Loaded confirm", 
+        "Amount Apply for", "Admin Fee R33+15%", "Note"
     ]
     ws.append(headers)
     
     for cell in ws[2]:
-        cell.font = Font(bold=True, size=10)
+        cell.font = Font(bold=True, size=9)
         cell.fill = yellow_fill
-        cell.border = border
+        cell.border = thin_border
         cell.alignment = Alignment(wrap_text=True, horizontal='center', vertical='center')
+    ws.row_dimensions[2].height = 45
 
-    # 4. Data Rows
-    for c in claims:
-        # Extract initials
-        initials = "".join([n[0] for n in c.member_name.split() if n]) if c.member_name else ""
+    for claim in claims_queryset:
+        initials = "".join([n[0] for n in claim.member_name.split() if n]) if claim.member_name else ""
+        is_paid = str(claim.claim_status).upper().strip() == "PAID"
+        qualified_val = "YES" if is_paid else "NO"
         
-        # Logic for 'Qualified' and 'Date submitted'
-        is_paid = c.claim_status == 'Paid'
-        is_not_allowed = "Not Allowed" in c.claim_status
-        
-        qualified = "YES" if is_paid else "NO"
-        submit_status = c.claim_created_date.strftime('%d.%m.%Y') if not is_not_allowed else "Withdrawal Not Allowed"
+        if is_paid:
+            submit_date_label = claim.date_submitted.strftime('%d.%m.%Y') if claim.date_submitted else "Pending"
+        else:
+            submit_date_label = "Withdrawal Not Allowed"
 
-        ws.append([
-            c.claim_created_date.strftime('%d/%m/%Y') if c.claim_created_date else '', # Date
-            initials,                                                                  # Initials
-            c.member_surname,                                                          # Surname
-            c.mip_number,                                                              # Member number
-            c.id_number,                                                               # ID NUMBER
-            '',                                                                        # Fund
-            c.company_code,                                                            # Branch
-            'Savings Form Request',                                                    # Query
-            c.claim_status,                                                            # Claim Status
-            qualified,                                                                 # Qualified
-            submit_status,                                                             # Date submitted
-            'YES' if is_paid else '',                                                  # Confirmation
-            c.claim_amount if c.claim_amount else 0.00,                                # Amount
-            37.95                                                                      # Fixed Fee
-        ])
+        row = [
+            claim.claim_created_date.strftime('%d/%m/%Y') if claim.claim_created_date else '',
+            initials,
+            claim.member_surname,
+            claim.mip_number,
+            claim.id_number,
+            claim.company_code,
+            branch_map.get(claim.company_code, "Unknown"),
+            "Savings Form Request",
+            "Savings Form Submitted" if is_paid else "Member Emergency Savings Pot Withdrawal Requested",
+            qualified_val,
+            submit_date_label,
+            "YES" if is_paid else "",
+            float(claim.claim_amount or 0),
+            "37.95",
+            claim.notes.last().note_description if claim.notes.exists() else ""
+        ]
+        ws.append(row)
 
-    # Column Widths
-    column_widths = [25, 10, 20, 15, 20, 10, 25, 20, 40, 12, 25, 15, 15, 15]
-    for i, width in enumerate(column_widths):
-        ws.column_dimensions[openpyxl.utils.get_column_letter(i+1)].width = width
+        # Apply Red Text for "NO" status rows
+        for cell in ws[ws.max_row]:
+            cell.border = thin_border
+            cell.alignment = Alignment(vertical='center', horizontal='left')
+            if qualified_val == "NO":
+                cell.font = Font(size=9, color="FF0000")
+            else:
+                cell.font = Font(size=9)
+
+    widths = [22, 8, 18, 14, 18, 10, 25, 20, 35, 10, 22, 18, 14, 14, 40]
+    for i, width in enumerate(widths):
+        ws.column_dimensions[get_column_letter(i+1)].width = width
 
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = f'attachment; filename="Two_Pot_Billing_{now.strftime("%Y_%m")}.xlsx"'
+    response['Content-Disposition'] = f'attachment; filename="Two_Pot_Full_Tracking_{now.strftime("%Y_%m_%d")}.xlsx"'
     wb.save(response)
-    
     return response

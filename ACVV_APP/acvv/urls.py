@@ -42,7 +42,7 @@ urlpatterns = [
     path('acvv/export/', views.export_acvv_list_excel, name='export_acvv_excel'),
     path('export/temp-exists/', views.export_temp_exists, name='export_temp_exists'), 
     
-    # 🛑 UPDATED: One path to rule them all (String based)
+    # --- Outlook View/Download ---
     path('outlook/thread/<str:delegation_id>/', views.outlook_view_thread, name='outlook_view_thread'),
     path('outlook/download/<str:delegation_id>/', views.download_acvv_email, name='download_acvv_email'),
     
@@ -55,5 +55,13 @@ urlpatterns = [
     
     path('temp-exists/', views.temp_exists_list, name='temp_exists_list'),
     path('temp-exists/export/', views.export_temp_exists, name='export_temp_exists_excel'),
-    path('export-two-pot-billing/', views.export_two_pot_billing_excel, name='export_two_pot_billing'),
+
+    # --- Two-Pot Specific Exports ---
+    # 1. The Cecile Invoice (Grey format)
+    path('export-two-pot-cecile/', views.export_two_pot_invoice_cecile, name='export_two_pot_cecile'),
+    
+    # 2. The Full Tracking (Yellow format matching the image)
+    path('export-two-pot-billing/', views.export_two_pot_tracking_acvv, name='export_two_pot_billing'),
+
+    path('outlook/export-tasks/', views.export_email_tasks_excel, name='export_email_tasks_excel'),
 ]

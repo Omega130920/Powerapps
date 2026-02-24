@@ -4,9 +4,8 @@
 
 {% block content %}
 <style>
-    /* -------------------------------------------------------------------------
-    * BASE STYLES - Optimized for "Fit to Screen"
-    * ------------------------------------------------------------------------- */
+    /* ... (Your existing styles remain untouched) ... */
+    
     body {
         font-family: sans-serif;
         background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
@@ -228,7 +227,6 @@
     }
 
     @media (max-width: 992px) { .main-grid { flex-direction: column; } }
-
 </style>
 
 <div class="task-container">
@@ -340,8 +338,10 @@
                     <i class="fas fa-chevron-down toggle-icon"></i>
                 </button>
                 <div class="collapse-content" id="collapseReplyForm">
-                    <form method="POST">
+                    <form method="POST" enctype="multipart/form-data">
                         {% csrf_token %}
+                        <input type="hidden" name="action_type" value="send_reply">
+                        
                         <div style="margin-bottom: 10px;">
                             <label for="reply_recipient" class="form-label">Recipient:</label>
                             <input type="email" class="form-control" id="reply_recipient" name="reply_recipient" value="{{ email.from.emailAddress.address }}" required>
@@ -350,9 +350,16 @@
                             <label for="reply_subject" class="form-label">Subject:</label>
                             <input type="text" class="form-control" id="reply_subject" name="reply_subject" value="Re: {{ email.subject|default:'(No Subject)' }}" required>
                         </div>
+
+                        <div style="margin-bottom: 15px; padding: 12px; border: 1px dashed #1e88e5; background-color: #f1f8ff; border-radius: 4px;">
+                            <label for="email_attachment" class="form-label" style="margin-top: 0; color: #1e88e5;">
+                                <i class="fas fa-paperclip"></i> Attachment (PDF/Image/Excel):
+                            </label>
+                            <input type="file" class="form-control" id="email_attachment" name="email_attachment" style="background: white; border-style: solid;">
+                        </div>
+
                         <div style="margin-bottom: 15px;">
                             <label for="reply_body" class="form-label">Body (HTML allowed):</label>
-                            <input type="hidden" name="action_type" value="send_reply">
                             <textarea class="form-control" id="reply_body" name="reply_body" rows="6" required></textarea>
                         </div>
                         <button type="submit" class="custom-btn btn-primary" style="width: 100%; padding: 12px;"><i class="fas fa-paper-plane" style="margin-right: 8px;"></i> Send Reply (from {{ target_email }})</button>

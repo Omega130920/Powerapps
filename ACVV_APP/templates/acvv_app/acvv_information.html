@@ -214,20 +214,31 @@
             {% csrf_token %}
             <input type="hidden" name="action" value="send_outgoing_email">
             <input type="hidden" name="email_body_html_content" id="standalone_email_html_content">
+            
             <div class="form-group" style="margin-bottom: 10px;">
                 <label style="font-weight: bold; display: block; margin-bottom: 5px;">To:</label>
                 <input type="text" name="member_recipient_email" value="{{ acvv_record.mg_email_address }}" class="form-input" required>
             </div>
+            
             <div class="form-group" style="margin-bottom: 15px;">
                 <label style="font-weight: bold; display: block; margin-bottom: 5px;">Subject:</label>
                 <input type="text" name="member_email_subject_reply" value="[MIP: {{ acvv_record.mip_names }}] New Communication" class="form-input">
             </div>
+
+            <div class="form-group" style="margin-bottom: 15px; padding: 10px; border: 1px solid #ffcc80; background-color: #fffde7; border-radius: 4px;">
+                <label style="color: #e65100; font-weight: bold; display: block; margin-bottom: 5px;">
+                    <i class="fas fa-paperclip"></i> Attach File:
+                </label>
+                <input type="file" name="email_attachment" class="form-input" style="border: none; padding: 0; background: transparent;">
+            </div>
+
             <div class="form-group" style="margin-bottom: 15px;">
                 <label style="font-weight: bold; display: block; margin-bottom: 5px;">Email Body:</label>
                 <div id="standalone_email_body_editor" class="rich-text-editor" contenteditable="true">
                     <p>Dear Sir/Madam,</p><p>Regarding Member Group Code {{ acvv_record.mip_names }},</p><p><br></p><p>Kind regards,</p><p>{{ request.user.username }}</p>
                 </div>
             </div>
+            
             <div style="text-align: right;">
                 <button type="button" class="cancel-btn" style="margin-right: 10px;" onclick="toggleStandaloneEmailForm()">Cancel</button>
                 <button type="submit" onclick="syncStandaloneEditor()" style="padding: 10px 20px; background-color: #f7931e; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Send Email & Log</button>
@@ -241,7 +252,7 @@
             <tr style="text-align: left; background-color: #f8f9fa;">
                 <th style="width: 160px; padding: 10px;">Type</th>
                 <th style="padding: 10px;">Subject</th>
-                <th style="padding: 10px;">Assigned</th>
+                <th style="padding: 10px;">Assigned/User</th>
                 <th style="padding: 10px;">Status</th>
                 <th style="padding: 10px; text-align: center;">Actions</th>
             </tr>
@@ -255,7 +266,11 @@
                         <span style="color: {{ log.badge_color }}; font-weight: bold;">{{ log.type }}</span>
                     </div>
                 </td>
-                <td style="padding: 10px;">{{ log.subject|truncatechars:50 }}</td>
+                <td style="padding: 10px;">
+                    {{ log.subject|truncatechars:50 }}
+                    <br>
+                    <small style="color: #888;">{{ log.sort_date|date:"Y-m-d H:i" }}</small>
+                </td>
                 <td style="padding: 10px;">{{ log.assigned_to|default:"-" }}</td>
                 <td style="padding: 10px;">
                     <span class="status-badge" style="background-color: {{ log.badge_color }}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">
@@ -264,24 +279,22 @@
                 </td>
                 <td style="padding: 10px; text-align: center;">
                     <div style="display: flex; gap: 5px; justify-content: center; align-items: center;">
-                        
-                        {# VIEW THREAD BUTTON - Adjusted for ACVV APP #}
                         {% if log.email_id %}
                             <a href="{% url 'outlook_view_thread' delegation_id=log.email_id %}" 
-                               style="background-color: #43a047; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 0.8em; font-weight: bold;">
+                               style="background-color: #43a047; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 0.8em; font-weight: bold;"
+                               title="View Email Thread">
                                 <i class="fas fa-eye"></i> View
                             </a>
-                        {% else %}
-                            -
-                        {% endif %}
 
-                        {# DOWNLOAD BUTTON - Adjusted for ACVV APP #}
-                        {% if log.email_id and log.type == 'ORIGINAL' %}
                             <a href="{% url 'download_acvv_email' delegation_id=log.email_id %}" 
-                               title="Download Sent .eml"
+                               title="Download .eml"
                                style="background-color: #1976d2; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 0.8em; font-weight: bold;">
                                 <i class="fas fa-download"></i>
                             </a>
+                        {% else %}
+                            <span style="color: #888; font-size: 0.75em; font-style: italic;">
+                                <i class="fas fa-check-circle"></i> Logged Record
+                            </span>
                         {% endif %}
                     </div>
                 </td>
@@ -290,7 +303,7 @@
         </tbody>
     </table>
     {% else %}
-        <p style="text-align: center; padding: 20px; color: #777;">No email history found.</p>
+        <p style="text-align: center; padding: 20px; color: #777;">No email history found for this branch.</p>
     {% endif %}
 </div>
 

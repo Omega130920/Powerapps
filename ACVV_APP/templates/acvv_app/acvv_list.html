@@ -16,10 +16,9 @@
             color: #333;
         }
 
-        /* Container now uses full width and scales with zoom */
         .container {
-            width: 98%;           /* 100% logic with small breathing room */
-            max-width: 100%;      /* Ensures no clamping at high zoom */
+            width: 98%;
+            max-width: 100%;
             margin: 0 auto;
             padding: 10px;
             box-sizing: border-box;
@@ -32,7 +31,7 @@
             color: #1b5e20;
             text-align: center;
             margin: 20px 0;
-            font-size: clamp(1.5rem, 5vw, 2.5rem); /* Scalable font size */
+            font-size: clamp(1.5rem, 5vw, 2.5rem);
         }
 
         .controls-container {
@@ -40,7 +39,7 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 15px;
-            flex-wrap: wrap; /* Allows wrapping on high zoom/small screens */
+            flex-wrap: wrap;
             gap: 10px;
         }
 
@@ -63,7 +62,6 @@
 
         .return-button:hover { background-color: #66bb6a; }
 
-        /* Darker green specifically for the export action */
         .export-button {
             background-color: #1b5e20;
         }
@@ -95,10 +93,9 @@
             cursor: pointer;
         }
 
-        /* TABLE WRAPPER: Critical for zoom/mobile scalability */
         .table-responsive {
             width: 100%;
-            overflow-x: auto; /* Allows horizontal scroll on narrow screens/high zoom */
+            overflow-x: auto;
             background-color: #f0fff0;
             border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
@@ -109,7 +106,7 @@
             width: 100%;
             border-collapse: collapse;
             table-layout: auto; 
-            min-width: 1000px;  
+            min-width: 1200px;  /* Increased min-width to accommodate new columns */
         }
 
         thead th {
@@ -119,7 +116,7 @@
             text-align: left;
             font-size: 14px;
             white-space: nowrap;
-            position: sticky; /* Keep headers at top while scrolling */
+            position: sticky;
             top: 0;
         }
 
@@ -132,7 +129,6 @@
         tbody tr:nth-child(even) { background-color: #e6ffe6; }
         tbody tr:hover { background-color: #ccffcc; cursor: pointer; }
 
-        /* Status colors */
         .status-active { color: #2e7d32; font-weight: bold; }
     </style>
 </head>
@@ -143,8 +139,6 @@
         <div class="controls-container">
             <div class="button-group">
                 <a href="{% url 'dashboard' %}" class="return-button">Back to Home Screen</a>
-                
-                {# Export Button includes the search_query to ensure filtered exports match the view #}
                 <a href="{% url 'export_acvv_excel' %}?search_query={{ search_query|default:'' }}" class="return-button export-button">
                     Export to Excel
                 </a>
@@ -163,10 +157,10 @@
                         <th>Member Group Name</th>
                         <th>Member Group Code</th>
                         <th>Member</th>
-                        <!--<th>Member Group Status</th>-->
+                        <th>Status</th>
                         <th>Contribution</th>
-                        <!--<th>Notes</th>
-                        <th>Email Address</th>-->
+                        <th>Notes</th>
+                        <th>Email Address</th>
                         <th>MG Contact Tel. 1</th>
                         <th>MG Contact Tel. 2</th>
                     </tr>
@@ -177,10 +171,10 @@
                         <td><strong>{{ record.mip_names }}</strong></td>
                         <td>{{ record.branch_code|default:"-" }}</td>
                         <td>{{ record.member|default:"-" }}</td>
-                        <!--<td>{{ record.status|default:"-" }}</td>-->
+                        <td>{{ record.status|default:"-" }}</td>
                         <td>{{ record.contribution_amount|default:"-" }}</td>
-                        <!--<td>{{ record.notes|truncatechars:30 }}</td>
-                        <td>{{ record.mg_email_address|default:"-" }}</td>-->
+                        <td>{{ record.notes|default:"-"|truncatechars:30 }}</td>
+                        <td>{{ record.mg_email_address|default:"-" }}</td>
                         <td>{{ record.tel|default:"-" }}</td>
                         <td>-</td>
                     </tr>
@@ -202,7 +196,6 @@
                 const row = event.target.closest('tr');
                 if (row && row.dataset.mipNames) {
                     const mipNames = row.dataset.mipNames;
-                    // Use standard Django URL resolution
                     const url = "{% url 'acvv_information' 'placeholder' %}".replace('placeholder', encodeURIComponent(mipNames));
                     window.location.href = url;
                 }
