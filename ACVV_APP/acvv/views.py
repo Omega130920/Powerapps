@@ -475,13 +475,12 @@ from django.db.models import Q # For flexible filtering
 @login_required
 def acvv_information(request, mip_names):
     """
-    Detailed view for a specific ACVV record with unified logging for 
-    incoming delegated emails and outgoing correspondence from registers.
+    Detailed view for a specific ACVV record with unified logging.
     """
     acvv_record = get_object_or_404(Globalacvv, mip_names=mip_names)
     
     if request.method == 'POST':
-        # --- 1. HANDLE INTERNAL NOTES ---
+        # Handle Note & PDF uploads (Standard logic)
         if 'add_note' in request.POST:
             note_content = request.POST.get('internal_note_text')
             comm_type = request.POST.get('communication_type')
@@ -496,18 +495,14 @@ def acvv_information(request, mip_names):
                     file_url = fs.url(filename)
 
                 ClientNotes.objects.create(
-                    acvv_record=acvv_record,
-                    notes=note_content,
-                    user=request.user.username,
-                    date=timezone.now(), # Ensure timezone is used
-                    communication_type=comm_type,
-                    action_note_type=action_note,
+                    acvv_record=acvv_record, notes=note_content,
+                    user=request.user.username, date=timezone.now(),
+                    communication_type=comm_type, action_note_type=action_note,
                     attachment=file_url
                 )
-                messages.success(request, "Internal note added successfully!")
+                messages.success(request, "Internal note added.")
                 return redirect(f'/acvv-records/{acvv_record.mip_names}/#notes-tab')
 
-        # --- 2. HANDLE PDF FOLDER UPLOADS ---
         elif 'upload_pdf' in request.POST:
             pdf_file = request.FILES.get('branch_pdf')
             if pdf_file:
@@ -515,99 +510,71 @@ def acvv_information(request, mip_names):
                 path = f"branch_docs/{acvv_record.mip_names}/{pdf_file.name}"
                 filename = fs.save(path, pdf_file)
                 file_url = fs.url(filename)
-
                 BranchDocument.objects.create(
-                    branch_name=acvv_record.mip_names,
-                    file_name=pdf_file.name,
-                    file_path=file_url,
-                    uploaded_by=request.user.username
+                    branch_name=acvv_record.mip_names, file_name=pdf_file.name,
+                    file_path=file_url, uploaded_by=request.user.username
                 )
-                messages.success(request, f"'{pdf_file.name}' added to branch folder.")
+                messages.success(request, "PDF added.")
                 return redirect(f'/acvv-records/{acvv_record.mip_names}/#pdf-upload')
 
-    # --- Fetching data ---
+    # Data Fetching
     notes = ClientNotes.objects.filter(acvv_record=acvv_record).order_by('-date')
     company_claims = AcvvClaim.objects.filter(company_code=mip_names).order_by('-claim_created_date')
     branch_docs = BranchDocument.objects.filter(branch_name=mip_names).order_by('-uploaded_at')
 
-    # --- EMAIL LOG LOGIC ---
-    # 1. Incoming/Delegated Emails from Outlook
+    # Email Logs
     delegated_logs = EmailDelegation.objects.filter(
         Q(mip_names__icontains=acvv_record.mip_names) | Q(mip_names__icontains=acvv_record.branch_code)
     ).select_related('assigned_user')
 
-    # 2. Sent Emails logged via ClientNotes (Captured from Global & Two-Pot registers)
-    # We use a Q filter to find notes starting with either "Email Composed" or "Email Sent"
     sent_logs = ClientNotes.objects.filter(
-        Q(acvv_record=acvv_record) & 
-        (Q(notes__icontains="Email Composed") | Q(notes__icontains="Email Sent"))
+        Q(acvv_record=acvv_record) & (Q(notes__icontains="Email Composed") | Q(notes__icontains="Email Sent"))
     )
 
     combined_email_log = []
 
-    # Process Delegated/Incoming Logs
+    # Map Thread Records
     for log in delegated_logs:
-        is_formal_reply = (log.status == 'SENT')
-        
+        is_sent = (log.status == 'SENT')
         combined_email_log.append({
-            'type': 'DIRECT' if is_formal_reply else 'ORIGINAL',
-            'icon': '📤' if is_formal_reply else '📩',
-            'badge_color': '#28a745' if is_formal_reply else ('#1976d2' if log.status != 'DLT' else '#ef5350'), 
-            'subject': log.subject or f"[{log.email_category}] Outlook Task",
+            'type': 'DIRECT' if is_sent else 'ORIGINAL',
+            'icon': '📤' if is_sent else '📩',
+            'badge_color': '#28a745' if is_sent else ('#1976d2' if log.status != 'DLT' else '#ef5350'), 
+            'subject': log.subject or "Outlook Task",
             'received_at': log.received_at,
-            'delegated_at': log.delegated_at,
             'assigned_to': log.assigned_user.username if log.assigned_user else "Unassigned",
-            'display_type': 'SENT' if is_formal_reply else log.get_status_display(),
-            'actioned_at': log.received_at if is_formal_reply else None, 
+            'display_type': 'SENT' if is_sent else log.get_status_display(),
             'email_id': log.email_id,
-            'db_id': log.id,
+            'file_url': None,
             'sort_date': log.received_at or log.delegated_at
         })
 
-    # Process Sent Logs from Registers
+    # Map Local Backup Logs
     for sent in sent_logs:
-        subject_parts = sent.notes.split('\n')
-        # Clean subject based on which prefix was used
-        raw_note = subject_parts[0]
-        subject_title = raw_note.replace("Email Composed: ", "").replace("Email Sent: ", "").strip()
+        subject_line = sent.notes.split('\n')[0]
+        subject_title = subject_line.replace("Email Composed: ", "").replace("Email Sent: ", "").strip()
         
-        # --- NEW LOOKUP LOGIC ---
-        # Look for the actual SENT record in EmailDelegation to get the real Outlook ID
-        linked_sent_record = EmailDelegation.objects.filter(
-            subject__icontains=subject_title[:50], # Partial match to be safe
-            status='SENT', 
-            mip_names=acvv_record.mip_names
-        ).order_by('-received_at').first()
-
         combined_email_log.append({
             'type': 'DIRECT',
             'icon': '📤',
-            'badge_color': '#f57c00', # Orange distinct color for register-sent mail
+            'badge_color': '#f57c00',
             'subject': subject_title,
-            'received_at': None,
-            'delegated_at': None,
             'assigned_to': sent.user,
             'display_type': 'SENT',
-            'actioned_at': sent.date,
-            'email_id': linked_sent_record.email_id if linked_sent_record else None,
+            'email_id': None,
+            'file_url': sent.attachment if sent.attachment else None,
             'sort_date': sent.date
         })
 
-    # Unified sorting
     combined_email_log.sort(key=lambda x: x['sort_date'] if x['sort_date'] else datetime.min, reverse=True)
-
-    my_delegated_emails = EmailDelegation.objects.filter(
-        assigned_user=request.user, 
-        status='DEL'
-    ).order_by('-received_at')
 
     context = {
         'acvv_record': acvv_record,
+        'combined_email_log': combined_email_log, 
         'notes': notes,
         'company_claims': company_claims,
-        'combined_email_log': combined_email_log, 
-        'my_delegated_emails': my_delegated_emails,
         'branch_docs': branch_docs,
+        'my_delegated_emails': EmailDelegation.objects.filter(assigned_user=request.user, status='DEL'),
     }
     return render(request, 'acvv_app/acvv_information.html', context)
 
@@ -734,11 +701,77 @@ from django.db.models.functions import TruncMonth
 
 @login_required
 def save_acvv_claim(request, company_code):
+    """
+    Unified save view for ACVV. 
+    Handles standalone email sending from the Log tab AND claim registration.
+    """
     if request.method == 'POST':
+        # --- PART 1: STANDALONE EMAIL LOGIC ---
+        # This handles the "Compose New Email" form in the Email Log tab
+        recipient = request.POST.get('member_recipient_email')
+        subject = request.POST.get('member_email_subject_reply')
+        body = request.POST.get('email_body_html_content')
+        email_attachment = request.FILES.get('email_attachment')
+
+        if recipient and subject and body:
+            target_email = settings.OUTLOOK_EMAIL_ADDRESS
+            
+            # Call your Graph API service
+            result = send_outlook_email(
+                target_email, 
+                recipient, 
+                subject, 
+                body, 
+                content_type='Html'
+            )
+            
+            if result.get('success'):
+                acvv_record = get_object_or_404(Globalacvv, mip_names=company_code)
+                
+                # --- ID VALIDATION ---
+                # We prioritize the real Microsoft ID if the API returns it.
+                # If not, we use a placeholder to at least create the DB entry.
+                real_ms_id = result.get('message_id')
+                db_email_id = real_ms_id if real_ms_id else f"SENT-{timezone.now().timestamp()}"
+
+                # 1. Create the Thread record in EmailDelegation (The Link)
+                EmailDelegation.objects.create(
+                    email_id=db_email_id,
+                    subject=subject,
+                    sender_address=target_email,
+                    assigned_user=request.user,
+                    status='SENT',
+                    mip_names=acvv_record.mip_names,
+                    received_at=timezone.now(),
+                    delegated_at=timezone.now(),
+                    work_related=True,
+                    communication_type='Email'
+                )
+
+                # 2. Log to ClientNotes (The History Record with local file)
+                file_url = None
+                if email_attachment:
+                    fs = FileSystemStorage()
+                    filename = fs.save(f"notes/{email_attachment.name}", email_attachment)
+                    file_url = fs.url(filename)
+
+                ClientNotes.objects.create(
+                    acvv_record=acvv_record,
+                    notes=f"Email Sent: {subject}\nRecipient: {recipient}",
+                    user=request.user.username,
+                    date=timezone.now(),
+                    communication_type="Email",
+                    action_note_type="Correspondence",
+                    attachment=file_url
+                )
+                messages.success(request, f"Email sent successfully to {recipient}.")
+            else:
+                messages.error(request, f"Email failed: {result.get('error')}")
+
+        # --- PART 2: CLAIM REGISTRATION LOGIC ---
         claim_id = request.POST.get('claim_id')
-        id_number = request.POST.get('id_number')  # Check if we are actually saving a claim
+        id_number = request.POST.get('id_number')
         
-        # 1. Handle Claim Saving (ONLY if id_number is provided)
         if id_number:
             data = {
                 'company_code': company_code,
@@ -772,42 +805,17 @@ def save_acvv_claim(request, company_code):
                 claim_instance = AcvvClaim.objects.create(**data)
                 messages.success(request, "New claim created successfully.")
 
-            # Handle Note attached to the claim
             note_selection = request.POST.get('note_selection')
             note_description = request.POST.get('note_description')
-            attachment = request.FILES.get('claim_attachment')
+            claim_file = request.FILES.get('claim_attachment')
 
-            if note_selection or note_description or attachment:
+            if note_selection or note_description or claim_file:
                 claim_instance.notes.create(
                     note_selection=note_selection,
                     note_description=note_description,
-                    attachment=attachment,
+                    attachment=claim_file,
                     created_by=request.user
                 )
-
-        # 2. Handle Email Composition (Runs regardless of whether a claim was saved)
-        recipient = request.POST.get('member_recipient_email')
-        subject = request.POST.get('member_email_subject_reply')
-        body = request.POST.get('email_body_html_content')
-
-        if recipient and subject and body:
-            target_email = settings.OUTLOOK_EMAIL_ADDRESS
-            result = send_outlook_email(target_email, recipient, subject, body, content_type='Html')
-            
-            if result.get('success'):
-                # LOG TO BRANCH HISTORY: This ensures it shows up in acvv_information
-                acvv_record = get_object_or_404(Globalacvv, mip_names=company_code)
-                ClientNotes.objects.create(
-                    acvv_record=acvv_record,
-                    notes=f"Email Composed: {subject}\nRecipient: {recipient}",
-                    user=request.user.username,
-                    date=timezone.now(),
-                    communication_type="Email",
-                    action_note_type="Correspondence"
-                )
-                messages.success(request, f"Email sent successfully to {recipient}.")
-            else:
-                messages.error(request, f"Email failed: {result.get('error')}")
 
     return redirect('acvv_information', mip_names=company_code)
 
@@ -1337,71 +1345,86 @@ def reconciliation_worksheet(request):
             messages.success(request, "Progress saved successfully.")
 
         elif 'close_month' in request.POST:
-            # Close any record matching this year/month regardless of the specific day
-            ReconciliationWorksheet.objects.filter(
-                fiscal_month__year=current_fiscal.year, 
-                fiscal_month__month=current_fiscal.month
-            ).update(is_closed=True, closed_at=timezone.now())
-            
-            # Update Global Master Note for arrears logic
+            # Close any record matching this year/month
             records_to_update = ReconciliationWorksheet.objects.filter(
                 fiscal_month__year=current_fiscal.year, 
                 fiscal_month__month=current_fiscal.month
             )
+            
+            # Update Global Master Note only for those that were successfully reconciled
             for rec in records_to_update:
-                formatted_note_date = current_fiscal.strftime("01.%m.%Y")
-                Globalacvv.objects.filter(mip_names=rec.mg_name).update(notes=formatted_note_date)
+                if rec.reconciled_status == 'Reconciled':
+                    formatted_note_date = current_fiscal.strftime("01.%m.%Y")
+                    Globalacvv.objects.filter(mip_names=rec.mg_name).update(notes=formatted_note_date)
 
+            records_to_update.update(is_closed=True, closed_at=timezone.now())
             messages.success(request, f"Fiscal month {current_fiscal.strftime('%B %Y')} closed.")
             return redirect('reconciliation_worksheet')
 
     # 4. FETCH & AUTO-GENERATE LOGIC
-    # Check for the 1st
     records = ReconciliationWorksheet.objects.filter(fiscal_month=current_fiscal)
     
     if not records.exists():
-        # Check for the old "8th" format fallback
+        # Check for fallback to 8th
         old_format_date = current_fiscal.replace(day=8)
         records = ReconciliationWorksheet.objects.filter(fiscal_month=old_format_date)
         
         if records.exists():
             current_fiscal = old_format_date
         else:
-            # 🟢 FIX: If neither exists, generate new rows for the requested period
+            # Generate new rows
             base_data = Globalacvv.objects.all() 
             for item in base_data:
                 ReconciliationWorksheet.objects.get_or_create(
                     fiscal_month=current_fiscal,
                     mg_name=item.mip_names,
                     mg_code=item.branch_code
+                    # FIXED: Removed payment_method assignment to prevent AttributeError
                 )
             records = ReconciliationWorksheet.objects.filter(fiscal_month=current_fiscal)
 
-    # 5. Annotate Subqueries
+    # 5. SUBQUERY LOGIC FOR REQUIREMENTS 11.1 & 11.2
+    # This finds the most recent month this specific branch was Reconciled BEFORE the current view month
+    last_ws_recon_sub = ReconciliationWorksheet.objects.filter(
+        mg_name=OuterRef('mg_name'),
+        fiscal_month__lt=current_fiscal,
+        reconciled_status='Reconciled'
+    ).order_by('-fiscal_month').values('fiscal_month')[:1]
+
+    # Fallback to Globalacvv notes
     acvv_member_sub = Globalacvv.objects.filter(mip_names=OuterRef('mg_name')).values('member')[:1]
     acvv_notes_sub = Globalacvv.objects.filter(mip_names=OuterRef('mg_name')).values('notes')[:1]
 
     records = records.annotate(
         acvv_member_count=Subquery(acvv_member_sub),
-        pulled_last_fiscal=Subquery(acvv_notes_sub) 
+        master_start_date=Subquery(acvv_notes_sub),
+        last_reconciled_ws=Subquery(last_ws_recon_sub)
     )
 
-    # 6. Apply Arrears Logic
+    # 6. Apply Logic Loop
     for r in records:
-        if r.pulled_last_fiscal:
+        # Prioritize Worksheet History (Req 11.1 & 11.2)
+        if r.last_reconciled_ws:
+            last_date = r.last_reconciled_ws
+            r.last_fiscal_display = last_date.strftime("%B %Y")
+        elif r.master_start_date:
             try:
-                last_date = datetime.strptime(r.pulled_last_fiscal, "%d.%m.%Y").date()
-                diff = (current_fiscal.year - last_date.year) * 12 + (current_fiscal.month - last_date.month)
-                r.is_overdue = diff >= 2
+                last_date = datetime.strptime(r.master_start_date, "%d.%m.%Y").date()
                 r.last_fiscal_display = last_date.strftime("%B %Y")
             except:
-                r.is_overdue = True  
-                r.last_fiscal_display = r.pulled_last_fiscal
+                last_date = None
+                r.last_fiscal_display = r.master_start_date
         else:
-            r.is_overdue = True
+            last_date = None
             r.last_fiscal_display = "No Data"
 
-    # Fetch unique months for the sidebar/history dropdown
+        # Overdue logic
+        if last_date:
+            diff = (current_fiscal.year - last_date.year) * 12 + (current_fiscal.month - last_date.month)
+            r.is_overdue = diff >= 2
+        else:
+            r.is_overdue = True
+
     history = ReconciliationWorksheet.objects.values('fiscal_month').distinct().order_by('-fiscal_month')
 
     return render(request, 'acvv_app/reconciliation_worksheet.html', {
@@ -1416,22 +1439,27 @@ def reconciliation_worksheet(request):
 @login_required
 def export_reconciliation_worksheet(request, date_str):
     """
-    Exports the reconciliation data to Excel with all 12 required columns.
-    Fixes the Company Status pull to reflect worksheet data.
+    Exports the reconciliation data to Excel with historical tracking logic.
     """
     try:
         fiscal_date = datetime.strptime(date_str, '%Y-%m-%d').date()
     except ValueError:
         return HttpResponse("Invalid date format", status=400)
 
-    # 1. Pull data - Keep Subqueries for Arrears/Notes logic
-    # But we will prioritize r.company_status from the ReconciliationWorksheet model
+    # 1. Mirror the view subqueries
+    last_ws_recon_sub = ReconciliationWorksheet.objects.filter(
+        mg_name=OuterRef('mg_name'),
+        fiscal_month__lt=fiscal_date,
+        reconciled_status='Reconciled'
+    ).order_by('-fiscal_month').values('fiscal_month')[:1]
+
     acvv_member_sub = Globalacvv.objects.filter(mip_names=OuterRef('mg_name')).values('member')[:1]
     acvv_notes_sub = Globalacvv.objects.filter(mip_names=OuterRef('mg_name')).values('notes')[:1]
 
     records = ReconciliationWorksheet.objects.filter(fiscal_month=fiscal_date).annotate(
         acvv_member_count=Subquery(acvv_member_sub),
-        pulled_last_fiscal=Subquery(acvv_notes_sub)
+        master_start_date=Subquery(acvv_notes_sub),
+        last_reconciled_ws=Subquery(last_ws_recon_sub)
     )
     
     wb = openpyxl.Workbook()
@@ -1449,39 +1477,29 @@ def export_reconciliation_worksheet(request, date_str):
     for cell in ws[1]:
         cell.font = openpyxl.styles.Font(bold=True)
 
-    # 2. Append rows
     for r in records:
-        # --- COMPANY STATUS FIX ---
-        # Prioritize the status saved in the worksheet. 
-        # If it's 'done' or 'active' (lowercase), capitalize it to 'Active'
+        # Status cleaning
         display_status = r.company_status if r.company_status else "Active"
-        if display_status.lower() == 'done':
-            display_status = "Active"
-        elif display_status.lower() == 'active':
+        if display_status.lower() in ['done', 'active']:
             display_status = "Active"
 
-        # --- ARREARS AGING LOGIC ---
-        display_arrears = ""
-        if r.pulled_last_fiscal:
+        # Tracking logic for Last Fiscal Reconciled
+        if r.last_reconciled_ws:
+            display_recon = r.last_reconciled_ws.strftime("%B %Y")
+        elif r.master_start_date:
             try:
-                last_date = datetime.strptime(r.pulled_last_fiscal, "%B %Y").date()
-                diff = (fiscal_date.year - last_date.year) * 12 + (fiscal_date.month - last_date.month)
-                
-                if diff >= 2:
-                    display_arrears = r.arrears
-            except (ValueError, TypeError):
-                display_arrears = r.arrears 
+                d = datetime.strptime(r.master_start_date, "%d.%m.%Y").date()
+                display_recon = d.strftime("%B %Y")
+            except:
+                display_recon = r.master_start_date
         else:
-            display_arrears = r.arrears
+            display_recon = "No Data"
 
         ws.append([
-            r.mg_name, 
-            r.mg_code, 
-            display_status,                 # <--- Fixed Status Pull
-            r.payment_method,
-            r.pulled_last_fiscal, 
-            display_arrears,
-            r.acvv_member_count,
+            r.mg_name, r.mg_code, display_status, r.payment_method,
+            display_recon, 
+            r.arrears,
+            r.member_count_reconciled or r.acvv_member_count,
             r.contribution_amount_reconciled, 
             r.reconciled_status,
             r.date_schedule_received, 
@@ -1489,7 +1507,6 @@ def export_reconciliation_worksheet(request, date_str):
             r.debit_order_date
         ])
         
-    # Auto-adjust column width
     for col in ws.columns:
         max_length = 0
         column = col[0].column_letter
@@ -1687,40 +1704,37 @@ def outlook_view_thread(request, delegation_id):
 def download_acvv_email(request, delegation_id):
     """
     Fetches raw MIME content from Outlook and serves it as a downloadable .eml file.
-    Bypasses _make_graph_request to avoid JSON parsing errors on binary data.
+    Includes validation to prevent malformed ID errors on placeholder records.
     """
     import requests
     from django.conf import settings
-    # Import the token getter directly from your service
     from .services.outlook_graph_service import get_current_access_token
 
-    # 1. Get the local record and the target email
-    # FIXED: Changed pk=delegation_id to email_id=delegation_id to handle string IDs
+    # 1. Validation: If the ID is one of our placeholders, don't call Microsoft.
+    if delegation_id.startswith('SENT-') or delegation_id.startswith('LOCAL-'):
+        messages.warning(request, "Live download is unavailable for this record. Please check the local file attachment.")
+        return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
+
+    # 2. Get local record and token
     task = get_object_or_404(EmailDelegation, email_id=delegation_id) 
-    
     ms_id = task.email_id 
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
-
-    # 2. Get the token using your existing manager
     access_token = get_current_access_token()
     
     if not access_token:
         messages.error(request, "Authentication failed: Could not retrieve access token.")
         return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
 
-    # 3. Build the URL for the raw MIME content ($value)
+    # 3. Build URL for raw MIME ($value)
     url = f"https://graph.microsoft.com/v1.0/users/{target_email}/messages/{ms_id}/$value"
     headers = {'Authorization': f'Bearer {access_token}'}
 
     try:
-        # 4. Make the request directly using 'requests' to get binary content
+        # 4. Binary request
         response = requests.get(url, headers=headers)
-        
-        # Raise for status but catch it to prevent 500 pages
         response.raise_for_status()
 
         if response.status_code == 200:
-            # 5. Clean filename and return binary response
             clean_subject = "".join([c for c in task.subject if c.isalnum() or c in (' ', '-', '_')]).strip()
             filename = f"{clean_subject[:50] or 'email_record'}.eml"
 
@@ -1732,8 +1746,7 @@ def download_acvv_email(request, delegation_id):
             return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
 
     except Exception as e:
-        messages.error(request, f"Download failed: {str(e)}")
-        # Log the error to console for debugging
+        messages.error(request, "This email is no longer available on the Outlook server.")
         print(f"DEBUG DOWNLOAD ERROR: {e}")
         return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
     

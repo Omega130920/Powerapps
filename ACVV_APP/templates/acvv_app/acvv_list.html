@@ -129,7 +129,14 @@
         tbody tr:nth-child(even) { background-color: #e6ffe6; }
         tbody tr:hover { background-color: #ccffcc; cursor: pointer; }
 
+        /* --- STATUS BADGE STYLES --- */
         .status-active { color: #2e7d32; font-weight: bold; }
+        .status-no-member { color: #d32f2f; font-weight: bold; }
+
+        /* --- HIDING COLUMNS WITHOUT REMOVING --- */
+        .hide-col {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -157,9 +164,9 @@
                         <th>Member Group Name</th>
                         <th>Member Group Code</th>
                         <th>Member</th>
-                        <th>Status</th>
+                        <th class="hide-col">Status</th> {# Hidden column #}
                         <th>Contribution</th>
-                        <th>Notes</th>
+                        <th class="hide-col">Notes</th> {# Hidden column #}
                         <th>Email Address</th>
                         <th>MG Contact Tel. 1</th>
                         <th>MG Contact Tel. 2</th>
@@ -171,9 +178,18 @@
                         <td><strong>{{ record.mip_names }}</strong></td>
                         <td>{{ record.branch_code|default:"-" }}</td>
                         <td>{{ record.member|default:"-" }}</td>
-                        <td>{{ record.status|default:"-" }}</td>
+                        
+                        {# --- DYNAMIC STATUS LOGIC (Hidden) --- #}
+                        <td class="hide-col">
+                            {% if record.member and record.member != "-" %}
+                                <span class="status-active">Active</span>
+                            {% else %}
+                                <span class="status-no-member">No Member</span>
+                            {% endif %}
+                        </td>
+
                         <td>{{ record.contribution_amount|default:"-" }}</td>
-                        <td>{{ record.notes|default:"-"|truncatechars:30 }}</td>
+                        <td class="hide-col">{{ record.notes|default:"-"|truncatechars:30 }}</td> {# Hidden column #}
                         <td>{{ record.mg_email_address|default:"-" }}</td>
                         <td>{{ record.tel|default:"-" }}</td>
                         <td>-</td>

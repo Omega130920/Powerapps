@@ -52,9 +52,13 @@
 
         .arrears-input { border: 2px solid #d32f2f !important; background-color: #fff5f5 !important; color: #b71c1c; font-weight: bold; text-align: center; }
         .member-input { border: 1px solid #1976d2 !important; font-weight: bold; text-align: center; color: #0d47a1; background: #e3f2fd; }
+        
+        /* Visual indicator for closed state */
+        .is-closed-state .input-field { background-color: #f8f9fa; color: #6c757d; cursor: not-allowed; }
+        .overdue-row { background-color: #fff9f9; }
     </style>
 </head>
-<body>
+<body class="{% if is_closed %}is-closed-state{% endif %}">
 
 <div class="main-wrapper">
     <div class="top-nav-bar">
@@ -132,7 +136,7 @@
                     </thead>
                     <tbody>
                         {% for r in records %}
-                        <tr class="recon-row">
+                        <tr class="recon-row {% if r.is_overdue %}overdue-row{% endif %}">
                             <td class="search-code"><strong>{{ r.mg_code }}</strong></td>
                             
                             <td>
@@ -158,9 +162,9 @@
                             <td>
                                 {% if r.is_overdue %}
                                     <input type="text" name="arrears_{{ r.id }}" 
-                                           value="{% if r.arrears %}{{ r.arrears }}{% else %}Arrears{% endif %}" 
+                                           value="{{ r.arrears|default:'' }}" 
                                            class="input-field arrears-input"
-                                           placeholder="Arrears"
+                                           placeholder="Notes"
                                            {% if is_closed %}disabled{% endif %}>
                                 {% else %}
                                     <div class="text-center">
@@ -195,7 +199,7 @@
                         {% empty %}
                         <tr>
                             <td colspan="10" style="text-align: center; padding: 40px; color: #999;">
-                                No records found for this period. Click "Current Month" to generate data.
+                                No records found for this period.
                             </td>
                         </tr>
                         {% endfor %}
@@ -209,7 +213,7 @@
                         <i class="fas fa-save"></i> Save Progress
                     </button>
                     {% if can_close %}
-                        <button type="submit" name="close_month" class="btn btn-close" onclick="return confirm('Closing this month will lock all entries. Are you sure?')">
+                        <button type="submit" name="close_month" class="btn btn-close" onclick="return confirm('Closing this month will lock all entries and update the master records for next month. Are you sure?')">
                             <i class="fas fa-lock"></i> Finalize & Close Month
                         </button>
                     {% endif %}
@@ -220,6 +224,7 @@
 </div>
 
 <script>
+    // MG Code Search Filter
     document.getElementById('reconSearch').addEventListener('keyup', function() {
         let filter = this.value.toLowerCase();
         let rows = document.querySelectorAll('.recon-row');
@@ -230,6 +235,7 @@
         syncScrollWidth();
     });
 
+    // Double Scrollbar Logic
     const topScrollWrapper = document.getElementById('topScrollWrapper');
     const topScrollDiv = document.getElementById('topScrollDiv');
     const tableWrapper = document.getElementById('tableWrapper');

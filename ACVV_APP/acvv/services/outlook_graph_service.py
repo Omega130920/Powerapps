@@ -1,5 +1,6 @@
 import requests
 import json
+import base64  # ADDED: Required for attachment encoding
 from django.conf import settings
 from .token_manager import get_current_access_token 
 # We only need the getter function; the manager handles refresh logic internally.
@@ -67,17 +68,14 @@ def _make_graph_request(endpoint, target_email, method='GET', data=None):
 def fetch_inbox_messages(target_email, top_count=10):
     """
     Fetches the latest messages from the specified target mailbox's Inbox.
-    
-    Args:
-        target_email (str): The email address of the mailbox to read from.
-        top_count (int): The number of messages to fetch.
     """
     endpoint = f"mailFolders/inbox/messages?$top={top_count}&$select=subject,from,receivedDateTime,isRead"
     return _make_graph_request(endpoint, target_email)
 
-def send_outlook_email(target_email, recipient_email, subject, body_content, content_type='Text'):
+def send_outlook_email(target_email, recipient_email, subject, body_content, content_type='Text', attachment=None):
     """
     Sends an email from the specified target mailbox (target_email).
+    ADDED: attachment parameter and logic to embed file into the sendMail request.
     """
     email_data = {
         "message": {
@@ -93,9 +91,26 @@ def send_outlook_email(target_email, recipient_email, subject, body_content, con
                     }
                 }
             ],
+            "attachments": [] # Placeholder for attachments
         },
         "saveToSentItems": "true" 
     }
+
+    # --- ADDED LOGIC FOR ATTACHMENTS ---
+    if attachment:
+        try:
+            attachment.seek(0)
+            content_bytes = attachment.read()
+            encoded_content = base64.b64encode(content_bytes).decode('utf-8')
+
+            email_data["message"]["attachments"].append({
+                "@odata.type": "#microsoft.graph.fileAttachment",
+                "name": attachment.name,
+                "contentType": attachment.content_type,
+                "contentBytes": encoded_content
+            })
+        except Exception as e:
+            print(f"Failed to process attachment for sendMail: {e}")
     
     endpoint = "sendMail"
     
