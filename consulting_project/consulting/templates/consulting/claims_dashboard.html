@@ -1,0 +1,725 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claims Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    
+    <style>
+        /* --- Root Colors (Consistent Professional Palette) --- */
+        :root {
+            --primary-green: #4CAF50;
+            --accent-green: #2e7d32;
+            --bg-light-green: #f1f8e9;
+            --text-default: #2c3e50;
+            --text-muted: #7f8c8d;
+            --action-blue: #0070c0;
+            --border-light: #dcdde1;
+            --card-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        /* --- Global Styles --- */
+        body { 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #e8f5e9 0%, #ffffff 100%);
+            color: var(--text-default);
+            margin: 0;
+            padding: 10px;
+        }
+        .container {
+            max-width: 98%; 
+            margin: 5px auto; 
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 16px;
+            box-shadow: var(--card-shadow);
+            min-height: 95vh;
+        }
+        .section-header {
+            color: var(--accent-green);
+            border-bottom: 4px solid var(--bg-light-green);
+            padding-bottom: 15px;
+            font-size: 2.2rem;
+            font-weight: 800;
+            margin-bottom: 30px;
+            letter-spacing: -0.5px;
+        }
+
+        /* Button Styling */
+        .action-button {
+            background-color: var(--primary-green);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 700;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.2);
+            cursor: pointer;
+        }
+        .action-button:hover {
+            background-color: var(--accent-green);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 15px rgba(46, 125, 50, 0.3);
+        }
+        
+        /* Table Styling */
+        .claims-table {
+            border-collapse: separate;
+            border-spacing: 0;
+            width: 100%;
+        }
+        .claims-table th, .claims-table td {
+            padding: 12px 8px; /* Increased padding slightly */
+            text-align: left;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .claims-table th {
+            background-color: #f8f9fa;
+            color: var(--accent-green);
+            font-weight: 800;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .claims-table tr { cursor: pointer; transition: background 0.2s ease; }
+        .claims-table tr:hover { background-color: #f1f8e9; }
+        
+        /* Status Badges */
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 800;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+        .status-inprogress { background-color: #fff3e0; color: #ef6c00; border: 1px solid #ffe0b2; }
+        .status-pending { background-color: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb; }
+        .status-resolved { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
+
+        /* Form Styling */
+        .input-group label, .select-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 700;
+            color: #576574;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+        }
+        .input-group input, .select-group select, .input-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1.5px solid var(--border-light);
+            border-radius: 10px;
+            transition: all 0.2s ease;
+        }
+        .input-group input:focus, .select-group select:focus {
+            border-color: var(--primary-green);
+            box-shadow: 0 0 0 4px rgba(76, 175, 80, 0.1);
+            outline: none;
+        }
+        
+        /* Modal Backdrop */
+        .modal-backdrop {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(44, 62, 80, 0.7);
+            backdrop-filter: blur(4px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            width: 95%;
+            max-width: 1400px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        /* Detail Modal Specific Styles */
+        .detail-item {
+            display: grid;
+            grid-template-columns: 140px 1fr; /* Fixed width for labels */
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f1f2f6;
+            min-height: 48px;
+        }
+        .detail-item label { font-weight: 700; color: var(--accent-green); font-size: 0.9rem; }
+        .edit-input { display: none; width: 100%; }
+        
+        /* Notes Table */
+        .note-list-header th { background-color: var(--accent-green); color: white; }
+        
+        .notes-section-header, .reminder-section-header {
+            color: var(--accent-green);
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin-top: 30px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--bg-light-green);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+        <a href="{% url 'consulting_home' %}" class="text-lg font-bold text-green-700 hover:text-green-900 transition flex items-center w-fit">
+            <i class="fas fa-arrow-left mr-2"></i> Back to Home Screen
+        </a>
+        
+        <h1 class="section-header mt-6">Claims Master Records</h1>
+
+        <div class="flex flex-wrap justify-between items-center mb-8 gap-4">
+            <div class="flex space-x-3">
+                <input type="text" id="search-input" placeholder="Search Member, Name, ID..." class="p-3 border border-gray-300 rounded-xl w-80 shadow-sm focus:ring-2 focus:ring-green-500 outline-none">
+                
+                <select id="filter-claim-type" class="p-3 border border-gray-300 rounded-xl shadow-sm outline-none">
+                    <option value="">All Claim Types</option>
+                    {% for type in claim_types %}
+                        <option value="{{ type }}">{{ type }}</option>
+                    {% endfor %}
+                </select>
+                <select id="filter-status" class="p-3 border border-gray-300 rounded-xl shadow-sm outline-none">
+                    <option value="">All Statuses</option>
+                    <option value="InProgress">In Progress</option>
+                    <option value="Pending">Pending</option>
+                    <option value="Resolved">Resolved</option>
+                </select>
+            </div>
+            
+            <div class="flex space-x-4">
+                <button class="action-button bg-gray-600 hover:bg-gray-700" onclick="exportClaims()">
+                    <i class="fas fa-file-excel mr-2"></i>Export
+                </button>
+                <button class="action-button" onclick="showCreateClaimModal()">
+                    <i class="fas fa-plus mr-2"></i>Load New Claim
+                </button>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto rounded-2xl shadow-lg border border-gray-100">
+            <table id="claims-table" class="claims-table min-w-full">
+                <thead>
+                    <tr>
+                        <th style="width: 50px;">ID</th>
+                        <th>Member No</th>
+                        <th>First Name</th>
+                        <th>Surname</th>
+                        <th>ID/Passport No</th>
+                        <th>Employer Name</th>
+                        <th>Insurer</th>
+                        <th>Last Action</th>
+                        <th>Claim Type</th>
+                        <th>Consultant</th>
+                        <th>Status</th>
+                        <th>Created Date</th>
+                    </tr>
+                </thead>
+                <tbody id="claims-table-body">
+                    {% for claim in claims %}
+                        <tr data-claim-id="{{ claim.id }}" onclick="showClaimDetails({{ claim.id }})">
+                            <td>{{ claim.id }}</td>
+                            <td><strong>{{ claim.member_no }}</strong></td>
+                            <td>{{ claim.first_name }}</td>
+                            <td>{{ claim.surname }}</td>
+                            <td>{{ claim.id_passport }}</td>
+                            <td>{{ claim.employer_name }}</td>
+                            <td>{{ claim.insurer }}</td>
+                            <td>{{ claim.last_action }}</td>
+                            <td>{{ claim.claim_type }}</td>
+                            <td>{{ claim.consultant }}</td>
+                            <td><span class="status-badge status-{{ claim.status|slugify }}">{{ claim.status }}</span></td>
+                            <td>{{ claim.created_date|date:"Y-m-d" }}</td>
+                        </tr>
+                    {% empty %}
+                        <tr>
+                            <td colspan="12" class="text-center text-gray-500 py-8">No claims found. Load a new one above.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="create-claim-modal" class="modal-backdrop hidden">
+        <div class="modal-content">
+            <h2 class="section-header border-none">Create New Claim Record</h2>
+            <form id="new-claim-form" method="POST" action="{% url 'create_new_claim' %}">
+                {% csrf_token %}
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="input-group">
+                        <label for="new_member_no">Member Number</label>
+                        <input type="text" id="new_member_no" name="new_member_no" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="new_id_passport">ID/Passport Number</label>
+                        <input type="text" id="new_id_passport" name="new_id_passport" required>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="new_first_name">First Name</label>
+                        <input type="text" id="new_first_name" name="new_first_name" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="new_surname">Surname</label>
+                        <input type="text" id="new_surname" name="new_surname" required>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="new_employer_code">Employer Code</label>
+                        <input type="text" id="new_employer_code" name="new_employer_code" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="new_employer_name">Employer Name</label>
+                        <input type="text" id="new_employer_name" name="new_employer_name" required>
+                    </div>
+
+                    <div class="select-group">
+                        <label for="new_insurer">Insurer</label>
+                        <select id="new_insurer" name="new_insurer" required>
+                            <option value="">Select Insurer</option>
+                            {% for insurer in insurers %}
+                                <option value="{{ insurer }}">{{ insurer }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="select-group">
+                        <label for="new_claim_type">Claim Type</label>
+                        <select id="new_claim_type" name="new_claim_type" required>
+                            <option value="">Select Claim Type</option>
+                            {% for type in claim_types %}
+                                <option value="{{ type }}">{{ type }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="select-group md:col-span-2">
+                        <label for="new_consultant">Consultant</label>
+                        <select id="new_consultant" name="new_consultant" required>
+                            <option value="">Select Consultant</option>
+                            {% for consultant in consultants %}
+                                <option value="{{ consultant }}">{{ consultant }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="input-group col-span-1 md:col-span-2">
+                        <label for="new_notes">Initial Notes</label>
+                        <textarea id="new_notes" name="new_notes" rows="3"></textarea>
+                    </div>
+                </div>
+
+                <div class="flex justify-end space-x-3 mt-8 border-t pt-6">
+                    <button type="button" class="action-button bg-gray-400 hover:bg-gray-500" onclick="hideCreateClaimModal()">Cancel</button>
+                    <button type="submit" class="action-button"><i class="fas fa-save mr-2"></i>Save Claim</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <div id="claim-detail-modal" class="modal-backdrop hidden">
+        <div class="modal-content"> 
+            <div class="flex justify-between items-center section-header">
+                <h2 id="detail-claim-title" class="text-2xl font-extrabold border-none p-0 m-0">Claim Details: #</h2>
+                <div class="flex items-center space-x-3">
+                    <button id="edit-save-button" type="button" 
+                        class="px-5 py-2.5 text-sm font-bold bg-blue-50 text-blue-700 rounded-xl hover:bg-blue-100 transition duration-150 border border-blue-200" 
+                        onclick="enableEditMode()">
+                        Edit Details
+                    </button>
+                    <button type="button" class="text-gray-400 hover:text-red-500 text-3xl transition" onclick="hideClaimDetailModal()">
+                        <i class="fas fa-times-circle"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <form id="update-claim-form" method="POST" action="{% url 'update_claim_details' %}"> 
+                {% csrf_token %}
+                <input type="hidden" id="update_claim_id" name="claim_id">
+
+                <div id="detail-content" class="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-8">
+                    
+                    <div>
+                        <h3 class="text-lg font-extrabold mb-4 text-gray-500 uppercase tracking-widest border-b pb-2">Client Information</h3>
+                        
+                        <div class="detail-item">
+                            <label>Member No:</label>
+                            <span data-key="memberNo" data-type="static"></span>
+                            <input type="text" name="member_no" id="edit_memberNo" class="edit-input border p-2 rounded-lg text-sm">
+                        </div>
+                        
+                        <div class="detail-item">
+                            <label>ID/Passport:</label>
+                            <span data-key="idPassport" data-type="static"></span>
+                            <input type="text" name="id_passport" id="edit_idPassport" class="edit-input border p-2 rounded-lg text-sm">
+                        </div>
+                        
+                        <div class="detail-item">
+                            <label>First Name:</label>
+                            <span data-key="firstName" data-type="static"></span>
+                            <input type="text" name="first_name" id="edit_firstName" class="edit-input border p-2 rounded-lg text-sm">
+                        </div>
+                        
+                        <div class="detail-item">
+                            <label>Surname:</label>
+                            <span data-key="surname" data-type="static"></span>
+                            <input type="text" name="surname" id="edit_surname" class="edit-input border p-2 rounded-lg text-sm">
+                        </div>
+
+                        <div class="detail-item">
+                            <label>Employer:</label>
+                            <span data-key="employerName" data-type="static"></span>
+                            <input type="text" name="employer_name" id="edit_employerName" class="edit-input border p-2 rounded-lg text-sm" readonly title="Cannot change employer here">
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-lg font-extrabold mb-4 text-gray-500 uppercase tracking-widest border-b pb-2">Claim Status</h3>
+                        
+                        <div class="detail-item">
+                            <label>Claim Type:</label>
+                            <span data-key="claimType" data-type="static"></span>
+                            <select name="claim_type" id="edit_claimType" class="edit-input border p-2 rounded-lg text-sm">
+                                {% for type in claim_types %}<option value="{{ type }}">{{ type }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="detail-item">
+                            <label>Insurer:</label>
+                            <span data-key="insurer" data-type="static"></span>
+                            <select name="insurer" id="edit_insurer" class="edit-input border p-2 rounded-lg text-sm">
+                                {% for insurer in insurers %}<option value="{{ insurer }}">{{ insurer }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="detail-item">
+                            <label>Consultant:</label>
+                            <span data-key="consultant" data-type="static"></span>
+                            <select name="consultant" id="edit_consultant" class="edit-input border p-2 rounded-lg text-sm">
+                                {% for consultant in consultants %}<option value="{{ consultant }}">{{ consultant }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="detail-item">
+                            <label>Status:</label>
+                            <span data-key="status" data-type="static"></span>
+                            <select name="status" id="edit_status" class="edit-input border p-2 rounded-lg text-sm">
+                                <option value="InProgress">In Progress</option>
+                                <option value="Pending">Pending</option>
+                                <option value="Resolved">Resolved</option>
+                            </select>
+                        </div>
+                        
+                        <div class="detail-item">
+                            <label>Last Action:</label>
+                            <span data-key="lastAction"></span>
+                            </div>
+                    </div>
+
+                    <div class="lg:col-span-2 mt-4">
+                        <h3 class="text-md font-bold mb-2 text-gray-700">Initial Request Notes</h3>
+                        <div id="detail-notes" class="bg-gray-50 p-4 rounded-xl text-sm text-gray-700 whitespace-pre-wrap border border-gray-100 min-h-[80px]" data-type="static"></div>
+                        <textarea name="initial_notes" id="edit_initialNotes" rows="3" class="edit-input border p-3 rounded-xl w-full text-sm"></textarea>
+                    </div>
+                </div>
+            </form>
+
+            <div class="mt-8">
+                <h2 class="reminder-section-header flex justify-between items-center">
+                    <span>Set Reminder</span>
+                    <button onclick="toggleReminderArea()" class="action-button px-4 py-2 text-sm bg-orange-500 hover:bg-orange-600">
+                        <i class="fas fa-bell mr-2"></i> Schedule Follow-up
+                    </button>
+                </h2>
+                <div id="reminder-creation-area" class="bg-orange-50 p-6 rounded-2xl border border-orange-100 hidden mb-6 mt-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+                        <div class="input-group">
+                            <label>Reminder Date</label>
+                            <input type="date" id="reminder_date" class="p-3 border rounded-xl w-full">
+                        </div>
+                        <div class="input-group md:col-span-2">
+                            <label>Recipient Email(s)</label>
+                            <input type="email" id="reminder_email" class="p-3 border rounded-xl w-full" placeholder="comma separated" multiple>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label>Reminder Note</label>
+                        <textarea id="reminder_note" rows="2" class="w-full p-3 border rounded-xl"></textarea>
+                    </div>
+                    <div class="flex justify-end mt-4">
+                        <button onclick="saveReminder()" class="action-button bg-orange-600">Set Schedule</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-8">
+                <h2 class="notes-section-header flex justify-between items-center">
+                    <span>Notes & Communication (<span id="note-count">0</span>)</span>
+                    <button onclick="addNote()" class="action-button px-4 py-2 text-sm bg-green-600">
+                        <i class="fas fa-plus mr-1"></i> Add Note
+                    </button>
+                </h2>
+                
+                <div id="note-creation-area" class="bg-green-50 p-6 rounded-2xl border border-green-100 hidden mb-6 mt-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
+                        <div class="select-group">
+                            <label>Comm Type</label>
+                            <select id="new_note_type" class="p-3 border rounded-xl" onchange="updateNoteSelections()">
+                                <option value="Inbound Email">Inbound Email</option>
+                                <option value="Outbound Email">Outbound Email</option>
+                                <option value="Inbound Call">Inbound Call</option>
+                                <option value="Outbound Call">Outbound Call</option>
+                                <option value="General Note">General Note</option>
+                            </select>
+                        </div>
+                        <div class="select-group">
+                            <label>Note Selection</label>
+                            <select id="new_note_selection" class="p-3 border rounded-xl"></select>
+                        </div>
+                    </div>
+                    <textarea id="new_note_body" rows="3" placeholder="Enter note body..." class="w-full p-3 border rounded-xl mb-4"></textarea>
+                    <div class="flex justify-end">
+                        <button onclick="saveNewNote()" class="action-button">Post Note</button>
+                    </div>
+                </div>
+
+                <div class="overflow-y-auto max-h-72 mt-4 rounded-xl border border-gray-100">
+                    <table class="w-full text-sm">
+                        <thead class="sticky top-0 bg-white shadow-sm z-10">
+                            <tr class="note-list-header">
+                                <th class="p-3 text-left w-1/4">Title</th>
+                                <th class="p-3 text-left w-1/2">Body Preview</th>
+                                <th class="p-3 text-left w-1/4">User/Date</th>
+                            </tr>
+                        </thead>
+                        <tbody id="existing-notes-body">
+                            <tr><td colspan="3" class="text-center text-gray-400 py-6">No notes recorded yet.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="modal-footer-actions" class="flex justify-end space-x-3 mt-10 border-t pt-6">
+                <button id="bottom-save-button" type="button" class="action-button hidden" onclick="saveClaimChanges()"><i class="fas fa-save mr-2"></i>Save Changes</button>
+                <button type="button" class="action-button bg-gray-400 hover:bg-gray-500 px-8" onclick="hideClaimDetailModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <form id="new-note-form" method="POST" action="{% url 'create_claim_note' %}" class="hidden">
+        {% csrf_token %}
+        <input type="hidden" id="note_claim_id" name="note_claim_id">
+        <input type="hidden" id="note_comm_type_hidden" name="note_comm_type">
+        <input type="hidden" id="note_selection_hidden" name="note_selection">
+        <textarea id="note_body_hidden" name="note_body"></textarea>
+    </form>
+    
+    <form id="new-reminder-form" method="POST" action="{% url 'create_claim_reminder' %}" class="hidden">
+        {% csrf_token %}
+        <input type="hidden" id="reminder_claim_id" name="reminder_claim_id">
+        <input type="hidden" id="reminder_date_hidden" name="reminder_date_hidden">
+        <input type="hidden" id="reminder_email_hidden" name="reminder_email_hidden">
+        <textarea id="reminder_note_hidden" name="reminder_note_hidden"></textarea>
+    </form>
+
+    <script>
+        // --- Note Types Configuration ---
+        const NOTE_SELECTIONS = {
+            'Inbound Email': ['New Claim Received', 'Outstanding documents received', 'Employer follow up', 'Enquiry from Insurer', 'Feedback from Insurer'],
+            'Outbound Email': ['Requested outstanding docs', 'Claim docs submitted', 'Feedback to employer', 'Enquiry to insurer'],
+            'Inbound Call': ['General Enquiry', 'Follow-up Request'],
+            'Outbound Call': ['General Follow-up', 'Request for Documents'],
+            'General Note': ['Internal File Note', 'Reminder Set']
+        };
+
+        // --- Data Initialization ---
+        let CLAIMS_DATA;
+        try { 
+            // Parsing JSON securely
+            CLAIMS_DATA = JSON.parse('{{ claims_json|escapejs }}'); 
+        } catch (e) { 
+            console.error("JSON Parse Error:", e);
+            CLAIMS_DATA = []; 
+        }
+        
+        let currentClaimId = null; 
+        let currentClaimData = null;
+
+        // --- Core Functions ---
+        
+        function updateNoteSelections() {
+            const type = document.getElementById('new_note_type').value;
+            const sel = document.getElementById('new_note_selection');
+            sel.innerHTML = '';
+            (NOTE_SELECTIONS[type] || ['General Note']).forEach(opt => {
+                const o = document.createElement('option'); o.value = opt; o.textContent = opt; sel.appendChild(o);
+            });
+        }
+
+        function showClaimDetails(id) {
+            exitEditMode(false); // Reset to View Mode
+            const claim = CLAIMS_DATA.find(c => c.id === id);
+            if (!claim) return;
+            
+            currentClaimId = id; 
+            currentClaimData = claim;
+            
+            // Set Hidden ID for Update Form
+            document.getElementById('update_claim_id').value = id;
+            document.getElementById('detail-claim-title').textContent = `Claim Details: #${claim.id}`;
+            
+            // Map JSON keys to HTML Elements
+            const map = { 
+                memberNo: claim.memberNo, 
+                idPassport: claim.idPassport, 
+                firstName: claim.firstName, 
+                surname: claim.surname, 
+                employerName: claim.employerName, // New Field
+                claimType: claim.claimType, 
+                insurer: claim.insurer, 
+                consultant: claim.consultant, 
+                status: claim.status,
+                lastAction: claim.lastAction // New Field
+            };
+            
+            for (const k in map) {
+                // Populate Static Span
+                const s = document.querySelector(`[data-key="${k}"][data-type="static"]`);
+                if (s) s.textContent = map[k] || '-'; // Show dash if empty
+                
+                // Populate Edit Input (if exists)
+                const i = document.getElementById(`edit_${k}`);
+                if (i) i.value = map[k] || '';
+            }
+            
+            // Populate Notes
+            document.getElementById('detail-notes').textContent = claim.initialNotes || 'No notes.';
+            document.getElementById('edit_initialNotes').value = claim.initialNotes || '';
+            populateNotes(claim.notes || []);
+            
+            // Show Modal
+            document.getElementById('claim-detail-modal').classList.remove('hidden');
+        }
+
+        function enableEditMode() {
+            toggleEditModeDisplay(true);
+            const btn = document.getElementById('edit-save-button');
+            btn.textContent = 'Save Changes'; 
+            btn.classList.replace('bg-blue-50', 'bg-green-600'); 
+            btn.classList.replace('text-blue-700', 'text-white');
+            btn.setAttribute('onclick', 'saveClaimChanges()');
+            document.getElementById('bottom-save-button').classList.remove('hidden');
+        }
+
+        function saveClaimChanges() { 
+            if (confirm("Are you sure you want to save these changes?")) {
+                document.getElementById('update-claim-form').submit(); 
+            }
+        }
+
+        function exitEditMode(update = true) {
+            toggleEditModeDisplay(false);
+            if (update) {
+                const btn = document.getElementById('edit-save-button');
+                btn.textContent = 'Edit Details'; 
+                btn.classList.replace('bg-green-600', 'bg-blue-50'); 
+                btn.classList.replace('text-white', 'text-blue-700');
+                btn.setAttribute('onclick', 'enableEditMode()');
+            }
+            document.getElementById('bottom-save-button').classList.add('hidden');
+        }
+
+        function toggleEditModeDisplay(isEdit) {
+            // Toggle visibility of spans vs inputs
+            document.querySelectorAll('[data-type="static"]').forEach(el => el.style.display = isEdit ? 'none' : 'block');
+            document.querySelectorAll('.edit-input').forEach(el => el.style.display = isEdit ? 'block' : 'none');
+        }
+
+        function toggleReminderArea() { document.getElementById('reminder-creation-area').classList.toggle('hidden'); }
+
+        function saveReminder() {
+            const d = document.getElementById('reminder_date').value;
+            const e = document.getElementById('reminder_email').value;
+            const n = document.getElementById('reminder_note').value;
+            
+            if (!d || !e || !n) return alert("Please fill all reminder fields");
+            
+            document.getElementById('reminder_claim_id').value = currentClaimId;
+            document.getElementById('reminder_date_hidden').value = d; 
+            document.getElementById('reminder_email_hidden').value = e; 
+            document.getElementById('reminder_note_hidden').value = n;
+            document.getElementById('new-reminder-form').submit();
+        }
+
+        function populateNotes(arr) {
+            const tb = document.getElementById('existing-notes-body');
+            document.getElementById('note-count').textContent = arr.length;
+            
+            if (!arr || arr.length === 0) {
+                tb.innerHTML = '<tr><td colspan="3" class="text-center py-6 text-gray-400">No notes recorded yet.</td></tr>';
+                return;
+            }
+            
+            tb.innerHTML = '';
+            arr.forEach(n => {
+                const r = tb.insertRow(); 
+                r.className = 'note-row border-b hover:bg-gray-50';
+                r.innerHTML = `
+                    <td class="p-3 font-bold text-gray-700">${n.title}</td>
+                    <td class="p-3 text-gray-600">${n.body}</td>
+                    <td class="p-3 text-xs text-gray-500">
+                        ${n.createdBy}<br>
+                        ${n.date}
+                    </td>`;
+            });
+        }
+
+        function addNote() { 
+            document.getElementById('note-creation-area').classList.toggle('hidden'); 
+            updateNoteSelections(); 
+        }
+
+        function saveNewNote() {
+            const b = document.getElementById('new_note_body').value;
+            if (!b) return alert("Please enter a note body.");
+            
+            document.getElementById('note_claim_id').value = currentClaimId;
+            document.getElementById('note_comm_type_hidden').value = document.getElementById('new_note_type').value;
+            document.getElementById('note_selection_hidden').value = document.getElementById('new_note_selection').value;
+            document.getElementById('note_body_hidden').value = b;
+            document.getElementById('new-note-form').submit();
+        }
+
+        function showCreateClaimModal() { document.getElementById('create-claim-modal').classList.remove('hidden'); }
+        function hideCreateClaimModal() { document.getElementById('create-claim-modal').classList.add('hidden'); }
+        function hideClaimDetailModal() { document.getElementById('claim-detail-modal').classList.add('hidden'); exitEditMode(false); }
+
+        function exportClaims() {
+            let csv = "ID,Member No,First Name,Surname,ID/Passport,Employer,Insurer,Last Action,Type,Consultant,Status,Date\n";
+            document.querySelectorAll('#claims-table-body tr').forEach(row => {
+                // Ensure we skip the 'empty' row if table is empty
+                if (row.cells.length > 1) {
+                    csv += Array.from(row.cells).map(c => `"${c.innerText.trim()}"`).join(",") + "\n";
+                }
+            });
+            const link = document.createElement("a"); 
+            link.href = 'data:text/csv;charset=utf-8,' + encodeURI(csv);
+            link.download = `claims_export_${new Date().toISOString().slice(0,10)}.csv`; 
+            link.click();
+        }
+    </script>
+</body>
+</html>

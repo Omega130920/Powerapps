@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container mt-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'pssubf_dashboard' %}">Dashboard</a></li>
+            <li class="breadcrumb-item active">Delegate Task</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <div class="col-md-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">{{ inbox_item.subject }}</h5>
+                    <small class="text-muted">From: {{ inbox_item.sender }}</small>
+                </div>
+                <div class="card-body bg-light" style="max-height: 500px; overflow-y: auto;">
+                    {{ email_body|safe }}
+                </div>
+                <div class="card-footer bg-white">
+                    <h6>Attachments</h6>
+                    <div class="d-flex flex-wrap gap-2">
+                        {% for att in attachments %}
+                        <div class="border rounded p-1 d-flex align-items-center bg-light" style="min-width: 150px;">
+                            {% if att.contentBytes %}
+                                <img src="data:{{ att.contentType }};base64,{{ att.contentBytes }}" class="rounded me-2" style="width: 40px; height: 40px; object-fit: cover;">
+                            {% else %}
+                                <i class="bi bi-file-earmark-arrow-down fs-3 me-2 text-secondary"></i>
+                            {% endif %}
+                            <div class="small">
+                                <div class="text-truncate" style="max-width: 100px;">{{ att.name }}</div>
+                                <a href="{% url 'download_pssubf_attachment' inbox_item.email_id att.id %}" class="text-decoration-none">Download</a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4">
+            <div class="card shadow-sm border-success">
+                <div class="card-header bg-success text-white">Assignment</div>
+                <div class="card-body">
+                    <form method="POST">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            <label class="form-label">Assign to Agent</label>
+                            <select name="assigned_agent" class="form-select" required>
+                                <option value="">Select Agent...</option>
+                                <option value="Agent 1">Agent 1</option>
+                                <option value="Agent 2">Agent 2</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Member Group Code</label>
+                            <input type="text" name="member_group_code" class="form-control" placeholder="e.g. PS001">
+                        </div>
+                        <div class="d-grid gap-2">
+                            <button type="submit" name="delegate" class="btn btn-success">Complete Delegation</button>
+                            <button type="submit" name="recycle" class="btn btn-outline-danger btn-sm">Move to Recycle Bin</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

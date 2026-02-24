@@ -1,0 +1,93 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reconcile Bank Line #{{ current_recon.id }}</title>
+<style>
+/* Add your standard form styles here */
+body { font-family: sans-serif; margin: 20px; background-color: #f4f4f4; }
+.container { max-width: 700px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 0 10px rgba(0 0, 0, 0.1); }
+h1 { color: #1b5e20; border-bottom: 2px solid #81c784; padding-bottom: 10px; margin-bottom: 20px; }
+.bank-details p { margin: 5px 0; font-size: 15px; }
+.bank-details strong { display: inline-block; width: 150px; color: #43a047; }
+form { margin-top: 25px; padding: 20px; border: 1px solid #ccc; border-radius: 5px; background-color: #e6ffe6; }
+label { display: block; margin-bottom: 8px; font-weight: bold; }
+/* Styling for the new input field */
+#company_code_input, input[type="submit"] { width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; }
+input[type="submit"] { background-color: #43a047; color: white; cursor: pointer; transition: background-color 0.3s; }
+input[type="submit"]:hover { background-color: #388e3c; }
+
+/* Styling for warning messages */
+.message.warning {
+    background-color: #ffe0b2; /* Light orange/yellow */
+    color: #e65100; /* Darker orange text */
+    border-left: 5px solid #ff9800;
+}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>Assign Bank Line #{{ current_recon.id }}</h1>
+
+{% if messages %}
+{% for message in messages %}
+<div class="message {{ message.tags }}" style="padding: 10px; margin-bottom: 15px;">
+    {{ message }}
+</div>
+{% endfor %}
+{% endif %}
+
+<div class="bank-details">
+<h2>Transaction Details</h2>
+<p><strong>Deposit Date:</strong> {{ current_recon.transaction_date }}</p>
+
+<p><strong>Segment Amount:</strong> R{{ current_recon.transaction_amount|floatformat:2 }}</p>
+
+<p><strong>Deposit Reference:</strong> {{ bank_record.transaction_description }}</p>
+
+<p><strong>Original Import ID:</strong> #{{ bank_record.id }}</p>
+
+<p><strong>Amount Settled:</strong> R{{ current_recon.amount_settled|floatformat:2 }}</p>
+
+<p><strong>Current Allocation:</strong> <span style="font-style: italic; color: #3f51b5;">{{ current_recon.company_code|default:"None" }}</span></p>
+
+<p><strong>Status:</strong> <span style="font-weight: bold; color: {% if current_recon.recon_status == 'Unidentified' %}#F44336{% else %}#1b5e20{% endif %};">{{ current_recon.recon_status|default:"Unidentified" }}</span></p>
+
+{% if current_recon.company_code %}
+<div class="message warning">
+    This line is already assigned. Saving amendments will redirect you to the **Bank Line Review** page.
+</div>
+{% endif %}
+</div>
+
+<form method="post">
+{% csrf_token %}
+<label for="company_code_input">Assign to Company Code (Start Typing to Search):</label>
+
+<input list="company_codes_list" 
+       name="company_code" 
+       id="company_code_input" 
+       placeholder="Search or enter Company Code..."
+       required>
+
+<script>
+    document.getElementById('company_code_input').value = "{{ current_recon.company_code|default:'' }}";
+</script>
+
+<datalist id="company_codes_list">
+{% for code in company_codes %}
+<option value="{{ code }}">
+{% endfor %}
+</datalist>
+
+<input type="submit" value="Save Amendment">
+</form>
+
+<p style="margin-top: 20px;">
+    <a href="{% url 'bank_list' %}">← Back to Bank List</a>
+</p>
+</div>
+</body>
+</html>

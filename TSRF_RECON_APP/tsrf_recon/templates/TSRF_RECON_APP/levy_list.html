@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Levy Records</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
+            margin: 20px;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        h1 {
+            color: #1b5e20;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 100%;
+            display: flex;
+            flex-direction: column;
+            border-radius: 8px;
+        }
+        
+        .controls-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            gap: 15px;
+        }
+        
+        .filters-and-search {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .return-button {
+            display: inline-block; padding: 10px 20px;
+            background-color: #81c784; border: 1px solid #81c784; border-radius: 5px;
+            text-decoration: none; color: white; cursor: pointer;
+            transition: background-color 0.3s ease;
+            font-size: 0.9em;
+        }
+        .return-button:hover { background-color: #66bb6a; }
+        
+        .filters-and-search select {
+            appearance: none;
+            padding: 10px 20px;
+            border-radius: 25px;
+            border: 1px solid #409145ff;
+            background: linear-gradient(to bottom, #81c784, #66bb6a);
+            color: white; 
+            font-size: 1em;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.2s ease-in-out;
+            min-width: 160px;
+            text-align: center;
+        }
+
+        .filters-and-search input[type="text"] {
+            padding: 8px 12px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            min-width: 200px;
+            background-color: white;
+        }
+        
+        .filters-and-search button {
+            padding: 10px 20px;
+            background: linear-gradient(to bottom, #43a047, #388e3c);
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            font-weight: bold;
+        }
+
+        table {
+            width: 100%; border-collapse: collapse; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            border-radius: 5px; overflow: hidden; background-color: #f0fff0;
+            border: 1px solid #c3e6cb; margin-bottom: 20px; font-size: 0.9em;
+        }
+        thead th {
+            background-color: #43a047; color: white; padding: 12px; text-align: left;
+            font-weight: bold; border-bottom: 2px solid #388e3c; white-space: nowrap;
+        }
+        tbody td {
+            padding: 10px 12px; border-bottom: 1px solid #aed581; border-right: 1px solid #aed581;
+            white-space: nowrap;
+        }
+        tbody tr:nth-child(even) { background-color: #e6ffe6; }
+        tbody tr:hover { background-color: #ccffcc; cursor: pointer; }
+
+        /* Pagination Styles */
+        .pagination-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-top: 20px;
+            padding: 20px;
+            background-color: rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            gap: 10px;
+        }
+        .page-info {
+            font-weight: bold;
+            color: #1b5e20;
+            margin: 0 15px;
+        }
+        .disabled-btn {
+            background-color: #bdc3c7;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>TSRF RECON Records</h1>
+
+        <div class="controls-container">
+            <a href="{% url 'dashboard' %}" class="return-button">Back to Home</a>
+
+            <form method="get" class="filters-and-search">
+                <input type="hidden" name="billing_period_filter" value="{{ current_filters.billing_period_filter }}">
+                <input type="hidden" name="cbr_status_filter" value="{{ current_filters.cbr_status_filter }}">
+
+                <select name="billing_period_filter" onchange="this.form.submit()">
+                    <option value="">Billing Period</option>
+                    {% for period in billing_periods %}
+                        <option value="{{ period }}" {% if period == current_filters.billing_period_filter %}selected{% endif %}>
+                            {{ period }}
+                        </option>
+                    {% endfor %}
+                </select>
+                
+                <select name="cbr_status_filter" onchange="this.form.submit()">
+                    <option value="">CBR Status</option>
+                    {% for status in cbr_statuses %}
+                        <option value="{{ status }}" {% if status == current_filters.cbr_status_filter %}selected{% endif %}>
+                            {{ status }}
+                        </option>
+                    {% endfor %}
+                </select>
+
+                <input type="text" name="search_query" placeholder="Search by Levy Number or Name..." value="{{ search_query }}">
+                <button type="submit">Filter/Search</button>
+
+                {% if search_query or current_filters.billing_period_filter or current_filters.cbr_status_filter %}
+                    <a href="{% url 'levy_list' %}" class="return-button" style="background: linear-gradient(to bottom, #ef5350, #d32f2f); border-radius: 25px;">Clear Filters</a>
+                {% endif %}
+            </form>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Levy Number</th>
+                    <th>Employer Name</th>
+                    <th>Billing Period</th>
+                    <th>CBR Status</th>
+                    <th>Overs/Unders</th>
+                    <th>Due Amount</th>
+                    <th>Import Date</th>
+                </tr>
+            </thead>
+            <tbody id="levy-table-body">
+                {% for record in levy_records %}
+                <tr onclick="window.location.href = '{% url 'levy_information' record.levy_number %}';">
+                    <td>{{ record.levy_number }}</td>
+                    <td style="font-weight: bold;">{{ record.employer_name|default:"--" }}</td>
+                    <td>{{ record.billing_period }}</td>
+                    <td>
+                        <span style="padding: 2px 8px; border-radius: 10px; font-weight: bold; font-size: 0.8em;
+                            {% if record.cbr_status == 'Paid' or record.cbr_status == 'Reconciled' %} background-color: #c8e6c9; color: #2e7d32;
+                            {% elif record.cbr_status == 'Unpaid' %} background-color: #ffcdd2; color: #c62828;
+                            {% else %} background-color: #eeeeee; color: #616161; {% endif %}">
+                            {{ record.cbr_status|default:'Pending' }}
+                        </span>
+                    </td>
+                    <td style="text-align: right;">{{ record.overs_unders|default:'0.00'|floatformat:2 }}</td>
+                    <td style="text-align: right; font-weight: bold;">{{ record.due_amount|default:'0.00'|floatformat:2 }}</td>
+                    <td>{{ record.import_date|date:"Y-m-d" }}</td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="7" style="text-align: center; padding: 40px; color: #999;">No records found.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if levy_records.paginator.num_pages > 1 %}
+        <div class="pagination-container">
+            {% if levy_records.has_previous %}
+                <a href="?page=1&search_query={{ search_query }}&billing_period_filter={{ current_filters.billing_period_filter }}&cbr_status_filter={{ current_filters.cbr_status_filter }}" class="return-button">« First</a>
+                <a href="?page={{ levy_records.previous_page_number }}&search_query={{ search_query }}&billing_period_filter={{ current_filters.billing_period_filter }}&cbr_status_filter={{ current_filters.cbr_status_filter }}" class="return-button">Previous</a>
+            {% else %}
+                <span class="return-button disabled-btn">Previous</span>
+            {% endif %}
+
+            <span class="page-info">
+                Page {{ levy_records.number }} of {{ levy_records.paginator.num_pages }}
+            </span>
+
+            {% if levy_records.has_next %}
+                <a href="?page={{ levy_records.next_page_number }}&search_query={{ search_query }}&billing_period_filter={{ current_filters.billing_period_filter }}&cbr_status_filter={{ current_filters.cbr_status_filter }}" class="return-button">Next</a>
+                <a href="?page={{ levy_records.paginator.num_pages }}&search_query={{ search_query }}&billing_period_filter={{ current_filters.billing_period_filter }}&cbr_status_filter={{ current_filters.cbr_status_filter }}" class="return-button">Last »</a>
+            {% else %}
+                <span class="return-button disabled-btn">Next</span>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Logic for table row interaction can go here
+        });
+    </script>
+</body>
+</html>

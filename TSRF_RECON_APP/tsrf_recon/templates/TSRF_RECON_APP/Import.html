@@ -1,0 +1,167 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Import Bank Line</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'primary-green': '#81c784', 
+                        'hover-green': '#66bb6a', 
+                        'bg-page-light': '#e6f3e6', 
+                        'accent-green': '#95c695', 
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background: linear-gradient(to bottom, #f0fff0, #e6f3e6);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            min-height: 100vh;
+            padding: 30px 20px;
+            box-sizing: border-box;
+        }
+
+        .dropzone-dashed {
+            border: 2px dashed #D1D5DB;
+            border-radius: 0.5rem;
+            transition: border-color 0.3s;
+        }
+        .dropzone-dashed:hover {
+            border-color: #81c784;
+        }
+    </style>
+</head>
+
+<body class="font-sans"> 
+    <a href="{% url 'dashboard' %}" 
+        class="mb-8 py-2 px-6 rounded-lg font-semibold text-white 
+               bg-accent-green hover:bg-hover-green transition duration-200 
+               shadow-md">
+        Back to Home Screen
+    </a>
+
+    <div class="w-full max-w-lg bg-white p-8 rounded-xl" 
+         style="box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); border: 1px solid #e0e0e0;">
+        
+        <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">Import Bank Data</h1>
+        
+        {% if error_message %}
+            <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-4" role="alert">
+                <strong class="font-bold">Error! </strong>
+                <span class="block sm:inline">{{ error_message }}</span>
+            </div>
+        {% endif %}
+
+        <form method="post" enctype="multipart/form-data" class="space-y-6">
+            {% csrf_token %}
+            
+            <div class="dropzone-dashed p-10 text-center cursor-pointer bg-gray-50/50" 
+                 id="dropzone" onclick="document.getElementById('import_file').click()">
+                
+                <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v12c0 4.418-2.686 8-6 8s-6-3.582-6-8V12c0-2.209 1.791-4 4-4s4 1.791 4 4v16m-4 0v4m-2-4l-2-2m2 2l2 2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                
+                <p class="mt-2 text-sm font-medium text-primary-green">
+                    Click to select the Bank CSV file or drag and drop it here.
+                </p>
+                <p class="text-xs text-gray-500">CSV files only.</p>
+
+                <input type="file" name="import_file" id="import_file" accept=".csv" required class="hidden" onchange="updateFileName(this)">
+                <p id="file-name-display" class="mt-2 text-xs text-gray-400 italic"></p>
+            </div>
+
+            <div class="flex items-center space-x-3 mt-4">
+                <input type="checkbox" name="header_row" id="header_row" checked class="h-4 w-4 rounded text-primary-green border-gray-300 focus:ring-primary-green cursor-pointer">
+                <label for="header_row" class="text-sm font-medium text-gray-700 select-none">File contains a header row (will be skipped)</label>
+            </div>
+
+            <button type="submit" class="w-full py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-semibold text-white bg-primary-green hover:bg-hover-green transition duration-200 focus:outline-none focus:ring-4 focus:ring-primary-green focus:ring-opacity-50">
+                Upload and Process Bank Data
+            </button>
+        </form>
+
+        <p class="mt-6 text-xs text-gray-500 text-center italic">
+            Note: All processed records will be categorized based on CB Reference status.
+        </p>
+    </div>
+
+    {% if show_summary %}
+    <div id="summaryModal" class="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full transform transition-all border-t-8 border-primary-green">
+            <div class="text-center">
+                <h3 class="text-2xl font-extrabold text-gray-800 mb-2">Import Successful</h3>
+                <p class="text-gray-500 text-sm mb-6">Processing results for <strong>{{ total_count }}</strong> records:</p>
+                
+                <div class="grid grid-cols-2 gap-4 mb-8">
+                    <div class="bg-green-50 p-4 rounded-xl border border-green-200">
+                        <span class="block text-3xl font-black text-green-700">{{ auto_count }}</span>
+                        <span class="text-[10px] font-bold text-green-600 uppercase tracking-wider">Auto-Reconciled</span>
+                    </div>
+                    <div class="bg-orange-50 p-4 rounded-xl border border-orange-200">
+                        <span class="block text-3xl font-black text-orange-700">{{ manual_count }}</span>
+                        <span class="text-[10px] font-bold text-orange-600 uppercase tracking-wider">Manual Action</span>
+                    </div>
+                </div>
+
+                <div class="flex flex-col gap-3">
+                    <button onclick="exportImportSummary()" class="bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 shadow-lg transition flex items-center justify-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                        Download Reference CSV
+                    </button>
+                    
+                    <div class="flex gap-2">
+                        <button onclick="document.getElementById('summaryModal').remove()" class="px-6 bg-gray-100 text-gray-500 py-3 rounded-lg font-bold hover:bg-gray-200 transition">
+                            Close
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function exportImportSummary() {
+        // Data passed from Django as JSON
+        const reportData = {{ report_json|safe }};
+        
+        // Generate CSV string
+        let csvContent = "Date,Reference,Amount,Status,Classification\n";
+        reportData.forEach(function(row) {
+            // Basic sanitization of commas in description if necessary
+            csvContent += `"${row.Date}","${row.Ref}","${row.Amount}","${row.Status}","${row.Category}"\n`;
+        });
+
+        // Trigger Download
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", "Import_Audit_Report.csv");
+        link.click();
+    }
+    </script>
+    {% endif %}
+
+    <script>
+        function updateFileName(input) {
+            const fileName = input.files[0].name;
+            document.getElementById('file-name-display').textContent = "Selected: " + fileName;
+        }
+    </script>
+
+</body>
+</html>

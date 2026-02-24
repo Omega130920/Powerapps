@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Merril CRM Dashboard</title>
+    <style>
+        html, body {
+            height: auto;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        body {
+            font-family: sans-serif;
+            background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            font-size: 3.5em;
+            text-align: center;
+            margin-bottom: 30px;
+            margin-top: 40px;
+            width: 100%;
+            color: #1b5e20;
+        }
+
+        .button-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-auto-rows: minmax(100px, auto);
+            gap: 15px;
+            max-width: 900px;
+            width: 95%;
+            margin: 20px auto;
+        }
+
+        @media (max-width: 768px) {
+            .button-container {
+                grid-template-columns: repeat(2, 1fr);
+                max-width: 600px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .button-container {
+                grid-template-columns: 1fr;
+                max-width: 300px;
+            }
+        }
+
+        .button-block {
+            padding: 50px 20px;
+            background-color: rgb(119, 206, 97);
+            border: 1px solid rgb(119, 206, 97);
+            border-radius: 5px;
+            text-align: center;
+            cursor: pointer;
+            text-decoration: none;
+            color: white;
+            font-size: 1.6em;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.3s ease, border-color 0.3s ease, transform 0.2s;
+            position: relative;
+        }
+
+        .button-block:hover {
+            background-color: rgb(105, 187, 85);
+            border: 1px solid rgb(105, 187, 85);
+            transform: translateY(-2px);
+        }
+
+        .badge {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background-color: #d32f2f;
+            color: white;
+            border-radius: 50%;
+            min-width: 26px;
+            height: 26px;
+            padding: 2px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            border: 2px solid white;
+            z-index: 10;
+        }
+
+        .badge.blue-badge { background-color: #1976d2; }
+        .badge.orange-badge { background-color: #ff8f00; }
+        .badge.grey-badge { background-color: #616161; }
+
+        .logout-wrapper {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+        }
+
+        .logout-button {
+            background-color: rgb(105, 187, 85);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+        }
+
+        .logout-button:hover { background-color: darkgreen; }
+    </style>
+</head>
+<body>
+    <h1>Welcome to CRM Unity, {{ username }}</h1>
+    
+    <div class="logout-wrapper">
+        <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="logout-button">Logout</button>
+        </form>
+    </div>
+
+    <div class="button-container">
+        
+        {% if user.username == 'omega' or user.username == 'Manager' %}
+            <a href="{% url 'fetch_emails' %}" class="button-block">
+                Delegations
+                {% if new_emails_count > 0 %}
+                    <span class="badge blue-badge">{{ new_emails_count }}</span>
+                {% endif %}
+            </a>
+
+            <a href="{% url 'recycle_bin' %}" class="button-block">
+                Recycle Bin
+                {% if recycled_count > 0 %}
+                    <span class="badge grey-badge">{{ recycled_count }}</span>
+                {% endif %}
+            </a>
+        {% endif %}
+        
+        <a href="{% url 'tasks' %}" class="button-block">
+            Dashboard
+            {% if my_pending_delegations_count > 0 %}
+                <span class="badge orange-badge">{{ my_pending_delegations_count }}</span>
+            {% endif %}
+        </a>
+
+        <a href="{% url 'email_workflow_log' %}" class="button-block">Email List</a>
+        <a href="{% url 'global_members_list' %}" class="button-block">Global List</a>    
+        <a href="{% url 'import_global_data' %}" class="button-block">Update Global List Import</a>
+        <a href="{% url 'complaint_log' %}" class="button-block">Complaint Log</a>
+        <a href="{% url 'final_sla_report' %}" class="button-block">View Final SLA Report</a>
+    </div>
+
+</body>
+</html>

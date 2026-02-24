@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add New Lead | Consulting Management</title>
+    
+    <style>
+        /* --- Professional Style Guide --- */
+        :root {
+            --primary-green: rgb(119, 206, 97);
+            --accent-green: rgb(105, 187, 85);
+            --bg-light-green: #f4f9f1; 
+            --page-bg: #f0f4f8;
+            --text-default: #2d3436;
+            --text-muted: #636e72;
+            --white: #ffffff;
+            --action-blue: #0984e3;
+            --cancel-red: #d63031;
+            --card-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        body { 
+            font-family: 'Inter', -apple-system, sans-serif;
+            line-height: 1.6;
+            background: linear-gradient(180deg, #d1e2c4 0%, #f0f4f8 100%);
+            color: var(--text-default);
+            padding: 40px 20px;
+            margin: 0;
+            min-height: 100vh;
+        }
+
+        /* --- Form Container --- */
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px;
+            background-color: var(--white);
+            border-radius: 16px;
+            box-shadow: var(--card-shadow);
+        }
+
+        h1 {
+            color: var(--accent-green);
+            border-bottom: 2px solid var(--bg-light-green);
+            padding-bottom: 20px;
+            margin-bottom: 35px;
+            margin-top: 0;
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+
+        /* --- Grid Layout --- */
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .full-width { grid-column: 1 / -1; }
+        
+        label {
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* --- Inputs & Textareas --- */
+        input[type="text"], 
+        input[type="email"], 
+        input[type="date"], 
+        textarea, 
+        select {
+            padding: 12px 15px;
+            border: 1px solid #dfe6e9;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            background-color: #fcfdfd;
+            box-sizing: border-box;
+            transition: all 0.2s ease;
+            color: var(--text-default);
+            outline: none;
+        }
+
+        input:focus, textarea:focus, select:focus {
+            border-color: var(--primary-green);
+            background-color: #fff;
+            box-shadow: 0 0 0 3px rgba(119, 206, 97, 0.15);
+        }
+        
+        textarea {
+            min-height: 120px;
+            resize: vertical;
+        }
+
+        /* --- Footer Actions --- */
+        .button-group {
+            margin-top: 40px;
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            gap: 15px;
+            grid-column: 1 / -1;
+            border-top: 1px solid #edf2f7;
+            padding-top: 25px;
+        }
+
+        .submit-button, .cancel-button {
+            padding: 12px 28px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .submit-button {
+            background-color: var(--primary-green);
+            color: white;
+            box-shadow: 0 4px 10px rgba(119, 206, 97, 0.3);
+        }
+
+        .submit-button:hover { 
+            background-color: var(--accent-green);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 14px rgba(119, 206, 97, 0.4);
+        }
+
+        .cancel-button {
+            background-color: #f1f2f6;
+            color: var(--text-muted);
+        }
+
+        .cancel-button:hover { 
+            background-color: #e2e8f0; 
+            color: var(--text-default);
+        }
+
+        /* --- Status Messages --- */
+        .error-message {
+            background-color: #fff5f5;
+            color: var(--cancel-red);
+            padding: 16px;
+            border: 1px solid #feb2b2;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            font-weight: 600;
+            grid-column: 1 / -1;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .error-message:before {
+            content: '⚠️';
+        }
+
+        /* Responsive Fix for small screens */
+        @media (max-width: 600px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+            .container {
+                padding: 25px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+        <h1>Add New Lead</h1>
+        
+        {% if error_message %}
+            <div class="error-message">{{ error_message }}</div>
+        {% endif %}
+
+        <form method="POST" action="{% url 'add_new_lead' %}"> 
+            {% csrf_token %}
+            
+            <div class="form-grid">
+                
+                <div class="form-group">
+                    <label for="lead_received_from">Lead Source *</label>
+                    <input type="text" id="lead_received_from" name="lead_received_from" required placeholder="e.g., Website, Referral, LinkedIn">
+                </div>
+                
+                <div class="form-group">
+                    <label for="date_received">Date Received *</label>
+                    <input type="date" id="date_received" name="date_received" value="{{ current_date }}" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="company_name">Company Name *</label>
+                    <input type="text" id="company_name" name="company_name" required placeholder="Full company name">
+                </div>
+
+                <div class="form-group">
+                    <label for="contact_person">Primary Contact Person *</label>
+                    <input type="text" id="contact_person" name="contact_person" required placeholder="Name of key stakeholder">
+                </div>
+
+                <div class="form-group">
+                    <label for="contact_number">Mobile / Office Number</label>
+                    <input type="text" id="contact_number" name="contact_number" placeholder="e.g., 081 123 4567">
+                </div>
+
+                <div class="form-group">
+                    <label for="contact_email">Email Address</label>
+                    <input type="email" id="contact_email" name="contact_email" placeholder="e.g., name@company.com">
+                </div>
+
+                <div class="form-group">
+                    <label for="product_required">Required Solution *</label>
+                    <select id="product_required" name="product_required" required>
+                        <option value="" disabled selected>Select a product...</option>
+                        
+                        <option value="Medical Aid">Medical Aid</option>
+                        <option value="Financial Solution">Financial Solution</option>
+                        <option value="Business Advice">Business Advice</option>
+                        <option value="Death Solution">Death Solution</option>
+                        <option value="Policy Solutions">Policy Solutions</option>
+
+                        {% for product in product_options %}
+                        <option value="{{ product }}">{{ product }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="assigned_to">Assign Consultant</label>
+                    <select id="assigned_to" name="assigned_to">
+                        <option value="">Leave Unassigned</option>
+                        {% for consultant in consultant_options %}
+                        <option value="{{ consultant }}">{{ consultant }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <div class="form-group full-width">
+                    <label for="internal_notes">Internal Context & Notes</label>
+                    <textarea id="internal_notes" name="internal_notes" placeholder="Enter any initial notes, context, or specific requirements here..."></textarea>
+                </div>
+
+                <div class="button-group">
+                    <button type="button" class="cancel-button" onclick="window.location.href='{% url 'home' %}'">Discard Changes</button>
+                    <button type="submit" class="submit-button">Create Lead Entry</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</body>
+</html>

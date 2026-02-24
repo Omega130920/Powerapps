@@ -1,0 +1,303 @@
+{% load static %}
+{% block title %}UNITY INTERNAL{% endblock %}
+{% block content %}
+<style>
+/* -------------------------------------- */
+/* BASE STYLES & DELEGATE FORM STYLES */
+/* -------------------------------------- */
+body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; background-color: #d1e2c4; }
+
+/* NAVIGATION DASHBOARD - CENTERED ABOVE CONTAINER */
+.Dashboard { 
+    display: flex; 
+    gap: 15px; 
+    margin: 40px auto 10px auto; /* Centered with bottom spacing */
+    justify-content: center; 
+    max-width: 900px; /* Matches delegate-container width */
+}
+
+.btn-nav { 
+    padding: 12px 24px; 
+    background-color: #43a047; 
+    color: white; 
+    text-decoration: none; 
+    border-radius: 6px; 
+    font-weight: bold; 
+    font-size: 15px; 
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+    border: 1px solid #388e3c;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-nav:hover { 
+    background-color: #2e7d32; 
+    box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+    transform: translateY(-2px);
+    color: #ffffff;
+}
+
+.delegate-container { 
+    max-width: 900px; 
+    margin: 0 auto 40px auto; /* Removed top margin since Dashboard handles it */
+    padding: 30px; 
+    background-color: #fff; 
+    border-radius: 8px; 
+    box-shadow: 0 4px 12px rgba(0,0,0,.15); 
+    border: 1px solid #c3e6cb; 
+}
+
+.delegate-container h1 { margin-bottom: 20px; color: #43a047; font-size: 28px; border-bottom: 2px solid #e0f2f1; padding-bottom: 15px; }
+
+/* --- PROFESSIONAL EMAIL CARD STYLES --- */
+.email-thread-card {
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+    border: 1px solid #eee;
+    border-left: 5px solid rgb(105, 187, 85); 
+}
+.card-header-main {
+    padding: 15px 20px;
+    background-color: #fafafa;
+    border-bottom: 1px solid #eee;
+}
+.card-header-main h3 { margin: 0 0 5px 0; color: rgb(105, 187, 85); font-size: 1.1em; }
+.card-body-content {
+    padding: 20px;
+    line-height: 1.7;
+    max-height: 450px; 
+    overflow-y: auto;
+    background: #fff;
+    font-size: 14px;
+}
+
+/* --- ATTACHMENT SECTION --- */
+.attachment-list { 
+    margin-top: 0; 
+    padding: 15px 20px; 
+    background-color: #f1f8e9; 
+    border-top: 1px solid #e0e0e0; 
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+.attachment-item {
+    display: inline-flex;
+    align-items: center;
+    background: #fff;
+    padding: 5px 12px;
+    border: 1px solid #c5e1a5;
+    border-radius: 20px;
+    margin-right: 10px;
+    margin-bottom: 8px;
+    transition: all 0.2s ease;
+}
+.attachment-item:hover {
+    border-color: #43a047;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transform: translateY(-1px);
+}
+.attachment-link { 
+    color: #2e7d32; 
+    text-decoration: none; 
+    font-size: 13px; 
+    font-weight: bold;
+}
+.attachment-link i { margin-right: 5px; color: #43a047; }
+
+/* --- FORM STYLES --- */
+.form-group { margin-bottom: 20px; }
+.form-group label { display: block; margin-bottom: 5px; font-weight: 700; color: #333; font-size: 14px; }
+.form-group input[type=text], .form-group select, .form-group textarea { width: 100%; padding: 8px 10px; border: 1px solid #aed581; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
+.form-group input[type=text]:focus, .form-group select:focus, .form-group textarea:focus { border-color: #66bb6a; box-shadow: 0 0 0 .1rem rgba(102,187,106,.5); outline: none; }
+
+.button-container { display: flex; justify-content: space-between; align-items: center; margin-top: 25px; }
+.btn-cancel { padding: 12px 20px; background-color: #757575; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 18px; transition: background-color .3s ease; text-decoration: none; display: inline-block; }
+.btn-cancel:hover { background-color: #616161; }
+
+.btn-delegate { 
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 12px 25px; 
+    background-color: #81c784; 
+    color: white; 
+    border: none; 
+    border-radius: 4px; 
+    cursor: pointer; 
+    font-size: 18px; 
+    transition: all 0.3s ease; 
+    font-weight: bold; 
+}
+.btn-delegate:hover { background-color: #66bb6a; }
+
+.form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+
+/* --- MANAGER STATUS CARD --- */
+.manager-status-card {
+    background-color: #f1f8e9;
+    border: 1px solid #c5e1a5;
+    padding: 15px 20px;
+    border-radius: 8px;
+    margin-bottom: 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+</style>
+
+<div class="Dashboard">
+    <a href="{% url 'dashboard' %}" class="btn-nav">🏠 Back to Home Screen</a>
+    <a href="{% url 'outlook_delegated_box' %}" class="btn-nav">📋 My Delegated Tasks</a>
+</div>
+
+<div class="delegate-container">
+    <h1>Delegate Outlook Task</h1>
+
+    {% if current_delegation %}
+    <div class="manager-status-card">
+        <div>
+            <h4 style="margin:0; color: #2e7d32;">
+                {% if current_delegation.assigned_user %}
+                    <i class="fas fa-user-tag"></i> Currently Assigned To: <strong>{{ current_delegation.assigned_user.username }}</strong>
+                {% else %}
+                    <i class="fas fa-user-clock"></i> Current Status: <strong>UNASSIGNED (NEW)</strong>
+                {% endif %}
+            </h4>
+            <p style="margin: 5px 0 0 0; font-size: 12px; color: #666;">
+                Status: {{ current_delegation.get_status_display }} | Received: {{ current_delegation.received_at|date:"Y-m-d H:i" }}
+            </p>
+        </div>
+        {% if current_delegation.assigned_user %}
+            <span style="background-color: #f7931e; color: white; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold;">RE-DELEGATION</span>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <form method="post" action="{% url 'outlook_delegate_to' email_id=email_id %}">
+        {% csrf_token %}
+        
+        <div class="form-group">
+            <label for="email_subject_display">Email Subject:</label>
+            <input type="text" id="email_subject_display" name="email_subject_display" value="{{ email_subject }}" readonly>
+        </div>
+        
+        <div class="email-thread-card">
+            <div class="card-header-main">
+                <h3>Original Communication Content</h3>
+                <div style="font-size: 13px; color: #666;">
+                    <strong>Subject:</strong> {{ email_subject }}
+                </div>
+            </div>
+            <div class="card-body-content">
+                {{ email_content|safe }}
+            </div>
+            
+            {% if attachments %}
+            <div class="attachment-list">
+                <strong style="display:block; margin-bottom:10px; color:#2e7d32; font-size: 14px;">
+                    <i class="fas fa-paperclip"></i> Attachments Detected (Click to download):
+                </strong>
+                <div style="display: flex; flex-wrap: wrap;">
+                    {% for att in attachments %}
+                    <div class="attachment-item">
+                        <a href="{% url 'download_attachment' message_id=email_id attachment_id=att.id %}" class="attachment-link">
+                            <i class="fas fa-file-download"></i> {{ att.name }} 
+                            <small style="color: #666; font-weight: normal;">({{ att.size|filesizeformat }})</small>
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="form-group">
+            <label for="work_related">Is this task Work Related?*</label>
+            <select id="work_related" name="work_related" required>
+                <option value="Yes" {% if current_delegation.work_related or not current_delegation %}selected{% endif %}>Yes (Assign to Agent)</option>
+                <option value="No" {% if not current_delegation.work_related and current_delegation %}selected{% endif %}>No (Archive/Recycle)</option>
+            </select>
+        </div>
+
+        <div id="classification_fields_wrapper">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="company_code">Company Code (Reference):</label>
+                    <input type="text" id="company_code" name="company_code" placeholder="Enter Company Code" value="{{ current_delegation.company_code|default:'' }}">
+                </div>
+                
+                <div class="form-group">
+                    <label for="email_category">Classification:</label>
+                    <select id="email_category" name="email_category">
+                        <option value="">-- Select --</option>
+                        <option value="Schedule" {% if current_delegation.email_category == 'Schedule' %}selected{% endif %}>Schedule</option>
+                        <option value="Claim" {% if current_delegation.email_category == 'Claim' %}selected{% endif %}>Claim</option>
+                        <option value="Query" {% if current_delegation.email_category == 'Query' %}selected{% endif %}>Query</option>
+                        <option value="Bank" {% if current_delegation.email_category == 'Bank' %}selected{% endif %}>Bank</option>
+                        <option value="Info Only" {% if current_delegation.email_category == 'Info Only' %}selected{% endif %}>Info Only</option>
+                        <option value="LPI" {% if current_delegation.email_category == 'LPI' %}selected{% endif %}>LPI</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group" id="delegation_fields" style="margin-top: 15px;">
+                <label for="agent_name">Delegate To Agent:*</label>
+                <select id="agent_name" name="agent_name">
+                    <option value="">-- Select Agent --</option>
+                    {% for user in available_users %}
+                        <option value="{{ user.pk }}" {% if current_delegation.assigned_user_id == user.pk %}selected{% endif %}>{{ user.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <input type="hidden" name="email_id" value="{{ email_id }}">
+
+        <div class="button-container">
+            <a href="{% url 'email_list' %}" class="btn-cancel">Cancel</a>
+            <button type="submit" id="submit_button" class="btn-delegate">
+                <span id="btn-icon">👤</span> 
+                <span id="btn-text">{% if current_delegation.assigned_user %}Re-Assign Task{% else %}Assign Task{% endif %}</span>
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    const workRelatedSelect = document.getElementById('work_related');
+    const classificationWrapper = document.getElementById('classification_fields_wrapper');
+    const submitButton = document.getElementById('submit_button');
+    const btnIcon = document.getElementById('btn-icon');
+    const btnText = document.getElementById('btn-text');
+    const agentSelect = document.getElementById('agent_name');
+    const isRedelegation = {% if current_delegation.assigned_user %}true{% else %}false{% endif %};
+
+    function toggleFormSections(){
+        const isWorkRelated = workRelatedSelect.value === 'Yes';
+
+        if(!isWorkRelated){
+            classificationWrapper.style.display = 'none';
+            submitButton.style.backgroundColor = '#d32f2f'; // Red
+            btnIcon.textContent = '🗑️'; 
+            btnText.textContent = 'Archive to Recycle Bin';
+            agentSelect.removeAttribute('required');
+        } else {
+            classificationWrapper.style.display = 'block';
+            submitButton.style.backgroundColor = '#81c784'; // Green
+            btnIcon.textContent = '👤'; 
+            btnText.textContent = isRedelegation ? 'Re-Assign Task' : 'Assign Task';
+            agentSelect.setAttribute('required', 'required');
+        }
+    }
+
+    workRelatedSelect.addEventListener('change', toggleFormSections);
+    toggleFormSections();
+});
+</script>
+{% endblock %}

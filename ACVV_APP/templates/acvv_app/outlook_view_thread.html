@@ -1,0 +1,142 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Email Thread | {{ task.subject }}</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f7f6; color: #333; margin: 0; padding: 20px; }
+        .thread-page-wrapper { max-width: 1100px; margin: 0 auto; }
+        .action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #ddd; }
+        .return-button { padding: 10px 18px; background-color: #43a047; color: white; text-decoration: none; border-radius: 6px; font-weight: 500; transition: background 0.3s; }
+        .return-button:hover { background-color: #2e7d32; }
+        .email-thread-card { background: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 40px; border-left: 5px solid #1976d2; }
+        .card-header-main { padding: 20px; background-color: #fafafa; border-bottom: 1px solid #eee; border-top-right-radius: 8px; }
+        .card-header-main h3 { margin: 0 0 10px 0; color: #1976d2; }
+        .card-body-content { padding: 25px; line-height: 1.7; overflow-x: auto; }
+        .attachment-history-section { padding: 20px; background-color: #f1f8e9; border-top: 2px solid #aed581; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
+        .attachment-gallery { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 10px; }
+        .attachment-card { display: flex; flex-direction: column; align-items: center; width: 140px; background: #fff; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: transform 0.2s; }
+        .attachment-card:hover { transform: translateY(-3px); border-color: #43a047; }
+        .preview-container { width: 120px; height: 80px; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 4px; background: #f8f9fa; margin-bottom: 8px; border: 1px solid #eee; }
+        .preview-container img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; }
+        .file-icon { font-size: 35px; }
+        .file-name { font-size: 11px; font-weight: bold; text-align: center; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #333; margin-bottom: 5px; }
+        .btn-download-small { background-color: #43a047; color: white; text-decoration: none; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; width: 100%; text-align: center; }
+        .timeline-container { position: relative; padding-left: 50px; margin-top: 20px; }
+        .timeline-container::before { content: ''; position: absolute; left: 20px; top: 0; bottom: 0; width: 3px; background: #cbd5e0; }
+        .timeline-event { position: relative; background: white; padding: 18px; margin-bottom: 25px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
+        .timeline-icon { position: absolute; left: -39px; top: 20px; width: 14px; height: 14px; background: #cbd5e0; border: 4px solid white; border-radius: 50%; z-index: 2; box-shadow: 0 0 0 3px #f4f7f6; }
+        .badge-status { display: inline-block; padding: 4px 12px; border-radius: 50px; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 10px; }
+        .bg-delegated { background-color: #ebf8ff; color: #2b6cb0; }
+        .bg-reply { background-color: #f3e5f5; color: #7b1fa2; }
+        .bg-direct { background-color: #fff3e0; color: #e65100; }
+        .bg-default { background-color: #f0fff4; color: #2f855a; }
+        .event-meta { display: block; margin-top: 10px; font-size: 12px; color: #718096; border-top: 1px solid #f7fafc; padding-top: 8px; }
+        .event-text { font-size: 14px; color: #2d3748; margin: 5px 0; }
+        .email-details-block { background-color: #f8f9fa; border-left: 3px solid #ccc; padding: 8px 12px; margin-top: 8px; font-size: 0.95em; color: #555; }
+    </style>
+</head>
+<body>
+
+<div class="thread-page-wrapper">
+    <div class="action-bar">
+        <div>
+            <h1 style="margin:0; color: #2e7d32;">Communication History</h1>
+            <p style="margin:0; color: #666;">Ref: {{ task.mip_names|default:"N/A" }}</p>
+        </div>
+        <a href="javascript:history.back()" class="return-button">← Back</a>
+    </div>
+
+    <div class="email-thread-card">
+        <div class="card-header-main">
+            <h3>{{ task.subject|default:"(No Subject)" }}</h3>
+            <div style="font-size: 14px; color: #4a5568;">
+                <strong>Incoming Task ID:</strong> {{ task.id }} <br>
+                <strong>Original Arrival:</strong> {{ task.received_at|date:"d M Y, H:i" }}
+            </div>
+        </div>
+        <div class="card-body-content">
+            {{ email_body|safe }}
+        </div>
+
+        {% if attachments %}
+        <div class="attachment-history-section">
+            <strong style="display:block; margin-bottom:10px; color:#2e7d32; font-size: 14px;">
+                <i class="fas fa-paperclip"></i> Files associated with this thread:
+            </strong>
+            <div class="attachment-gallery">
+                {% for att in attachments %}
+                <div class="attachment-card">
+                    <div class="preview-container">
+                        {% if "image" in att.contentType %}
+                            <i class="fas fa-file-image file-icon" style="color: #607d8b;"></i>
+                        {% elif "spreadsheet" in att.contentType or "excel" in att.name|lower %}
+                            <i class="fas fa-file-excel file-icon" style="color: #1D6F42;"></i>
+                        {% elif "word" in att.contentType or "docx" in att.name|lower %}
+                            <i class="fas fa-file-word file-icon" style="color: #2B579A;"></i>
+                        {% elif "pdf" in att.contentType %}
+                            <i class="fas fa-file-pdf file-icon" style="color: #E02316;"></i>
+                        {% else %}
+                            <i class="fas fa-file-alt file-icon" style="color: #607d8b;"></i>
+                        {% endif %}
+                    </div>
+                    <div class="file-name" title="{{ att.name }}">{{ att.name }}</div>
+                    <span style="font-size: 9px; color: #999;">{{ att.size|filesizeformat }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <h2 style="font-size: 1.2em; color: #4a5568; margin-bottom: 20px; padding-left: 10px;">Activity Timeline</h2>
+
+    <div class="timeline-container">
+        {# 1. Initial Delegation Event #}
+        <div class="timeline-event">
+            <div class="timeline-icon" style="background-color: #2b6cb0;"></div>
+            <span class="badge-status bg-delegated">Delegation Created</span>
+            <p class="event-text">
+                Task was delegated to <strong>{{ task.assigned_user.username|default:"Unassigned" }}</strong> by System/Admin.
+            </p>
+            <span class="event-meta">
+                Date: {{ task.delegated_at|date:"d M Y, H:i" }}
+            </span>
+        </div>
+
+        {# 2. Action History #}
+        {% for action in actions %}
+        <div class="timeline-event">
+            <div class="timeline-icon" 
+                 style="background-color: {% if action.action_type == 'EMAIL_REPLY' %}#9c27b0{% else %}#2f855a{% endif %};">
+            </div>
+            
+            <span class="badge-status 
+                {% if action.action_type == 'EMAIL_REPLY' %}bg-reply{% else %}bg-default{% endif %}">
+                {# FIXED: Used title filter instead of invalid replace filter #}
+                {{ action.action_type|title }}
+            </span>
+
+            <p class="event-text">
+                <strong>Recipient:</strong> {{ action.recipient_email|default:"N/A" }}
+            </p>
+            
+            <div class="email-details-block">
+                <strong>Subject:</strong> {{ action.subject }}
+            </div>
+            
+            <span class="event-meta">
+                Action by: <strong>{{ action.user.username }}</strong> | {{ action.transaction_time|date:"d M Y, H:i" }}
+            </span>
+        </div>
+        {% empty %}
+        <div style="padding-left: 20px; color: #888; font-style: italic;">
+            No additional actions recorded yet.
+        </div>
+        {% endfor %}
+    </div>
+</div>
+</body>
+</html>

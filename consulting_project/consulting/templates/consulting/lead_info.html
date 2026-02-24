@@ -1,0 +1,430 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lead Details: {{ lead.company_name }}</title>
+    
+    <style>
+        /* --- Root Colors based on new style guide --- */
+        :root {
+            --primary-green: #4CAF50;
+            --accent-green: #2e7d32;
+            --bg-light-green: #f1f8e9;
+            --text-default: #2c3e50;
+            --text-muted: #7f8c8d;
+            --action-blue: #0070c0; /* Blue for Edit button */
+            --status-new: #1e88e5;
+            --status-progress: #ff9800;
+            --border-light: #dcdde1;
+            --card-shadow: 0 4px 15px rgba(0,0,0,0.08);
+        }
+
+        /* --- Global Styles --- */
+        body { 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            background: linear-gradient(135deg, #e8f5e9 0%, #ffffff 100%);
+            color: var(--text-default);
+            padding: 40px 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 40px;
+            background-color: #ffffff;
+            border-radius: 16px;
+            box-shadow: var(--card-shadow);
+            border: 1px solid rgba(0,0,0,0.02);
+        }
+        h1 {
+            color: var(--accent-green);
+            border-bottom: 4px solid var(--bg-light-green);
+            padding-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 2.2rem;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+
+        /* --- Navigation & Buttons --- */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            margin-bottom: 30px;
+            color: var(--accent-green);
+            text-decoration: none;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .back-link:hover { color: var(--primary-green); transform: translateX(-4px); }
+
+        .edit-button {
+            background-color: var(--action-blue);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(0, 112, 192, 0.2);
+        }
+        .edit-button:hover { background-color: #005a9c; transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0, 112, 192, 0.3); }
+
+        /* --- Tab Navigation --- */
+        .tab-nav {
+            display: flex;
+            border-bottom: 2px solid var(--bg-light-green);
+            margin-bottom: 35px;
+            gap: 10px;
+        }
+        .tab-button {
+            padding: 14px 24px;
+            cursor: pointer;
+            background-color: #f8f9fa;
+            border: 1px solid var(--border-light);
+            border-bottom: none;
+            border-radius: 12px 12px 0 0;
+            font-weight: 700;
+            color: var(--text-muted);
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+        .tab-button.active {
+            background-color: #fff;
+            border-color: var(--border-light) var(--border-light) #fff;
+            color: var(--accent-green);
+            margin-bottom: -2px;
+            border-bottom: 3px solid var(--primary-green);
+        }
+        .tab-content { display: none; padding-top: 20px; animation: fadeIn 0.4s ease; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* --- Data Grid & Items --- */
+        .data-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); 
+            gap: 25px; 
+            margin-bottom: 40px;
+        }
+        .data-item {
+            padding: 20px;
+            border: 1px solid #f1f2f6;
+            border-radius: 12px;
+            background-color: #fbfcfc;
+            transition: transform 0.2s ease;
+        }
+        .data-item:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.02); }
+
+        .data-item label {
+            display: block;
+            font-weight: 700;
+            color: var(--accent-green);
+            margin-bottom: 8px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .data-item p {
+            margin: 0;
+            font-size: 1.05rem;
+            color: var(--text-default);
+            font-weight: 500;
+        }
+        .full-width { grid-column: 1 / -1; }
+        
+        /* --- Form Elements for Notes Section --- */
+        select, textarea {
+            padding: 14px;
+            border: 1.5px solid var(--border-light);
+            border-radius: 10px;
+            box-sizing: border-box;
+            width: 100%;
+            font-size: 1rem;
+            background-color: #ffffff;
+            transition: all 0.2s ease;
+        }
+        textarea { min-height: 120px; resize: vertical; }
+        select:focus, textarea:focus {
+            border-color: var(--primary-green);
+            box-shadow: 0 0 0 4px rgba(76, 175, 80, 0.1);
+            outline: none;
+        }
+
+        /* --- Status Badge --- */
+        .lead-status { 
+            padding: 6px 14px; 
+            border-radius: 20px; 
+            font-weight: 800; 
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .status-Taken-Up { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
+        .status-New { background-color: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb; }
+        .status-In-Progress { background-color: #fff3e0; color: #ef6c00; border: 1px solid #ffe0b2; }
+        .status-Not-Taken-Up { background-color: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
+        .status-Parked { background-color: #f3e5f5; color: #6a1b9a; border: 1px solid #e1bee7; }
+
+        /* --- Notes Section Styles --- */
+        .note-section-container { 
+            border: 2px solid var(--bg-light-green); 
+            padding: 30px; 
+            margin-bottom: 40px; 
+            border-radius: 16px; 
+            background-color: #f9fdf9;
+        }
+        .note-section-container h3 {
+            color: var(--accent-green);
+            font-size: 1.5rem;
+            border-bottom: 2px dashed var(--bg-light-green);
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        .note-history-item {
+            border-left: 6px solid #dcdde1;
+            padding: 20px 25px;
+            margin-bottom: 20px;
+            background-color: #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            border-radius: 0 12px 12px 0;
+        }
+        .note-history-item pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin: 0;
+            padding: 10px 0;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.95rem;
+            color: #444;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        /* --- Conversion Tab Styles --- */
+        .conversion-guide {
+            padding: 40px;
+            border: 3px dashed var(--primary-green);
+            border-radius: 16px;
+            background-color: #f1f8e9;
+            text-align: center;
+        }
+        .conversion-guide h3 { color: var(--accent-green); font-size: 1.8rem; margin-bottom: 20px; }
+        .convert-button {
+            background-color: var(--primary-green);
+            color: white;
+            padding: 18px 36px;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.2rem;
+            font-weight: 800;
+            cursor: pointer;
+            margin-top: 25px;
+            transition: all 0.3s ease;
+            box-shadow: 0 6px 20px rgba(76, 175, 80, 0.3);
+        }
+        .convert-button:hover { background-color: var(--accent-green); transform: scale(1.02); }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+        <a href="{% url 'lead_list' %}" class="back-link">
+            <svg style="width:18px;height:18px;margin-right:8px;vertical-align:middle" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            Back to Leads List
+        </a>
+
+        <h1>
+            <span>Lead: {{ lead.company_name }} 
+                (<span class="lead-status status-{{ lead.status|cut:' ' }}">
+                    {{ lead.status|upper }}
+                </span>)
+            </span>
+            <a href="{% url 'edit_lead' lead_id=lead.id %}" class="edit-button">Edit Lead Information</a>
+        </h1>
+
+        <div class="tab-nav">
+            <button class="tab-button active" onclick="openTab(event, 'tab1')">Lead Overview</button>
+            <button class="tab-button" onclick="openTab(event, 'tab2')">Notes & Follow-ups</button>
+            <button class="tab-button" onclick="openTab(event, 'tab3')">Load New Client</button>
+        </div>
+
+        <div id="tab1" class="tab-content active">
+            <h2>Lead Source and Status</h2>
+            <div class="data-grid">
+                <div class="data-item"><label>Lead Received From</label><p>{{ lead.lead_received_from }}</p></div>
+                <div class="data-item"><label>Date Received</label><p>{{ lead.date_received|date:"Y-m-d" }}</p></div>
+                <div class="data-item"><label>Product Required</label><p>{{ lead.product_required }}</p></div>
+                <div class="data-item"><label>Assigned To</label><p>{{ lead.assigned_to|default:"UNASSIGNED" }}</p></div>
+                <div class="data-item"><label>Date Accepted</label><p>{{ lead.date_accepted|default:"N/A"|date:"Y-m-d" }}</p></div>
+                <div class="data-item"><label>Start Date (Projection)</label><p>{{ lead.start_date|default:"N/A"|date:"Y-m-d" }}</p></div>
+                
+                <div class="data-item full-width"><label>Internal Notes / Raw History</label><p>{{ lead.internal_notes|default:"None" }}</p></div>
+            </div>
+
+            <h2>Contact Information</h2>
+            <div class="data-grid">
+                <div class="data-item"><label>Company Name</label><p>{{ lead.company_name }}</p></div>
+                <div class="data-item"><label>Contact Person</label><p>{{ lead.contact_person }}</p></div>
+                <div class="data-item"><label>Contact Number</label><p>{{ lead.contact_number|default:"N/A" }}</p></div>
+                <div class="data-item"><label>Contact Email</label><p>{{ lead.contact_email|default:"N/A" }}</p></div>
+            </div>
+        </div> 
+
+        <div id="tab2" class="tab-content">
+            <h2>Log New Communication</h2>
+            
+            <form method="POST" action="{% url 'log_lead_note' lead_id=lead.id %}">
+                {% csrf_token %}
+                
+                <div class="note-section-container">
+                    <h3>Log New Interaction (Follow-up)</h3>
+                    <p style="color: #555; margin-bottom: 20px;">(Saving this form will update the **Last Follow Up** date and log the details in the history below. Current Communication Type: **{{ lead.communication_type|default:'N/A' }}** | Note Type: **{{ lead.note_type|default:'N/A' }}**)</p>
+                    
+                    <div class="data-grid" style="grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;">
+                        
+                        <div class="data-item" style="padding: 0; background: transparent; border: none;">
+                            <label for="communication_type">Communication Type</label>
+                            <select id="communication_type" name="communication_type" required>
+                                <option value="outbound_call" {% if lead.communication_type == 'outbound_call' %}selected{% endif %}>Outbound Call</option>
+                                <option value="inbound_call" {% if lead.communication_type == 'inbound_call' %}selected{% endif %}>Inbound Call</option>
+                                <option value="email" {% if lead.communication_type == 'email' %}selected{% endif %}>Email</option>
+                                <option value="meeting" {% if lead.communication_type == 'meeting' %}selected{% endif %}>Meeting</option>
+                                <option value="other" {% if lead.communication_type == 'other' %}selected{% endif %}>Other</option>
+                            </select>
+                        </div>
+                        
+                        <div class="data-item" style="padding: 0; background: transparent; border: none;">
+                            <label for="note_category">Email/Note Type</label>
+                            <select id="note_category" name="note_category" required>
+                                <option value="general_enquiry" {% if lead.note_type == 'general_enquiry' %}selected{% endif %}>General Enquiry</option>
+                                <option value="qualification" {% if lead.note_type == 'qualification' %}selected{% endif %}>Qualification</option>
+                                <option value="proposal" {% if lead.note_type == 'proposal' %}selected{% endif %}>Proposal</option>
+                                <option value="follow_up" {% if lead.note_type == 'follow_up' %}selected{% endif %}>Follow Up</option>
+                                <option value="admin" {% if lead.note_type == 'admin' %}selected{% endif %}>Admin / Status Change</option>
+                            </select>
+                        </div>
+                        
+                    </div>
+                    
+                    <div class="data-item full-width" style="margin-top: 10px; padding: 0; background: transparent; border: none;">
+                        <label for="note_content">Note Content</label>
+                        <textarea id="note_content" name="note_content" required placeholder="Log the details of your follow-up, discussion, or sent email..."></textarea>
+                    </div>
+                    
+                    <button type="submit" class="edit-button" style="margin-top: 20px; background-color: var(--primary-green); width: 100%;">Log Follow-up / Post Note</button>
+                </div>
+            </form>
+
+            <h2>Follow-up History (Raw Log)</h2>
+            
+            {% if lead.internal_notes %}
+                <div class="note-history-item">
+                    <p style="font-weight: 700; color: var(--text-muted); margin-bottom: 15px; font-size: 0.9rem;">NOTES ARE APPENDED (OLDEST FIRST). NEWEST AT BOTTOM.</p>
+                    <pre>{{ lead.internal_notes }}</pre>
+                </div>
+            {% else %}
+                <p style="color: var(--text-muted); font-style: italic;">No follow-up history logged yet for this lead.</p>
+            {% endif %}
+
+        </div>
+
+        <div id="tab3" class="tab-content">
+            <h2>Add New Client</h2>
+            
+            <div class="conversion-guide">
+                <h3>Process to Add New Lead Client</h3>
+                <p>The qualification process ensures the lead is ready to move into the Client phase. Once qualified, the data will be mapped to a new Client record and transferred to the main client list.</p>
+                
+                <ul style="list-style: none; text-align: left; max-width: 450px; margin: 30px auto; padding: 0;">
+                    <li style="margin-bottom: 10px;">✅ Status must be set to <strong>'Taken Up'</strong>.</li>
+                    <li style="margin-bottom: 10px;">✅ Required product details finalized.</li>
+                    <li style="margin-bottom: 10px;">✅ Consultant accepted assignment (Date Accepted set).</li>
+                    <li style="margin-bottom: 10px;">✅ Minimum contact information captured.</li>
+                </ul>
+                
+                <p style="font-weight: 800; color: #c62828; font-size: 1.2rem; margin: 20px 0;">CURRENT STATUS: {{ lead.status|upper }}</p>
+                
+                <p style="color: var(--text-muted);">Use the Edit button to update the status. Once the status is 'Taken Up', click the button below:</p>
+                
+                <button class="convert-button" onclick="simulateConversion('{{ lead.id }}')">
+                    Add New Client (Start Client Onboarding Form)
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        function openTab(evt, tabName) {
+            let tabContent = document.getElementsByClassName("tab-content");
+            for (let i = 0; i < tabContent.length; i++) { 
+                tabContent[i].style.display = "none";
+            }
+            let tabButtons = document.getElementsByClassName("tab-button");
+            for (let i = 0; i < tabButtons.length; i++) {
+                tabButtons[i].classList.remove("active");
+            }
+            document.getElementById(tabName).style.display = "block";
+            evt.currentTarget.classList.add("active");
+            window.history.pushState(null, null, '#' + tabName);
+        }
+        
+        function simulateConversion(leadId) {
+            console.log(`Conversion triggered for Lead ID: ${leadId}.`);
+
+            const leadData = {
+                client_name: "{{ lead.company_name|default:''|escapejs }}",
+                consultant: "{{ lead.assigned_to|default:'UNASSIGNED'|escapejs }}",
+                product: "{{ lead.product_required|default:''|escapejs }}",
+                status: "Active", 
+                contact_person: "{{ lead.contact_person|default:''|escapejs }}",
+                contact_email: "{{ lead.contact_email|default:''|escapejs }}",
+                contact_number: "{{ lead.contact_number|default:''|escapejs }}",
+                date: "{{ lead.date_received|default:''|date:'d/m/Y' }}", 
+            };
+
+            const params = new URLSearchParams();
+            for (const key in leadData) {
+                if (leadData[key]) {
+                    params.append(key, leadData[key]);
+                }
+            }
+
+            window.location.href = `{% url 'add_client' %}?${params.toString()}`;
+        }
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            const hash = window.location.hash;
+            let initialTab = 'tab1';
+            
+            if (hash && hash.startsWith('#tab')) {
+                initialTab = hash.substring(1);
+            }
+
+            const tabButton = document.querySelector(`.tab-button[onclick*="'${initialTab}'"]`);
+            
+            if (tabButton) {
+                openTab({ currentTarget: tabButton }, initialTab);
+            } else {
+                const defaultTabButton = document.querySelector('.tab-button:first-child');
+                if (defaultTabButton) {
+                    const tabName = defaultTabButton.getAttribute('onclick').match(/'([^']+)'/)[1];
+                    openTab({ currentTarget: defaultTabButton }, tabName);
+                }
+            }
+        });
+    </script>
+</body>
+</html>

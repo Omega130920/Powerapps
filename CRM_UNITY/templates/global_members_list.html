@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global List</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
+            margin: 20px;
+            color: #333;
+            line-height: 1.4;
+        }
+
+        h1 {
+            color: #1b5e20;
+            text-align: center;
+            margin-bottom: 20px;
+            font-size: 2.2em;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 100%;
+            margin: auto;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .controls-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            margin-bottom: 15px;
+            background: rgba(255, 255, 255, 0.3);
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        .return-button {
+            padding: 10px 15px;
+            background-color: #81c784;
+            border: 1px solid #81c784;
+            border-radius: 5px;
+            text-decoration: none;
+            color: white;
+            font-weight: bold;
+            font-size: 0.9em;
+            transition: background-color 0.3s ease;
+            margin-bottom: 5px;
+        }
+
+        .search-form {
+            display: flex;
+            gap: 15px;
+            align-items: flex-end;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .filter-label {
+            font-size: 0.85em;
+            font-weight: bold;
+            color: #1b5e20;
+            margin-left: 2px;
+        }
+
+        .search-form input[type="text"],
+        .search-form select {
+            padding: 8px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            min-width: 180px;
+            outline: none;
+            font-size: 0.9em;
+            height: 38px;
+            box-sizing: border-box;
+        }
+
+        .filter-btn {
+            padding: 0 20px;
+            background-color: #43a047;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            height: 38px;
+            transition: background-color 0.3s ease;
+        }
+
+        table {
+            width: 100%;
+            table-layout: fixed; 
+            border-collapse: collapse;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            border-radius: 5px;
+            background-color: #f0fff0;
+            border: 1px solid #c3e6cb;
+            font-size: 0.72em; /* Slightly smaller to fit the 9th column */
+        }
+
+        thead th {
+            background-color: #43a047;
+            color: white;
+            padding: 8px 4px;
+            text-align: left;
+            font-weight: bold;
+            border: 1px solid #388e3c;
+            word-wrap: break-word;
+            white-space: normal; 
+            vertical-align: bottom;
+        }
+
+        /* Adjusted Column Widths for 9 columns */
+        th:nth-child(1) { width: 7%; }  /* Code */
+        th:nth-child(2) { width: 14%; } /* Group Name */
+        th:nth-child(3) { width: 8%; }  /* Status */
+        th:nth-child(4) { width: 10%; } /* Comm Name */
+        th:nth-child(5) { width: 10%; } /* Comm Contact */
+        th:nth-child(6) { width: 13%; } /* Comm Email */
+        th:nth-child(7) { width: 10%; } /* CBC Name */
+        th:nth-child(8) { width: 10%; } /* CBC Contact */
+        th:nth-child(9) { width: 18%; } /* CBC Email */
+
+        .col-comm { background-color: #388e3c; }
+        .col-cbc { background-color: #2e7d32; }
+
+        tbody td {
+            padding: 6px 4px;
+            border: 1px solid #aed581;
+            word-break: break-all; 
+            vertical-align: top;
+        }
+
+        tbody tr:nth-child(even) { background-color: #e6ffe6; }
+        tbody tr[data-member-code]:hover { background-color: #ccffcc; cursor: pointer; }
+
+        .no-results-row td {
+            text-align: center;
+            padding: 30px;
+            color: #666;
+            background-color: #fff !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Global List</h1>
+        
+        <div class="controls-container">
+            <a href="{% url 'dashboard' %}" class="return-button">Back to Home</a>
+            
+            <form method="get" class="search-form" id="search-form">
+                <div class="filter-group">
+                    <span class="filter-label">Search Member:</span>
+                    <input type="text" name="search_query" id="search-input" placeholder="Name or Code..." value="{{ search_query|default:'' }}">
+                </div>
+                
+                <div class="filter-group">
+                    <span class="filter-label">Fund Status:</span>
+                    <select name="fund_status_filter" id="status-filter">
+                        <option value="all">All Statuses</option>
+                        {% for status in fund_statuses %}
+                            <option value="{{ status }}" {% if status == fund_status_filter %}selected{% endif %}>{{ status }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                
+                <button type="submit" class="filter-btn">Apply Filter</button>
+            </form>
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Group Code</th>
+                    <th>Member Group Name</th>
+                    <th>Fund Status</th>
+                    <th class="col-comm">Comm. Name</th>
+                    <th class="col-comm">Comm. Contact</th>
+                    <th class="col-comm">Comm. E-mail</th>
+                    <th class="col-cbc">CBC Name</th>
+                    <th class="col-cbc">CBC Contact</th>
+                    <th class="col-cbc">CBC E-mail</th>
+                </tr>
+            </thead>
+            <tbody id="member-table-body">
+                {% for member in members %}
+                <tr data-member-code="{{ member.member_group_code }}">
+                    <td>{{ member.member_group_code }}</td>
+                    <td>{{ member.member_group_name }}</td>
+                    <td>{{ member.fund_status }}</td>
+                    
+                    {# Communication Details #}
+                    <td>{{ member.comm_full_name|default:'N/A' }}</td>
+                    <td>{{ member.comm_data.work_dial_code|default:'' }} {{ member.comm_data.work_contact_number|default:'N/A' }}</td>
+                    <td>{{ member.comm_data.email_address|default:'N/A' }}</td>
+
+                    {# CBC Details #}
+                    <td>{{ member.cbc_data.first_name|default:'' }} {{ member.cbc_data.surname|default:'N/A' }}</td>
+                    <td>{{ member.cbc_data.work_dial_code|default:'' }} {{ member.cbc_data.work_contact_number|default:'N/A' }}</td>
+                    <td>{{ member.cbc_data.email_address|default:'N/A' }}</td>
+                </tr>
+                {% empty %}
+                <tr class="no-results-row">
+                    <td colspan="9">No members found matching the criteria.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInput = document.getElementById('search-input');
+            const tableBody = document.getElementById('member-table-body');
+            const rows = tableBody.querySelectorAll('tr[data-member-code]');
+            
+            let noResultsRow = tableBody.querySelector('.no-results-row');
+            if (!noResultsRow) {
+                noResultsRow = document.createElement('tr');
+                noResultsRow.className = 'no-results-row';
+                noResultsRow.style.display = 'none';
+                noResultsRow.innerHTML = '<td colspan="9">No matches found.</td>';
+                tableBody.appendChild(noResultsRow);
+            }
+
+            function liveSearch() {
+                const query = searchInput.value.toLowerCase().trim();
+                let visibleCount = 0;
+                rows.forEach(row => {
+                    const content = row.textContent.toLowerCase();
+                    if (content.includes(query)) {
+                        row.style.display = "";
+                        visibleCount++;
+                    } else {
+                        row.style.display = "none";
+                    }
+                });
+                noResultsRow.style.display = (visibleCount === 0 && query !== "") ? "" : "none";
+            }
+
+            if (searchInput) {
+                searchInput.addEventListener('input', liveSearch);
+            }
+
+            tableBody.addEventListener('click', function(event) {
+                const row = event.target.closest('tr[data-member-code]');
+                if (row) {
+                    const memberCode = row.getAttribute('data-member-code');
+                    const baseUrl = "{% url 'member_information' member_group_code='12345' %}";
+                    window.location.href = baseUrl.replace('12345', memberCode);
+                }
+            });
+        });
+    </script>
+</body>
+</html>

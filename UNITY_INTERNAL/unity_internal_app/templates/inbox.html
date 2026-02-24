@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gmail Inbox - Unified Task Log</title>
+<style>
+    body {
+        font-family: sans-serif;
+        /* Note: Keeping the gradient/flex styles from your last input */
+        background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        min-height: 100vh;
+        padding: 20px;
+        box-sizing: border-box;
+    }
+    .log-container {
+        /* Adjusted width for better fit, consistent with last step */
+        max-width: 1400px; /* Assuming you want the main table to use 1400px */
+        margin: 40px auto;
+        padding: 20px;
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .log-header {
+        border-bottom: 2px solid #aed581;
+        padding-bottom: 10px;
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .log-header h1 {
+        margin: 0;
+        color: #43a047; /* Green title color */
+    }
+    #search_input {
+        padding: 8px 12px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        width: 300px;
+        font-size: 14px;
+        transition: border-color 0.3s;
+    }
+    #search_input:focus {
+        border-color: #66bb6a;
+        outline: none;
+    }
+    .log-controls {
+        display: flex;
+        gap: 20px;
+        align-items: center;
+    }
+    .task-table {
+        width: 98%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+    .task-table th, .task-table td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #eee;
+        text-align: left;
+        font-size: 14px;
+        word-wrap: break-word;
+    }
+    .task-table th {
+        background-color: #43a047;
+        color: white;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .task-table tr:nth-child(even) { background-color: #f9fbe7; }
+    .task-table tr.clickable-row:hover {
+        background-color: #e8f5e9;
+        cursor: pointer;
+    }
+    .status-not-actioned { color: #1e88e5; font-weight: bold; }
+    .status-delegated { color: #2e7d32; font-weight: bold; }
+    .status-recycled { color: #f4511e; font-weight: bold; }
+    
+    .action-icon {
+        font-size: 18px;
+        font-weight: bold;
+        text-align: center;
+        width: 100%;
+        display: block;
+    }
+    .action-icon.red { color: #d32f2f; }
+    .action-icon.green { color: #2e7d32; }
+    .log-notes {
+        font-style: italic;
+        color: #555;
+        max-width: 100%; /* Changed from 300px to 100% to fit snippet better */
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+    .dashboard-links a {
+        margin-right: 15px;
+        color: #1a73e8;
+        text-decoration: none;
+        font-weight: 500;
+    }
+    .dashboard-links a:hover {
+        text-decoration: underline;
+    }
+    /* --- MODAL SPECIFIC STYLES --- */
+    .modal {
+        display: none; /* Hidden by default */
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        overflow: auto;
+        background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+    }
+    .modal-content {
+        background-color: #fefefe;
+        margin: 5% auto; /* Move higher up on the screen */
+        padding: 20px;
+        border: 1px solid #888;
+        width: 80%; 
+        max-width: 900px; /* INCREASED MAX WIDTH HERE */
+        border-radius: 2px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    }
+    .close {
+        color: #aaa;
+        float: right;
+        font-size: 28px;
+        font-weight: bold;
+    }
+    .close:hover,
+    .close:focus {
+        color: #000;
+        text-decoration: none;
+        cursor: pointer;
+    }
+    #modal-body {
+        padding-top: 15px;
+        max-height: 60vh; /* INCREASED MAX HEIGHT HERE */
+        overflow-y: auto;
+    }
+    .modal-content img {
+        max-width: 100%;
+        height: auto;
+    }
+    #modal-attachments {
+        padding: 10px;
+        margin-bottom: 15px;
+        border-radius: 4px;
+        background-color: #e6f0ff;
+        border: 1px solid #cce0ff;
+        display: none;
+    }
+    #modal-header-actions {
+        float: right;
+    }
+    .delegate-btn {
+        background-color: #f7931e;
+        color: white;
+        border: none;
+        padding: 8px 12px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 14px;
+        border-radius: 4px;
+        cursor: pointer;
+        margin-left: 10px;
+    }
+    .return-button {
+        padding: 10px 20px;
+        background-color: #81c784;
+        border: 1px solid #81c784;
+        border-radius: 5px;
+        text-decoration: none;
+        color: white;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        text-align: center;
+        }
+
+    .return-button:hover {
+        background-color: #66bb6a;
+    }
+</style>
+</head>
+<body>
+    <div class="Dashboard" style="margin-top: 25px;">
+        <a href="{% url 'dashboard' %}" class="return-button">Back to Dashboard</a>
+        <a href="{% url 'tasks' %}" class="return-button">Delegated Tasks</a>
+        <a href="{% url 'recycle_bin' %}" class="return-button">View Recycle Bin</a>
+    </div>
+
+<div class="log-container">
+    <div class="log-header">
+        <h1>📨 Live Inbox (Pending Action)</h1>
+        <div class="log-controls">
+            <input type="text" id="search_input" placeholder="🔍 Search all columns..." autofocus>
+            <p>Total Pending: <strong>{{ email_list|length }}</strong></p>
+        </div>
+    </div>
+    
+    {% if email_list %}
+    <table class="task-table" id="main_table">
+        <thead>
+            <tr>
+                <th style="width: 45%;">Subject / Snippet</th>
+                <th style="width: 25%;">From</th>
+                <th style="width: 15%;">Status</th>
+                <!--<th style="width: 15%;">Action</th>-->
+            </tr>
+        </thead>
+        <tbody id="table_body">
+            {% for email in email_list %}
+            
+            <tr data-status="not-actioned" 
+                onclick="openEmail('{{ email.id }}');" 
+                class="clickable-row">
+                
+                <td title="{{ email.subject }}">
+                    <b>{{ email.subject }}</b>
+                    <div class="log-notes">{{ email.snippet|default:"No preview available." }}</div>
+                </td>
+                
+                <td>{{ email.sender }}</td>
+                
+                <td class="status-not-actioned">
+                    NEW / **Pending Action**
+                </td>
+                
+                <!--<td title="Click to Delegate">
+                    <span class="action-icon red">...</span>
+                </td>-->
+            </tr>
+            
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>🎉 Your Gmail Inbox is currently clean! All emails are either processed or your inbox is empty.</p>
+    {% endif %}
+
+</div>
+
+<div id="emailModal" class="modal">
+    <div class="modal-content">
+        <div id="modal-header-actions">
+            <a id="delegate-link" class="delegate-btn" href="#">Delegate</a>
+            <span class="close" onclick="document.getElementById('emailModal').style.display='none'">&times;</span>
+        </div>
+        
+        <h2 id="modal-subject">Loading...</h2>
+        <hr style="clear: both;">
+        
+        <div id="modal-attachments">
+        </div>
+        
+        <div id="modal-body">
+            <div class="loading-spinner">Fetching email content...</div>
+        </div>
+    </div>
+</div>
+
+<script>
+// --- GLOBAL URL TEMPLATES ---
+// Django pre-renders these once on page load.
+const delegateUrlTemplate = "{% url 'delegate_email' email_id='0' %}";
+const attachmentUrlTemplate = "{% url 'download_attachment' message_id='0' attachment_id='0' %}";
+
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('search_input');
+    const tableBody = document.getElementById('table_body');
+    
+    if (!searchInput || !tableBody) {
+        return;
+    }
+    
+    // --- Live Search Logic ---
+    const rows = tableBody.getElementsByTagName('tr');
+
+    function liveSearch() {
+        const filter = searchInput.value.toLowerCase();
+        
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const cells = row.getElementsByTagName('td');
+            let found = false;
+
+            for (let j = 0; j < cells.length; j++) {
+                const cellText = cells[j].innerText || cells[j].textContent;
+                
+                if (cellText.toLowerCase().indexOf(filter) > -1) {
+                    found = true;
+                    break;
+                }
+            }
+
+            if (found) {
+                row.style.display = "";
+            } else {
+                row.style.display = "none";
+            }
+        }
+    }
+
+    searchInput.addEventListener('input', liveSearch);
+});
+
+// --- Modal and API Fetch Logic ---
+
+function openEmail(emailId) {
+    const modal = document.getElementById('emailModal');
+    const subjectElement = document.getElementById('modal-subject');
+    const bodyElement = document.getElementById('modal-body');
+    const attachmentsElement = document.getElementById('modal-attachments');
+    const delegateLink = document.getElementById('delegate-link');
+
+    // 1. Show modal and set loading state
+    modal.style.display = "block";
+    subjectElement.innerText = "Loading...";
+    bodyElement.innerHTML = '<div class="loading-spinner">Fetching email content...</div>';
+    attachmentsElement.innerHTML = '';
+    attachmentsElement.style.display = 'none';
+
+    // Set the Delegate link
+    // FIX 1 (New Method): Use pre-rendered template placeholder
+    delegateLink.href = delegateUrlTemplate.replace('/0/', `/${emailId}/`);
+
+    // 2. Fetch email content from Django JSON endpoint
+    // FIX 2: Corrected JSON Fetch URL to include '/content/'
+    const url = `/emails/content/${emailId}/`;
+    
+    fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                // Report the specific 404 error clearly
+                throw new Error(`HTTP error! status: ${response.status} (Check API path: ${url})`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            // 3. Update modal with fetched content
+            if (data.error) {
+                subjectElement.innerText = "Error";
+                bodyElement.innerText = `Could not load content: ${data.error}`;
+            } else {
+                subjectElement.innerText = data.subject;
+                
+                // We assume 'data.body' is pre-sanitized HTML from Django
+                bodyElement.innerHTML = data.body;
+                
+                // Handle Attachments
+                if (data.attachments && data.attachments.length > 0) {
+                    let html = '<strong>Attachments:</strong><br>';
+                    data.attachments.forEach(att => {
+                        // FIX 3 (New Method): Use pre-rendered attachment template
+                        let downloadUrl = attachmentUrlTemplate
+                                .replace('/0/', `/${data.id}/`)
+                                .replace('/0/', `/${att.attachmentId}/`); // Replace the second '0' placeholder
+                                
+                        html += `<a href="${downloadUrl}"
+                                target="_blank" style="margin-right: 15px;">
+                                📄 ${att.filename} (${(att.size / 1024).toFixed(1)} KB)
+                            </a>`;
+                    });
+                    attachmentsElement.innerHTML = html;
+                    attachmentsElement.style.display = 'block';
+                } else {
+                    attachmentsElement.style.display = 'none';
+                }
+            }
+        })
+        .catch(error => {
+            // 4. Handle fetch/JSON parsing errors
+            subjectElement.innerText = "Fetch Error";
+            bodyElement.innerText = `Failed to load email. Check network connection. Error: ${error.message}`;
+            console.error('Fetch Error:', error);
+        });
+}
+
+// Close the modal if the user clicks anywhere outside of it
+window.onclick = function(event) {
+    const modal = document.getElementById('emailModal');
+    if (event.target == modal) {
+        modal.style.display = "none";
+    }
+}
+</script>

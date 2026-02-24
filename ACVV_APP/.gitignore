@@ -1,0 +1,53 @@
+# -------------------------------------------------------------------------
+# Python-specific files
+# -------------------------------------------------------------------------
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+/htmlcov/
+.tox/
+.coverage
+
+# VSCode settings directory
+.vscode/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
+
+# -------------------------------------------------------------------------
+# Django-specific files
+# -------------------------------------------------------------------------
+# SQLite database
+*.sqlite3
+**/db.sqlite3
+
+# Django media files (uploaded by users)
+/media/
+
+# -------------------------------------------------------------------------
+# Operating System / IDE Files
+# -------------------------------------------------------------------------
+# Windows files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Mac files
+.DS_Store
+
+# Logs
+*.log
+
+# General Python
+**/*.pickle
+
+# -------------------------------------------------------------------------
+# REMOVED .ENV AND .SQL FROM HERE TO ALLOW GITHUB UPLOADS
+# -------------------------------------------------------------------------

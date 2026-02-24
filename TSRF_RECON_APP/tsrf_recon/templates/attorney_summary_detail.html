@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Attorney Case List & Management</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* --- LIST VIEW STYLING --- */
+        body { font-family: sans-serif; background: #d1e2c4; padding: 20px; }
+        .list-container { max-width: 1300px; margin: 0 auto; background: #f0fff0; padding: 25px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        h1.list-title { color: #1b5e20; border-bottom: 2px solid #81c784; padding-bottom: 10px; font-weight: normal; font-size: 2.5em; text-align: center;}
+        
+        /* --- FILTER BAR STYLING --- */
+        .filter-form { 
+            background: #e8f5e9; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin-bottom: 10px; 
+            display: flex; 
+            gap: 15px; 
+            flex-wrap: wrap; 
+            align-items: flex-end;
+            border: 1px solid #c8e6c9;
+        }
+        .filter-group { display: flex; flex-direction: column; gap: 5px; }
+        .filter-group label { font-size: 12px; font-weight: bold; color: #2e7d32; }
+        .filter-group input, .filter-group select { 
+            padding: 8px; 
+            border: 1px solid #aaa; 
+            border-radius: 4px; 
+            min-width: 150px;
+        }
+        
+        .search-input { border: 2px solid #43a047 !important; background: #fffde7; }
+        .result-count { font-size: 13px; color: #555; margin-bottom: 10px; font-style: italic; }
+
+        .main-table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; }
+        .main-table th, .main-table td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; font-size: 13px; }
+        .main-table th { background-color: #43a047; color: white; font-weight: bold; }
+        .main-table tr { cursor: pointer; transition: background 0.2s; }
+        .main-table tr:hover { background-color: #e8f5e9; }
+        
+        .btn { display: inline-block; padding: 8px 15px; border-radius: 4px; text-decoration: none; font-size: 13px; border: none; cursor: pointer; color: white; transition: 0.3s; vertical-align: middle;}
+        .back-btn { background: #555; margin-bottom: 15px; }
+        .filter-btn { background: #43a047; }
+        .export-btn { background: #1b5e20; }
+        .reset-btn { background: #757575; }
+
+        .pagination { margin-top: 20px; display: flex; justify-content: center; align-items: center; gap: 10px; }
+        .pagination a, .pagination span { padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; text-decoration: none; color: #333; background: white; }
+        .pagination .active { background: #43a047; color: white; border-color: #43a047; }
+
+        /* --- MODAL STYLING --- */
+        .modal-overlay { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); overflow-y: auto; justify-content: center; align-items: flex-start; padding-top: 50px; }
+        .dashboard-container { background-color: #e0e0e0; padding: 25px; border-radius: 8px; width: 90%; max-width: 1400px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin-bottom: 50px; }
+        .header-row { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #ccc; padding-bottom: 10px; margin-bottom: 20px; }
+        .form-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; margin-bottom: 20px; }
+        .form-group { display: flex; flex-direction: column; }
+        .form-group label { font-size: 12px; font-weight: bold; margin-bottom: 5px; color: #555; }
+        .form-group input, .form-group select { padding: 8px; border: 1px solid #bbb; border-radius: 4px; background: white; }
+        .highlight-field { background-color: #ffff00 !important; }
+        .section-header { background-color: #43a047; color: white; padding: 8px 12px; display: flex; justify-content: space-between; align-items: center; font-weight: bold; border-radius: 4px 4px 0 0; }
+        .content-box { background: white; border: 1px solid #ccc; height: 180px; overflow-y: auto; margin-bottom: 20px; }
+        .sub-table { width: 100%; border-collapse: collapse; }
+        .sub-table th { background: #f0f0f0; font-size: 11px; text-align: left; padding: 5px; border-bottom: 1px solid #ddd; }
+        .sub-table td { padding: 8px; font-size: 12px; border-bottom: 1px solid #eee; }
+        .close-icon { font-size: 2.5em; color: #333; cursor: pointer; }
+        .add-icon { cursor: pointer; transition: transform 0.2s; }
+        .add-icon:hover { transform: scale(1.2); color: #ffd700; }
+    </style>
+</head>
+<body>
+
+    <div class="list-container">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <a href="{% url 'dashboard' %}" class="btn back-btn">← Back to Dashboard</a>
+        </div>
+        
+        <h1 class="list-title">Attorney Case Master List</h1>
+
+        <form method="GET" action="{% url 'attorney_list' %}" class="filter-form">
+            <div class="filter-group">
+                <label><i class="fas fa-search"></i> Search Levy / Name</label>
+                <input type="text" name="search" class="search-input" value="{{ request.GET.search }}" placeholder="Enter Levy No or Name...">
+            </div>
+            <div class="filter-group">
+                <label>AOD Status</label>
+                <input type="text" name="aod" value="{{ request.GET.aod }}" placeholder="Search AOD...">
+            </div>
+            <div class="filter-group">
+                <label>PFA Status</label>
+                <input type="text" name="pfa" value="{{ request.GET.pfa }}" placeholder="Search PFA...">
+            </div>
+            <div class="filter-group">
+                <label>MIP Status</label>
+                <select name="mip">
+                    <option value="">-- All --</option>
+                    {% for status in mip_statuses %}
+                    <option value="{{ status }}" {% if request.GET.mip == status %}selected{% endif %}>{{ status }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Administrator</label>
+                <select name="admin">
+                    <option value="">-- All --</option>
+                    {% for admin in admins %}
+                    <option value="{{ admin }}" {% if request.GET.admin == admin %}selected{% endif %}>{{ admin }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div style="display: flex; gap: 8px; margin-top: 5px;">
+                <button type="submit" class="btn filter-btn"><i class="fas fa-filter"></i> Filter</button>
+                <button type="submit" name="export" value="1" class="btn export-btn"><i class="fas fa-file-excel"></i> Export</button>
+                <a href="{% url 'attorney_list' %}" class="btn reset-btn">Reset</a>
+            </div>
+        </form>
+
+        <div class="result-count">
+            Showing <strong>{{ page_obj.start_index }} - {{ page_obj.end_index }}</strong> of <strong>{{ page_obj.paginator.count }}</strong> records found.
+        </div>
+        
+        <table class="main-table">
+            <thead>
+                <tr>
+                    <th>Levy</th>
+                    <th>Levy Name</th>
+                    <th>Attorney Handover</th>
+                    <th>AOD</th>
+                    <th>PFA</th>
+                    <th>MIP Status</th>
+                    <th>Administrator</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in page_obj %}
+                <tr onclick="openAttorneyDashboard('{{ record.a_levy_number }}')">
+                    <td>{{ record.a_levy_number }}</td>
+                    <td>{{ record.b_levy_name }}</td>
+                    <td>{{ record.c_attorney }}</td>
+                    <td>{{ record.d_aod }}</td>
+                    <td>{{ record.e_pfa }}</td>
+                    <td>{{ record.f_mip_status }}</td>
+                    <td>{{ record.i_administrator }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="7" style="text-align:center;">No Attorney records found matching criteria.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if page_obj.has_other_pages %}
+        <div class="pagination">
+            {% if page_obj.has_previous %}
+                <a href="?page=1{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">&laquo; First</a>
+                <a href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Prev</a>
+            {% endif %}
+
+            <span class="active">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next</a>
+                <a href="?page={{ page_obj.paginator.num_pages }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Last &raquo;</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div id="attorneyModal" class="modal-overlay">
+        <div class="dashboard-container">
+            <div class="header-row">
+                <h1 style="margin:0; font-size: 1.5em; text-transform: uppercase;">Attorney Case Detail</h1>
+                <h2 id="modal_levy_info" style="margin:0; font-weight: normal;">Loading...</h2>
+                <div onclick="closeAttorneyDashboard()"><i class="fas fa-chevron-circle-left close-icon"></i></div>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-group"><label>Current Fiscal</label><input type="text" id="df_fiscal" readonly></div>
+                <div class="form-group"><label>CBR Status</label><input type="text" id="df_cbr" readonly></div>
+                <div class="form-group"><label>Due Amount</label><input type="text" id="df_due" readonly></div>
+                <div class="form-group"><label>Overs/Unders</label><input type="text" id="df_overs" readonly></div>
+                <div class="form-group"><label>Administrator</label><input type="text" id="df_admin" readonly></div>
+            </div>
+
+            <div class="form-grid" style="grid-template-columns: 2fr 1fr 1fr 1fr;">
+                <div class="form-group">
+                    <label>110 Day Handover</label>
+                    <select class="highlight-field" id="df_attorney">
+                        <option value="FUND LEGAL DEPARTMENT">FUND LEGAL DEPARTMENT</option>
+                        <option value="EXTERNAL ATTORNEY">EXTERNAL ATTORNEY</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>AOD</label>
+                    <select class="highlight-field" id="df_aod_status"><option value="No">No</option><option value="Yes">Yes</option></select>
+                </div>
+                <div class="form-group">
+                    <label>PFA</label>
+                    <select class="highlight-field" id="df_pfa_status"><option value="No">No</option><option value="Yes">Yes</option></select>
+                </div>
+                <div class="form-group"><label>Default Period</label><input type="date" class="highlight-field" id="df_period"></div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div>
+                    <div class="section-header"><span>Billing Notes</span><i class="fas fa-plus add-icon" id="add_billing_note"></i></div>
+                    <div class="content-box" id="df_billing_notes"></div>
+                    <div class="section-header"><span>AOD List</span><i class="fas fa-plus add-icon" id="add_aod_btn"></i></div>
+                    <div class="content-box">
+                        <table class="sub-table">
+                            <thead><tr><th>AOD No.</th><th>AOD Amount</th><th>Status</th></tr></thead>
+                            <tbody id="df_aod_list"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div>
+                    <div class="section-header"><span>Attorney Notes</span><i class="fas fa-plus add-icon" id="add_attorney_note"></i></div>
+                    <div class="content-box" id="df_attorney_notes"></div>
+                    <div class="section-header"><span>PFA List</span><i class="fas fa-plus add-icon" id="add_pfa_btn"></i></div>
+                    <div class="content-box">
+                        <table class="sub-table">
+                            <thead><tr><th>PFA No.</th><th>Status</th><th>Due Date</th></tr></thead>
+                            <tbody id="df_pfa_list"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentLevy = null;
+
+        // Initialize button listeners when the page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // AOD Add Button
+            document.getElementById('add_aod_btn').onclick = function() {
+                if (currentLevy) {
+                    window.location.href = `/attorney-summary/${currentLevy}/add-aod/`;
+                } else {
+                    alert("No Levy selected.");
+                }
+            };
+
+            // PFA Add Button
+            document.getElementById('add_pfa_btn').onclick = function() {
+                if (currentLevy) {
+                    window.location.href = `/attorney-summary/${currentLevy}/add-pfa/`;
+                } else {
+                    alert("No Levy selected.");
+                }
+            };
+        });
+
+        async function openAttorneyDashboard(levyNumber) {
+            currentLevy = levyNumber;
+            const modal = document.getElementById('attorneyModal');
+            const infoHeader = document.getElementById('modal_levy_info');
+            modal.style.display = 'flex';
+            infoHeader.innerText = "Fetching " + levyNumber + "...";
+
+            try {
+                const response = await fetch(`/get-attorney-detail/${levyNumber}/`);
+                const data = await response.json();
+
+                infoHeader.innerText = data.levy_number + " - " + data.levy_name;
+                document.getElementById('df_admin').value = data.admin;
+                document.getElementById('df_attorney').value = data.attorney_name;
+                document.getElementById('df_aod_status').value = data.aod_status;
+                document.getElementById('df_pfa_status').value = data.pfa_status;
+                document.getElementById('df_period').value = data.default_period;
+
+                document.getElementById('df_fiscal').value = data.fiscal;
+                document.getElementById('df_cbr').value = data.cbr;
+                
+                const due = parseFloat(data.due_amount) || 0;
+                const overs = parseFloat(data.overs_unders) || 0;
+                document.getElementById('df_due').value = "R " + due.toLocaleString(undefined, {minimumFractionDigits: 2});
+                document.getElementById('df_overs').value = "R " + overs.toLocaleString(undefined, {minimumFractionDigits: 2});
+
+                if (due > 0) {
+                    document.getElementById('df_due').style.color = "red";
+                    document.getElementById('df_due').style.fontWeight = "bold";
+                } else {
+                    document.getElementById('df_due').style.color = "black";
+                    document.getElementById('df_due').style.fontWeight = "normal";
+                }
+
+                const notesContainer = document.getElementById('df_billing_notes');
+                notesContainer.innerHTML = data.notes.map(n => `<div style="padding:8px; border-bottom:1px solid #eee; font-size:11px;"><strong>${n.date}</strong> - ${n.notes_text} <br><small style="color:green;">User: ${n.user}</small></div>`).join('') || '<p style="padding:10px;">No notes found.</p>';
+                
+                const aodBody = document.getElementById('df_aod_list');
+                aodBody.innerHTML = data.aods.map(a => `<tr><td>${a.aod_number}</td><td>R ${parseFloat(a.aod_amount).toLocaleString(undefined, {minimumFractionDigits: 2})}</td><td>${a.current_status}</td></tr>`).join('') || '<tr><td colspan="3" style="text-align:center;">No AODs found</td></tr>';
+                
+                const pfaBody = document.getElementById('df_pfa_list');
+                pfaBody.innerHTML = data.pfas.map(p => `<tr><td>${p.pfa_number}</td><td>${p.pfa_status}</td><td>${p.determination_due_date || 'N/A'}</td></tr>`).join('') || '<tr><td colspan="3" style="text-align:center;">No PFAs found</td></tr>';
+
+            } catch (error) { 
+                console.error("Error:", error);
+                infoHeader.innerText = "Error loading data."; 
+            }
+        }
+
+        function closeAttorneyDashboard() { document.getElementById('attorneyModal').style.display = 'none'; }
+        window.onclick = function(event) { if (event.target == document.getElementById('attorneyModal')) closeAttorneyDashboard(); }
+    </script>
+</body>
+</html>

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <style>
+        html, body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: sans-serif;
+            background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            box-sizing: border-box;
+            padding: 2vh 2vw;
+        }
+
+        h1 {
+            font-size: clamp(3.5rem, 4vh, 3.5rem);
+            text-align: center;
+            margin: 0 0 2vh 0;
+            width: 100%;
+            flex-shrink: 0;
+            color: #1b5e20;
+        }
+
+        .button-container {
+            display: grid;
+            /* Updated to 5 columns as requested */
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: auto; 
+            gap: 1.5vh 1.5vw;
+            width: 100%;
+            height: 100%;
+            max-width: 1600px; /* Widened to accommodate 5 columns comfortably */
+            flex: 1; 
+            min-height: 0;
+        }
+
+        /* Responsive adjustments for smaller screens */
+        @media (max-width: 1300px) {
+            .button-container {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+
+        @media (max-width: 1000px) {
+            .button-container {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 700px) {
+            .button-container {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        .button-block {
+            background-color: rgb(119, 206, 97);
+            border: 1px solid rgb(119, 206, 97);
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            text-decoration: none;
+            color: white;
+            font-size: clamp(0.7rem, 0.9vw + 0.7vh, 1.1rem); /* Scaled down slightly for 5 cols */
+            font-weight: 500;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: transform 0.2s ease, background-color 0.3s ease;
+            width: 100%;
+            height: 100%;
+            padding: 10px;
+            word-break: break-word;
+            line-height: 1.2;
+            position: relative; 
+        }
+
+        .button-block:hover {
+            background-color: rgb(105, 187, 85);
+            transform: scale(1.02);
+        }
+
+        .badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background-color: #d32f2f;
+            color: white;
+            border-radius: 50%;
+            min-width: 22px;
+            height: 22px;
+            padding: 2px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            border: 2px solid white;
+            z-index: 10;
+        }
+
+        .pulse-anim {
+            animation: pulse-red 0.5s cubic-bezier(0.4, 0, 0.6, 1);
+        }
+
+        @keyframes pulse-red {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.3); }
+        }
+
+        .badge.blue-badge { background-color: #1976d2; }
+        .badge.orange-badge { background-color: #ff8f00; }
+        .badge.grey-badge { background-color: #616161; }
+
+        .button-block.export-btn { background-color: #2e7d32; }
+
+        .logout-wrapper {
+            position: absolute;
+            top: 2vh;
+            right: 2vw;
+        }
+
+        .logout-button {
+            background-color: rgb(105, 187, 85);
+            color: white;
+            padding: 0.8vh 1.5vw;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1>Hello {{ username }}, Welcome to Unity Internal</h1>
+    
+    <div class="logout-wrapper">
+        <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="logout-button">Logout</button>
+        </form>
+    </div>
+
+    <div class="button-container">
+        {% if user.username == 'omega' %}
+
+            <a href="{% url 'outlook_dashboard' %}" class="button-block">
+                Delegations
+                <span id="badge-new-emails" class="badge blue-badge" {% if not new_emails_count %}style="display:none;"{% endif %}>{{ new_emails_count }}</span>
+            </a>
+            <a href="{% url 'outlook_recycle_bin' %}" class="button-block">
+                Recycle Bin
+                <span id="badge-recycled" class="badge grey-badge" {% if not recycled_count %}style="display:none;"{% endif %}>{{ recycled_count }}</span>
+            </a>
+            <a href="{% url 'manager_approval_dashboard' %}" class="button-block">
+                Manager Approval
+                <span id="badge-manager-approval" class="badge" {% if not pending_approval_count %}style="display:none;"{% endif %}>{{ pending_approval_count }}</span>
+            </a>
+        {% endif %}
+
+        <a href="{% url 'outlook_delegated_box' %}" class="button-block">
+            My Dashboard
+            <span id="badge-my-delegations" class="badge orange-badge" {% if not my_pending_delegations_count %}style="display:none;"{% endif %}>{{ my_pending_delegations_count }}</span>
+        </a>
+        <a href="{% url 'email_list' %}" class="button-block">Email List</a>
+
+        <a href="{% url 'unity_list' %}" class="button-block">Employer Recon</a>
+        <!--<a href="{% url 'add_member' %}" class="button-block">Add Member Group</a>-->
+        <a href="{% url 'import_data' %}" class="button-block">Import Bank</a>
+        <!--<a href="{% url 'import_credit' %}" class="button-block">Import Credit Note</a>-->
+        
+        <a href="{% url 'bank_list' %}" class="button-block">
+            Bank Lines
+            <span id="badge-bank-lines" class="badge orange-badge" {% if not bank_lines_count %}style="display:none;"{% endif %}>{{ bank_lines_count }}</span>
+        </a>
+
+        <a href="{% url 'credit_note_list' %}" class="button-block">
+            Create Over Credit Line
+            <span id="badge-credit-notes" class="badge blue-badge" {% if not credit_notes_count %}style="display:none;"{% endif %}>{{ credit_notes_count }}</span>
+        </a>
+
+        <a href="{% url 'global_claims' %}" class="button-block">Withdrawal Claims</a>
+        <a href="{% url 'global_two_pot' %}" class="button-block">Two-Pot Claims</a>
+        <a href="{% url 'admin_billing' %}" class="button-block">Admin Billing</a>
+        <a href="{% url 'confirmations' %}" class="button-block">Daily Confirmations</a>
+        <a href="{% url 'export_global_bill_history' %}" class="button-block export-btn">Section 13A Report</a>
+        <a href="{% url 'global_bank' %}" class="button-block">Global Bank</a>
+    </div>
+
+    
+
+    <script>
+        function refreshDashboardStats() {
+            fetch('/dashboard-stats/') 
+                .then(response => response.json())
+                .then(data => {
+                    updateBadge('badge-new-emails', data.new_emails_count);
+                    updateBadge('badge-recycled', data.recycled_count);
+                    updateBadge('badge-manager-approval', data.pending_approval_count);
+                    updateBadge('badge-my-delegations', data.my_pending_delegations_count);
+                    updateBadge('badge-bank-lines', data.bank_lines_count);
+                    updateBadge('badge-credit-notes', data.credit_notes_count);
+                })
+                .catch(err => console.error('Dashboard Stats Error:', err));
+        }
+
+        function updateBadge(id, count) {
+            const badge = document.getElementById(id);
+            if (!badge) return;
+            const currentCount = parseInt(badge.innerText) || 0;
+            if (count > 0) {
+                badge.innerText = count;
+                badge.style.display = 'flex';
+                if (count !== currentCount) {
+                    badge.classList.remove('pulse-anim');
+                    void badge.offsetWidth; 
+                    badge.classList.add('pulse-anim');
+                }
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+        setInterval(refreshDashboardStats, 30000);
+    </script>
+</body>
+</html>

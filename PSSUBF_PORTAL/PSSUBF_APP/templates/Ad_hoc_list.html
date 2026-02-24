@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #d1e2c4 0%, #8fcf7f 100%); min-height: 100vh; }
+        .glass-card { background: rgba(255, 255, 255, 0.25); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1); }
+        .clean-input { background-color: #ffffff !important; border: 1px solid #d1d5db !important; transition: border-color 0.2s; }
+        .clean-input:focus { border-color: #059669 !important; outline: none; box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1); }
+        .highlight-field { background-color: #fef08a !important; font-weight: 700; color: #1f2937; border-color: #eab308 !important; }
+        .overflow-x-auto::-webkit-scrollbar { height: 8px; }
+        .overflow-x-auto::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 4px; }
+    </style>
+</head>
+<body class="p-4 sm:p-8 text-gray-800">
+
+    <div class="max-w-full mx-auto mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div class="flex items-center gap-4">
+            <span class="text-4xl font-serif font-bold text-green-800 italic">futura</span>
+            <h1 class="text-4xl font-light text-green-900 ml-2">Ad Hoc List</h1>
+        </div>
+        <div class="flex gap-3">
+            <a href="{% url 'pssubf_switchboard' %}" class="px-4 py-2 bg-white/30 hover:bg-white/50 border border-white/40 rounded-lg text-green-900 font-semibold transition backdrop-blur-md">
+                <i class="fas fa-arrow-left mr-2"></i> Back to home Screen
+            </a>
+            <a href="{% url 'export_adhoc' %}" class="px-4 py-2 bg-white/30 hover:bg-white/50 border border-white/40 rounded-lg text-green-900 font-semibold transition backdrop-blur-md">
+                <i class="fas fa-file-excel mr-2"></i> Export Excel
+            </a>
+            <button onclick="openAdHocModal()" class="px-5 py-2.5 bg-green-700 text-white font-bold rounded-lg shadow-lg hover:bg-green-800 transition transform hover:-translate-y-1">
+                <i class="fas fa-plus mr-2"></i> Add Ad Hoc Entry
+            </button>
+        </div>
+    </div>
+
+    <div class="max-w-full mx-auto glass-card rounded-2xl overflow-hidden shadow-2xl">
+        <div class="overflow-x-auto">
+            <table class="min-w-full">
+                <thead>
+                    <tr class="bg-green-600 text-white text-left text-xs font-bold uppercase tracking-wider">
+                        <th class="px-6 py-4 border-r border-green-500">Member No.</th>
+                        <th class="px-6 py-4 border-r border-green-500">Beneficiary Details</th>
+                        <th class="px-6 py-4 border-r border-green-500">Guardian Details</th>
+                        <th class="px-6 py-4 border-r border-green-500">Claim Form Date</th>
+                        <th class="px-6 py-4 border-r border-green-500">Claim Status</th>
+                        <th class="px-6 py-4 border-r border-green-500">Claim Reason</th>
+                        <th class="px-6 py-4 border-r border-green-500 text-center">Support Docs</th>
+                        <th class="px-6 py-4 text-center"><i class="fas fa-paperclip"></i></th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-white/20 bg-white/10">
+                    {% for item in adhoc_list %}
+                    <tr class="hover:bg-white/30 transition cursor-pointer" onclick="openAdHocModal('{{ item.id }}')">
+                        <td class="px-6 py-4 text-sm font-bold text-green-900">{{ item.beneficiary.membership_number }}</td>
+                        <td class="px-6 py-4 text-sm">{{ item.beneficiary.first_name }} {{ item.beneficiary.last_name }}</td>
+                        <td class="px-6 py-4 text-sm">{{ item.beneficiary.guardian_first_name }} {{ item.beneficiary.guardian_last_name }}</td>
+                        <td class="px-6 py-4 text-sm">{{ item.claim_form_date|date:"d/m/Y" }}</td>
+                        <td class="px-6 py-4 text-sm font-semibold">{{ item.status }}</td>
+                        <td class="px-6 py-4 text-sm">{{ item.title }}</td>
+                        <td class="px-6 py-4 text-sm text-center">{{ item.supporting_docs_attached }}</td>
+                        <td class="px-6 py-4 text-center">
+                            {% if item.attachment_path %}<i class="fas fa-paperclip text-green-800"></i>{% endif %}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="8" class="px-6 py-12 text-center text-green-900/60 italic text-lg">No records found.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="adhocModal" class="hidden fixed inset-0 z-50 bg-green-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+        <div class="bg-gray-50 w-full max-w-6xl rounded-2xl shadow-2xl overflow-hidden border border-white/50">
+            
+            <div class="p-5 border-b bg-white flex flex-col items-center relative">
+                <button onclick="closeAdHocModal()" class="absolute right-5 top-5 text-gray-400 hover:text-red-600 transition text-3xl">&times;</button>
+                <p class="text-sm font-semibold text-gray-500" id="header_id_passport">ID/Passport: -</p>
+                <h2 class="text-3xl font-light tracking-tight text-gray-800" id="header_beneficiary_display">Create New Ad Hoc Claim</h2>
+            </div>
+
+            <form id="adhocForm" method="POST" action="{% url 'adhoc_list' %}" enctype="multipart/form-data" class="p-8 grid grid-cols-1 md:grid-cols-4 gap-4 overflow-y-auto max-h-[85vh] relative">
+                {% csrf_token %}
+                
+                <button type="submit" class="absolute right-8 top-0 text-gray-400 hover:text-green-700 text-3xl transition-colors">
+                    <i class="fas fa-save"></i>
+                </button>
+
+                <input type="hidden" name="action" id="formAction" value="add_adhoc_entry">
+                <input type="hidden" name="record_id" id="record_id">
+                <input type="hidden" name="remove_attachment" id="remove_attachment" value="false">
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Claim Type</label>
+                    <input type="text" name="category" value="Ad Hoc" readonly class="w-full p-2 border highlight-field rounded text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Member Number</label>
+                    <input type="text" name="membership_number" id="membership_number" onchange="fetchMemberData(this.value)" class="w-full p-2 border highlight-field rounded text-sm clean-input">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Guardian Name & Surname</label>
+                    <input type="text" id="g_name" readonly class="w-full p-2 border highlight-field rounded text-sm italic">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Beneficiary Name & Surname</label>
+                    <input type="text" id="b_name" readonly class="w-full p-2 border highlight-field rounded text-sm italic">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Beneficiary Date of Birth</label>
+                    <input type="text" id="b_dob" readonly class="w-full p-2 border highlight-field rounded text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Age at Claim Date</label>
+                    <input type="text" id="age_at_claim" readonly class="w-full p-2 border highlight-field rounded text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Termination Date</label>
+                    <input type="text" id="term_date" readonly class="w-full p-2 border highlight-field rounded text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Monthly Income Payment</label>
+                    <input type="text" id="monthly_income" readonly class="w-full p-2 border highlight-field rounded text-sm">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-green-700 uppercase mb-1">* Original Claim Form Date</label>
+                    <input type="date" name="claim_form_date" id="claim_form_date" onchange="calculateAge(); calculateMaturity();" required class="w-full p-2 border-2 border-green-600 rounded text-sm clean-input">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Portfolio Value</label>
+                    <input type="number" step="0.01" name="portfolio_value" id="portfolio_value" onchange="calculateAffordability()" class="w-full p-2 border rounded text-sm clean-input">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Portfolio Value Date</label>
+                    <input type="date" name="portfolio_date" id="portfolio_date" class="w-full p-2 border rounded text-sm clean-input">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Amount Requested</label>
+                    <input type="number" step="0.01" name="amount_requested" id="amount_requested" onchange="calculateAffordability()" class="w-full p-2 border rounded text-sm clean-input">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Years to Maturity</label>
+                    <input type="text" name="years_to_maturity" id="years_to_maturity" readonly class="w-full p-2 border bg-green-50 rounded text-sm font-bold text-green-700">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Affordability Calculation</label>
+                    <input type="text" name="affordability_calculation" id="affordability_calculation" readonly class="w-full p-2 border bg-green-50 rounded text-sm font-bold text-green-700">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Reason</label>
+                    <select name="title" id="title_reason" required class="w-full p-2 border-r-8 border-green-600 rounded text-sm clean-input">
+                        <option value="Educational Expenses (Multiple)">Educational Expenses (Multiple)</option>
+                        <option value="Educational Expenses (other)">Educational Expenses (other)</option>
+                        <option value="School Fees">School Fees</option>
+                        <option value="School Transport">School Transport</option>
+                        <option value="School Clothing">School Clothing</option>
+                        <option value="School Trip">School Trip</option>
+                        <option value="Pre-School Fees">Pre-School Fees</option>
+                        <option value="Afterschool Fees">Afterschool Fees</option>
+                        <option value="Essentials">Essentials</option>
+                        <option value="Casual Clothing">Casual Clothing</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Claim Status</label>
+                    <select name="status" id="status" required class="w-full p-2 border-r-8 border-green-600 rounded text-sm clean-input">
+                        <option value="Created">Created</option>
+                        <option value="In Progress">In Progress</option>
+                        <option value="Supervisor">Supervisor</option>
+                        <option value="Complete">Complete</option>
+                        <option value="Submitted BOT">Submitted BOT</option>
+                        <option value="Submitted Sanlam">Submitted Sanlam</option>
+                        <option value="Paid">Paid</option>
+                        <option value="Repudiated">Repudiated</option>
+                        <option value="Repudiated by BOT">Repudiated by BOT</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Date Paid</label>
+                    <input type="date" name="date_paid" id="date_paid" class="w-full p-2 border rounded text-sm clean-input">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Supporting Docs Attached</label>
+                    <select name="supporting_docs_attached" id="supporting_docs_attached" required class="w-full p-2 border-r-8 border-green-600 rounded text-sm clean-input">
+                        <option value="No">No</option>
+                        <option value="Yes">Yes</option>
+                    </select>
+                </div>
+
+                <div class="md:col-span-4 mt-2">
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Claim Note</label>
+                    <textarea name="comments" id="comments" class="w-full p-4 border rounded-md h-32 clean-input resize-none" placeholder="Enter notes..."></textarea>
+                </div>
+
+                <div class="md:col-span-4 mt-2">
+                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Supporting Documentation (Files)</label>
+                    <div class="relative border-2 border-dashed border-gray-300 bg-white rounded-xl p-8 flex flex-col items-center justify-center hover:border-green-500 transition-all group cursor-pointer">
+                        <input type="file" name="supporting_document" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                        <div class="flex items-center gap-3">
+                            <i class="fas fa-paperclip text-3xl text-gray-400 group-hover:text-green-600 transition-colors"></i>
+                            <span class="text-sm font-semibold text-gray-600 group-hover:text-green-700">Attach file</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="md:col-span-4 pt-4 border-t mt-2">
+                    <p id="footer_tracking" class="text-xs text-gray-500 italic"></p>
+                </div>
+
+                <div class="md:col-span-4 flex justify-end gap-3 pt-4 border-t mt-4">
+                    <button type="button" onclick="closeAdHocModal()" class="px-8 py-2.5 bg-gray-400 text-white font-bold rounded-lg hover:bg-gray-500 transition">Cancel</button>
+                    <button type="submit" class="px-8 py-2.5 bg-green-700 text-white font-bold rounded-lg hover:bg-green-800 shadow-lg transition">Save Entry</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openAdHocModal(recordId = null) {
+            const modal = document.getElementById('adhocModal');
+            const form = document.getElementById('adhocForm');
+            modal.classList.remove('hidden');
+            document.getElementById('footer_tracking').innerText = '';
+
+            if (recordId) {
+                document.getElementById('formAction').value = "update_adhoc_entry";
+                document.getElementById('record_id').value = recordId;
+
+                fetch(`/get-adhoc-details/${recordId}/`)
+                    .then(res => res.json())
+                    .then(data => {
+                        document.getElementById('header_id_passport').innerText = `ID/Passport: ${data.id_number || '-'}`;
+                        document.getElementById('header_beneficiary_display').innerText = `${data.membership_number} - ${data.beneficiary_name}`;
+                        
+                        document.getElementById('membership_number').value = data.membership_number;
+                        document.getElementById('b_name').value = data.beneficiary_name;
+                        document.getElementById('g_name').value = data.guardian_name;
+                        document.getElementById('b_dob').value = data.dob;
+                        document.getElementById('term_date').value = data.term_date;
+                        document.getElementById('title_reason').value = data.title;
+                        document.getElementById('claim_form_date').value = data.claim_form_date;
+                        document.getElementById('status').value = data.status;
+                        document.getElementById('date_paid').value = data.date_paid;
+                        document.getElementById('portfolio_value').value = data.portfolio_value;
+                        document.getElementById('portfolio_date').value = data.portfolio_date;
+                        document.getElementById('amount_requested').value = data.amount_requested;
+                        document.getElementById('years_to_maturity').value = data.years_to_maturity;
+                        document.getElementById('affordability_calculation').value = data.affordability_calculation;
+                        document.getElementById('supporting_docs_attached').value = data.docs_attached;
+                        document.getElementById('comments').value = data.comments;
+                        document.getElementById('footer_tracking').innerText = data.tracking_info || '';
+                        
+                        // Run calculations after populating existing record
+                        calculateAge();
+                        calculateMaturity();
+                    });
+            } else {
+                form.reset();
+                document.getElementById('header_id_passport').innerText = "ID/Passport: -";
+                document.getElementById('header_beneficiary_display').innerText = "Create New Ad Hoc Claim";
+                document.getElementById('formAction').value = "add_adhoc_entry";
+                document.getElementById('record_id').value = "";
+            }
+        }
+
+        function calculateAge() {
+            const dobStr = document.getElementById('b_dob').value;
+            const claimDateStr = document.getElementById('claim_form_date').value;
+            
+            if(!dobStr || !claimDateStr) {
+                document.getElementById('age_at_claim').value = "";
+                return;
+            }
+            
+            const birth = new Date(dobStr);
+            const claim = new Date(claimDateStr);
+            
+            let age = claim.getFullYear() - birth.getFullYear();
+            let m = claim.getMonth() - birth.getMonth();
+            
+            if (m < 0 || (m === 0 && claim.getDate() < birth.getDate())) {
+                age--;
+            }
+            
+            let monthDiff = m < 0 ? 12 + m : m;
+            document.getElementById('age_at_claim').value = `${age}.${monthDiff}`;
+        }
+
+        function calculateMaturity() {
+            const termDateStr = document.getElementById('term_date').value;
+            const claimDateStr = document.getElementById('claim_form_date').value;
+            if(!termDateStr || !claimDateStr) return;
+            const term = new Date(termDateStr);
+            const claim = new Date(claimDateStr);
+            let diff = term.getFullYear() - claim.getFullYear();
+            document.getElementById('years_to_maturity').value = diff > 0 ? diff : 0;
+        }
+
+        function calculateAffordability() {
+            const portfolio = parseFloat(document.getElementById('portfolio_value').value) || 0;
+            const requested = parseFloat(document.getElementById('amount_requested').value) || 0;
+            if (portfolio > 0) {
+                let result = (requested / portfolio) * 100;
+                document.getElementById('affordability_calculation').value = result.toFixed(2) + '%';
+            }
+        }
+
+        function handleFileRemoval() {
+            document.getElementById('file_status_bar').classList.add('hidden');
+            document.getElementById('remove_attachment').value = "true";
+        }
+
+        function closeAdHocModal() { document.getElementById('adhocModal').classList.add('hidden'); }
+
+        function fetchMemberData(mNum) {
+            if(!mNum) return;
+            fetch(`/get-beneficiary-data/${mNum}/`)
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('b_name').value = data.beneficiary_name;
+                    document.getElementById('g_name').value = data.guardian_name;
+                    document.getElementById('b_dob').value = data.dob;
+                    document.getElementById('term_date').value = data.termination_date;
+                    document.getElementById('monthly_income').value = data.stipened;
+                    
+                    // Trigger age calculation after fetching data
+                    calculateAge();
+                });
+        }
+    </script>
+</body>
+</html>

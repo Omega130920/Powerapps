@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACVV Dashboard</title>
+    <style>
+        html, body {
+            height: auto;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        body {
+            font-family: sans-serif;
+            background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            font-size: 3.5em;
+            text-align: center;
+            margin-bottom: 30px;
+            margin-top: 40px;
+            width: 100%;
+            color: #1b5e20;
+        }
+
+        .button-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-auto-rows: minmax(100px, auto);
+            gap: 15px;
+            max-width: 900px;
+            width: 95%;
+            margin: 20px auto;
+        }
+
+        @media (max-width: 768px) {
+            .button-container { grid-template-columns: repeat(2, 1fr); max-width: 600px; }
+        }
+
+        @media (max-width: 480px) {
+            .button-container { grid-template-columns: 1fr; max-width: 300px; }
+        }
+
+        .button-block {
+            padding: 50px 20px;
+            background-color: rgb(119, 206, 97);
+            border: 1px solid rgb(119, 206, 97);
+            border-radius: 5px;
+            text-align: center;
+            cursor: pointer;
+            text-decoration: none;
+            color: white;
+            font-size: 1.6em;
+            box-sizing: border-box;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.3s ease, border-color 0.3s ease, transform 0.2s;
+            position: relative; 
+        }
+
+        .button-block:hover {
+            background-color: rgb(105, 187, 85);
+            border: 1px solid rgb(105, 187, 85);
+            transform: translateY(-2px);
+        }
+
+        /* --- CRM_UNITY STYLE NOTIFICATION BADGES --- */
+        .badge {
+            position: absolute;
+            top: -10px;
+            right: -10px;
+            background-color: #d32f2f; 
+            color: white;
+            border-radius: 50%;
+            min-width: 26px;
+            height: 26px;
+            padding: 2px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            border: 2px solid white;
+            z-index: 10;
+        }
+
+        .badge.blue-badge { background-color: #1976d2; }
+        .badge.orange-badge { background-color: #ff8f00; }
+        .badge.grey-badge { background-color: #616161; }
+
+        .logout-wrapper {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+        }
+
+        .logout-button {
+            background-color: rgb(105, 187, 85);
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s ease;
+        }
+
+        .logout-button:hover { background-color: darkgreen; }
+    </style>
+</head>
+<body>
+    <h1>Welcome to ACVV DASHBOARD, {{ username }}</h1>
+    
+    <div class="logout-wrapper">
+        <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="logout-button">Logout</button>
+        </form>
+    </div>
+
+    <div class="button-container">
+        <a href="{% url 'acvv_list' %}" class="button-block">ACVV Records</a>
+        
+        {% if is_outlook_admin %}
+        <a href="{% url 'outlook_dashboard' %}" class="button-block">
+            Outlook Mailbox
+            {% if undelegated_count > 0 %}
+                <span class="badge blue-badge">{{ undelegated_count }}</span>
+            {% endif %}
+        </a>
+
+        <a href="{% url 'recycle_bin' %}" class="button-block">
+            Recycle Bin
+            {% if recycled_count > 0 %}
+                <span class="badge grey-badge">{{ recycled_count }}</span>
+            {% endif %}
+        </a>
+        {% endif %}
+        
+        <!--<a href="{% url 'send_email' %}" class="button-block">Send Email</a>-->
+        
+        <a href="{% url 'outlook_delegated_box' %}" class="button-block">
+            Dashboard
+            {% if my_tasks_count > 0 %}
+                <span class="badge orange-badge">{{ my_tasks_count }}</span>
+            {% endif %}
+        </a>
+        
+        <a href="{% url 'global_claims' %}" class="button-block">Withdrawal Claims</a>
+        <a href="{% url 'global_two_pot' %}" class="button-block">Two-Pot Claims</a>
+        <a href="{% url 'temp_exists_list' %}" class="button-block">
+            Temp Exists
+            <span style="display:block; font-size: 0.4em; margin-top: 5px;"></span>
+        </a>
+        <a href="{% url 'reconciliation_worksheet' %}" class="button-block">
+            Reconciliation Worksheet
+            <span style="display:block; font-size: 0.4em; margin-top: 5px;"></span>
+        </a>
+        <a href="{% url 'outlook_email_list' %}" class="button-block">
+            Email List
+            <span style="display:block; font-size: 0.4em; margin-top: 5px;"></span>
+        </a>
+        
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,169 @@
+{% load static %}
+
+{% block content %}
+<style>
+/* -------------------------------------- */
+/* BASE STYLES & LAYOUT (From Sample) */
+/* -------------------------------------- */
+body {
+    font-family: sans-serif;
+    margin: 0;
+    color: #333;
+    line-height: 1.6;
+    background-color: #d1e2c4;
+    background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+    box-sizing: border-box;
+}
+.log-container {
+    max-width: 1500px; /* Increased to accommodate extra columns */
+    width: 98%;
+    margin: 30px auto;
+    padding: 20px;
+    background-color: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+.log-header {
+    border-bottom: 2px solid #aed581;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.log-header h1 {
+    margin: 0;
+    color: #43a047;
+    font-size: 28px;
+}
+.task-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed; /* Ensures column widths stay proportional */
+}
+.task-table th, .task-table td {
+    padding: 10px 12px;
+    border-bottom: 1px solid #eee;
+    text-align: left;
+    font-size: 13px; /* Slightly smaller to fit more data */
+    word-wrap: break-word;
+}
+.task-table th {
+    background-color: #43a047;
+    color: white;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.task-table tr:nth-child(even) { background-color: #f9fbe7; }
+.task-table tr:hover {
+    background-color: #e8f5e9;
+    cursor: pointer;
+}
+
+/* Custom Status Colors */
+.status-delegated { color: #2e7d32; font-weight: bold; }
+.status-new { color: #1e88e5; font-weight: bold; }
+
+.return-button {
+    padding: 10px 20px;
+    background-color: #81c784;
+    border: 1px solid #81c784;
+    border-radius: 5px;
+    text-decoration: none;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    text-align: center;
+    display: inline-block;
+}
+.return-button:hover { background-color: #66bb6a; }
+
+.btn-action {
+    padding: 6px 10px;
+    background-color: #f7931e;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 12px;
+    cursor: pointer;
+    font-weight: bold;
+}
+</style>
+
+<div class="Dashboard" style="margin-top: 25px;">
+    <a href="{% url 'dashboard' %}" class="return-button">Back to Home Screen</a>
+</div>
+
+<div class="log-container">
+    <div class="log-header">
+        <h1><i class="fas fa-tasks"></i> My Dashboard</h1>
+        <p>Total Tasks: <strong>{{ tasks|length }}</strong></p>
+    </div>
+
+    {% if tasks %}
+    <table class="task-table">
+        <thead>
+            <tr>
+                <th style="width: 8%;">Status</th>
+                <th style="width: 11%;">Received</th>
+                <th style="width: 11%;">Delegated</th>
+                <th style="width: 25%;">Subject</th>
+                <th style="width: 15%;">From Email</th>
+                <th style="width: 10%;">MG Code</th>
+                <th style="width: 12%;">Email Type</th>
+                <th style="width: 8%;">Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for task in tasks %}
+            <tr onclick="window.location.href='{% url 'outlook_delegated_action' delegation_id=task.delegation_id %}'" class="clickable-row">
+                
+                <td class="{% if task.status == 'Delegated' %}status-delegated{% else %}status-new{% endif %}">
+                    <b>{{ task.status }}</b>
+                </td>
+                
+                <td>{{ task.received|date:"Y-m-d H:i" }}</td>
+                
+                <td>{{ task.delegated_at|date:"Y-m-d H:i" }}</td>
+                
+                <td>
+                    <b>{{ task.subject|default:"(No Subject)" }}</b>
+                </td>
+                
+                <td style="font-size: 12px; color: #555;">{{ task.from|default:"-" }}</td>
+                
+                <td><strong>{{ task.mg_code|default:"-" }}</strong></td>
+                
+                <td>{{ task.email_type|default:"-" }}</td>
+                
+                <td>
+                    <a href="{% url 'outlook_delegated_action' delegation_id=task.delegation_id %}" class="btn-action">
+                        View/Action
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div style="background-color: #e3f2fd; color: #0d47a1; padding: 20px; border-radius: 4px; text-align: center;">
+        <i class="fas fa-info-circle"></i> You currently have no active tasks delegated to you.
+    </div>
+    {% endif %}
+</div>
+
+<script>
+    // Refresh page every 60 seconds to keep task list current
+    setTimeout(function(){
+       window.location.reload();
+    }, 60000);
+</script>
+
+{% endblock %}

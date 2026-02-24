@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AOD Master List</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Shared CSS */
+        body { font-family: sans-serif; background: #d1e2c4; padding: 20px; }
+        .container { max-width: 1300px; margin: 0 auto; background: #f0fff0; padding: 25px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        h1 { color: #1b5e20; border-bottom: 2px solid #81c784; padding-bottom: 10px; font-weight: normal; font-size: 2.5em; text-align: center;}
+        
+        /* Filter Form Styling */
+        .filter-form { 
+            background: #e8f5e9; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin-bottom: 15px; 
+            display: flex; 
+            gap: 15px; 
+            flex-wrap: wrap; 
+            align-items: flex-end;
+            border: 1px solid #c8e6c9;
+        }
+        .filter-group { display: flex; flex-direction: column; gap: 5px; }
+        .filter-group label { font-size: 11px; font-weight: bold; color: #2e7d32; text-transform: uppercase; }
+        .filter-group input, .filter-group select { 
+            padding: 8px; 
+            border: 1px solid #aaa; 
+            border-radius: 4px; 
+            font-size: 13px;
+        }
+        .search-input { border: 2px solid #43a047 !important; background: #fffde7; min-width: 200px; }
+
+        /* Buttons */
+        .btn { display: inline-block; padding: 9px 18px; border-radius: 4px; border: none; cursor: pointer; color: white; font-size: 13px; text-decoration: none; transition: 0.2s; }
+        .btn-filter { background: #43a047; }
+        .btn-filter:hover { background: #2e7d32; }
+        .btn-export { background: #1b5e20; }
+        .btn-reset { background: #757575; }
+
+        .result-count { font-size: 13px; color: #555; margin-bottom: 10px; font-style: italic; }
+
+        .main-table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; }
+        .main-table th { background-color: #43a047; color: white; padding: 12px; text-align: left; position: sticky; top: 0; }
+        .main-table td { padding: 12px; border-bottom: 1px solid #ddd; cursor: pointer; font-size: 13px; }
+        .main-table tr:hover { background-color: #e8f5e9; }
+
+        /* Pagination */
+        .pagination { margin-top: 25px; display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .pagination a, .pagination span { padding: 8px 14px; border: 1px solid #ccc; border-radius: 4px; text-decoration: none; color: #333; background: white; }
+        .pagination .active { background: #43a047; color: white; border-color: #43a047; }
+
+        /* Modal Styling */
+        .modal-overlay { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); justify-content: center; align-items: center; }
+        .dashboard-container { background-color: #e0e0e0; padding: 25px; border-radius: 8px; width: 95%; max-width: 1200px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); overflow-y: auto; max-height: 90vh; }
+        .form-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 15px; }
+        .field-box { background: white; padding: 8px; border: 1px solid #ccc; font-size: 13px; min-height: 20px; display: flex; align-items: center; }
+        .label { font-size: 11px; font-weight: bold; color: #555; margin-bottom: 2px; text-transform: uppercase; }
+
+        .schedule-table { width: 100%; border-collapse: collapse; background: white; margin-top: 10px; }
+        .schedule-table th { background: #43a047; color: white; font-size: 12px; padding: 8px; text-align: left; }
+        .schedule-table td { padding: 8px; border-bottom: 1px solid #eee; font-size: 12px; }
+        .btn-notes { background: #43a047; color: white; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+
+        /* Logic Addition Styles */
+        .attach-link { color: #1b5e20; text-decoration: none; font-weight: bold; display: flex; align-items: center; gap: 5px; }
+        .upload-trigger { cursor: pointer; color: #1b5e20; font-size: 11px; border: 1px solid #1b5e20; padding: 2px 8px; border-radius: 4px; }
+        .upload-trigger:hover { background: #1b5e20; color: white; }
+        
+        .note-section { margin-top: 20px; background: white; border: 1px solid #ccc; padding: 15px; border-radius: 4px; }
+        .note-display { max-height: 150px; overflow-y: auto; margin-bottom: 10px; border-bottom: 1px solid #eee; }
+        .note-item { font-size: 12px; padding: 5px 0; border-bottom: 1px dashed #ddd; }
+        .note-input-row { display: flex; gap: 10px; }
+        .note-input-row input { flex-grow: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <a href="{% url 'dashboard' %}" style="text-decoration:none; color:#555; font-weight: bold;">← Back to Dashboard</a>
+    <h1>AOD Master List</h1>
+
+    <form method="GET" class="filter-form">
+        <div class="filter-group">
+            <label><i class="fas fa-search"></i> Search Levy / AOD No</label>
+            <input type="text" name="search" class="search-input" value="{{ request.GET.search }}" placeholder="Enter Number...">
+        </div>
+        <div class="filter-group">
+            <label>AOD Status</label>
+            <select name="status">
+                <option value="">-- All Statuses --</option>
+                {% for s in statuses %}
+                <option value="{{ s }}" {% if request.GET.status == s %}selected{% endif %}>{{ s }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>Date From</label>
+            <input type="date" name="start_date" value="{{ request.GET.start_date }}">
+        </div>
+        <div class="filter-group">
+            <label>Date To</label>
+            <input type="date" name="end_date" value="{{ request.GET.end_date }}">
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button type="submit" class="btn btn-filter">Filter</button>
+            <button type="submit" name="export" value="1" class="btn btn-export"><i class="fas fa-file-excel"></i> Export</button>
+            <a href="{% url 'aod_list' %}" class="btn btn-reset">Reset</a>
+        </div>
+    </form>
+
+    <div class="result-count">
+        Showing <strong>{{ page_obj.start_index }} - {{ page_obj.end_index }}</strong> of <strong>{{ page_obj.paginator.count }}</strong> AOD records.
+    </div>
+
+    <table class="main-table">
+        <thead>
+            <tr>
+                <th>Levy Number</th>
+                <th>Levy Name</th>
+                <th>AOD Amount</th>
+                <th>AOD Number</th>
+                <th>AOD Status</th>
+                <th>Repay Day</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for record in page_obj %}
+            <tr onclick="openAodDetail('{{ record.aod_number }}')">
+                <td>{{ record.levy_number }}</td>
+                <td>{{ record.levy_name }}</td>
+                <td>R {{ record.aod_amount }}</td>
+                <td>{{ record.aod_number }}</td>
+                <td>{{ record.aod_status }}</td>
+                <td>{{ record.repayment_date|date:"d"|default:"20" }}</td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" style="text-align: center; padding: 30px;">No records found matching your filters.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if page_obj.has_other_pages %}
+    <div class="pagination">
+        {% if page_obj.has_previous %}
+            <a href="?page=1{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">&laquo; First</a>
+            <a href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Prev</a>
+        {% endif %}
+
+        <span class="active">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next</a>
+            <a href="?page={{ page_obj.paginator.num_pages }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Last &raquo;</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<div id="aodModal" class="modal-overlay">
+    <div class="dashboard-container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h2 id="pop_aod_title" style="margin:0; color: #333;">AOD Detail</h2>
+            <i class="fas fa-chevron-circle-left" style="font-size: 2.2em; cursor: pointer; color: #333;" onclick="closeAodDetail()"></i>
+        </div>
+
+        <div class="form-grid">
+            <div><div class="label">AOD Type</div><div class="field-box" id="pop_type"></div></div>
+            <div><div class="label">AOD Start Date</div><div class="field-box" id="pop_start"></div></div>
+            <div><div class="label">AOD End Date</div><div class="field-box" id="pop_end"></div></div>
+            <div><div class="label">Repayment Day</div><div class="field-box" id="pop_day"></div></div>
+        </div>
+
+        <div class="form-grid">
+            <div><div class="label">AOD Amount</div><div class="field-box" id="pop_total"></div></div>
+            <div><div class="label">Repay Amount</div><div class="field-box" id="pop_repay"></div></div>
+            <div><div class="label">AOD Status</div><div class="field-box" id="pop_status"></div></div>
+            <div><div class="label">Current Status</div><div class="field-box" id="pop_current"></div></div>
+        </div>
+
+        <div style="background: white; border: 1px solid #999; padding: 10px; margin-bottom: 15px;">
+            <div class="label" style="display: flex; justify-content: space-between; align-items: center;">
+                <span>Attachments</span>
+                <label class="upload-trigger">
+                    <i class="fas fa-file-upload"></i> Upload AOD
+                    <input type="file" id="aod_file_input" style="display: none;" onchange="handleAodFileUpload()">
+                </label>
+            </div>
+            <div id="pop_attach" style="margin-top: 5px;">
+                <span style="font-size: 12px; color: #888;"><i class="fas fa-file-invoice-dollar"></i> No files attached</span>
+            </div>
+        </div>
+
+        <div style="max-height: 250px; overflow-y: auto;">
+            <table class="schedule-table">
+                <thead>
+                    <tr>
+                        <th>Billing Reference</th>
+                        <th>Fiscal Date</th>
+                        <th>Due Amount</th>
+                        <th>Total Deposits</th>
+                        <th>Balance</th>
+                        <th>Reconciled</th>
+                        <th style="text-align: center;">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="pop_schedule_body"></tbody>
+            </table>
+        </div>
+
+        <div class="note-section">
+            <div class="label">Master AOD Notes</div>
+            <div class="note-display" id="pop_notes_list">
+                <span style="font-size: 12px; color: #888;">No notes found for this AOD.</span>
+            </div>
+            <div class="note-input-row">
+                <input type="text" id="new_aod_note_text" placeholder="Add a master note...">
+                <button class="btn btn-filter" style="padding: 5px 15px;" onclick="addAodMasterNote()">Add Note</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let activeAodNumber = null;
+
+    async function openAodDetail(aodNumber) {
+        activeAodNumber = aodNumber;
+        document.getElementById('aodModal').style.display = 'flex';
+        const scheduleBody = document.getElementById('pop_schedule_body');
+        scheduleBody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Fetching live financial data...</td></tr>';
+        
+        try {
+            const response = await fetch(`/get-aod-detail-ajax/${aodNumber}/`);
+            const data = await response.json();
+
+            document.getElementById('pop_aod_title').innerText = `${data.aod_number} - ${data.levy_name}`;
+            document.getElementById('pop_type').innerText = data.aod_type;
+            document.getElementById('pop_start').innerText = data.start_date;
+            document.getElementById('pop_end').innerText = data.end_date;
+            document.getElementById('pop_day').innerText = data.repay_day;
+            document.getElementById('pop_total').innerText = "R " + parseFloat(data.aod_amount).toFixed(2);
+            document.getElementById('pop_repay').innerText = "R " + parseFloat(data.repay_amount).toFixed(2);
+            document.getElementById('pop_status').innerText = data.aod_status;
+            document.getElementById('pop_current').innerText = data.current_status;
+
+            // Handle Attachment
+            const attachArea = document.getElementById('pop_attach');
+            if (data.attachment) {
+                attachArea.innerHTML = `
+                    <a href="/media/${data.attachment}" target="_blank" class="attach-link">
+                        <i class="fas fa-file-pdf"></i> View Signed AOD Document
+                    </a>`;
+            } else {
+                attachArea.innerHTML = '<span style="font-size: 12px; color: #888;"><i class="fas fa-file-invoice-dollar"></i> No files attached</span>';
+            }
+
+            // Handle Master Notes
+            const notesArea = document.getElementById('pop_notes_list');
+            if (data.notes && data.notes.length > 0) {
+                notesArea.innerHTML = data.notes.map(n => `
+                    <div class="note-item">
+                        <strong>${new Date(n.date).toLocaleDateString('en-GB')}</strong>: ${n.notes_text}
+                    </div>`).join('');
+            } else {
+                notesArea.innerHTML = '<span style="font-size: 12px; color: #888;">No notes found for this AOD.</span>';
+            }
+
+            scheduleBody.innerHTML = data.installments.map(i => {
+                const amount = parseFloat(i.amount || 0);
+                const deposit = parseFloat(i.deposit || 0);
+                const balance = parseFloat(i.bal || 0);
+                
+                return `
+                <tr>
+                    <td><strong>${i.ref}</strong></td>
+                    <td>${i.fiscal}</td>
+                    <td>R ${amount.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                    <td>R ${deposit.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                    <td style="color: ${balance > 0 ? 'red' : '#2e7d32'}; font-weight: bold;">
+                        R ${balance.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                    </td>
+                    <td>${i.rec}</td>
+                    <td style="text-align: center;">
+                        <button class="btn-notes" onclick="alert('Viewing notes for billing ref: ${i.ref}')">Notes</button>
+                    </td>
+                </tr>`;
+            }).join('');
+        } catch (e) {
+            scheduleBody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:red;">Error loading database records.</td></tr>';
+        }
+    }
+
+    async function handleAodFileUpload() {
+        const fileInput = document.getElementById('aod_file_input');
+        if(!fileInput.files[0]) return;
+
+        const formData = new FormData();
+        formData.append('aod_number', activeAodNumber);
+        formData.append('attachment', fileInput.files[0]);
+
+        try {
+            const response = await fetch(`/upload-aod-attachment-ajax/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                body: formData
+            });
+            const result = await response.json();
+            if(result.success) {
+                alert("AOD Document uploaded successfully.");
+                openAodDetail(activeAodNumber); // Refresh
+            }
+        } catch (e) { alert("Error uploading file."); }
+    }
+
+    async function addAodMasterNote() {
+        const noteText = document.getElementById('new_aod_note_text').value;
+        if(!noteText) return alert("Please enter a note.");
+
+        try {
+            const response = await fetch(`/save-aod-note-ajax/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                body: JSON.stringify({ aod_number: activeAodNumber, note: noteText })
+            });
+            const result = await response.json();
+            if(result.success) {
+                document.getElementById('new_aod_note_text').value = '';
+                openAodDetail(activeAodNumber); // Refresh
+            }
+        } catch (e) { alert("Error saving note."); }
+    }
+
+    function closeAodDetail() { 
+        document.getElementById('aodModal').style.display = 'none'; 
+        activeAodNumber = null;
+    }
+    document.addEventListener('keydown', (e) => { if (e.key === "Escape") closeAodDetail(); });
+</script>
+</body>
+</html>

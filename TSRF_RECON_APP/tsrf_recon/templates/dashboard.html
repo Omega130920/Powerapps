@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Force the body to be exactly the height of the screen */
+        html, body {
+            height: 100vh;
+            margin: 0;
+            overflow: hidden; /* Prevents scrolling */
+        }
+
+        body {
+            font-family: sans-serif;
+            background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px 20px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            font-size: 2.5vh; /* Responsive font based on height */
+            text-align: center;
+            margin: 2vh 0;
+            width: 100%;
+            color: #1b5e20;
+        }
+
+        /* The container takes up the remaining space */
+        .button-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr); 
+            grid-template-rows: repeat(4, 1fr);   
+            gap: 12px;
+            width: 95%;
+            max-width: 1200px;
+            flex-grow: 1; /* Fills available space */
+            margin-bottom: 20px;
+        }
+
+        .button-block {
+            background-color: rgb(119, 206, 97); /* Standardized Green */
+            border: 1px solid rgba(255,255,255,0.3);
+            border-radius: 8px;
+            text-align: center;
+            cursor: pointer;
+            text-decoration: none;
+            color: white;
+            font-size: 0.95em;
+            font-weight: bold;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        /* Icon styling inside buttons */
+        .button-block i {
+            font-size: 1.8em;
+            margin-bottom: 8px;
+        }
+
+        .button-block:hover {
+            background-color: rgb(105, 187, 85);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .logout-wrapper {
+            position: fixed;
+            top: 15px;
+            right: 20px;
+        }
+
+        .logout-button {
+            background-color: #b71c1c;
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+
+        /* Adjust grid for smaller screens */
+        @media (max-height: 700px) {
+            .button-block { font-size: 0.85em; }
+            h1 { font-size: 2em; }
+            .button-block i { font-size: 1.4em; }
+        }
+
+        @media (max-width: 768px) {
+            .button-container { grid-template-columns: repeat(2, 1fr); }
+            html, body { overflow-y: auto; height: auto; } 
+        }
+    </style>
+</head>
+<body>
+
+    <div class="logout-wrapper">
+        <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="logout-button"><i class="fas fa-sign-out-alt"></i> Logout</button>
+        </form>
+    </div>
+
+    <h1>Welcome to TSRF RECON, {{ username }}</h1>
+
+    <div class="button-container">
+        <a href="{% url 'levy_list' %}" class="button-block"><i class="fas fa-table"></i> Org Table</a>
+        <a href="{% url 'process_import' %}" class="button-block"><i class="fas fa-university"></i> Import BANK</a>
+        <a href="{% url 'process_org_import' %}" class="button-block"><i class="fas fa-file-invoice"></i> Import ORG</a>
+        <a href="{% url 'unreconciled_banklines' %}" class="button-block"><i class="fas fa-exclamation-triangle"></i> Unreconciled bank lines</a>
+        
+        <a href="{% url 'global_bank' %}" class="button-block"><i class="fas fa-book"></i> Global Bank</a>
+        {% if user.username == 'omega' %}
+        <a href="{% url 'outlook_dashboard' %}" class="button-block"><i class="fas fa-envelope"></i> Email List</a>
+        {% endif %}
+        <a href="{% url 'outlook_delegated_box' %}" class="button-block"><i class="fas fa-tasks"></i> My Dashboard</a>
+        <a href="{% url 'outlook_recycle_bin' %}" class="button-block"><i class="fas fa-trash-alt"></i> Recycle Bin</a>
+        
+        <a href="{% url 'import_levy_excel' %}" class="button-block"><i class="fas fa-sync-alt"></i> Update Master</a>
+        <a href="{% url 'billing_summary' %}" class="button-block"><i class="fas fa-chart-pie"></i> Billing Summary</a>
+        <a href="{% url 'attorney_list' %}" class="button-block"><i class="fas fa-gavel"></i> Attorney Summary</a>
+        <a href="{% url 'aod_list' %}" class="button-block"><i class="fas fa-file-contract"></i> AOD Records</a>
+        
+        <a href="{% url 'pfa_list' %}" class="button-block"><i class="fas fa-balance-scale"></i> PFA Matters</a>
+        <a href="{% url 'lpi_list' %}" class="button-block"><i class="fas fa-percentage"></i> LPI Records</a>
+        <a href="{% url 'import_lpi' %}" class="button-block"><i class="fas fa-file-import"></i> Import LPI</a>
+        <a href="{% url 'export_masterfile' %}" class="button-block">
+            <i class="fas fa-file-excel"></i> Export Masterfile
+        </a>
+    </div>
+
+</body>
+</html>

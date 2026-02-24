@@ -1,0 +1,206 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACVV Records</title>
+    <style>
+        /* --- SCALABLE STYLES --- */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
+            font-family: sans-serif;
+            color: #333;
+        }
+
+        .container {
+            width: 98%;
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 10px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        h1 {
+            color: #1b5e20;
+            text-align: center;
+            margin: 20px 0;
+            font-size: clamp(1.5rem, 5vw, 2.5rem);
+        }
+
+        .controls-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .return-button {
+            padding: 10px 20px;
+            background-color: #81c784;
+            border-radius: 5px;
+            text-decoration: none;
+            color: white;
+            font-weight: bold;
+            transition: background 0.3s;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .return-button:hover { background-color: #66bb6a; }
+
+        .export-button {
+            background-color: #1b5e20;
+        }
+        .export-button:hover {
+            background-color: #0d3b14;
+        }
+
+        .search-form {
+            display: flex;
+            gap: 10px;
+            flex-grow: 1;
+            justify-content: flex-end;
+        }
+
+        .search-form input[type="text"] {
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .search-form button {
+            padding: 10px 20px;
+            background-color: #43a047;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .table-responsive {
+            width: 100%;
+            overflow-x: auto;
+            background-color: #f0fff0;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border: 1px solid #c3e6cb;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: auto; 
+            min-width: 1200px;  /* Increased min-width to accommodate new columns */
+        }
+
+        thead th {
+            background-color: #43a047;
+            color: white;
+            padding: 15px;
+            text-align: left;
+            font-size: 14px;
+            white-space: nowrap;
+            position: sticky;
+            top: 0;
+        }
+
+        tbody td {
+            padding: 12px;
+            border-bottom: 1px solid #aed581;
+            font-size: 13px;
+        }
+
+        tbody tr:nth-child(even) { background-color: #e6ffe6; }
+        tbody tr:hover { background-color: #ccffcc; cursor: pointer; }
+
+        .status-active { color: #2e7d32; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ACVV Records</h1>
+
+        <div class="controls-container">
+            <div class="button-group">
+                <a href="{% url 'dashboard' %}" class="return-button">Back to Home Screen</a>
+                <a href="{% url 'export_acvv_excel' %}?search_query={{ search_query|default:'' }}" class="return-button export-button">
+                    Export to Excel
+                </a>
+            </div>
+            
+            <form method="get" class="search-form">
+                <input type="text" name="search_query" placeholder="Search by Member Group Name or Code" value="{{ search_query|default:'' }}">
+                <button type="submit">Search</button>
+            </form>
+        </div>
+
+        <div class="table-responsive">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Member Group Name</th>
+                        <th>Member Group Code</th>
+                        <th>Member</th>
+                        <th>Status</th>
+                        <th>Contribution</th>
+                        <th>Notes</th>
+                        <th>Email Address</th>
+                        <th>MG Contact Tel. 1</th>
+                        <th>MG Contact Tel. 2</th>
+                    </tr>
+                </thead>
+                <tbody id="acvv-table-body">
+                    {% for record in acvv_records %}
+                    <tr data-mip-names="{{ record.mip_names }}">
+                        <td><strong>{{ record.mip_names }}</strong></td>
+                        <td>{{ record.branch_code|default:"-" }}</td>
+                        <td>{{ record.member|default:"-" }}</td>
+                        <td>{{ record.status|default:"-" }}</td>
+                        <td>{{ record.contribution_amount|default:"-" }}</td>
+                        <td>{{ record.notes|default:"-"|truncatechars:30 }}</td>
+                        <td>{{ record.mg_email_address|default:"-" }}</td>
+                        <td>{{ record.tel|default:"-" }}</td>
+                        <td>-</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="9" style="text-align: center; padding: 50px;">No records found matching your search.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const tableBody = document.getElementById('acvv-table-body');
+            
+            tableBody.addEventListener('click', function(event) {
+                const row = event.target.closest('tr');
+                if (row && row.dataset.mipNames) {
+                    const mipNames = row.dataset.mipNames;
+                    const url = "{% url 'acvv_information' 'placeholder' %}".replace('placeholder', encodeURIComponent(mipNames));
+                    window.location.href = url;
+                }
+            });
+        });
+    </script>
+</body>
+</html>

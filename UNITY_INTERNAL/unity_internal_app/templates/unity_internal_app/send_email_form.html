@@ -1,0 +1,126 @@
+{% load static %}
+
+{% block title %}Send Outlook Email{% endblock %}
+
+{% block content %}
+<style>
+/* -------------------------------------- */
+/* BASE STYLES & LAYOUT (From Task Log Aesthetic) */
+/* -------------------------------------- */
+body {
+    /* Assuming base.html handles the background gradient, but defining here for safety */
+    background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+    font-family: sans-serif;
+}
+.delegate-container {
+    max-width: 800px;
+    margin: 40px auto;
+    padding: 30px;
+    background-color: #fff;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.15);
+    border: 1px solid #c3e6cb;
+}
+.delegate-container h1 {
+    margin-bottom: 20px;
+    color: #43a047; /* Green title color */
+    font-size: 28px;
+    border-bottom: 2px solid #e0f2f1;
+    padding-bottom: 15px;
+}
+.form-group label {
+    font-weight: 700;
+    color: #333;
+    font-size: 14px;
+}
+/* Style for inputs and textareas */
+.form-control {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #aed581; /* Light green border */
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-size: 14px;
+}
+.form-control:focus {
+    border-color: #66bb6a; /* Darker green focus */
+    box-shadow: 0 0 0 .1rem rgba(102,187,106,.5);
+    outline: none;
+}
+
+/* Custom button styles to match the aesthetic */
+.btn-send {
+    padding: 12px 20px;
+    background-color: #43a047; /* Primary send color */
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 18px;
+    transition: background-color .3s ease;
+}
+.btn-send:hover {
+    background-color: #66bb6a;
+}
+.btn-cancel { 
+    padding: 12px 20px; 
+    background-color: #757575; /* Gray color for cancel */
+    color: white; 
+    border: none; 
+    border-radius: 4px; 
+    cursor: pointer; 
+    font-size: 18px; 
+    transition: background-color .3s ease;
+    text-decoration: none; 
+    display: inline-block;
+}
+.btn-cancel:hover { background-color: #616161; }
+.button-container {
+    display: flex;
+    justify-content: flex-end; /* Push buttons to the right */
+    gap: 10px;
+    margin-top: 25px;
+}
+
+</style>
+
+<div class="delegate-container">
+    <h1><i class="fas fa-paper-plane"></i> Send Email (via Managed Account)</h1>
+    <p class="text-muted">Sending from: <strong>{{ target_email }}</strong></p>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+            {{ message }}
+             <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                <span aria-hidden="true">&times;</span>
+            </button>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <form method="POST" action="{% url 'send_email' %}?email={{ target_email }}">
+        {% csrf_token %}
+        
+        <div class="form-group mb-3">
+            <label for="recipient">To:</label>
+            <input type="email" class="form-control" id="recipient" name="recipient" value="{{ recipient|default:"" }}" required>
+        </div>
+        
+        <div class="form-group mb-3">
+            <label for="subject">Subject:</label>
+            <input type="text" class="form-control" id="subject" name="subject" value="{{ subject|default:"" }}" required>
+        </div>
+        
+        <div class="form-group mb-3">
+            <label for="body">Body:</label>
+            <textarea class="form-control" id="body" name="body" rows="8" required>{{ body|default:"" }}</textarea>
+        </div>
+        
+        <div class="button-container">
+            <a href="{% url 'outlook_dashboard' %}?email={{ target_email }}" class="btn-cancel">Cancel</a>
+            <button type="submit" class="btn-send">Send Email</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

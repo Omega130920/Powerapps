@@ -1,0 +1,462 @@
+{% load static %}
+
+{% block title %}Task #{{ delegation.pk }}: {{ email.subject|default:"(No Subject)" }}{% endblock %}
+
+{% block content %}
+<style>
+    /* ... (Your existing styles remain untouched) ... */
+    
+    body {
+        font-family: sans-serif;
+        background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        min-height: 100vh;
+        padding: 10px 10px;
+        box-sizing: border-box;
+    }
+
+    .task-container {
+        width: 98%; 
+        max-width: 1600px; 
+        background: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+    }
+
+    .main-grid {
+        display: flex;
+        flex-wrap: wrap; 
+        gap: 20px;
+    }
+
+    .left-column {
+        flex: 1.5; 
+        min-width: 350px;
+    }
+
+    .right-column {
+        flex: 1; 
+        min-width: 300px;
+    }
+
+    /* --- Metadata Bar --- */
+    .metadata-card {
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        background: #fff;
+        overflow: hidden;
+    }
+    .metadata-header {
+        background-color: #1e88e5; 
+        color: white;
+        padding: 10px 15px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+    }
+
+    /* --- Card Styling --- */
+    .custom-card {
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+    }
+
+    .card-header-primary {
+        background-color: #007bff;
+        color: white;
+        padding: 12px 15px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+    }
+
+    .card-header-dark {
+        background-color: #343a40;
+        color: white;
+        padding: 12px 15px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+    }
+
+    .card-body-content {
+        padding: 15px;
+    }
+    
+    .task-header h1 {
+        font-size: 24px;
+        margin-bottom: 5px;
+        color: #333;
+    }
+    .task-header .status-badge {
+        display: inline-block;
+        background-color: #ffc107;
+        color: #212529;
+        padding: 5px 12px;
+        border-radius: 50px;
+        font-weight: bold;
+        font-size: 13px;
+        margin-left: 10px;
+    }
+
+    /* --- Form Styling --- */
+    .form-label {
+        font-weight: bold;
+        display: block;
+        margin-bottom: 5px;
+        margin-top: 10px;
+        font-size: 13px;
+    }
+    .form-control {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+        margin-bottom: 10px;
+    }
+    textarea.form-control {
+        min-height: 100px;
+        resize: vertical;
+    }
+
+    /* --- Email Body Adjustments --- */
+    .email-body-html, .email-body-pre {
+        padding: 15px; 
+        border: 1px solid #ddd; 
+        background: #f8f9fa; 
+        max-height: 50vh; 
+        overflow-y: auto;
+    }
+
+    /* --- Notes History --- */
+    .notes-history-container {
+        border: 1px solid #eee;
+        background-color: #f8f9fa;
+        padding: 10px;
+        max-height: 300px;
+        overflow-y: auto;
+        border-radius: 4px;
+        margin-bottom: 20px;
+    }
+
+    .note-item {
+        border-left: 5px solid #28a745;
+        padding: 10px;
+        background: #ffffff;
+        margin-bottom: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        border-radius: 0 4px 4px 0;
+    }
+    .note-item small {
+        color: #28a745;
+        font-weight: bold;
+        display: block;
+        margin-bottom: 2px;
+        font-size: 11px;
+    }
+    .note-item p {
+        margin: 0;
+        font-size: 13px;
+    }
+
+    /* --- Collapsible Functionality --- */
+    .collapse-toggle {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+        padding: 12px 15px;
+        background: #f8f9fa;
+        border: none;
+        text-align: left;
+        font-size: 15px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background 0.2s;
+        border-bottom: 3px solid #007bff;
+        color: #333;
+    }
+    .collapse-toggle:hover { background: #e9ecef; }
+    
+    .collapse-content {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+    }
+
+    .collapse-content.show {
+        max-height: 800px; 
+        padding: 15px;
+    }
+
+    .toggle-icon { transition: transform 0.3s ease; }
+    .collapse-toggle[aria-expanded="true"] .toggle-icon { transform: rotate(180deg); }
+    
+    /* --- Button Styling --- */
+    .custom-btn {
+        padding: 10px 15px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-weight: bold;
+        transition: background-color 0.2s;
+        text-decoration: none;
+        display: inline-block;
+        text-align: center;
+    }
+    .btn-primary { background-color: #007bff; color: white; }
+    .btn-success { background-color: #28a745; color: white; width: 100%; padding: 12px; }
+    .btn-update { background-color: #1e88e5; color: white; width: 100%; padding: 10px; }
+    .btn-complete { background-color: #28a745; color: white; width: 100%; padding: 12px; margin-bottom: 10px; }
+    .btn-redelegate { background-color: #f7931e; color: white; width: 100%; padding: 12px; margin-bottom: 10px; }
+    .btn-back {
+        background-color: white; color: #343a40; border: 1px solid #343a40; width: 100%;
+        margin-top: 10px; padding: 12px;
+    }
+
+    @media (max-width: 992px) { .main-grid { flex-direction: column; } }
+</style>
+
+<div class="task-container">
+    
+    {# --- HEADER --- #}
+    <div class="task-header">
+        <h1><i class="fas fa-tasks"></i> Task Action: #{{ delegation.pk }}</h1>
+        <p>Assigned to: <strong>{{ delegation.assigned_user.username }}</strong> | Status: <span class="status-badge">{{ delegation.get_status_display }}</span></p>
+        <hr style="border-top: 1px solid #eee; margin-bottom: 20px;">
+    </div>
+
+    {# --- EDITABLE METADATA BAR --- #}
+    <div class="metadata-card">
+        <div class="metadata-header">
+            <i class="fas fa-database"></i> Task Metadata & Enquiry Details
+        </div>
+        <div class="card-body-content">
+            <form method="POST">
+                {% csrf_token %}
+                <input type="hidden" name="action_type" value="update_metadata">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; align-items: end;">
+                    <div>
+                        <label class="form-label">Member Group Code:</label>
+                        <input type="text" name="mip_names" value="{{ delegation.mip_names|default:'' }}" class="form-control" list="acvv_list" placeholder="Enter Code">
+                        <datalist id="acvv_list">
+                            {% for record in acvv_records %}
+                                <option value="{{ record.mip_names }}">Code: {{ record.branch_code }}</option>
+                            {% endfor %}
+                        </datalist>
+                    </div>
+                    <div>
+                        <label class="form-label">Classification:</label>
+                        <select name="email_category" class="form-control">
+                            <option value="">-- Select --</option>
+                            <option value="Normal Withdrawal Claim" {% if delegation.email_category == "Normal Withdrawal Claim" %}selected{% endif %}>Normal Withdrawal Claim</option>
+                            <option value="Two-Pot withdrawal Request" {% if delegation.email_category == "Two-Pot withdrawal Request" %}selected{% endif %}>Two-Pot withdrawal Request</option>
+                            <option value="Schedule - Current Month" {% if delegation.email_category == "Schedule - Current Month" %}selected{% endif %}>Schedule - Current Month</option>
+                            <option value="Schedule - Following Month" {% if delegation.email_category == "Schedule - Following Month" %}selected{% endif %}>Schedule - Following Month</option>
+                            <option value="New Member Doc." {% if delegation.email_category == "New Member Doc." %}selected{% endif %}>New Member Doc.</option>
+                            <option value="Enquiry from Sanlam" {% if delegation.email_category == "Enquiry from Sanlam" %}selected{% endif %}>Enquiry from Sanlam</option>
+                            <option value="Enquiry from Broker" {% if delegation.email_category == "Enquiry from Broker" %}selected{% endif %}>Enquiry from Broker</option>
+                            <option value="Enquiry from MG" {% if delegation.email_category == "Enquiry from MG" %}selected{% endif %}>Enquiry from MG</option>
+                            <option value="Succesfull submission" {% if delegation.email_category == "Succesfull submission" %}selected{% endif %}>Succesfull submission</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Communication Type:</label>
+                        <select name="communication_type" class="form-control">
+                            <option value="Email" {% if delegation.communication_type == "Email" %}selected{% endif %}>Outlook Inbox</option>
+                            <option value="Phone Call" {% if delegation.communication_type == "Phone Call" %}selected{% endif %}>Phone Call</option>
+                        </select>
+                    </div>
+                    <div>
+                        <button type="submit" class="custom-btn btn-update"><i class="fas fa-save"></i> Update Metadata</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {# --- System Messages --- #}
+    {% if messages %}
+        <div class="message-area" style="margin-bottom: 15px;">
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}" role="alert" style="padding: 10px; border-radius: 4px; background: #fff3cd; border: 1px solid #ffeeba; font-size: 13px;">
+                {{ message }}
+            </div>
+        {% endfor %}
+        </div>
+    {% endif %}
+
+    <div class="main-grid">
+        
+        {# LEFT COLUMN: EMAIL CONTENT & COLLAPSABLE REPLY FORM #}
+        <div class="left-column">
+            
+            {# Email Content Card #}
+            <div class="custom-card">
+                <div class="card-header-primary">
+                    <i class="fas fa-inbox" style="margin-right: 10px;"></i> 
+                    <h5 style="margin: 0; font-size: 15px;">Subject: {{ email.subject|default:"(No Subject)" }}</h5>
+                </div>
+                <div class="card-body-content">
+                    <div style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #ddd;">
+                        <small style="display: block; font-size: 12px;">
+                            From: <strong>{{ email.from.emailAddress.name }}</strong> &lt;{{ email.from.emailAddress.address }}&gt;
+                        </small>
+                        <small style="display: block; font-size: 12px;">
+                            To: {% for recipient in email.toRecipients %}{{ recipient.emailAddress.address }}{% if not forloop.last %}; {% endif %}{% endfor %}
+                        </small>
+                        <small style="display: block; color: #6c757d; font-size: 12px;">
+                            Received: {{ delegation.received_at|date:"Y-m-d H:i:s" }}
+                        </small>
+                    </div>
+                    
+                    {% if email.body.contentType == 'html' %}
+                        <div class="email-body-html">{{ email.body.content|safe }}</div>
+                    {% else %}
+                        <pre class="email-body-pre" style="white-space: pre-wrap; word-wrap: break-word; font-family: inherit;">{{ email.body.content }}</pre>
+                    {% endif %}
+                </div>
+            </div>
+
+            {# COLLAPSABLE REPLY FORM - Hidden if Completed #}
+            {% if delegation.status != 'COM' %}
+            <div class="custom-card">
+                <button class="collapse-toggle" type="button" data-toggle="collapse" data-target="#collapseReplyForm" aria-expanded="false" aria-controls="collapseReplyForm">
+                    <span><i class="fas fa-reply" style="margin-right: 8px;"></i> Send Reply / New Email</span>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </button>
+                <div class="collapse-content" id="collapseReplyForm">
+                    <form method="POST" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <input type="hidden" name="action_type" value="send_reply">
+                        
+                        <div style="margin-bottom: 10px;">
+                            <label for="reply_recipient" class="form-label">Recipient:</label>
+                            <input type="email" class="form-control" id="reply_recipient" name="reply_recipient" value="{{ email.from.emailAddress.address }}" required>
+                        </div>
+                        <div style="margin-bottom: 10px;">
+                            <label for="reply_subject" class="form-label">Subject:</label>
+                            <input type="text" class="form-control" id="reply_subject" name="reply_subject" value="Re: {{ email.subject|default:'(No Subject)' }}" required>
+                        </div>
+
+                        <div style="margin-bottom: 15px; padding: 12px; border: 1px dashed #1e88e5; background-color: #f1f8ff; border-radius: 4px;">
+                            <label for="email_attachment" class="form-label" style="margin-top: 0; color: #1e88e5;">
+                                <i class="fas fa-paperclip"></i> Attachment (PDF/Image/Excel):
+                            </label>
+                            <input type="file" class="form-control" id="email_attachment" name="email_attachment" style="background: white; border-style: solid;">
+                        </div>
+
+                        <div style="margin-bottom: 15px;">
+                            <label for="reply_body" class="form-label">Body (HTML allowed):</label>
+                            <textarea class="form-control" id="reply_body" name="reply_body" rows="6" required></textarea>
+                        </div>
+                        <button type="submit" class="custom-btn btn-primary" style="width: 100%; padding: 12px;"><i class="fas fa-paper-plane" style="margin-right: 8px;"></i> Send Reply (from {{ target_email }})</button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        {# RIGHT COLUMN: NOTES & WORKFLOW ACTION #}
+        <div class="right-column">
+            
+            {# WORKFLOW ACTIONS: Only visible if NOT marked as Completed #}
+            {% if delegation.status != 'COM' %}
+            <div class="custom-card" style="border: 2px solid #28a745; background-color: #f0fff4;">
+                <div class="card-body-content">
+                    <h5 style="margin-top:0; color: #28a745;"><i class="fas fa-check-circle"></i> Workflow Finalization</h5>
+                    
+                    {# COMPLETE BUTTON #}
+                    <form method="POST" onsubmit="return confirm('Are you sure you want to mark this task as completed?');" style="margin-bottom: 10px;">
+                        {% csrf_token %}
+                        <input type="hidden" name="action_type" value="complete_task">
+                        <button type="submit" class="custom-btn btn-complete">
+                            <i class="fas fa-check-double" style="margin-right: 8px;"></i> Complete & Close Task
+                        </button>
+                    </form>
+
+                    {# RE-DELEGATE BUTTON #}
+                    <a href="{% url 'outlook_delegate_to' email_id=delegation.email_id %}" class="custom-btn btn-redelegate">
+                        <i class="fas fa-user-friends" style="margin-right: 8px;"></i> Re-Delegate Task
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="custom-card">
+                <div class="card-header-dark">
+                    <i class="fas fa-clipboard-list" style="margin-right: 10px;"></i>
+                    <h5 style="margin: 0; font-size: 15px;">Notes & History</h5>
+                </div>
+                <div class="card-body-content" style="padding: 15px;">
+                    
+                    <div class="notes-history-container">
+                        {% for note in notes %}
+                        <div class="note-item">
+                            <small><strong>{{ note.user.username }}</strong> on {{ note.created_at|date:"Y-m-d H:i" }}</small>
+                            <p>{{ note.content }}</p>
+                        </div>
+                        {% empty %}
+                        <p style="text-align: center; color: #6c757d; margin: 10px; font-size: 13px;">No notes added yet.</p>
+                        {% endfor %}
+                    </div>
+                    
+                    <hr style="border-top: 1px solid #eee; margin-bottom: 15px;">
+                    
+                    {% if delegation.status != 'COM' %}
+                    <div>
+                        <button class="collapse-toggle" style="border-bottom: 3px solid #28a745; background: none; padding: 10px 0; font-size: 14px;" type="button" data-toggle="collapse" data-target="#collapseAddNote" aria-expanded="false" aria-controls="collapseAddNote">
+                            <span><i class="fas fa-plus-circle" style="margin-right: 8px; color: #28a745;"></i> Add New Note</span>
+                            <i class="fas fa-chevron-down toggle-icon"></i>
+                        </button>
+                        <div class="collapse-content" id="collapseAddNote">
+                            <form method="POST">
+                                {% csrf_token %}
+                                <input type="hidden" name="action_type" value="add_note">
+                                <div style="margin-bottom: 10px;">
+                                    <textarea class="form-control" name="note_content" rows="4" placeholder="Enter private note content here..." required></textarea>
+                                </div>
+                                <button type="submit" class="custom-btn btn-success"><i class="fas fa-sticky-note" style="margin-right: 8px;"></i> Save Note</button>
+                            </form>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <a href="{% url 'outlook_email_list' %}" class="custom-btn btn-back">
+                <i class="fas fa-arrow-left" style="margin-right: 8px;"></i> Back to Email List
+            </a>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.collapse-toggle').forEach(button => {
+            const targetId = button.getAttribute('data-target');
+            const targetEl = document.querySelector(targetId);
+
+            if (targetEl) {
+                button.addEventListener('click', function() {
+                    const isExpanded = this.getAttribute('aria-expanded') === 'true';
+                    targetEl.classList.toggle('show');
+                    this.setAttribute('aria-expanded', !isExpanded);
+                });
+            }
+        });
+    });
+</script>
+{% endblock %}

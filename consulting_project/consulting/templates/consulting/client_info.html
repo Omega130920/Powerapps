@@ -1,0 +1,677 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Client Profile: {{ client.client_name }}</title>
+    
+    <style>
+        /* --- Root Colors (Professional Palette) --- */
+        :root {
+            --primary-green: rgb(119, 206, 97);
+            --accent-green: rgb(105, 187, 85);
+            --bg-light-green: #d1e2c4;
+            --text-dark: #2d3436;
+            --text-default: #333;
+            --table-header-bg: #f4f9f1;
+            --action-blue: #0070c0;
+            --white: #ffffff;
+            --card-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        /* --- Global Reset & Background --- */
+        html, body {
+            height: auto;
+            margin: 0;
+            overflow-x: hidden;
+            box-sizing: border-box;
+        }
+        
+        body { 
+            font-family: 'Inter', -apple-system, sans-serif;
+            line-height: 1.6;
+            background: linear-gradient(to bottom, var(--bg-light-green), rgb(143, 207, 127));
+            color: var(--text-default);
+            padding: 40px 20px;
+            min-height: 100vh;
+        }
+
+        /* --- Main Dashboard Container --- */
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 40px;
+            background-color: var(--white);
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            width: 100%;
+        }
+
+        /* --- Typography & Headings --- */
+        h1 {
+            color: var(--accent-green);
+            border-bottom: 3px solid var(--bg-light-green);
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 1.8em;
+            font-weight: 700;
+        }
+
+        h2 {
+            font-size: 1.3rem;
+            color: var(--text-dark);
+            border-left: 5px solid var(--primary-green);
+            padding-left: 15px;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            background: #fbfdfa;
+            padding-top: 10px;
+            padding-bottom: 10px;
+        }
+
+        .sub-header {
+            font-size: 1.1rem;
+            color: var(--accent-green);
+            margin-top: 25px;
+            padding-bottom: 5px;
+            border-bottom: 1px dashed var(--bg-light-green);
+        }
+        
+        /* --- Navigation & Buttons --- */
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            margin-bottom: 25px;
+            color: var(--text-dark);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.9rem;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+        .back-link:hover { opacity: 1; color: var(--accent-green); }
+
+        .edit-button {
+            background-color: var(--action-blue);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .edit-button:hover { background-color: #005a9c; transform: translateY(-1px); }
+
+        /* --- Modern Tab Navigation --- */
+        .tab-nav {
+            display: flex;
+            gap: 5px;
+            border-bottom: 2px solid #edf2f7;
+            margin-bottom: 30px;
+            flex-wrap: wrap; 
+        }
+        .tab-button {
+            padding: 12px 20px;
+            cursor: pointer;
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+        .tab-button:hover { background-color: #f1f5f9; color: var(--accent-green); }
+        .tab-button.active {
+            background-color: var(--white);
+            border-color: #edf2f7;
+            border-bottom: 3px solid var(--primary-green);
+            color: var(--primary-green);
+        }
+
+        /* --- Information Cards/Grids --- */
+        .tab-content { display: none; padding-top: 10px; animation: fadeIn 0.3s ease; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .data-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); 
+            gap: 20px; 
+            margin-bottom: 25px;
+        }
+        .data-item {
+            padding: 20px;
+            border: 1px solid #f1f5f9;
+            border-radius: 12px;
+            background-color: #ffffff;
+            box-shadow: var(--card-shadow);
+        }
+        .data-item label {
+            display: block;
+            font-weight: 700;
+            color: var(--accent-green);
+            margin-bottom: 8px;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .data-item p {
+            margin: 0;
+            font-size: 1rem;
+            color: var(--text-dark);
+            font-weight: 500;
+        }
+        .full-width { grid-column: 1 / -1; }
+
+        /* --- Status Indicators --- */
+        .file-status {
+            display: inline-block;
+            font-size: 0.85rem;
+            padding: 4px 12px;
+            border-radius: 20px;
+            margin-top: 10px;
+        }
+        .file-status.uploaded { background: #e3f9e5; color: #1f7a1f; font-weight: 700; }
+        .file-status.missing { background: #ffe5e5; color: #a31515; }
+
+        /* --- Data Tables --- */
+        .contacts-table, .director-table, .owner-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+            box-shadow: var(--card-shadow);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        .contacts-table th {
+            text-align: left;
+            padding: 15px;
+            background-color: var(--table-header-bg);
+            color: var(--accent-green);
+            font-weight: 700;
+            font-size: 0.85rem;
+            text-transform: uppercase;
+        }
+        .contacts-table td {
+            padding: 15px;
+            border-bottom: 1px solid #f1f5f9;
+            font-size: 0.9rem;
+            vertical-align: top;
+        }
+
+        /* --- Note/Interaction Logging --- */
+        .note-section-container { 
+            border: 1px solid var(--bg-light-green); 
+            padding: 25px; 
+            margin-bottom: 40px; 
+            border-radius: 12px; 
+            background-color: #fbfdfa;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+        }
+        .note-section-container h3 {
+            color: var(--accent-green);
+            font-size: 1.2rem;
+            margin-top: 0;
+            margin-bottom: 20px;
+        }
+        .note-history-item {
+            border-left: 5px solid var(--primary-green);
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            background-color: #fff;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            border-radius: 0 8px 8px 0;
+        }
+
+        .note-section-container select, .note-section-container textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .note-section-container select:focus, .note-section-container textarea:focus {
+             border-color: var(--primary-green);
+        }
+
+        /* --- Folder List --- */
+        .folder-list-container {
+            border: 1px solid #edf2f7;
+            border-radius: 12px;
+            padding: 25px;
+            background-color: #ffffff;
+            box-shadow: var(--card-shadow);
+        }
+        .folder-list {
+            list-style: none;
+            padding: 0;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 15px;
+        }
+        .folder-list li {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            font-size: 0.95rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            transition: all 0.2s;
+        }
+        .folder-list li:hover { background-color: var(--bg-light-green); transform: scale(1.02); }
+        .folder-list li:before {
+            content: "\1F4C1";
+            margin-right: 12px;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        
+        <a href="{% url 'client_list' %}" class="back-link">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right:5px;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+            Back to Client List
+        </a>
+
+        <h1>
+            <span>{{ client.client_name }} <small style="font-weight: 300; font-size: 0.6em; color: #777;">#{{ client.future_client_number }}</small></span>
+            {% if client.future_client_number %}
+                <a href="{% url 'edit_client' client_code=client.future_client_number %}" class="edit-button">Edit Client Profile</a>
+            {% else %}
+                <span class="edit-button" style="opacity: 0.6; cursor: not-allowed; background-color: #aaa;">Edit Disabled (No Code)</span>
+            {% endif %}
+        </h1>
+
+        <div class="tab-nav">
+            <button class="tab-button active" onclick="openTab(event, 'tab1')">General Details</button>
+            <button class="tab-button" onclick="openTab(event, 'tab2')">Contacts ({{ client_contacts|length }})</button>
+            <button class="tab-button" onclick="openTab(event, 'tab3')">Note History</button>
+            <button class="tab-button" onclick="openTab(event, 'tab4')">File Repository</button>
+            <button class="tab-button" onclick="openTab(event, 'tab5')">FICA & Compliance</button>
+        </div>
+
+        <div id="tab1" class="tab-content active">
+            <h2>General Business Information</h2>
+            <div class="data-grid">
+                <div class="data-item"><label>Scheme Code</label><p>{{ client.future_client_number }}</p></div>
+                <div class="data-item"><label>Client Name</label><p>{{ client.client_name }}</p></div>
+                <div class="data-item"><label>Consultant</label><p>{{ client.consultant }}</p></div>
+                <div class="data-item"><label>Industry</label><p>{{ client.industry }}</p></div>
+                <div class="data-item"><label>Status</label><p>{{ client.status }}</p></div>
+                
+                {% with main_contact=client_contacts|first %}
+                <div class="data-item">
+                    <label>Primary Contact Birthday</label>
+                    <p>
+                        {% if main_contact and main_contact.birthday %}
+                            <span style="background: #f0f9ff; color: #0070c0; padding: 2px 6px; border-radius: 4px; font-weight: 600;">
+                                🎂 {{ main_contact.birthday }}
+                            </span>
+                        {% else %}
+                            <span style="color: #ccc; font-style: italic;">No Info</span>
+                        {% endif %}
+                    </p>
+                </div>
+                <div class="data-item">
+                    <label>Primary Contact Interests</label>
+                    <p>
+                        {% if main_contact and main_contact.interests %}
+                            {{ main_contact.interests }}
+                        {% else %}
+                            <span style="color: #ccc; font-style: italic;">No Info</span>
+                        {% endif %}
+                    </p>
+                </div>
+                {% endwith %}
+
+                <div class="data-item"><label>Start Date</label><p>{{ date_added_formatted }}</p></div>
+                <div class="data-item"><label>Date Added</label><p>{{ date_added_formatted }}</p></div>
+                <div class="data-item"><label>Years Active</label><p>{{ client.years_active }}</p></div>
+                <div class="data-item"><label>Total Employees</label><p>{{ client.employees }}</p></div>
+                <div class="data-item"><label>Scheme Code</label><p>{{ client.future_client_number }}</p></div>
+            </div>
+
+            <h2>Product & Agreement Details</h2>
+            <div class="data-grid">
+                <div class="data-item"><label>Product Type</label><p>{{ client.product }}</p></div>
+                <div class="data-item"><label>Third Party Contract</label><p>{{ client.third_party_contract|yesno:"Yes,No" }}</p></div>
+                <div class="data-item"><label>Third Party Contact</label><p>{{ client.third_party_contact }}</p></div>
+                <div class="data-item"><label>Administrator</label><p>{{ client.administrator }}</p></div>
+                <div class="data-item"><label>Umbrella Fund</label><p>{{ client.umbrella_fund }}</p></div>
+                <div class="data-item"><label>Insurer</label><p>{{ client.insurer }}</p></div>
+                <div class="data-item"><label>Assets Under Management</label><p>{{ client.assets }}</p></div>
+                <div class="data-item"><label>Consulting Appointment Letter</label><p>{{ client.consulting_letter_status|yesno:"Yes,No" }}</p>
+                    <span class="file-status {% if client.consulting_letter_file %}uploaded{% else %}missing{% endif %}">{% if client.consulting_letter_file %}File: {{ client.consulting_letter_file }}{% else %}Not Uploaded{% endif %}</span>
+                </div>
+                <div class="data-item"><label>SLA Status</label><p>{{ client.sla_status|yesno:"Yes,No" }}</p>
+                    <span class="file-status {% if client.sla_file %}uploaded{% else %}missing{% endif %}">{% if client.sla_file %}File: {{ client.sla_file }}{% else %}Not Uploaded{% endif %}</span>
+                </div>
+                <div class="data-item"><label>3rd Party Document Status</label><p>{{ client.third_party_doc_status|yesno:"Yes,No" }}</p>
+                    <span class="file-status {% if client.third_party_doc_file %}uploaded{% else %}missing{% endif %}">{% if client.third_party_doc_file %}File: {{ client.third_party_doc_file }}{% else %}Not Uploaded{% endif %}</span>
+                </div>
+            </div>
+        </div> 
+
+        <div id="tab2" class="tab-content">
+            {% if client_contacts %}
+            <h2>Authorized Client Contacts</h2>
+            <table class="contacts-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Job Title</th>
+                        <th>Birthday</th>
+                        <th>Contact Info</th>
+                        <th>Email</th>
+                        <th>Address Details</th>
+                        <th>Interests</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for contact in client_contacts %}
+                    <tr>
+                        <td style="font-weight: 700;">{{ contact.name }} {{ contact.surname }}</td>
+                        <td>{{ contact.job_title|default:'N/A' }}</td>
+                        
+                        <td>
+                            {% if contact.birthday %}
+                                <span style="background: #f0f9ff; color: #0070c0; padding: 2px 8px; border-radius: 4px; font-size: 0.85em; font-weight: 600; white-space: nowrap;">
+                                    🎂 {{ contact.birthday }}
+                                </span>
+                            {% else %}
+                                <span style="color: #ccc;">-</span>
+                            {% endif %}
+                        </td>
+
+                        <td>Cell: {{ contact.cell_no|default:'N/A' }}<br>Landline: {{ contact.landline|default:'N/A' }}</td>
+                        <td style="color: var(--action-blue);">{{ contact.email|default:'N/A' }}</td>
+                        <td style="font-size: 0.8em;">Physical: {{ contact.physical_address|default:'N/A' }}<br>Postal: {{ contact.postal_address|default:'N/A' }}</td>
+                        
+                        <td style="font-style: italic; color: #555;">{{ contact.interests|default:'-' }}</td>
+                        
+                        <td>{{ contact.notes|default:'N/A' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p style="padding: 20px; color: #777;">No authorized contact persons registered for this client profile.</p>
+            {% endif %}
+        </div>
+        
+        <div id="tab3" class="tab-content">
+            <h2>Log Communication Activity</h2>
+            <div class="note-section-container" id="noteForm">
+                <h3>Record New Interaction</h3>
+                <p style="color: #888; font-size: 0.9em; margin-bottom: 20px;">Use this section to log calls, emails, and general notes regarding client interactions.</p>
+                
+                <div class="data-grid" style="gap: 15px; margin-bottom: 10px;">
+                    <div class="data-item">
+                        <label for="comm_type">Communication Type</label>
+                        <select id="comm_type" name="comm_type">
+                            <option value="Inbound Email">Inbound Email</option>
+                            <option value="Outbound Email">Outbound Email</option>
+                            <option value="Inbound Call">Inbound Call</option>
+                            <option value="Outbound Call">Outbound Call</option>
+                        </select>
+                    </div>
+                    <div class="data-item">
+                        <label for="note_type">Activity Classification</label>
+                        <select id="note_type" name="note_type">
+                            <option value="Schedule">Schedule</option>
+                            <option value="Claims">Claims</option>
+                            <option value="Two-Pot Claims">Two-Pot Claims</option>
+                            <option value="General Enquiry">General Enquiry</option>
+                            <option value="Leads">Leads</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="data-item full-width" style="margin-top: 10px;">
+                    <label for="note_text">Interaction Details</label>
+                    <textarea id="note_text" name="note_text" placeholder="Summarize the discussion or record specific details..."></textarea>
+                </div>
+                
+                <div class="data-item full-width" style="margin-top: 10px;">
+                    <label>Attachments & Documentation</label>
+                    <div style="border: 2px dashed #edf2f7; padding: 15px; border-radius: 8px; background: white; display: flex; align-items: center; justify-content: space-between;">
+                        <span style="color: #aaa;">Drag files here or click to browse.</span>
+                        <input type="file" id="note_files" multiple>
+                    </div>
+                </div>
+                
+                <button type="button" id="submitNoteBtn" class="edit-button" style="margin-top: 20px; background-color: var(--primary-green); width: 100%;">💾 Post Activity to History</button>
+            </div>
+
+            <h2 style="margin-top: 50px;">Note History</h2>
+            <div id="activityLogContainer">
+                {% for note in client_notes %}
+                <div class="note-history-item">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <strong style="color: var(--accent-green);">{{ note.comm_type }} ({{ note.note_type }})</strong>
+                        <small style="color: #999;">{{ note.created_at|date:"Y-m-d H:i" }}</small>
+                    </div>
+                    <p style="margin-top: 10px; color: var(--text-dark);">{{ note.note_text }}</p>
+                </div>
+                {% empty %}
+                <p id="noNotesMsg" style="color: #777; font-style: italic;">No interaction history available.</p>
+                {% endfor %}
+            </div>
+        </div>
+        
+        <div id="tab4" class="tab-content">
+            <h2>Standard Directory Structure</h2>
+            <div class="folder-list-container">
+                <p style="color: #777; margin-bottom: 25px; font-size: 0.95rem;">Automated folder structure for SharePoint synchronization and local record keeping.</p>
+                <ul class="folder-list">
+                    <li>Agendas</li><li>Benefit Statements</li><li>Claims</li><li>Commission</li><li>Appointment Letters</li><li>Conversion Options</li><li>FICA Documents</li><li>Forms</li><li>HR Manual</li><li>Implementation</li><li>Investments</li><li>Logo</li><li>Medicals</li><li>Member Guide</li><li>Minutes</li><li>Newsletters</li><li>Presentations</li><li>Rebroke</li><li>Record of Advice</li><li>Resolutions</li><li>Revisions</li><li>Rules & Amendments</li><li>Section 14 Docs</li><li>Service Agreements</li><li>3rd Party Contact</li><li>Transfer Details</li><li>Two-Pot</li><li>Welcome Letters</li><li>Year Planner</li>
+                </ul>
+            </div>
+        </div>
+
+        <div id="tab5" class="tab-content">
+            <h1>FICA & DUE DILIGENCE DATA</h1>
+
+            <h2>Entity Identification & Registration</h2>
+            <div class="data-grid">
+                <div class="data-item"><label>Company Legal Type</label><p>{{ client.company_type|default:'N/A' }}</p></div>
+                <div class="data-item"><label>Registration Number</label><p>{{ client.company_registration_number|default:'N/A' }}</p></div>
+                <div class="data-item"><label>Registration File</label><p>{{ client.reg_docs_file|default:'N/A' }}</p></div>
+                <div class="data-item"><label>Primary Contact Phone</label><p>{{ client.contact_number1|default:'N/A' }}</p></div>
+                <div class="data-item"><label>Primary Contact Email</label><p>{{ client.contact_email1|default:'N/A' }}</p></div>
+                <div class="data-item"><label>Address Verification File</label><p>{{ client.proof_address_file|default:'N/A' }}</p></div>
+            </div>
+
+            <div class="data-grid full-width" style="grid-template-columns: 1fr 1fr; border-top: 1px solid #eee; padding-top: 30px;">
+                <div class="data-item">
+                    <label>Registered Physical Address</label>
+                    {% if physical_addr %}
+                        <p>{{ physical_addr.line1 }}</p>
+                        <p>{{ physical_addr.line2 }}</p>
+                        <p>{{ physical_addr.suburb }}</p>
+                        <p>{{ physical_addr.city }}, {{ physical_addr.province }}</p>
+                        <p><strong>Code: {{ physical_addr.postal_code }}</strong></p>
+                    {% else %}<p style="color:#aaa;">No physical address on record.</p>{% endif %}
+                </div>
+                <div class="data-item">
+                    <label>Official Postal Address</label>
+                    {% if postal_addr %}
+                        <p>{{ postal_addr.line1 }}</p>
+                        <p>{{ postal_addr.line2 }}</p>
+                        <p>{{ postal_addr.suburb }}</p>
+                        <p>{{ postal_addr.city }}, {{ postal_addr.province }}</p>
+                        <p><strong>Code: {{ postal_addr.postal_code }}</strong></p>
+                    {% else %}<p><em>Same as Registered Physical Address</em></p>{% endif %}
+                </div>
+            </div>
+
+            <h2>Authorized Responsible Persons</h2>
+            {% for person in fica_resp_person %}
+            <div class="note-history-item" style="border-left-color: var(--action-blue);">
+                <div class="data-grid" style="margin-bottom: 0;">
+                    <div class="data-item"><label>Name & Designation</label><p>{{ person.name }} {{ person.surname }} ({{ person.designation }})</p></div>
+                    <div class="data-item"><label>Identity Number</label><p>{{ person.id_number|default:'N/A' }}</p></div>
+                    <div class="data-item"><label>Contact Details</label><p>{{ person.contact_number }} / {{ person.email_address }}</p></div>
+                    <div class="data-item"><label>Residential Address</label><p>{{ person.resp_line1 }}, {{ person.resp_city }}, {{ person.resp_province }}</p></div>
+                    <div class="data-item full-width"><label>Compliance Documentation</label>
+                        <p>• Circular: {{ person.circular_upload_file|default:'N/A' }}</p>
+                        <p>• Signed Form: {{ person.doc_signed_upload_file|default:'N/A' }}</p>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+                <p style="padding: 15px; color: #777;">No responsible persons identified for this entity.</p>
+            {% endfor %}
+
+            <h2>Board of Directors ({{ fica_directors|length }})</h2>
+            {% for director in fica_directors %}
+            <div class="note-section-container">
+                <h4 class="sub-header" style="margin-top:0;">Director: {{ director.name }} {{ director.surname }}</h4>
+                <div class="data-grid">
+                    <div class="data-item"><label>ID & Contact</label><p>{{ director.id_number|default:'N/A' }} | {{ director.contact_number|default:'N/A' }}</p></div>
+                    <div class="data-item"><label>Official Email</label><p>{{ director.email_address|default:'N/A' }}</p></div>
+                    <div class="data-item"><label>Verified Physical Address</label><p>{{ director.phys_line1|default:'N/A' }}</p></div>
+                    <div class="data-item"><label>Proof of Address File</label><p>{{ director.proof_addr_file|default:'N/A' }}</p></div>
+                    <div class="data-item"><label>Identity Copy File</label><p>{{ director.id_copy_file|default:'N/A' }}</p></div>
+                </div>
+                <h4 style="margin-top: 20px; font-size: 0.9rem; color: var(--danger-red);">Regulatory Risk Status (PEP/PIP)</h4>
+                <div style="background: white; padding: 15px; border-radius: 8px; font-size: 0.9rem;">
+                    <strong>PEP Status:</strong> {{ director.is_pep|yesno:"Identified,None" }} | <strong>Reason:</strong> {{ director.pep_reason|default:'N/A' }}<br>
+                    <strong>PIP Status:</strong> {{ director.is_pip|yesno:"Identified,None" }} | <strong>Reason:</strong> {{ director.pip_reason|default:'N/A' }}<br>
+                    <strong>PPO Status:</strong> {{ director.is_ppo|yesno:"Identified,None" }} | <strong>Reason:</strong> {{ director.ppo_reason|default:'N/A' }}<br>
+                    <strong>KCA Status:</strong> {{ director.is_kca|yesno:"Identified,None" }} | <strong>Reason:</strong> {{ director.kca_reason|default:'N/A' }}
+                </div>
+            </div>
+            {% empty %}
+                <p style="color: #777;">No board directors recorded.</p>
+            {% endfor %}
+
+            <h2>Beneficial Ownership & Control ({{ fica_owners|length }})</h2>
+            {% for owner in fica_owners %}
+            <div class="note-section-container" style="background-color: #f0f7ff; border-color: #dbeafe;">
+                <h4 class="sub-header" style="margin-top:0; color: var(--action-blue);">Beneficial Owner: {{ owner.name }} {{ owner.surname }}</h4>
+                <div class="data-grid">
+                    <div class="data-item"><label>ID & Contact</label><p>{{ owner.id_number|default:'N/A' }} | {{ owner.contact_number|default:'N/A' }}</p></div>
+                    <div class="data-item"><label>Verified Email</label><p>{{ owner.email_address|default:'N/A' }}</p></div>
+                    <div class="data-item"><label>Verification Files</label><p>ID: {{ owner.id_copy_file|default:'N/A' }}<br>Address: {{ owner.proof_addr_file|default:'N/A' }}</p></div>
+                </div>
+                <h4 style="margin-top: 20px; font-size: 0.9rem; color: var(--danger-red);">Screening Profiles</h4>
+                <p style="font-size: 0.9rem;">
+                    <strong>PEP:</strong> {{ owner.is_pep|yesno:"YES,NO" }} ({{ owner.pep_reason|default:'N/A' }}) | 
+                    <strong>PIP:</strong> {{ owner.is_pip|yesno:"YES,NO" }} ({{ owner.pip_reason|default:'N/A' }})<br>
+                    <strong>PPO:</strong> {{ owner.is_ppo|yesno:"YES,NO" }} ({{ owner.ppo_reason|default:'N/A' }}) | 
+                    <strong>KCA:</strong> {{ owner.is_kca|yesno:"YES,NO" }} ({{ owner.kca_reason|default:'N/A' }})
+                </p>
+            </div>
+            {% empty %}
+                <p style="color: #777;">No beneficial owners listed for this entity.</p>
+            {% endfor %}
+
+            <div class="full-width" style="margin-top: 40px; border-top: 2px dashed #edf2f7; padding-top: 20px; text-align: center;">
+                <a href="#" class="edit-button" style="background-color: var(--primary-green);">⬆️ Upload Signed Compliance Document</a>
+                <p style="font-size: 0.85rem; color: #777; margin-top: 10px;">Mandatory for FICA finalization.</p>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        // Tab switching logic
+        function openTab(evt, tabName) {
+            let tabContent = document.getElementsByClassName("tab-content");
+            for (let i = 0; i < tabContent.length; i++) { tabContent[i].style.display = "none"; tabContent[i].classList.remove("active"); }
+            let tabButtons = document.getElementsByClassName("tab-button");
+            for (let i = 0; i < tabButtons.length; i++) { tabButtons[i].classList.remove("active"); }
+            document.getElementById(tabName).style.display = "block";
+            document.getElementById(tabName).classList.add("active");
+            evt.currentTarget.classList.add("active");
+        }
+
+        // AJAX Note Posting Logic
+        document.getElementById('submitNoteBtn').addEventListener('click', function() {
+            const clientCode = "{{ client.future_client_number }}";
+            const commType = document.getElementById('comm_type').value;
+            const noteType = document.getElementById('note_type').value;
+            const noteText = document.getElementById('note_text').value;
+
+            if (!noteText.trim()) {
+                alert("Please enter interaction details.");
+                return;
+            }
+
+            // AJAX call to Django view
+            fetch("{% url 'post_client_note' %}", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": "{{ csrf_token }}"
+                },
+                body: JSON.stringify({
+                    client_code: clientCode,
+                    comm_type: commType,
+                    note_type: noteType,
+                    note_text: noteText
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Prepend new note to the list
+                    const container = document.getElementById('activityLogContainer');
+                    const noNotesMsg = document.getElementById('noNotesMsg');
+                    if (noNotesMsg) noNotesMsg.remove();
+
+                    const newNote = `
+                        <div class="note-history-item" style="border-left-color: var(--primary-green); animation: fadeIn 0.5s ease;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <strong style="color: var(--accent-green);">${commType} (${noteType})</strong>
+                                <small style="color: #999;">Just now</small>
+                            </div>
+                            <p style="margin-top: 10px; color: var(--text-dark);">${noteText}</p>
+                        </div>
+                    `;
+                    container.insertAdjacentHTML('afterbegin', newNote);
+                    
+                    // Clear field
+                    document.getElementById('note_text').value = '';
+                } else {
+                    alert("Error posting note: " + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert("An error occurred while posting the note.");
+            });
+        });
+
+        // Initialize active tab
+        document.addEventListener('DOMContentLoaded', function() {
+            const defaultTabButton = document.querySelector('.tab-button.active');
+            if (defaultTabButton) {
+                const onClickAttr = defaultTabButton.getAttribute('onclick');
+                const tabNameMatch = onClickAttr ? onClickAttr.match(/'([^']+)'/) : null;
+                const tabName = tabNameMatch ? tabNameMatch[1] : 'tab1';
+                document.getElementById(tabName).style.display = "block";
+            }
+        });
+    </script>
+</body>
+</html>
