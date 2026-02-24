@@ -162,6 +162,7 @@ tr:hover {background-color: #f1f8e9;}
             {% for claim in claims %}
             <template id="notes-data-{{ claim.id }}">
                 {% for note in claim.notes.all %}
+<<<<<<< HEAD
                     <tr>
                         <td>{{ note.note_description|linebreaksbr }}</td>
                         <td>{{ note.note_selection }}</td>
@@ -177,6 +178,11 @@ tr:hover {background-color: #f1f8e9;}
                     </tr>
                 {% empty %}
                     <tr><td colspan="5" style="text-align:center; color:#777;">No notes found.</td></tr>
+=======
+                    <tr><td>{{ note.note_description|linebreaksbr }}</td><td>{{ note.note_selection }}</td><td>{{ note.created_at|date:"Y-m-d H:i" }}</td><td>{{ note.created_by.username }}</td></tr>
+                {% empty %}
+                    <tr><td colspan="4" style="text-align:center; color:#777;">No notes found.</td></tr>
+>>>>>>> 6eb8b44f73b91c63f1dffa47dd1252f0af92b181
                 {% endfor %}
             </template>
             {% endfor %}
@@ -359,6 +365,7 @@ tr:hover {background-color: #f1f8e9;}
                             <textarea id="email_body_html_content" name="email_body_html_content" style="display:none;"></textarea>
                             <div class="form-group" style="margin-bottom: 15px;"><label>To:</label><input type="text" id="member_recipient_email" name="member_recipient_email" class="form-input"></div>
                             <div class="form-group" style="margin-bottom: 15px;"><label>Subject:</label><input type="text" id="member_email_subject_reply" name="member_email_subject_reply" class="form-input"></div>
+<<<<<<< HEAD
                             
                             <div class="form-group" style="margin-bottom: 15px; padding: 10px; border: 1px dashed #ff9800; background-color: #fff; border-radius: 8px;">
                                 <label style="color: #e65100; font-weight: bold; display: block; margin-bottom: 5px;"><i class="fas fa-paperclip"></i> Email Attachment (Sent with Email):</label>
@@ -369,6 +376,12 @@ tr:hover {background-color: #f1f8e9;}
                             <div style="text-align: right;">
                                 <button type="button" class="cancel-btn" onclick="toggleEmailForm()">Hide</button>
                                 <button type="submit" name="email_submission_action" value="send_email_and_log" class="save-info-btn" onclick="syncEmailEditor()">Send & Save</button>
+=======
+                            <div class="form-group" style="margin-bottom: 20px;"><label>Email Body:</label><textarea id="member_email_body_editor" class="form-input" rows="8">Dear Sir/Madam,&#10;&#10;Kind regards,&#10;{{ request.user.username }}</textarea></div>
+                            <div style="text-align: right;">
+                                <button type="button" class="cancel-btn" onclick="toggleEmailForm()">Hide</button>
+                                <button type="submit" name="email_submission_action" value="send_email_and_log" class="save-info-btn">Send & Save</button>
+>>>>>>> 6eb8b44f73b91c63f1dffa47dd1252f0af92b181
                             </div>
                         </div>
                     </div>
@@ -381,6 +394,7 @@ tr:hover {background-color: #f1f8e9;}
                         <option value="">-- Select Note Type --</option>
                         <option value="CLAIM DOCUMENTS REQUESTED">CLAIM DOCUMENTS REQUESTED</option>
                         <option value="SUBMITTED VIA E-MAIL">SUBMITTED VIA E-MAIL</option>
+<<<<<<< HEAD
                         <option value="BANK DETAILS FOLLOW UP WITH MEMBER/EMPLOYER">BANK DETAILS FOLLOW UP</option>
                     </select>
                     <textarea name="note_description" id="note_description" rows="4" class="form-input" placeholder="Add details..."></textarea>
@@ -389,11 +403,17 @@ tr:hover {background-color: #f1f8e9;}
                         <label style="font-weight: bold; color: var(--accent-green); display: block; margin-bottom: 5px;"><i class="fas fa-paperclip"></i> Upload Attachment (PDF/Image):</label>
                         <input type="file" name="claim_attachment" class="form-input" style="border: none; padding: 5px;">
                     </div>
+=======
+                    </select>
+                    <textarea name="note_description" id="note_description" rows="4" class="form-input" placeholder="Add details..."></textarea>
+                    <div style="margin-top: 10px;"><label>Claim Attachment (File)</label><input type="file" name="claim_attachment" class="form-input"></div>
+>>>>>>> 6eb8b44f73b91c63f1dffa47dd1252f0af92b181
                 </div>
 
                 <h3 style="color: #38761d; margin-top: 30px; font-weight: 800;">Claim Notes History</h3>
                 <div style="max-height: 250px; overflow-y: auto; border: 1.5px solid #ddd; border-radius: 8px;">
                     <table style="margin: 0; font-size: 12px; width:100%;">
+<<<<<<< HEAD
                         <thead style="background-color: #f0f0f0;">
                             <tr>
                                 <th style="width: 40%;">Note</th>
@@ -403,6 +423,9 @@ tr:hover {background-color: #f1f8e9;}
                                 <th style="width: 15%;">File</th>
                             </tr>
                         </thead>
+=======
+                        <thead style="background-color: #f0f0f0;"><tr><th>Note</th><th>Type</th><th>Date</th><th>User</th></tr></thead>
+>>>>>>> 6eb8b44f73b91c63f1dffa47dd1252f0af92b181
                         <tbody id="claim_notes_tbody"></tbody>
                     </table>
                 </div>
@@ -417,11 +440,26 @@ tr:hover {background-color: #f1f8e9;}
 </div>
 
 <script>
+<<<<<<< HEAD
     function triggerGlobalExport() {
         const searchParams = new URLSearchParams(window.location.search);
         const query = searchParams.get('q') || document.querySelector('input[name="q"]').value || '';
         let exportUrl = "{% url 'export_global_claims_excel' %}";
         if (query) { exportUrl += "?q=" + encodeURIComponent(query); }
+=======
+    // --- 📊 EXCEL EXPORT LOGIC ---
+    // Updated function name and URL to match your views.py and urls.py
+    function triggerGlobalExport() {
+        const searchParams = new URLSearchParams(window.location.search);
+        const query = searchParams.get('q') || document.querySelector('input[name="q"]').value || '';
+        
+        // This targets the name defined in urls.py for views.export_global_claims_excel
+        let exportUrl = "{% url 'export_global_claims_excel' %}";
+        
+        if (query) {
+            exportUrl += "?q=" + encodeURIComponent(query);
+        }
+>>>>>>> 6eb8b44f73b91c63f1dffa47dd1252f0af92b181
         window.location.href = exportUrl;
     }
 
@@ -435,22 +473,34 @@ tr:hover {background-color: #f1f8e9;}
     function toggleTwoPotLogic() {
         const type = document.getElementById('claim_type_select').value;
         const isTwoPot = (type === 'Two Pot');
+<<<<<<< HEAD
+=======
+        
+        // Dynamic Field Display
+>>>>>>> 6eb8b44f73b91c63f1dffa47dd1252f0af92b181
         document.getElementById('div_mip_number').style.display = isTwoPot ? 'block' : 'none';
         document.getElementById('div_claim_amount').style.display = isTwoPot ? 'block' : 'none';
         document.getElementById('div_exit_reason').style.display = isTwoPot ? 'none' : 'block';
         document.getElementById('two_pot_fields_section').style.display = isTwoPot ? 'block' : 'none';
     }
 
+<<<<<<< HEAD
     function syncEmailEditor() {
         const body = document.getElementById('member_email_body_editor').value;
         document.getElementById('email_body_html_content').value = body.replace(/\n/g, '<br>');
     }
 
+=======
+>>>>>>> 6eb8b44f73b91c63f1dffa47dd1252f0af92b181
     function openGlobalClaimModal() {
         document.getElementById('modalTitle').innerText = "New Claim Withdrawal";
         document.getElementById('modal_claim_id').value = '';
         document.getElementById('main_claim_form').reset(); 
+<<<<<<< HEAD
         document.getElementById('claim_notes_tbody').innerHTML = '<tr><td colspan="5" style="text-align:center;">New entry.</td></tr>';
+=======
+        document.getElementById('claim_notes_tbody').innerHTML = '<tr><td colspan="4" style="text-align:center;">New entry.</td></tr>';
+>>>>>>> 6eb8b44f73b91c63f1dffa47dd1252f0af92b181
         toggleTwoPotLogic();
         document.getElementById('claimModal').style.display = 'block';
     }
@@ -468,7 +518,11 @@ tr:hover {background-color: #f1f8e9;}
         document.querySelector('input[name="mip_number"]').value = data.mip_number;
         
         document.getElementById('claim_type_select').value = data.claim_type;
+<<<<<<< HEAD
         toggleTwoPotLogic(); 
+=======
+        toggleTwoPotLogic(); // Ensure sections show/hide based on loaded type
+>>>>>>> 6eb8b44f73b91c63f1dffa47dd1252f0af92b181
 
         setSelectValue('claim_status', data.claim_status);
         setSelectValue('payment_option', data.payment_option);
@@ -481,6 +535,10 @@ tr:hover {background-color: #f1f8e9;}
         document.querySelector('input[name="date_submitted"]').value = data.date_submitted;
         document.querySelector('input[name="date_paid"]').value = data.date_paid;
 
+<<<<<<< HEAD
+=======
+        // Two-Pot Specific Booleans & Dates
+>>>>>>> 6eb8b44f73b91c63f1dffa47dd1252f0af92b181
         document.getElementById('id_vested_pot_available').checked = (data.vested_pot_available === 'True');
         document.getElementById('id_savings_pot_available').checked = (data.savings_pot_available === 'True');
         document.getElementById('id_vested_pot_paid_date').value = data.vested_pot_paid_date;
@@ -488,7 +546,11 @@ tr:hover {background-color: #f1f8e9;}
         document.getElementById('id_infund_cert_date').value = data.infund_cert_date;
         document.getElementById('linked_email_id').value = data.linked_email_id;
 
+<<<<<<< HEAD
         togglePotVisibility();
+=======
+        togglePotVisibility(); // Run after setting checked status
+>>>>>>> 6eb8b44f73b91c63f1dffa47dd1252f0af92b181
 
         const notesSrc = document.getElementById('notes-data-' + data.id);
         const notesTrg = document.getElementById('claim_notes_tbody');

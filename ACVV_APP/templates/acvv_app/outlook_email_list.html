@@ -4,7 +4,13 @@
 
 {% block content %}
 <style>
+<<<<<<< HEAD
     /* ... (Keeping your existing styles) ... */
+=======
+    /* -------------------------------------------------------------------------
+    * CUSTOM TASK LOG STYLES
+    * ------------------------------------------------------------------------- */
+>>>>>>> 6eb8b44f73b91c63f1dffa47dd1252f0af92b181
     body {
         font-family: sans-serif;
         background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
@@ -38,6 +44,7 @@
         color: #43a047;
     }
     
+<<<<<<< HEAD
     /* Updated Filter Bar Styles */
     .filter-bar {
         background: #f1f8e9;
@@ -83,6 +90,19 @@
         min-width: 250px;
     }
 
+=======
+    .search-wrapper {
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        background: #f1f8e9;
+        padding: 10px 15px;
+        border-radius: 25px;
+        border: 1px solid #aed581;
+        width: 100%;
+        max-width: 500px;
+    }
+>>>>>>> 6eb8b44f73b91c63f1dffa47dd1252f0af92b181
     .search-input {
         border: none;
         background: none;
@@ -92,9 +112,31 @@
         font-size: 14px;
     }
     
+<<<<<<< HEAD
     .task-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
     .task-table th, .task-table td { padding: 12px 15px; border-bottom: 1px solid #eee; text-align: left; font-size: 13px; word-wrap: break-word; }
     .task-table th { background-color: #43a047; color: white; font-weight: 600; text-transform: uppercase; }
+=======
+    .task-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+    .task-table th, .task-table td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #eee;
+        text-align: left;
+        font-size: 13px;
+        word-wrap: break-word;
+    }
+    .task-table th {
+        background-color: #43a047;
+        color: white;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    /* Clickable row styling */
+>>>>>>> 6eb8b44f73b91c63f1dffa47dd1252f0af92b181
     .task-row { cursor: pointer; transition: background-color 0.2s ease; }
     .task-table tr:nth-child(even) { background-color: #f9fbe7; }
     .task-table tr:hover { background-color: #dcedc8 !important; }
@@ -103,12 +145,38 @@
     .status-del { color: #f57c00; font-weight: bold; }
     
     .return-button {
+<<<<<<< HEAD
         padding: 10px 20px; background-color: #81c784; border: 1px solid #81c784; border-radius: 5px;
         text-decoration: none; color: white; cursor: pointer; transition: background-color 0.3s ease;
         text-align: center; margin-right: 10px; display: inline-block; font-weight: bold;
     }
     .btn-export { background-color: #1b5e20; border-color: #1b5e20; }
     .btn-filter { background-color: #43a047; color: white; border: none; padding: 10px 20px; border-radius: 4px; font-weight: bold; cursor: pointer; }
+=======
+        padding: 10px 20px;
+        background-color: #81c784;
+        border: 1px solid #81c784;
+        border-radius: 5px;
+        text-decoration: none;
+        color: white;
+        cursor: pointer;
+        transition: background-color 0.3s ease;
+        text-align: center;
+        margin-right: 10px;
+        display: inline-block;
+    }
+    .return-button:hover { background-color: #66bb6a; }
+
+    .delegated-user-badge {
+        background-color: #e3f2fd;
+        color: #0d47a1;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-weight: bold;
+        font-size: 11px;
+        border: 1px solid #bbdefb;
+    }
+>>>>>>> 6eb8b44f73b91c63f1dffa47dd1252f0af92b181
 </style>
 
 <div class="navigation-bar" style="width: 100%; max-width: 1500px; margin-top: 10px;">
@@ -118,6 +186,7 @@
 <div class="log-container">
     <div class="log-header">
         <h1><i class="fas fa-tasks"></i> Email List</h1>
+<<<<<<< HEAD
         <div style="display: flex; gap: 15px;">
             <span class="status-new"><i class="fas fa-circle"></i> New: {{ new_count }}</span>
             <span class="status-del"><i class="fas fa-circle"></i> Delegated: {{ del_count }}</span>
@@ -132,17 +201,29 @@
         <div class="filter-group">
             <label>To Date</label>
             <input type="date" name="end_date" id="end_date" class="filter-input" value="{{ request.GET.end_date }}">
+=======
+    </div>
+    
+    <div style="margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; gap: 20px;">
+            <span class="status-new"><i class="fas fa-circle"></i> New: {{ new_count }}</span>
+            <span class="status-del"><i class="fas fa-circle"></i> Delegated: {{ del_count }}</span>
+>>>>>>> 6eb8b44f73b91c63f1dffa47dd1252f0af92b181
         </div>
         
         <div class="search-wrapper">
             <i class="fas fa-search" style="color: #43a047;"></i>
             <input type="text" id="emailSearchInput" class="search-input" placeholder="Search Subject, From, or MG...">
         </div>
+<<<<<<< HEAD
 
         <button type="submit" class="btn-filter">Filter List</button>
         <button type="button" class="return-button btn-export" onclick="exportToExcel()"><i class="fas fa-file-excel"></i> Export Excel</button>
         <a href="{% url 'outlook_email_list' %}" class="return-button" style="background-color: #757575; border:none;">Reset</a>
     </form>
+=======
+    </div>
+>>>>>>> 6eb8b44f73b91c63f1dffa47dd1252f0af92b181
 
     {% if emails %}
     <table class="task-table" id="emailTaskTable">
@@ -159,11 +240,25 @@
         <tbody>
             {% for email in emails %}
             <tr class="task-row" 
+<<<<<<< HEAD
                 onclick="window.location.href='{% if email.status == 'NEW' %}{% url 'outlook_delegate_to' email_id=email.email_id %}{% else %}{% url 'outlook_view_thread' delegation_id=email.id %}{% endif %}'">
                 <td>
                     <span class="{% if email.status == 'NEW' %}status-new{% else %}status-del{% endif %}">
                         {{ email.status }}
                     </span>
+=======
+                {% if email.status == 'NEW' %}
+                    onclick="window.location.href='{% url 'outlook_delegate_to' email_id=email.email_id %}'"
+                {% else %}
+                    onclick="window.location.href='{% url 'outlook_view_thread' delegation_id=email.id %}'"
+                {% endif %}>
+                <td>
+                    {% if email.status == 'NEW' %}
+                        <span class="status-new">NEW</span>
+                    {% else %}
+                        <span class="status-del">DELEGATED</span>
+                    {% endif %}
+>>>>>>> 6eb8b44f73b91c63f1dffa47dd1252f0af92b181
                 </td>
                 <td>{{ email.received_at|date:"Y-m-d H:i" }}</td>
                 <td class="search-subject"><b>{{ email.subject|default:"(No Subject)" }}</b></td>
@@ -184,12 +279,17 @@
     </table>
     {% else %}
     <div style="text-align: center; padding: 40px;">
+<<<<<<< HEAD
         <p style="font-size: 1.2em; color: #43a047;">🎉 <strong>No emails found for this period.</strong></p>
+=======
+        <p style="font-size: 1.2em; color: #43a047;">🎉 <strong>Inbox is clear!</strong></p>
+>>>>>>> 6eb8b44f73b91c63f1dffa47dd1252f0af92b181
     </div>
     {% endif %}
 </div>
 
 <script>
+<<<<<<< HEAD
     // Search Functionality
     document.getElementById('emailSearchInput').addEventListener('keyup', function() {
         let filter = this.value.toLowerCase();
@@ -215,4 +315,29 @@
     }, 60000);
     {% endif %}
 </script>
+=======
+    document.getElementById('emailSearchInput').addEventListener('keyup', function() {
+        let filter = this.value.toLowerCase();
+        let rows = document.querySelectorAll('.task-row');
+        
+        rows.forEach(row => {
+            let subject = row.querySelector('.search-subject').innerText.toLowerCase();
+            let sender = row.querySelector('.search-sender').innerText.toLowerCase();
+            let mg = row.querySelector('.search-mg').innerText.toLowerCase();
+            
+            if (subject.includes(filter) || sender.includes(filter) || mg.includes(filter)) {
+                row.style.display = "";
+            } else {
+                row.style.display = "none";
+            }
+        });
+    });
+
+    // Auto-refresh every 30 seconds
+    setTimeout(function(){
+       window.location.reload();
+    }, 30000);
+</script>
+
+>>>>>>> 6eb8b44f73b91c63f1dffa47dd1252f0af92b181
 {% endblock %}
