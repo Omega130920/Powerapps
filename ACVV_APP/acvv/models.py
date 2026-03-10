@@ -99,7 +99,7 @@ class EmailDelegation(models.Model):
     """Tracks delegation status, assignee, notes, and classification for a specific Outlook email."""
     
     email_id = models.CharField(max_length=255, unique=True)
-    subject = models.CharField(max_length=255, null=True, blank=True) # 🛑 NEW FIELD
+    subject = models.CharField(max_length=255, null=True, blank=True)
     assigned_user = models.ForeignKey(
         User, 
         on_delete=models.SET_NULL, 
@@ -112,11 +112,12 @@ class EmailDelegation(models.Model):
         ('DEL', 'Delegated'),
         ('COM', 'Completed'),
         ('CLO', 'Closed'),
-        ('DLT', 'Deleted'), 
+        ('DLT', 'Deleted'),
+        ('SENT', 'Sent Direct'), # 🛑 Added this choice for your direct app emails
     ]
     
     status = models.CharField(
-        max_length=3,
+        max_length=4, # Increased to 4 to accommodate 'SENT'
         choices=STATUS_CHOICES,
         default='NEW'
     )
@@ -128,7 +129,16 @@ class EmailDelegation(models.Model):
     work_related = models.BooleanField(default=True)
     email_category = models.CharField(max_length=50, null=True, blank=True)
     communication_type = models.CharField(max_length=50, null=True, blank=True)
-    mip_names = models.CharField(max_length=50, null=True, blank=True)
+    mip_names = models.CharField(max_length=255, null=True, blank=True) # Increased length for safety
+
+    # 🛑 NEW FIELDS TO FIX THE TYPEERROR 🛑
+    body = models.TextField(null=True, blank=True) 
+    attachment = models.FileField(
+        upload_to='email_attachments/%Y/%m/', 
+        max_length=255, 
+        null=True, 
+        blank=True
+    )
 
     def __str__(self):
         return f"Task ID {self.pk} - {self.get_status_display()}"

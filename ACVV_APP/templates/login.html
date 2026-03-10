@@ -82,14 +82,6 @@
     <div class="login-container">
         <h2>ACVV Login</h2>
 
-        {% if messages %}
-        <ul class="messages">
-            {% for message in messages %}
-            <li class="message {{ message.tags }}">{{ message }}</li>
-            {% endfor %}
-        </ul>
-        {% endif %}
-
         <form method="post">
             {% csrf_token %}
             

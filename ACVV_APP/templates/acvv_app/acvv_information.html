@@ -210,7 +210,7 @@
     </div>
 
     <div id="standalone-email-container" style="display: none; margin-bottom: 20px;">
-        <form method="post" action="{% url 'save_acvv_claim' company_code=acvv_record.mip_names %}" id="standalone_email_master_form" enctype="multipart/form-data" style="background-color: #fffaf5; border: 2px dashed #ff9800; border-radius: 8px; padding: 20px;">
+        <form method="post" action="{% url 'send_acvv_direct_email' company_code=acvv_record.mip_names %}" id="standalone_email_master_form" enctype="multipart/form-data" style="background-color: #fffaf5; border: 2px dashed #ff9800; border-radius: 8px; padding: 20px;">
             {% csrf_token %}
             <input type="hidden" name="action" value="send_outgoing_email">
             <input type="hidden" name="email_body_html_content" id="standalone_email_html_content">

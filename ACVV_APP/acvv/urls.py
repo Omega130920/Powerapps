@@ -55,6 +55,7 @@ urlpatterns = [
     
     path('temp-exists/', views.temp_exists_list, name='temp_exists_list'),
     path('temp-exists/export/', views.export_temp_exists, name='export_temp_exists_excel'),
+    path('acvv-records/<str:company_code>/send-direct-email/', views.send_acvv_direct_email, name='send_acvv_direct_email'),
 
     # --- Two-Pot Specific Exports ---
     # 1. The Cecile Invoice (Grey format)

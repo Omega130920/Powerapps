@@ -1,4 +1,5 @@
 from itertools import count
+import os
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.forms import AuthenticationForm
@@ -119,7 +120,7 @@ def outlook_dashboard_view(request):
     target_email = request.GET.get('email', settings.OUTLOOK_EMAIL_ADDRESS)
     context = {'target_email': target_email, 'messages': []}
     
-    inbox_data = fetch_inbox_messages(target_email, 20) 
+    inbox_data = fetch_inbox_messages(target_email, 10000) 
     
     if 'error' not in inbox_data:
         emails = inbox_data.get('value', [])
@@ -273,18 +274,10 @@ def outlook_delegated_action(request, delegation_id):
 
         # 1. Handle Task Completion
         if action_type == 'complete_task':
-            delegation.status = 'COM'  # Mark as Completed
+            delegation.status = 'COM'
             delegation.save()
-            
-            log_delegation_transaction(
-                delegation_id, 
-                request.user, 
-                "TASK COMPLETED", 
-                "Email marked as completed and removed from active dashboard.", 
-                action_type='TASK_COMPLETE'
-            )
-            
-            messages.success(request, f"Task #{delegation_id} has been marked as completed and archived.")
+            log_delegation_transaction(delegation_id, request.user, "TASK COMPLETED", "Email marked as completed.", action_type='TASK_COMPLETE')
+            messages.success(request, f"Task #{delegation_id} archived.")
             return redirect('outlook_delegated_box')
 
         # 2. Handle Metadata Update
@@ -293,84 +286,52 @@ def outlook_delegated_action(request, delegation_id):
             delegation.email_category = request.POST.get('email_category')
             delegation.communication_type = request.POST.get('communication_type')
             delegation.save()
-            
-            log_delegation_transaction(
-                delegation_id, request.user, 
-                f"Metadata Updated: {delegation.mip_names}", 
-                "System", action_type='METADATA_UPDATE'
-            )
-            messages.success(request, "Task metadata updated successfully.")
+            log_delegation_transaction(delegation_id, request.user, f"Metadata Updated", "System", action_type='METADATA_UPDATE')
+            messages.success(request, "Task metadata updated.")
             return redirect('outlook_delegated_action', delegation_id=delegation_id)
 
         # 3. Handle Note Submission
-        elif action_type == 'add_note' or 'note_content' in request.POST:
+        elif action_type == 'add_note':
             note_content = request.POST.get('note_content')
             success, message = add_delegation_note(delegation_id, request.user, note_content)
-            if success:
-                messages.success(request, message)
-            else:
-                messages.error(request, message)
+            if success: messages.success(request, message)
             return redirect('outlook_delegated_action', delegation_id=delegation_id)
         
-        # 4. Handle Reply/Send Email Submission (Updated for Attachments)
-        elif action_type == 'send_reply' or 'reply_recipient' in request.POST:
+        # 4. Handle Reply
+        elif action_type == 'send_reply':
             recipient = request.POST.get('reply_recipient')
             subject = request.POST.get('reply_subject')
             body = request.POST.get('reply_body')
-            
-            # Capture attachment from request.FILES
             attachment = request.FILES.get('email_attachment')
             
-            # Pass attachment to the outlook service
-            result = send_outlook_email(
-                target_email, 
-                recipient, 
-                subject, 
-                body, 
-                content_type='Html',
-                attachment=attachment
-            )
+            result = send_outlook_email(target_email, recipient, subject, body, content_type='Html', attachment=attachment)
             
             if result.get('success'):
-                # Detail the log if an attachment was included
-                log_detail = recipient
-                if attachment:
-                    log_detail = f"{recipient} (Attachment: {attachment.name})"
-                
-                log_delegation_transaction(delegation_id, request.user, subject, log_detail, action_type='EMAIL_REPLY')
-
-                new_email_id = result.get('message_id') or f"SENT-{timezone.now().timestamp()}"
-
-                EmailDelegation.objects.create(
-                    email_id=new_email_id, 
-                    subject=subject,
-                    sender_address=target_email,
-                    assigned_user=request.user,
-                    status='SENT',
-                    mip_names=delegation.mip_names,
-                    received_at=timezone.now(),
-                    delegated_at=timezone.now(),
-                    email_category=delegation.email_category,
-                    communication_type='Email',
-                    work_related=True
-                )
-                messages.success(request, "Reply sent and logged to branch history.")
+                log_delegation_transaction(delegation_id, request.user, subject, recipient, action_type='EMAIL_REPLY')
+                messages.success(request, "Reply sent.")
             else:
                 messages.error(request, f"Reply failed: {result.get('error')}")
-            
             return redirect('outlook_delegated_action', delegation_id=delegation_id)
 
     # --- FETCH Data for GET ---
     acvv_records = Globalacvv.objects.all().only('mip_names', 'branch_code')
+    
+    # FETCH 1: Message Content
     email_data = _make_graph_request(f"messages/{delegation.email_id}", target_email)
     
+    # 🛑 FETCH 2: Attachments (Added for Preview) 🛑
+    attachment_endpoint = f"messages/{delegation.email_id}/attachments"
+    attachment_data = _make_graph_request(attachment_endpoint, target_email)
+    attachments = attachment_data.get('value', []) if 'error' not in attachment_data else []
+
     if 'error' in email_data:
-        messages.error(request, f"Error fetching email content: {email_data.get('error')}")
+        messages.error(request, f"Error fetching content: {email_data.get('error')}")
         return redirect('outlook_delegated_box')
 
     context = {
         'delegation': delegation,
         'email': email_data,
+        'attachments': attachments, # 👈 Passed to template
         'notes': delegation.notes.all().order_by('-created_at'),
         'acvv_records': acvv_records,
         'target_email': target_email,
@@ -476,11 +437,12 @@ from django.db.models import Q # For flexible filtering
 def acvv_information(request, mip_names):
     """
     Detailed view for a specific ACVV record with unified logging.
+    FIXED: No longer pulls redundant 'Email Sent' notes from ClientNotes.
     """
     acvv_record = get_object_or_404(Globalacvv, mip_names=mip_names)
     
     if request.method == 'POST':
-        # Handle Note & PDF uploads (Standard logic)
+        # 1. Handle Note Uploads
         if 'add_note' in request.POST:
             note_content = request.POST.get('internal_note_text')
             comm_type = request.POST.get('communication_type')
@@ -503,6 +465,7 @@ def acvv_information(request, mip_names):
                 messages.success(request, "Internal note added.")
                 return redirect(f'/acvv-records/{acvv_record.mip_names}/#notes-tab')
 
+        # 2. Handle PDF uploads
         elif 'upload_pdf' in request.POST:
             pdf_file = request.FILES.get('branch_pdf')
             if pdf_file:
@@ -517,23 +480,24 @@ def acvv_information(request, mip_names):
                 messages.success(request, "PDF added.")
                 return redirect(f'/acvv-records/{acvv_record.mip_names}/#pdf-upload')
 
-    # Data Fetching
-    notes = ClientNotes.objects.filter(acvv_record=acvv_record).order_by('-date')
+    # --- DATA FETCHING ---
+    # We filter notes to EXCLUDE anything that was tagged as an email, 
+    # so they don't show up in the notes tab as duplicates.
+    notes = ClientNotes.objects.filter(acvv_record=acvv_record).exclude(
+        Q(notes__icontains="Email Composed") | Q(notes__icontains="Email Sent")
+    ).order_by('-date')
+    
     company_claims = AcvvClaim.objects.filter(company_code=mip_names).order_by('-claim_created_date')
     branch_docs = BranchDocument.objects.filter(branch_name=mip_names).order_by('-uploaded_at')
 
-    # Email Logs
+    # --- EMAIL LOG LOGIC (Unified) ---
+    # We pull ONLY from EmailDelegation. This is the source of truth for the Email Log.
     delegated_logs = EmailDelegation.objects.filter(
         Q(mip_names__icontains=acvv_record.mip_names) | Q(mip_names__icontains=acvv_record.branch_code)
     ).select_related('assigned_user')
 
-    sent_logs = ClientNotes.objects.filter(
-        Q(acvv_record=acvv_record) & (Q(notes__icontains="Email Composed") | Q(notes__icontains="Email Sent"))
-    )
-
     combined_email_log = []
 
-    # Map Thread Records
     for log in delegated_logs:
         is_sent = (log.status == 'SENT')
         combined_email_log.append({
@@ -545,27 +509,13 @@ def acvv_information(request, mip_names):
             'assigned_to': log.assigned_user.username if log.assigned_user else "Unassigned",
             'display_type': 'SENT' if is_sent else log.get_status_display(),
             'email_id': log.email_id,
-            'file_url': None,
+            # If your EmailDelegation model doesn't have an attachment field, 
+            # we'll need to add it there to make the "Download" work perfectly.
+            'file_url': log.attachment.url if hasattr(log, 'attachment') and log.attachment else None,
             'sort_date': log.received_at or log.delegated_at
         })
 
-    # Map Local Backup Logs
-    for sent in sent_logs:
-        subject_line = sent.notes.split('\n')[0]
-        subject_title = subject_line.replace("Email Composed: ", "").replace("Email Sent: ", "").strip()
-        
-        combined_email_log.append({
-            'type': 'DIRECT',
-            'icon': '📤',
-            'badge_color': '#f57c00',
-            'subject': subject_title,
-            'assigned_to': sent.user,
-            'display_type': 'SENT',
-            'email_id': None,
-            'file_url': sent.attachment if sent.attachment else None,
-            'sort_date': sent.date
-        })
-
+    # Sort the unified log by date
     combined_email_log.sort(key=lambda x: x['sort_date'] if x['sort_date'] else datetime.min, reverse=True)
 
     context = {
@@ -584,6 +534,7 @@ def outlook_delegate_to(request, email_id):
     available_users = User.objects.filter(is_active=True).exclude(pk=request.user.pk)
     acvv_records = Globalacvv.objects.all().values('mip_names', 'branch_code')
     
+    # 1. Fetch the main Email Message
     endpoint = f"messages/{email_id}" 
     email_data = _make_graph_request(endpoint, target_email) 
 
@@ -591,8 +542,12 @@ def outlook_delegate_to(request, email_id):
         messages.error(request, "Could not fetch email content.")
         return redirect('outlook_dashboard')
 
+    # 2. Fetch Attachments (Includes contentBytes for the preview)
+    attachment_endpoint = f"messages/{email_id}/attachments"
+    attachment_data = _make_graph_request(attachment_endpoint, target_email)
+    attachments = attachment_data.get('value', []) if 'error' not in attachment_data else []
+
     email_subject = email_data.get('subject', '(No Subject)')
-    # --- NEW: Extract Sender Address ---
     sender_email = email_data.get('from', {}).get('emailAddress', {}).get('address', '')
 
     if request.method == 'POST':
@@ -604,7 +559,7 @@ def outlook_delegate_to(request, email_id):
         data_for_delegation = {
             'mip_names': mip_names_value,
             'subject': email_subject,
-            'sender_address': sender_email, # Pass to service if needed
+            'sender_address': sender_email,
             'email_category': request.POST.get('email_category'),
             'work_related': is_work_related, 
             'status': 'DEL' if is_work_related else 'DLT',
@@ -616,13 +571,12 @@ def outlook_delegate_to(request, email_id):
             delegation.work_related = False 
             delegation.status = 'DLT'
             delegation.subject = email_subject
-            delegation.sender_address = sender_email # Update sender
+            delegation.sender_address = sender_email
             delegation.mip_names = mip_names_value
             delegation.save()
             
             messages.success(request, "Task moved to Recycle Bin.")
             return redirect('outlook_dashboard')
-
         else:
             if assignee_pk and assignee_pk not in ['', '__Select Agent__']:
                 success, message = delegate_email_task(
@@ -633,12 +587,11 @@ def outlook_delegate_to(request, email_id):
                 )
                 
                 if success:
-                    # Final database sync for the delegation record
                     EmailDelegation.objects.filter(email_id=email_id).update(
                         work_related=True, 
                         status='DEL',
                         subject=email_subject,
-                        sender_address=sender_email # Update sender
+                        sender_address=sender_email
                     )
                     messages.success(request, f"Task delegated to {mip_names_value}!")
                     return redirect('outlook_dashboard')
@@ -650,9 +603,9 @@ def outlook_delegate_to(request, email_id):
     context = {
         'email_id': email_id,
         'email_subject': email_subject,
-        'email_sender': sender_email, # Pass to template
+        'email_sender': sender_email,
         'email_content': email_data.get('body', {}).get('content', ''), 
-        'attachments': email_data.get('attachments', []),
+        'attachments': attachments,
         'available_users': available_users,
         'acvv_records': acvv_records,
     }
@@ -702,77 +655,15 @@ from django.db.models.functions import TruncMonth
 @login_required
 def save_acvv_claim(request, company_code):
     """
-    Unified save view for ACVV. 
-    Handles standalone email sending from the Log tab AND claim registration.
+    Handles Member Claim registration and updates ONLY.
+    No longer contains any email-sending logic.
     """
     if request.method == 'POST':
-        # --- PART 1: STANDALONE EMAIL LOGIC ---
-        # This handles the "Compose New Email" form in the Email Log tab
-        recipient = request.POST.get('member_recipient_email')
-        subject = request.POST.get('member_email_subject_reply')
-        body = request.POST.get('email_body_html_content')
-        email_attachment = request.FILES.get('email_attachment')
-
-        if recipient and subject and body:
-            target_email = settings.OUTLOOK_EMAIL_ADDRESS
-            
-            # Call your Graph API service
-            result = send_outlook_email(
-                target_email, 
-                recipient, 
-                subject, 
-                body, 
-                content_type='Html'
-            )
-            
-            if result.get('success'):
-                acvv_record = get_object_or_404(Globalacvv, mip_names=company_code)
-                
-                # --- ID VALIDATION ---
-                # We prioritize the real Microsoft ID if the API returns it.
-                # If not, we use a placeholder to at least create the DB entry.
-                real_ms_id = result.get('message_id')
-                db_email_id = real_ms_id if real_ms_id else f"SENT-{timezone.now().timestamp()}"
-
-                # 1. Create the Thread record in EmailDelegation (The Link)
-                EmailDelegation.objects.create(
-                    email_id=db_email_id,
-                    subject=subject,
-                    sender_address=target_email,
-                    assigned_user=request.user,
-                    status='SENT',
-                    mip_names=acvv_record.mip_names,
-                    received_at=timezone.now(),
-                    delegated_at=timezone.now(),
-                    work_related=True,
-                    communication_type='Email'
-                )
-
-                # 2. Log to ClientNotes (The History Record with local file)
-                file_url = None
-                if email_attachment:
-                    fs = FileSystemStorage()
-                    filename = fs.save(f"notes/{email_attachment.name}", email_attachment)
-                    file_url = fs.url(filename)
-
-                ClientNotes.objects.create(
-                    acvv_record=acvv_record,
-                    notes=f"Email Sent: {subject}\nRecipient: {recipient}",
-                    user=request.user.username,
-                    date=timezone.now(),
-                    communication_type="Email",
-                    action_note_type="Correspondence",
-                    attachment=file_url
-                )
-                messages.success(request, f"Email sent successfully to {recipient}.")
-            else:
-                messages.error(request, f"Email failed: {result.get('error')}")
-
-        # --- PART 2: CLAIM REGISTRATION LOGIC ---
-        claim_id = request.POST.get('claim_id')
         id_number = request.POST.get('id_number')
         
+        # Only proceed if we actually have claim data
         if id_number:
+            claim_id = request.POST.get('claim_id')
             data = {
                 'company_code': company_code,
                 'id_number': id_number,
@@ -805,10 +696,10 @@ def save_acvv_claim(request, company_code):
                 claim_instance = AcvvClaim.objects.create(**data)
                 messages.success(request, "New claim created successfully.")
 
+            # Note/Attachment logic for the claim record itself
             note_selection = request.POST.get('note_selection')
             note_description = request.POST.get('note_description')
             claim_file = request.FILES.get('claim_attachment')
-
             if note_selection or note_description or claim_file:
                 claim_instance.notes.create(
                     note_selection=note_selection,
@@ -816,6 +707,8 @@ def save_acvv_claim(request, company_code):
                     attachment=claim_file,
                     created_by=request.user
                 )
+        else:
+            messages.warning(request, "Claim save ignored: No ID Number provided.")
 
     return redirect('acvv_information', mip_names=company_code)
 
@@ -1216,29 +1109,56 @@ def bulk_delete_recycled(request):
 @login_required
 def outlook_view_thread(request, delegation_id):
     """
-    Detailed audit trail of a specific email thread.
-    Combines Database Logs (Transactions) with Live Graph API data (Body/Attachments).
+    Displays the email content and audit trail. 
+    FIXED: Now pulls actual body and attachments for local SENT records.
     """
-    # 1. Get the local database record
-    task = get_object_or_404(EmailDelegation, pk=delegation_id)
+    import os
+    from django.utils.safestring import mark_safe
+
+    # 1. Flexible Lookup (Handles both PK and Microsoft ID)
+    if str(delegation_id).isdigit():
+        task = get_object_or_404(EmailDelegation, Q(id=delegation_id) | Q(email_id=delegation_id))
+    else:
+        task = get_object_or_404(EmailDelegation, email_id=delegation_id)
+
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
+    email_content = ""
+    attachments = []
 
-    # 2. Fetch live email body from Graph API
-    endpoint = f"messages/{task.email_id}"
-    email_data = _make_graph_request(endpoint, target_email)
-    
-    # 3. Fetch live attachments from Graph API
-    attachment_endpoint = f"messages/{task.email_id}/attachments"
-    attachment_data = _make_graph_request(attachment_endpoint, target_email)
-    attachments = attachment_data.get('value', [])
+    # 2. LOCAL vs MICROSOFT LOGIC
+    if task.email_id.startswith('SENT-') or task.email_id.startswith('LOCAL-'):
+        # --- NEW: PULL FROM LOCAL DATABASE FIELDS ---
+        # We replace the hardcoded "Live version not available" text with your data
+        if task.body:
+            email_content = task.body
+        else:
+            email_content = f"<div class='alert alert-warning'><strong>No Body Recorded:</strong> This email was logged with the subject '{task.subject}', but no body content was found.</div>"
+        
+        # Format the local attachment for the template loop
+        if task.attachment:
+            attachments = [{
+                'name': os.path.basename(task.attachment.name),
+                'url': task.attachment.url,
+                'contentType': 'application/octet-stream', 
+                'is_local': True 
+            }]
+    else:
+        # --- LIVE MICROSOFT FETCH (For original incoming emails) ---
+        endpoint = f"messages/{task.email_id}"
+        email_data = _make_graph_request(endpoint, target_email)
+        
+        attachment_endpoint = f"messages/{task.email_id}/attachments"
+        attachment_data = _make_graph_request(attachment_endpoint, target_email)
+        
+        attachments = attachment_data.get('value', [])
+        email_content = email_data.get('body', {}).get('content')
 
-    # 4. Fetch local Audit Trail (Transactions)
-    # UPDATED: Changed 'timestamp' to 'transaction_time' to match your model choice
+    # 3. Fetch local Audit Trail
     actions = DelegationTransactionLog.objects.filter(delegation=task).order_by('transaction_time')
 
     context = {
         'task': task,
-        'email_body': email_data.get('body', {}).get('content', 'Content not found.'),
+        'email_body': mark_safe(email_content) if email_content else "No content available.",
         'attachments': attachments,
         'actions': actions,
     }
@@ -1657,44 +1577,40 @@ def temp_exists_list(request):
 
 @login_required
 def outlook_view_thread(request, delegation_id):
-    """
-    Detailed audit trail of a specific email thread for ACVV.
-    Handles both numeric PKs and String Microsoft IDs.
-    """
-    # 1. Flexible Lookup: Find by email_id (string) OR id (integer if numeric)
+    # 1. Flexible Lookup
     if delegation_id.isdigit():
         task = get_object_or_404(EmailDelegation, Q(id=delegation_id) | Q(email_id=delegation_id))
     else:
         task = get_object_or_404(EmailDelegation, email_id=delegation_id)
 
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
+    email_content = ""
+    attachments = []
 
-    # 2. Fetch live email body from Microsoft Graph
-    endpoint = f"messages/{task.email_id}"
-    email_data = _make_graph_request(endpoint, target_email)
-    
-    # 3. Fetch live attachments
-    attachment_endpoint = f"messages/{task.email_id}/attachments"
-    attachment_data = _make_graph_request(attachment_endpoint, target_email)
-    attachments = attachment_data.get('value', [])
-
-    # 4. Fetch local Audit Trail
-    actions = DelegationTransactionLog.objects.filter(delegation=task).order_by('transaction_time')
-
-    # Handle cases where Graph API cannot find the message
-    email_content = email_data.get('body', {}).get('content')
-    if not email_content and ('error' in email_data or not email_data):
+    # 2. FIX: Check if it is a local "SENT" ID before calling Graph API
+    if task.email_id.startswith('SENT-'):
         email_content = f"""
-            <div class='alert alert-info'>
-                <strong>Live preview unavailable.</strong><br>
-                The email content could not be retrieved from Outlook. 
-                This usually happens if the email was recently sent or moved.
-                <br><small>Microsoft ID: {task.email_id}</small>
+            <div class='alert alert-success'>
+                <strong>Local Record:</strong> This email was sent directly from the ACVV App. 
+                Microsoft does not provide a live preview for this specific tracking ID.
+                <br><small>Subject: {task.subject}</small>
             </div>"""
+    else:
+        # Only call Graph API for real Microsoft IDs
+        endpoint = f"messages/{task.email_id}"
+        email_data = _make_graph_request(endpoint, target_email)
+        
+        attachment_endpoint = f"messages/{task.email_id}/attachments"
+        attachment_data = _make_graph_request(attachment_endpoint, target_email)
+        attachments = attachment_data.get('value', [])
+        email_content = email_data.get('body', {}).get('content')
+
+    # 3. Fetch local Audit Trail
+    actions = DelegationTransactionLog.objects.filter(delegation=task).order_by('transaction_time')
 
     context = {
         'task': task,
-        'email_body': email_content,
+        'email_body': mark_safe(email_content) if email_content else "No content available.",
         'attachments': attachments,
         'actions': actions,
     }
@@ -1703,52 +1619,90 @@ def outlook_view_thread(request, delegation_id):
 @login_required
 def download_acvv_email(request, delegation_id):
     """
-    Fetches raw MIME content from Outlook and serves it as a downloadable .eml file.
-    Includes validation to prevent malformed ID errors on placeholder records.
+    Fetches raw MIME content from Outlook OR generates a local .eml file 
+    using the new body and attachment fields in EmailDelegation.
     """
     import requests
+    import os
     from django.conf import settings
     from .services.outlook_graph_service import get_current_access_token
+    from django.utils.text import slugify
+    from email.message import EmailMessage
+    from email.utils import make_msgid 
 
-    # 1. Validation: If the ID is one of our placeholders, don't call Microsoft.
-    if delegation_id.startswith('SENT-') or delegation_id.startswith('LOCAL-'):
-        messages.warning(request, "Live download is unavailable for this record. Please check the local file attachment.")
+    # 1. ID RESOLUTION
+    try:
+        if str(delegation_id).isdigit():
+            task = get_object_or_404(EmailDelegation, pk=delegation_id)
+            ms_id = task.email_id
+        else:
+            task = get_object_or_404(EmailDelegation, email_id=delegation_id)
+            ms_id = delegation_id
+    except Exception:
+        messages.error(request, "Task record not found.")
         return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
 
-    # 2. Get local record and token
-    task = get_object_or_404(EmailDelegation, email_id=delegation_id) 
-    ms_id = task.email_id 
+    # 2. LOCAL GENERATION (For SENT- or LOCAL- IDs)
+    if ms_id.startswith('SENT-') or ms_id.startswith('LOCAL-'):
+        msg = EmailMessage()
+        msg['Subject'] = task.subject
+        msg['From'] = task.sender_address or settings.OUTLOOK_EMAIL_ADDRESS
+        msg['To'] = "Recipient (Details in App Logs)"
+        msg['Date'] = task.received_at.strftime('%a, %d %b %Y %H:%M:%S +0200') if task.received_at else ""
+        msg['Message-ID'] = make_msgid()
+        
+        # --- BODY LOGIC: Pull directly from the task object ---
+        # We no longer search ClientNotes; we use the new field we added to the model.
+        body_content = task.body if task.body else "Body content not found in record."
+        msg.set_content(body_content)
+
+        # --- ATTACHMENT LOGIC: Pull from the task object ---
+        if task.attachment:
+            try:
+                # Resolve the physical file path using .path
+                file_path = task.attachment.path
+                
+                if os.path.exists(file_path):
+                    with open(file_path, 'rb') as f:
+                        file_data = f.read()
+                        file_name = os.path.basename(file_path)
+                        
+                    # Physically add the binary file to the EML object
+                    msg.add_attachment(
+                        file_data,
+                        maintype='application',
+                        subtype='octet-stream',
+                        filename=file_name
+                    )
+            except Exception as e:
+                print(f"DEBUG DOWNLOAD ATTACHMENT ERROR: {e}")
+
+        # Return the generated .eml file
+        response = HttpResponse(msg.as_bytes(), content_type='message/rfc822')
+        response['Content-Disposition'] = f'attachment; filename="SENT_{slugify(task.subject)[:30] or "record"}.eml"'
+        return response
+
+    # 3. LIVE MICROSOFT DOWNLOAD (Keep this for real Outlook IDs)
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     access_token = get_current_access_token()
     
     if not access_token:
-        messages.error(request, "Authentication failed: Could not retrieve access token.")
+        messages.error(request, "Authentication failed: Outlook access token missing.")
         return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
 
-    # 3. Build URL for raw MIME ($value)
     url = f"https://graph.microsoft.com/v1.0/users/{target_email}/messages/{ms_id}/$value"
     headers = {'Authorization': f'Bearer {access_token}'}
 
     try:
-        # 4. Binary request
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-
-        if response.status_code == 200:
-            clean_subject = "".join([c for c in task.subject if c.isalnum() or c in (' ', '-', '_')]).strip()
-            filename = f"{clean_subject[:50] or 'email_record'}.eml"
-
-            django_response = HttpResponse(response.content, content_type='message/rfc822')
-            django_response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        res = requests.get(url, headers=headers, timeout=10)
+        if res.status_code == 200:
+            django_response = HttpResponse(res.content, content_type='message/rfc822')
+            django_response['Content-Disposition'] = f'attachment; filename="{slugify(task.subject)[:50]}.eml"'
             return django_response
-        else:
-            messages.error(request, f"Outlook returned status: {response.status_code}")
-            return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
-
     except Exception as e:
-        messages.error(request, "This email is no longer available on the Outlook server.")
-        print(f"DEBUG DOWNLOAD ERROR: {e}")
-        return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
+        messages.error(request, f"Outlook Error: {e}")
+
+    return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
     
 import openpyxl
 from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
@@ -1930,3 +1884,46 @@ def export_two_pot_tracking_acvv(request):
     response['Content-Disposition'] = f'attachment; filename="Two_Pot_Full_Tracking_{now.strftime("%Y_%m_%d")}.xlsx"'
     wb.save(response)
     return response
+
+@login_required
+def send_acvv_direct_email(request, company_code):
+    """
+    Handles the 'Compose New Email' form.
+    Now correctly saves body and attachment to EmailDelegation.
+    """
+    if request.method == 'POST':
+        recipient = request.POST.get('member_recipient_email')
+        subject = request.POST.get('member_email_subject_reply')
+        body = request.POST.get('email_body_html_content')
+        attachment = request.FILES.get('email_attachment')
+
+        if recipient and subject and body:
+            target_email = settings.OUTLOOK_EMAIL_ADDRESS
+            
+            # Send via Graph API
+            result = send_outlook_email(target_email, recipient, subject, body, content_type='Html', attachment=attachment)
+            
+            if result.get('success'):
+                acvv_record = get_object_or_404(Globalacvv, mip_names=company_code)
+                new_ms_id = result.get('message_id') or f"SENT-{timezone.now().timestamp()}"
+
+                # This will no longer throw a TypeError once Step 1 is done!
+                EmailDelegation.objects.create(
+                    email_id=new_ms_id,
+                    subject=subject,
+                    body=body, 
+                    attachment=attachment,
+                    sender_address=target_email,
+                    assigned_user=request.user,
+                    status='SENT',
+                    mip_names=acvv_record.mip_names,
+                    received_at=timezone.now(),
+                    delegated_at=timezone.now(),
+                    work_related=True,
+                    communication_type='Email'
+                )
+                messages.success(request, f"Email sent successfully to {recipient}.")
+            else:
+                messages.error(request, f"Email failed: {result.get('error')}")
+
+    return redirect('acvv_information', mip_names=company_code)
