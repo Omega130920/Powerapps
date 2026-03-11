@@ -293,15 +293,24 @@ from django.db.models import Sum, Max, Q # Ensure Max is imported
 def unity_information(request: HttpRequest, company_code):
     """
     Displays detailed information for a single record.
+    UPDATED: Integrated Bankline Logic to subtract Credit Note allocations from balance.
     UPDATED: Applied CRM_UNITY mapping pattern for robust email history retrieval.
     UPDATED: Fixed status filtering to ensure 'DEL' (Delegated) items are visible.
     UPDATED: Integrated DelegationTransactionLog to show sent replies in the history.
     """
-    from .models import EmailDelegation, DelegationTransactionLog, UnityNotes, OutlookInbox
+    from .models import (
+        EmailDelegation, DelegationTransactionLog, UnityNotes, 
+        OutlookInbox, CreditNote, BillSettlement, ReconnedBank,
+        UnityMgListing, InternalFunds, ClientNotes, UnityBill,
+        ScheduleSurplus, JournalEntry, UnityClaim
+    )
     from django.db.models import Q, Sum
     from decimal import Decimal
     from django.utils import timezone
     from django.urls import reverse
+    from django.contrib import messages
+    from django.shortcuts import render, redirect
+    from django.conf import settings
 
     # =========================================================
     # 0. DOWNLOAD HANDLER (Matches CRM_UNITY Logic)
@@ -354,14 +363,27 @@ def unity_information(request: HttpRequest, company_code):
     else:
         available_surplus_value = Decimal('0.00')
     
-    # --- Bankline Logic ---
+    # =========================================================
+    # --- UPDATED BANKLINE LOGIC: Subtracting Bill Usage AND Credit Pool ---
+    # =========================================================
     bank_lines_assigned = ReconnedBank.objects.filter(company_code=company_code).select_related('bank_line').order_by('-transaction_date')
+    
     for line in bank_lines_assigned:
-        total_settled_by_this_line = BillSettlement.objects.filter(
+        # 1. Total amount applied to Unity Bills
+        line.actual_bill_usage = BillSettlement.objects.filter(
             reconned_bank_line_id=line.id
         ).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
-        line.true_remaining_balance = line.transaction_amount - total_settled_by_this_line
-        line.is_fully_consumed = (line.true_remaining_balance <= Decimal('0.00'))
+
+        # 2. Total amount moved to Credit Notes (Overs)
+        line.credit_amount = CreditNote.objects.filter(
+            source_bank_line=line
+        ).aggregate(total=Sum('schedule_amount'))['total'] or Decimal('0.00')
+
+        # 3. Final Reconciliation Balance
+        line.true_remaining_balance = line.transaction_amount - line.actual_bill_usage - line.credit_amount
+        
+        # Use a small epsilon for floating point math safety
+        line.is_fully_consumed = (line.true_remaining_balance <= Decimal('0.009'))
         line.original_assigned_amount = line.transaction_amount 
     
     bank_lines = bank_lines_assigned
@@ -526,6 +548,8 @@ def unity_information(request: HttpRequest, company_code):
             action_note_val = request.POST.get('action_notes', 'Email Composed')
             
             if recipient and email_body_html:
+                # Assuming OutlookGraphService is imported elsewhere or available in the scope
+                from .services import OutlookGraphService 
                 response = OutlookGraphService.send_outlook_email(settings.OUTLOOK_EMAIL_ADDRESS, recipient, subject, email_body_html, 'HTML')
 
                 if response.get('success'):
@@ -609,8 +633,18 @@ def unity_billing_history(request, company_code):
     """
     Displays the billing history.
     UPDATED: Status logic now relies on G_Pre_Bill_Date and G_Schedule_Date.
+    UPDATED: Bank Line balance now accounts for Credit Note allocations.
     """
-    # Requires: from django.db.models import Sum
+    from django.db.models import Sum
+    from decimal import Decimal
+    from django.contrib import messages
+    from django.shortcuts import redirect, render
+    from .models import (
+        UnityMgListing, InternalFunds, UnityBill, BillSettlement, 
+        ReconnedBank, CreditNote
+    )
+
+    ZERO_DECIMAL = Decimal('0.00')
     
     unity_record = UnityMgListing.objects.filter(a_company_code=company_code).first()
     is_fallback = False
@@ -627,7 +661,7 @@ def unity_billing_history(request, company_code):
     billing_queryset = UnityBill.objects.filter(C_Company_Code=company_code).order_by('-A_CCDatesMonth')
     billing_records = list(billing_queryset)
 
-    # --- 3. MANUAL CALCULATION LOOP & LIST SPLIT (UPDATED STATUS LOGIC) ---
+    # --- 3. MANUAL CALCULATION LOOP & LIST SPLIT ---
     open_bills = []
     settled_bills = []
     
@@ -642,38 +676,24 @@ def unity_billing_history(request, company_code):
         remaining_balance = scheduled_amount - total_covered
         
         # --- NEW & UPDATED STATUS LOGIC ---
-        
-        # Safely fetch date fields (using getattr for robustness)
         pre_bill_date = getattr(bill, 'F_Pre_Bill_Date', None)
-        schedule_date = getattr(bill, 'G_Schedule_Date', None) # <--- USING G_Schedule_Date
+        schedule_date = getattr(bill, 'G_Schedule_Date', None) 
         
-        # 1. Final state check
         if bill.is_reconciled:
             display_status = 'RECON COMPLETE'
-        
-        # 2. Scheduled State: Schedule Date (G_Schedule_Date) AND Amount (H_Schedule_Amount) completed.
         elif schedule_date and scheduled_amount > ZERO_DECIMAL:
-            # If it's scheduled and not reconciled, check if reconciliation has started.
             if total_covered > ZERO_DECIMAL:
-                display_status = 'OPEN' # Scheduled and currently being reconciled
+                display_status = 'OPEN' 
             else:
-                display_status = 'SCHEDULED' # Scheduled but no settlements yet (new status)
-                
-        # 3. Pre-Bill State: Pre-Bill Date (G_Pre_Bill_Date) is set, but no Schedule Date.
+                display_status = 'SCHEDULED' 
         elif pre_bill_date and not schedule_date:
-            display_status = 'PRE-BILL' # New status, awaiting scheduling details
-
-        # 4. Fallback
+            display_status = 'PRE-BILL' 
         else:
-            if scheduled_amount > ZERO_DECIMAL and total_covered > ZERO_DECIMAL:
-                display_status = 'OPEN'
-            elif scheduled_amount > ZERO_DECIMAL:
+            if scheduled_amount > ZERO_DECIMAL:
                 display_status = 'OPEN'
             else:
-                display_status = 'Pre-Bill' # General state for records with no defined stage
+                display_status = 'Pre-Bill' 
                 
-        # --- END NEW & UPDATED STATUS LOGIC ---
-
         bill.temp_remaining = remaining_balance
         bill.total_covered = total_covered
         bill.display_status = display_status
@@ -683,17 +703,31 @@ def unity_billing_history(request, company_code):
         else:
             open_bills.append(bill)
 
-    # --- 4. FETCH DATA FOR THE 'BANK LINES & CREDIT' TAB ---
-    # Note: The bank lines here should use the same enhanced logic as unity_information if showing remaining balance
-    bank_lines_assigned = ReconnedBank.objects.filter(company_code=company_code).select_related('bank_line').order_by('-transaction_date')
+    # --- 4. FETCH DATA FOR THE 'BANK LINES & CREDIT' TAB (ENHANCED LOGIC) ---
+    # UPDATED: Now matches unity_information logic to subtract Credit Notes from balance
+    bank_lines_assigned = ReconnedBank.objects.filter(
+        company_code=company_code
+    ).select_related('bank_line').order_by('-transaction_date')
+
     for line in bank_lines_assigned:
-        total_settled_by_this_line = BillSettlement.objects.filter(
+        # A. Sum of usage on Unity Bills
+        actual_bill_usage = BillSettlement.objects.filter(
             reconned_bank_line_id=line.id
         ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
-        line.true_remaining_balance = line.transaction_amount - total_settled_by_this_line
-        line.is_fully_consumed = (line.true_remaining_balance <= ZERO_DECIMAL)
+
+        # B. Sum of usage moved to Credit Notes (Overs)
+        credit_amount = CreditNote.objects.filter(
+            source_bank_line=line
+        ).aggregate(total=Sum('schedule_amount'))['total'] or ZERO_DECIMAL
+
+        # C. Calculate True Remaining Balance
+        line.true_remaining_balance = line.transaction_amount - actual_bill_usage - credit_amount
+        
+        # Safety epsilon for floating point math
+        line.is_fully_consumed = (line.true_remaining_balance <= Decimal('0.009'))
+        line.original_assigned_amount = line.transaction_amount 
+
     bank_lines_data = bank_lines_assigned
-    
     credit_notes_data = CreditNote.objects.filter(member_group_code=company_code).order_by('-ccdates_month')
 
     context = {
@@ -1500,7 +1534,8 @@ def get_bank_lines_used_in_settlement(bill_record):
 def process_cash_allocation(request, company_code, bill_id):
     """
     Handles cash allocation for a single selected bank line.
-    REVISED: Ensures remainders are fully moved to CreditNote and the bank line is closed.
+    PRESERVES the original bank transaction amount (e.g., R2500) for audit.
+    Any remainder is moved to a CreditNote or New Segment, and the parent is marked as 'Exhausted'.
     """
     if request.method != 'POST':
         messages.error(request, "Invalid request method.")
@@ -1511,41 +1546,28 @@ def process_cash_allocation(request, company_code, bill_id):
     amount_to_apply_str = request.POST.get('amount_to_apply')
     should_split_and_reallocate = request.POST.get('split_and_reallocate') == 'True' 
 
-    if not selected_recon_id:
-        messages.error(request, "Allocation failed: No Bank Line selected.")
-        return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
-        
     try:
         amount_to_apply = Decimal(amount_to_apply_str) 
-        if amount_to_apply <= ZERO_DECIMAL:
-            messages.error(request, "Allocation failed: Amount must be greater than zero.")
-            return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
-            
-        # 1. Lock records
         recon_line = ReconnedBank.objects.select_for_update().get(pk=selected_recon_id, company_code=company_code)
         bill_record = UnityBill.objects.select_for_update().get(pk=bill_id, C_Company_Code=company_code)
         
-        # 2. Capacity Checks
-        line_unsettled = recon_line.transaction_amount - recon_line.amount_settled
+        # 1. Audit Check: The 'Truth' is the original transaction amount.
+        original_bank_amount = recon_line.transaction_amount
+        line_unsettled = original_bank_amount - recon_line.amount_settled
+
         if amount_to_apply > (line_unsettled + Decimal('0.0001')):
             messages.error(request, f"Allocation failed: Only R{line_unsettled:.2f} remains.")
             return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
             
-        # 3. Bill Needs Calculation
+        # 2. Bill Coverage Check
         bill_settled_agg = BillSettlement.objects.filter(unity_bill_source_id=bill_record.pk).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
         journal_total = JournalEntry.objects.filter(target_bill=bill_record).aggregate(total=Sum('amount'))['total'] or ZERO_DECIMAL
+        bill_remaining_liability = bill_record.H_Schedule_Amount - (bill_settled_agg + journal_total)
         
-        total_commitments = bill_settled_agg + journal_total
-        bill_remaining_liability = bill_record.H_Schedule_Amount - total_commitments
-        
-        # 4. Final Application Amount (Capped by bill liability)
+        # 3. Final Application Amount
         final_amount_applied = min(amount_to_apply, bill_remaining_liability)
         
-        if final_amount_applied <= ZERO_DECIMAL:
-            messages.warning(request, "This bill is already fully covered.")
-            return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
-            
-        # 5. Create Settlement (Audit Trail for the Bill)
+        # 4. Create Bill Settlement (The portion used for THIS bill)
         BillSettlement.objects.create(
             reconned_bank_line=recon_line,
             unity_bill_source=bill_record,
@@ -1555,53 +1577,45 @@ def process_cash_allocation(request, company_code, bill_id):
             original_import_bank_id=recon_line.bank_line_id,
         )
         
-        # 6. Update Source Line - Record the amount used for this specific bill
-        recon_line.amount_settled += final_amount_applied
-        
-        # 7. HANDLE REMAINDER (Overs Logic)
-        # Calculate exactly what is left on the physical bank transaction
-        amount_left_on_source = recon_line.transaction_amount - recon_line.amount_settled
+        # 5. Handle the Remainder (The "Overs")
+        amount_left_on_source = line_unsettled - final_amount_applied
         
         if amount_left_on_source > Decimal('0.009'):
             if should_split_and_reallocate:
-                # OPTION A: Hard Split to Unassigned Pool
+                # Option A: Split to a new unassigned bank line segment
                 ReconnedBank.objects.create(
                     bank_line_id=recon_line.bank_line_id,
                     company_code=None,
                     transaction_amount=amount_left_on_source,
                     transaction_date=recon_line.transaction_date,
-                    recon_status='Unreconciled - New Source',
+                    recon_status='Unreconciled - Remainder',
                     amount_settled=ZERO_DECIMAL,
                 )
-                messages.info(request, f"Remainder R{amount_left_on_source:.2f} split to unassigned pool.")
             else:
-                # OPTION B: Move to CreditNote (Overs credit line)
+                # Option B: Move to CreditNote for Manager Approval
                 CreditNote.objects.create(
                     member_group_code=company_code,
                     schedule_amount=amount_left_on_source,
-                    credit_link_status='Unlinked',
+                    credit_link_status='Pending',
                     link_request_reason="Overs credit line",
                     source_bank_line=recon_line,
-                    comment=f"Auto-generated Overs from Bank Line {recon_line.id} on Bill {bill_id}",
+                    comment=f"Overs generated from R{original_bank_amount} deposit. R{final_amount_applied} used for Bill {bill_id}",
                     processed_by=request.user.username,
                     processed_date=aware_dt,
                     ccdates_month=bill_record.A_CCDatesMonth,
                     bank_stmt_date=recon_line.transaction_date,
                     note_selection="OVERS" 
                 )
-                messages.warning(request, f"R{amount_left_on_source:.2f} moved to Available Credits as 'Overs credit line'.")
+                messages.warning(request, f"R{amount_left_on_source:.2f} moved to Manager Approval.")
 
-            # CRITICAL: Mark the original segment as fully reconciled so it disappears from 'Bank Lines' UI
-            # We set the 'transaction_amount' of this segment to what was actually settled here, 
-            # because the rest has been moved to a new CreditNote or Bank Segment.
-            recon_line.transaction_amount = recon_line.amount_settled
-            recon_line.recon_status = 'Reconciled'
-        else:
-            recon_line.recon_status = 'Reconciled'
-
+        # 6. EXHAUST THE PARENT LINE
+        # By setting settled to the original amount, (transaction - settled) = 0.
+        # But we NEVER change the transaction_amount itself.
+        recon_line.amount_settled = original_bank_amount
+        recon_line.recon_status = 'Reconciled'
         recon_line.save()
         
-        messages.success(request, f"Applied R{final_amount_applied:.2f} from Bank Line.")
+        messages.success(request, f"Applied R{final_amount_applied:.2f}. Source R{original_bank_amount} preserved.")
         return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
         
     except Exception as e:
@@ -5233,3 +5247,41 @@ def apply_available_credit(request, bill_id):
         return redirect('pre_bill_reconciliation_summary', company_code=bill.C_Company_Code, bill_id=bill.id)
     
     return redirect('dashboard')
+
+@login_required
+@transaction.atomic
+def move_bank_line_to_credit(request, recon_id):
+    """
+    Manually moves a Bank Line's remaining balance into the CreditNote (Overs) pool.
+    This sets the bank line to 'Reconciled' so it stops showing a balance.
+    """
+    recon_line = get_object_or_404(ReconnedBank, pk=recon_id)
+    company_code = recon_line.company_code
+    
+    # Calculate what is left on this specific line
+    remaining_balance = recon_line.transaction_amount - recon_line.amount_settled
+    
+    if remaining_balance <= Decimal('0.009'):
+        messages.warning(request, "This line is already fully consumed.")
+        return redirect('unity_information', company_code=company_code)
+
+    # 1. Create the 'Overs' record in the CreditNote table
+    CreditNote.objects.create(
+        member_group_code=company_code,
+        schedule_amount=remaining_balance,
+        credit_link_status='Pending', # Sent to Manager Approval
+        link_request_reason="Overs credit line",
+        source_bank_line=recon_line, 
+        comment=f"Manually moved to Credit Pool by {request.user.username}",
+        processed_by=request.user.username,
+        processed_date=timezone.now(),
+        note_selection="OVERS"
+    )
+
+    # 2. Exhaust the bank line so it shows R0.00 remaining
+    recon_line.amount_settled = recon_line.transaction_amount
+    recon_line.recon_status = 'Reconciled'
+    recon_line.save()
+
+    messages.success(request, f"R{remaining_balance} moved to Credit Pool. Awaiting Manager Approval.")
+    return redirect('unity_information', company_code=company_code)
