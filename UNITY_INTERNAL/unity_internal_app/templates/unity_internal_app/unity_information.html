@@ -477,7 +477,13 @@
             
             <table class="unity-table" style="width: 100%; border-collapse: collapse;">
                 <tbody>
-                    <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd; width: 30%;">Company Code</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{{ unity_record.a_company_code }}</td></tr>
+                    <tr>
+                        <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd; width: 30%;">Company Code</th>
+                        <td style="padding: 8px; border-bottom: 1px solid #ddd;">
+                            <span id="comp-code-text">{{ unity_record.a_company_code }}</span>
+                            <button onclick="copyToClipboard('comp-code-text')" style="background: none; border: none; cursor: pointer; margin-left: 5px;" title="Copy to clipboard">📋</button>
+                        </td>
+                    </tr>
                     <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Company Name</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{{ unity_record.b_company_name }}</td></tr>
                     <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Recon Contact 1</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{{ unity_record.recon_contact_1_name|default:"-" }} <br><small style="color:#666">{{ unity_record.recon_contact_1_email|default:"" }}</small></td></tr>
                     <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Recon Contact 2</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{{ unity_record.recon_contact_2_name|default:"-" }} <br><small style="color:#666">{{ unity_record.recon_contact_2_email|default:"" }}</small></td></tr>
@@ -490,20 +496,23 @@
                     <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Payment Method</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{{ unity_record.e_payment_method }}</td></tr>
                     <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Billing Method</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{{ unity_record.f_billing_method }}</td></tr>
                     <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Current Fiscal</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{{ unity_record.g_current_fiscal }}</td></tr>
+                    
+                    {# --- MATCHING UNITY_LIST STATUS LOGIC --- #}
                     <tr>
                         <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Current Status</th>
                         <td style="padding: 8px; border-bottom: 1px solid #ddd;">
-                            {% if unity_record.h_current_status == "RECON COMPLETE" %}
-                                <span style="background-color: #2e7d32; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.85em; font-weight: bold;">Reconciled</span>
-                            {% elif unity_record.h_current_status == "SCHEDULED" %}
-                                <span style="background-color: #0277bd; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.85em; font-weight: bold;">Schedule</span>
-                            {% elif unity_record.h_current_status == "PRE-BILL" %}
-                                <span style="background-color: #f7931e; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.85em; font-weight: bold;">Pre-Bill</span>
+                            {% if unity_record.h_current_status == 'RECON COMPLETE' %}
+                                <span style="background-color: #2e7d32; color: white; padding: 4px 15px; border-radius: 12px; font-size: 0.85em; font-weight: bold; display: inline-block; text-align: center; min-width: 100px;">Reconciled</span>
+                            {% elif unity_record.h_current_status == 'SCHEDULED' %}
+                                <span style="background-color: #0277bd; color: white; padding: 4px 15px; border-radius: 12px; font-size: 0.85em; font-weight: bold; display: inline-block; text-align: center; min-width: 100px;">Schedule</span>
+                            {% elif unity_record.h_current_status == 'PRE-BILL' %}
+                                <span style="background-color: #f7931e; color: white; padding: 4px 15px; border-radius: 12px; font-size: 0.85em; font-weight: bold; display: inline-block; text-align: center; min-width: 100px;">Pre-Bill</span>
                             {% else %}
-                                <span style="background-color: #d32f2f; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.85em; font-weight: bold;">N/A</span>
+                                <span style="background-color: #d32f2f; color: white; padding: 4px 15px; border-radius: 12px; font-size: 0.85em; font-weight: bold; display: inline-block; text-align: center; min-width: 100px;">{{ unity_record.h_current_status|default:"N/A" }}</span>
                             {% endif %}
                         </td>
                     </tr>
+                    
                     <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Arrears</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{{ unity_record.j_arrears }}</td></tr>
                 </tbody>
             </table>
@@ -513,7 +522,7 @@
         <div id="edit-mode-container" style="display: none;">
             <h2 style="margin-top: 0; color: #f57f17; border-bottom: 2px solid #f9a825; padding-bottom: 10px;">Editing Company Profile</h2>
             
-            <form method="POST" action="{% url 'unity_information' company_code=unity_record.A_Company_Code|default:unity_record.a_company_code %}">
+            <form method="POST" action="{% url 'unity_information' company_code=unity_record.a_company_code %}">
                 {% csrf_token %}
                 <input type="hidden" name="update_general_info" value="true">
                 
@@ -538,6 +547,7 @@
                         <tr><th style="padding: 8px;">Fund Status Date</th><td><input type="date" name="fund_status_date" value="{{ unity_record.fund_status_date|date:'Y-m-d' }}" class="form-input" style="width: 100%; padding: 5px;"></td></tr>
                         
                         <tr><th style="padding: 8px;">Last Recon Note</th><td><input type="text" name="last_recon_note" value="{{ unity_record.i_last_recon }}" class="form-input" style="width: 100%; padding: 5px;"></td></tr>
+                        
                         <tr><th style="padding: 8px;">Agent</th><td>
                             <select name="agent" class="form-select" style="width: 100%; padding: 5px;">
                                 <option value="karen" {% if unity_record.c_agent == 'karen' %}selected{% endif %}>karen</option>
@@ -601,6 +611,25 @@
                 </div>
             </form>
         </div>
+
+        {# --- SCRIPTS FOR TOGGLE AND CLIPBOARD --- #}
+        <script>
+            function toggleEditMode(isEdit) {
+                const viewMode = document.getElementById('view-mode-container');
+                const editMode = document.getElementById('edit-mode-container');
+                if (viewMode && editMode) {
+                    viewMode.style.display = isEdit ? 'none' : 'block';
+                    editMode.style.display = isEdit ? 'block' : 'none';
+                }
+            }
+
+            function copyToClipboard(elementId) {
+                const text = document.getElementById(elementId).innerText;
+                navigator.clipboard.writeText(text).then(() => {
+                    alert("Copied to clipboard: " + text);
+                });
+            }
+        </script>
     {% endif %}
 </div>
 

@@ -297,6 +297,7 @@ def unity_information(request: HttpRequest, company_code):
     UPDATED: Applied CRM_UNITY mapping pattern for robust email history retrieval.
     UPDATED: Fixed status filtering to ensure 'DEL' (Delegated) items are visible.
     UPDATED: Integrated DelegationTransactionLog to show sent replies in the history.
+    UPDATED: Status display logic now matches unity_list behavior.
     """
     from .models import (
         EmailDelegation, DelegationTransactionLog, UnityNotes, 
@@ -317,12 +318,9 @@ def unity_information(request: HttpRequest, company_code):
     # =========================================================
     if request.method == 'GET' and 'download_email_id' in request.GET:
         email_id = request.GET.get('download_email_id')
-        
-        # Check for legacy logs without IDs
         if not email_id or email_id == "MANUAL_SEND_SUCCESS":
             messages.warning(request, "The physical .eml file for this older record is not available.")
             return redirect('unity_information', company_code=company_code)
-            
         return redirect('download_email_file', email_id=email_id)
 
     # --- 1. Fetch Main Unity Record ---
@@ -363,164 +361,73 @@ def unity_information(request: HttpRequest, company_code):
     else:
         available_surplus_value = Decimal('0.00')
     
-    # =========================================================
-    # --- UPDATED BANKLINE LOGIC: Subtracting Bill Usage AND Credit Pool ---
-    # =========================================================
+    # --- Bankline Logic ---
     bank_lines_assigned = ReconnedBank.objects.filter(company_code=company_code).select_related('bank_line').order_by('-transaction_date')
-    
     for line in bank_lines_assigned:
-        # 1. Total amount applied to Unity Bills
-        line.actual_bill_usage = BillSettlement.objects.filter(
-            reconned_bank_line_id=line.id
-        ).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
-
-        # 2. Total amount moved to Credit Notes (Overs)
-        line.credit_amount = CreditNote.objects.filter(
-            source_bank_line=line
-        ).aggregate(total=Sum('schedule_amount'))['total'] or Decimal('0.00')
-
-        # 3. Final Reconciliation Balance
+        line.actual_bill_usage = BillSettlement.objects.filter(reconned_bank_line_id=line.id).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
+        line.credit_amount = CreditNote.objects.filter(source_bank_line=line).aggregate(total=Sum('schedule_amount'))['total'] or Decimal('0.00')
         line.true_remaining_balance = line.transaction_amount - line.actual_bill_usage - line.credit_amount
-        
-        # Use a small epsilon for floating point math safety
         line.is_fully_consumed = (line.true_remaining_balance <= Decimal('0.009'))
         line.original_assigned_amount = line.transaction_amount 
     
     bank_lines = bank_lines_assigned
     credit_notes = CreditNote.objects.filter(member_group_code=company_code).order_by('-ccdates_month')
 
-    # --- Fetch Company Claims with Outlook Previews ---
+    # --- Fetch Company Claims ---
     try:
-        company_claims = UnityClaim.objects.filter(
-            company_code=company_code
-        ).prefetch_related('notes').order_by('-claim_created_date', 'member_surname')
-        
+        company_claims = UnityClaim.objects.filter(company_code=company_code).prefetch_related('notes').order_by('-claim_created_date', 'member_surname')
         delegation_pks = [c.linked_email_id for c in company_claims if c.linked_email_id]
-        
         if delegation_pks:
             delegations_map = EmailDelegation.objects.in_bulk(delegation_pks)
             outlook_string_ids = [d.email_id for d in delegations_map.values()]
             inbox_map = OutlookInbox.objects.in_bulk(outlook_string_ids)
-
             for claim in company_claims:
                 if claim.linked_email_id:
                     del_obj = delegations_map.get(int(claim.linked_email_id))
                     if del_obj:
                         inbox_item = inbox_map.get(del_obj.email_id)
                         if inbox_item:
-                            claim.email_preview_subject = inbox_item.subject
-                            claim.email_preview_sender = inbox_item.sender_address
-                            claim.email_preview_body = inbox_item.body_content
-                            claim.email_preview_date = inbox_item.received_at
+                            claim.email_preview_subject, claim.email_preview_sender, claim.email_preview_body, claim.email_preview_date = inbox_item.subject, inbox_item.sender_address, inbox_item.body_content, inbox_item.received_at
     except Exception:
         company_claims = []
     
-    # --- 3. Fetch Communication Logs (Excluding Sent Email) ---
     try:
         communication_logs = UnityNotes.objects.filter(member_group_code=lookup_code).filter(~Q(communication_type='Sent Email')).order_by('-date')
     except Exception:
         communication_logs = []
     
-    # --- 4. Build Unified Email History (CRM_UNITY Mapping Style) ---
+    # --- 4. Build Unified Email History ---
     combined_email_log = []
     clean_lookup = str(lookup_code).strip()
-
-    # 4.1 Fetch all delegations for this company to build maps
     all_delegations = EmailDelegation.objects.filter(company_code__iexact=clean_lookup)
     all_del_ids = [item.id for item in all_delegations]
     related_string_ids = [item.email_id for item in all_delegations]
-    
-    # Maps for thread lookups
     thread_status_map = {item.id: item.status for item in all_delegations}
     thread_email_id_map = {item.id: item.email_id for item in all_delegations}
-    
-    # Map True Arrival Timestamps from Inbox
     inbox_records = OutlookInbox.objects.filter(email_id__in=related_string_ids)
     inbox_map = {email.email_id: email.received_at for email in inbox_records}
 
-    # A. Fetch Original Items (Excluding Trash/Deleted only)
     for item in all_delegations:
-        if item.status in ['DLT', 'DELETED', 'TRASH']:
-            continue
-
+        if item.status in ['DLT', 'DELETED', 'TRASH']: continue
         is_completed = item.status in ['COMP', 'DONE', 'CLS']
-        display_type = 'Completed' if is_completed else 'Delegated'
-        
-        combined_email_log.append({
-            'timestamp': item.received_at, 
-            'arrival_timestamp': inbox_map.get(item.email_id, item.received_at),
-            'delegation_timestamp': item.delegated_at,
-            'type': 'Original', 
-            'display_type': display_type,
-            'subject': item.email_category or f"Outlook Task: {item.email_id[:12]}...",
-            'assigned_to': item.assigned_user.username if item.assigned_user else 'UNASSIGNED',
-            'status': item.status,
-            'email_id': item.email_id,
-            'action_user': 'System',
-            'badge_color': '#3f51b5',
-            'icon': '📥'
-        })
+        combined_email_log.append({'timestamp': item.received_at, 'arrival_timestamp': inbox_map.get(item.email_id, item.received_at), 'delegation_timestamp': item.delegated_at, 'type': 'Original', 'display_type': 'Completed' if is_completed else 'Delegated', 'subject': item.email_category or f"Outlook Task: {item.email_id[:12]}...", 'assigned_to': item.assigned_user.username if item.assigned_user else 'UNASSIGNED', 'status': item.status, 'email_id': item.email_id, 'action_user': 'System', 'badge_color': '#3f51b5', 'icon': '📥'})
 
-    # B. Fetch ALL Replies from Transaction Log
-    threaded_replies = DelegationTransactionLog.objects.filter(
-        delegation_id__in=all_del_ids,
-        action_type='REPLIED'
-    ).select_related('user')
-
+    threaded_replies = DelegationTransactionLog.objects.filter(delegation_id__in=all_del_ids, action_type='REPLIED').select_related('user')
     for reply in threaded_replies:
-        parent_status = thread_status_map.get(reply.delegation_id, "SENT")
-        outlook_id = thread_email_id_map.get(reply.delegation_id)
-        
-        combined_email_log.append({
-            'timestamp': reply.timestamp,
-            'arrival_timestamp': None,
-            'delegation_timestamp': None,
-            'type': 'Reply',
-            'display_type': 'Reply Sent',
-            'subject': reply.subject or "Reply to Task",
-            'assigned_to': reply.recipient_email,
-            'status': parent_status,
-            'email_id': outlook_id,
-            'action_user': reply.user.username if reply.user else 'System',
-            'badge_color': '#673ab7',
-            'icon': '📤'
-        })
+        combined_email_log.append({'timestamp': reply.timestamp, 'arrival_timestamp': None, 'delegation_timestamp': None, 'type': 'Reply', 'display_type': 'Reply Sent', 'subject': reply.subject or "Reply to Task", 'assigned_to': reply.recipient_email, 'status': thread_status_map.get(reply.delegation_id, "SENT"), 'email_id': thread_email_id_map.get(reply.delegation_id), 'action_user': reply.user.username if reply.user else 'System', 'badge_color': '#673ab7', 'icon': '📤'})
 
-    # C. Fetch Direct Emails
-    direct_emails = UnityNotes.objects.filter(
-        member_group_code__iexact=clean_lookup, 
-        communication_type='Sent Email'
-    )
-
+    direct_emails = UnityNotes.objects.filter(member_group_code__iexact=clean_lookup, communication_type='Sent Email')
     for email in direct_emails:
-        outlook_id = email.attached_email_id 
-        if not outlook_id and email.action_notes and "OUTLOOK_ID:" in email.action_notes:
-             outlook_id = email.action_notes.replace("OUTLOOK_ID:", "").strip()
+        outlook_id = email.attached_email_id or (email.action_notes.replace("OUTLOOK_ID:", "").strip() if email.action_notes and "OUTLOOK_ID:" in email.action_notes else None)
+        combined_email_log.append({'timestamp': email.date, 'arrival_timestamp': None, 'delegation_timestamp': None, 'type': 'Direct', 'display_type': 'Email sent', 'subject': email.action_notes or 'Email Sent', 'assigned_to': email.notes.split('\n')[0][:50] if email.notes else 'Recipient', 'status': 'Direct', 'email_id': outlook_id, 'action_user': email.user, 'badge_color': '#4CAF50', 'icon': '📤'})
 
-        combined_email_log.append({
-            'timestamp': email.date,
-            'arrival_timestamp': None,
-            'delegation_timestamp': None,
-            'type': 'Direct',
-            'display_type': 'Email sent',
-            'subject': email.action_notes or 'Email Sent',
-            'assigned_to': email.notes.split('\n')[0][:50] if email.notes else 'Recipient', 
-            'status': 'Direct',
-            'email_id': outlook_id,
-            'action_user': email.user,
-            'badge_color': '#4CAF50',
-            'icon': '📤'
-        })
-
-    # Sort newest first
     combined_email_log.sort(key=lambda x: x['timestamp'], reverse=True)
 
     # --- 5. Billing Logic ---
     billing_queryset = UnityBill.objects.filter(C_Company_Code=lookup_code).order_by('-A_CCDatesMonth')
     open_bills, settled_bills = [], []
     for bill in list(billing_queryset):
-        settled_sum = BillSettlement.objects.filter(unity_bill_source_id=bill.id).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
-        bill.total_covered = settled_sum
+        bill.total_covered = BillSettlement.objects.filter(unity_bill_source_id=bill.id).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
         if bill.is_reconciled:
             bill.display_status = 'RECON COMPLETE'
             bill.bankline_total = BillSettlement.objects.filter(unity_bill_source_id=bill.id, reconned_bank_line_id__isnull=False).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
@@ -532,100 +439,38 @@ def unity_information(request: HttpRequest, company_code):
             bill.display_status = 'OPEN' if bill.total_covered > Decimal('0.00') else 'SCHEDULED'
             open_bills.append(bill)
 
-    my_delegated_emails = EmailDelegation.objects.filter(
-        assigned_user=request.user
-    ).exclude(status__in=['COMP', 'CLS', 'DONE']).order_by('-received_at')
+    my_delegated_emails = EmailDelegation.objects.filter(assigned_user=request.user).exclude(status__in=['COMP', 'CLS', 'DONE']).order_by('-received_at')
 
     # --- 6. HANDLE POST REQUESTS ---
     if request.method == 'POST':
-        is_email_send = request.POST.get('email_submission_action') == 'send_email_and_log' or \
-                        request.POST.get('action') == 'send_outgoing_member_note'
-
-        if is_email_send:
-            subject = request.POST.get('member_email_subject_reply', 'Claim Update')
-            recipient = request.POST.get('member_recipient_email')
-            email_body_html = request.POST.get('email_body_html_content')
-            action_note_val = request.POST.get('action_notes', 'Email Composed')
-            
+        if request.POST.get('email_submission_action') == 'send_email_and_log' or request.POST.get('action') == 'send_outgoing_member_note':
+            subject, recipient, email_body_html, action_note_val = request.POST.get('member_email_subject_reply', 'Claim Update'), request.POST.get('member_recipient_email'), request.POST.get('email_body_html_content'), request.POST.get('action_notes', 'Email Composed')
             if recipient and email_body_html:
-                # Assuming OutlookGraphService is imported elsewhere or available in the scope
                 from .services import OutlookGraphService 
                 response = OutlookGraphService.send_outlook_email(settings.OUTLOOK_EMAIL_ADDRESS, recipient, subject, email_body_html, 'HTML')
-
                 if response.get('success'):
-                    graph_id = response.get('id', '')
-                    UnityNotes.objects.create(
-                        member_group_code=company_code,
-                        user=request.user.username,
-                        date=timezone.now(),
-                        communication_type='Sent Email', 
-                        action_notes=action_note_val[:90], 
-                        attached_email_id=graph_id, 
-                        notes=f"To: {recipient}\nSubject: {subject}\n{email_body_html}"
-                    )
-                    messages.success(request, f"Email sent via Microsoft Graph to {recipient}!")
-                else:
-                    messages.error(request, f"Graph API Error: {response.get('error')}")
-            
+                    UnityNotes.objects.create(member_group_code=company_code, user=request.user.username, date=timezone.now(), communication_type='Sent Email', action_notes=action_note_val[:90], attached_email_id=response.get('id', ''), notes=f"To: {recipient}\nSubject: {subject}\n{email_body_html}")
+                    messages.success(request, f"Email sent to {recipient}!")
+                else: messages.error(request, f"Graph API Error: {response.get('error')}")
             return redirect(f"{reverse('unity_information', kwargs={'company_code': company_code})}#email-log")
 
-        if 'update_general_info' in request.POST:
-            if unity_record and not is_fallback:
-                try:
-                    unity_record.recon_contact_1_name = request.POST.get('recon_contact_1_name')
-                    unity_record.recon_contact_1_email = request.POST.get('recon_contact_1_email')
-                    unity_record.recon_contact_2_name = request.POST.get('recon_contact_2_name')
-                    unity_record.recon_contact_2_email = request.POST.get('recon_contact_2_email')
-
-                    comm_date = request.POST.get('commencement_date')
-                    unity_record.commencement_date = comm_date if comm_date else None
-                    
-                    fund_date = request.POST.get('fund_status_date')
-                    unity_record.fund_status_date = fund_date if fund_date else None
-
-                    unity_record.fund_status = request.POST.get('fund_status')
-                    unity_record.i_last_recon = request.POST.get('last_recon_note')
-                    unity_record.c_agent = request.POST.get('agent')
-                    unity_record.d_company_status = request.POST.get('company_status')
-                    unity_record.e_payment_method = request.POST.get('payment_method')
-                    unity_record.f_billing_method = request.POST.get('billing_method')
-                    unity_record.g_current_fiscal = request.POST.get('current_fiscal')
-                    unity_record.h_current_status = request.POST.get('current_status')
-                    unity_record.j_arrears = request.POST.get('arrears')
-                    
-                    unity_record.save()
-                    messages.success(request, "General Information updated successfully.")
-                except Exception as e:
-                    messages.error(request, f"Error saving record: {e}")
-            
+        if 'update_general_info' in request.POST and unity_record and not is_fallback:
+            try:
+                unity_record.recon_contact_1_name, unity_record.recon_contact_1_email, unity_record.recon_contact_2_name, unity_record.recon_contact_2_email = request.POST.get('recon_contact_1_name'), request.POST.get('recon_contact_1_email'), request.POST.get('recon_contact_2_name'), request.POST.get('recon_contact_2_email')
+                unity_record.commencement_date = request.POST.get('commencement_date') or None
+                unity_record.fund_status_date = request.POST.get('fund_status_date') or None
+                unity_record.fund_status, unity_record.i_last_recon, unity_record.c_agent, unity_record.d_company_status, unity_record.e_payment_method, unity_record.f_billing_method, unity_record.g_current_fiscal, unity_record.h_current_status, unity_record.j_arrears = request.POST.get('fund_status'), request.POST.get('last_recon_note'), request.POST.get('agent'), request.POST.get('company_status'), request.POST.get('payment_method'), request.POST.get('billing_method'), request.POST.get('current_fiscal'), request.POST.get('current_status'), request.POST.get('arrears')
+                unity_record.save()
+                messages.success(request, "General Information updated.")
+            except Exception as e: messages.error(request, f"Error saving: {e}")
             return redirect('unity_information', company_code=company_code)
         
         elif request.POST.get('note_content') or request.POST.get('action_notes'):
-            UnityNotes.objects.create(
-                member_group_code=company_code,
-                user=request.user.username,
-                date=timezone.now(),
-                communication_type=request.POST.get('communication_type') or 'Notes Log',
-                action_notes=request.POST.get('action_notes'),
-                notes=request.POST.get('note_content')
-            )
+            UnityNotes.objects.create(member_group_code=company_code, user=request.user.username, date=timezone.now(), communication_type=request.POST.get('communication_type') or 'Notes Log', action_notes=request.POST.get('action_notes'), notes=request.POST.get('note_content'))
             messages.success(request, "Note added.")
             return redirect(f"{reverse('unity_information', kwargs={'company_code': company_code})}#notes-log")
 
-    context = {
-        'unity_record': unity_record,
-        'notes': notes, 
-        'communication_logs': communication_logs,
-        'combined_email_log': combined_email_log, 
-        'is_fallback': is_fallback,
-        'bank_lines': bank_lines,
-        'credit_notes': credit_notes,
-        'open_bills': open_bills,
-        'settled_bills': settled_bills,
-        'company_claims': company_claims,
-        'available_surplus': available_surplus_value, 
-        'my_delegated_emails': my_delegated_emails,
-    }
+    context = {'unity_record': unity_record, 'notes': notes, 'communication_logs': communication_logs, 'combined_email_log': combined_email_log, 'is_fallback': is_fallback, 'bank_lines': bank_lines, 'credit_notes': credit_notes, 'open_bills': open_bills, 'settled_bills': settled_bills, 'company_claims': company_claims, 'available_surplus': available_surplus_value, 'my_delegated_emails': my_delegated_emails}
     return render(request, 'unity_internal_app/unity_information.html', context)
 
 @login_required
@@ -4606,13 +4451,17 @@ def global_bank_view(request):
     end_date = request.GET.get('end_date')
     
     # --- 1. Fetch Physical Bank Lines ---
+    # We use select_related to join the importbank table (bank_line) immediately
     bank_qs = ReconnedBank.objects.select_related('bank_line').order_by('-transaction_date', '-id')
+    
     if start_date and end_date:
         bank_qs = bank_qs.filter(transaction_date__range=[start_date, end_date])
+    
     if query:
         bank_qs = bank_qs.filter(
             Q(company_code__icontains=query) |
-            Q(bank_line__transaction_description__icontains=query)
+            Q(bank_line__Transaction_description__icontains=query) | 
+            Q(bank_line__Statement_reference__icontains=query)
         )
 
     # --- 2. Fetch Approved Virtual Credits (The Overs) ---
@@ -4641,6 +4490,14 @@ def global_bank_view(request):
     # Map Bank Lines
     for r in bank_qs:
         mg_info = mg_map.get(r.company_code, {})
+        
+        # Robust Drill-Down Logic
+        raw_description = "No description found"
+        if r.bank_line:
+            # We try the exact DB name first, then a lowercase version just in case
+            raw_description = getattr(r.bank_line, 'Transaction_description', 
+                                     getattr(r.bank_line, 'transaction_description', "No description found"))
+
         combined_list.append({
             'id': r.id,
             'source': 'BANK',
@@ -4651,11 +4508,9 @@ def global_bank_view(request):
             'status': r.recon_status or "Unidentified",
             'company_code': r.company_code or "—",
             'company_name': mg_info.get('name', "Unassigned") if r.company_code else "—",
-            
-            # UPDATED: Pull review_note from database, fallback to "Bank Statement" if empty
             'review_note': r.review_note if r.review_note else "Bank Statement",
-            
             'agent': mg_info.get('agent', "System") if r.company_code else "—",
+            'transaction_description': raw_description,
         })
 
     # Map Approved Credits
@@ -4670,11 +4525,9 @@ def global_bank_view(request):
             'status': "APPROVED VIRTUAL",
             'company_code': c.member_group_code,
             'company_name': c.member_group_name or mg_map.get(c.member_group_code, {}).get('name', "Verified Credit"),
-            
-            # Using 'review_note' key for consistency across the unified list
             'review_note': "APPROVED OVERS",
-            
             'agent': c.authorized_by or "Manager",
+            'transaction_description': f"Virtual Credit - {c.note_selection}",
         })
 
     # Sort combined list by date

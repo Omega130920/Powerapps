@@ -60,9 +60,6 @@ tbody tr:nth-child(even){background-color:#e6ffe6;}
 <a href="{% url 'unity_information' company_code=company_code %}" class="return-button">
 ← Back to Information
 </a>
-{% if messages %}{% for message in messages %}
-<div class="alert-info text-success" style="background-color: #c8e6c9; color: #388e3c; border-left: 5px solid #4CAF50;">{{ message }}</div>
-{% endfor %}{% endif %}
 
 <div class="metrics-row">
 <div class="metric-card green">
