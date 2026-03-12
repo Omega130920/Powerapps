@@ -96,13 +96,29 @@ h3{color:#1b5e20;margin-top:30px}
             <td>R {{ recon_record.transaction_amount|floatformat:2 }}</td>
         </tr>
         <tr>
-            <th>Amount Settled / Consumed</th>
-            <td style="font-weight: bold; color: #F44336;">R {{ recon_record.amount_settled|floatformat:2 }}</td>
+            <th>Actual Bill Settlement (Consumed)</th>
+            <td style="font-weight: bold; color: #ff9800;">
+                R {{ recon_record.true_consumed_amount|floatformat:2 }}
+            </td>
         </tr>
         <tr>
-            <th>Remaining Balance Available</th>
-            <td style="font-weight: bold; color: #1b5e20;">R {{ recon_record.transaction_amount|sub:recon_record.amount_settled|floatformat:2 }}</td>
+            <th>Moved to Credit Pool (Overs)</th>
+            <td style="font-weight: bold; color: #1b5e20;">
+                R {{ recon_record.get_total_credit_moved|floatformat:2 }}
+            </td>
         </tr>
+        
+        {# Display any leftover that hasn't been dealt with yet #}
+        {% with total_out=recon_record.amount_settled %}
+        {% if recon_record.transaction_amount|sub:total_out > 0.009 %}
+        <tr>
+            <th style="background-color: #fff3e0;">Unallocated Balance</th>
+            <td style="font-weight: bold; color: #d32f2f; background-color: #fff3e0;">
+                R {{ recon_record.transaction_amount|sub:total_out|floatformat:2 }}
+            </td>
+        </tr>
+        {% endif %}
+        {% endwith %}
     </table>
 
     <h3>Source Transaction Details</h3>
@@ -178,8 +194,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const btn = document.getElementById('editBtn');
     const closeBtn = document.getElementById('closeBtn');
     const form = document.getElementById('reviewForm');
-    const emailToggle = document.getElementById('sendEmailToggle');
-    const emailFields = document.getElementById('emailFields');
     
     if (btn) btn.onclick = () => modal.style.display = "block";
     closeBtn.onclick = () => modal.style.display = "none";
@@ -188,13 +202,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (event.target == modal) modal.style.display = "none";
     }
 
-    emailToggle.addEventListener('change', function() {
-        emailFields.style.display = this.checked ? 'block' : 'none';
-    });
-    
     form.onsubmit = function(e) {
         e.preventDefault(); 
-        const isConfirmed = confirm("Are you sure you want to POST these changes? If email notification is checked, it will be sent via Microsoft Graph.");
+        const isConfirmed = confirm("Are you sure you want to POST these changes?");
         if (isConfirmed) form.submit();
     }
 });

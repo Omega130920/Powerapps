@@ -604,114 +604,104 @@
     {% endif %}
 </div>
 
-            <div id="bank-lines" class="tab-pane">
-                <h2 style="color:#388e3c; border-bottom: 2px solid #aed581; padding-bottom: 5px;">
-                    💰 Available Surplus: R {{ available_surplus|default:"0.00"|floatformat:2 }}
-                </h2>
-                <div style="margin-bottom: 20px; font-size: 0.9em; color: #555;">
-                    This figure represents the total unallocated surplus funds derived from settled bills.
-                </div>
-                
-                <h2>Associated Bank Lines (Cash Segments)</h2>
-                {% if bank_lines %}
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Segment ID</th>
-                                <th>Deposit Date</th>
-                                <th>Original Deposit</th>
-                                <th>Settled/Consumed</th>
-                                <th>Remaining Balance</th>
-                                <th>Status</th>
-                                <th>Review Note</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for line in bank_lines %}
-                                {% with remaining_balance=line.transaction_amount|sub:line.amount_settled %}
-                                <tr onclick="window.location.href='{% url 'display_bankline_review' line.id %}?source=unity'" 
-                                    style="cursor: pointer; {% if remaining_balance <= 0 %}background-color: #f0f0f0; color: #888;{% endif %}">
-                                    <td>#{{ line.id }}</td>
-                                    <td>{{ line.transaction_date|date:"Y-m-d" }}</td>
-                                    <td>R {{ line.transaction_amount|floatformat:2 }}</td>
-                                    <td style="color: #ff9800; font-weight: bold;">R {{ line.amount_settled|floatformat:2 }}</td>
-                                    <td style="color: {% if remaining_balance > 0 %}#1b5e20{% else %}#888{% endif %}; font-weight: bold;">
-                                        R {{ remaining_balance|floatformat:2 }}
-                                    </td>
-                                    <td><span class="status-tag status-{{ line.recon_status|lower|cut:' '|cut:'-' }}">{{ line.recon_status }}</span></td>
-                                    <td>{{ line.review_note|default:"-"|truncatechars:30 }}</td>
-                                    <td>
-                                        <a href="{% url 'display_bankline_review' line.id %}?source=unity" class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #3f51b5;" onclick="event.stopPropagation();">Review/Edit</a>
-                                    </td>
-                                </tr>
-                                {% endwith %}
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                {% else %}
-                    <p class="empty-message">No reconciled bank lines found for this company code.</p>
-                {% endif %}
-                
-<h2 class="credit-heading">Associated Credit Note Lines</h2>
-{% if credit_notes %}
-    <table class="credit-table">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Processed Date</th>
-                <th>Original Amount</th>
-                <th>Requested/Used</th>
-                <th style="color: #3f51b5;">Remaining Balance</th>
-                <th>Status</th>
-                <th>Action</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for note in credit_notes %}
-            <tr {% if note.credit_link_status != 'Pending' %}onclick="window.location.href='{% url 'assign_fiscal_date' note_id=note.id %}?context=info'"{% endif %} 
-                style="cursor: {% if note.credit_link_status == 'Pending' %}not-allowed{% else %}pointer{% endif %}; {% if note.credit_link_status == 'Pending' %}background-color: #fff9c4;{% endif %}">
-                
-                <td>{{ note.id }}</td>
-                <td>{{ note.processed_date|date:"Y-m-d" }}</td>
-                
-                <td>R {{ note.schedule_amount|add:note.requested_amount|floatformat:2 }}</td>
+<div id="bank-lines" class="tab-pane">
+    <h2 style="color:#388e3c; border-bottom: 2px solid #aed581; padding-bottom: 5px;">
+        💰 Available Surplus: R {{ available_surplus|default:"0.00"|floatformat:2 }}
+    </h2>
+    <div style="margin-bottom: 20px; font-size: 0.9em; color: #555;">
+        This figure represents the total unallocated surplus funds derived from settled bills.
+    </div>
+    
+    <h2>Associated Bank Lines (Cash Segments)</h2>
+    {% if bank_lines %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Segment ID</th>
+                    <th>Deposit Date</th>
+                    <th>Original Deposit</th>
+                    <th>Settled/Consumed</th>
+                    <th>Remaining Balance</th>
+                    <th>Status</th>
+                    <th>Review Note</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for line in bank_lines %}
+                    {# Logic update: Use model properties to show correct split #}
+                    <tr onclick="window.location.href='{% url 'display_bankline_review' line.id %}?source=unity'" 
+                        style="cursor: pointer; {% if line.amount_settled >= line.transaction_amount %}background-color: #f0f0f0; color: #888;{% endif %}">
+                        <td>#{{ line.id }}</td>
+                        <td>{{ line.transaction_date|date:"Y-m-d" }}</td>
+                        <td>R {{ line.transaction_amount|floatformat:2 }}</td>
+                        
+                        <td style="color: #ff9800; font-weight: bold;">
+                            R {{ line.true_consumed_amount|floatformat:2 }}
+                        </td>
 
-                <td style="color: #d32f2f; font-weight: bold;">
-                    R {{ note.requested_amount|default:"0.00"|floatformat:2 }}
-                </td>
+                        <td style="color: {% if line.get_total_credit_moved > 0 %}#1b5e20{% else %}#888{% endif %}; font-weight: bold;">
+                            R {{ line.get_total_credit_moved|floatformat:2 }}
+                        </td>
 
-                <td style="font-weight: bold; color: #1b5e20;">
-                    R {{ note.schedule_amount|default:"0.00"|floatformat:2 }}
-                </td>
+                        <td><span class="status-tag status-{{ line.recon_status|lower|cut:' '|cut:'-' }}">{{ line.recon_status }}</span></td>
+                        <td>{{ line.review_note|default:"-"|truncatechars:30 }}</td>
+                        <td>
+                            <a href="{% url 'display_bankline_review' line.id %}?source=unity" class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #3f51b5;" onclick="event.stopPropagation();">Review/Edit</a>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p class="empty-message">No reconciled bank lines found for this company code.</p>
+    {% endif %}
 
-                <td>
-                    {% if note.credit_link_status == 'Pending' %}
-                        <span class="status-tag" style="background-color: #f57f17; color: white;">PENDING APPROVAL</span>
-                    {% elif note.requested_amount > 0 and note.schedule_amount > 0 %}
-                        <span class="status-tag" style="background-color: #81c784; color: white;">PARTIALLY USED</span>
-                    {% else %}
-                        <span class="status-tag status-open">READY</span>
-                    {% endif %}
-                </td>
-
-                <td>
-                    {% if note.credit_link_status == 'Pending' %}
-                        <button class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #9e9e9e; cursor: not-allowed;" disabled>
-                            🔒 Locked
-                        </button>
-                    {% else %}
-                        <a href="{% url 'assign_fiscal_date' note_id=note.id %}?context=info" 
-                           class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #3f51b5;">
-                           {% if note.schedule_amount > 0 %}{% else %}View{% endif %}
-                        </a>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-{% endif %}
+    <h2 class="credit-heading">Associated Credit Note Lines</h2>
+    {% if credit_notes %}
+        <table class="credit-table">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Processed Date</th>
+                    <th>Original Amount</th>
+                    <th>Requested/Used</th>
+                    <th style="color: #3f51b5;">Remaining Balance</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for note in credit_notes %}
+                <tr {% if note.credit_link_status != 'Pending' %}onclick="window.location.href='{% url 'assign_fiscal_date' note_id=note.id %}?context=info'"{% endif %} 
+                    style="cursor: {% if note.credit_link_status == 'Pending' %}not-allowed{% else %}pointer{% endif %}; {% if note.credit_link_status == 'Pending' %}background-color: #fff9c4;{% endif %}">
+                    
+                    <td>{{ note.id }}</td>
+                    <td>{{ note.processed_date|date:"Y-m-d" }}</td>
+                    <td>R {{ note.schedule_amount|add:note.requested_amount|floatformat:2 }}</td>
+                    <td style="color: #d32f2f; font-weight: bold;">R {{ note.requested_amount|default:"0.00"|floatformat:2 }}</td>
+                    <td style="font-weight: bold; color: #1b5e20;">R {{ note.schedule_amount|default:"0.00"|floatformat:2 }}</td>
+                    <td>
+                        {% if note.credit_link_status == 'Pending' %}
+                            <span class="status-tag" style="background-color: #f57f17; color: white;">PENDING APPROVAL</span>
+                        {% elif note.requested_amount > 0 and note.schedule_amount > 0 %}
+                            <span class="status-tag" style="background-color: #81c784; color: white;">PARTIALLY USED</span>
+                        {% else %}
+                            <span class="status-tag status-open">READY</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if note.credit_link_status == 'Pending' %}
+                            <button class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #9e9e9e; cursor: not-allowed;" disabled>🔒 Locked</button>
+                        {% else %}
+                            <a href="{% url 'assign_fiscal_date' note_id=note.id %}?context=info" class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #3f51b5;">View</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
 </div>
 
 
@@ -1017,99 +1007,107 @@
         </div>
     </div>
 </div>
-            <div id="recon" class="tab-pane">
-                <h2 style="color:#388e3c; border-bottom: 2px solid #aed581; padding-bottom: 5px;">
-                    💰 Available Surplus: R {{ available_surplus|default:"0.00"|floatformat:2 }}
-                </h2>
-                <h2>Open Bills for Reconciliation</h2>
-                <div class="billing-buttons-container">
-                    {% with code=unity_record.A_Company_Code|default:unity_record.a_company_code %}
-                    <a href="{% url 'create_pre_bill' company_code=code %}" class="dashboard-button create-bill-button" style="padding: 10px 20px; font-size: 14px;">➕ Create New Pre-Bill</a>
-                    {% endwith %}
-                </div>
-                
-                {% if open_bills %}
-                    <div class="billing-table-container">
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Bill Date (ID)</th>
-                                    <th>Schedule Amount</th>
-                                    <th style="color: #F44336;">Unsettled Amount</th>
-                                    <th>Active Members</th>
-                                    <th>Status</th>
-                                    <th>Pre-Bill Date</th>       
-                                    <th>Schedule Date</th>
-                                    <th>Confirm Date</th>       
-                                    <th>Action</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for record in open_bills %}
-                                <tr {% if record.display_status == 'AWAITING INPUT' %}style="background-color: #fff8e1;"{% endif %}>
-                                    <td>{{ record.A_CCDatesMonth|date:"Y-m-d" }} (#{{ record.id }})</td>
-                                    <td>R {{ record.H_Schedule_Amount|default:"0.00"|floatformat:2 }}</td>
-                                    <td style="font-weight: bold; color: #F44336;">R {{ record.unsettled_amount|default:"0.00"|floatformat:2 }}</td>
-                                    <td>{{ record.E_Active_Members }}</td>
-                                    <td><span class="status-tag status-{{ record.display_status|lower|cut:' ' }}">{{ record.display_status }}</span></td>
-                                    <td>{{ record.F_Pre_Bill_Date|date:"Y-m-d"|default:"-" }}</td>   
-                                    <td>{{ record.G_Schedule_Date|date:"Y-m-d"|default:"-" }}</td>   
-                                    <td>{{ record.J_Final_Date|date:"Y-m-d"|default:"-" }}</td>   
-                                    <td>
-                                        <a href="{% url 'edit_bill' company_code=record.C_Company_Code bill_id=record.id %}" class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #3f51b5;">Edit Bill</a>
-                                        <a href="{% url 'pre_bill_reconciliation_summary' company_code=record.C_Company_Code bill_id=record.id %}" class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #3f51b5;">Recon</a>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                {% else %}
-                    <p class="empty-message">No open billing records found.</p>
-                {% endif %}
-            </div>
+<div id="recon" class="tab-pane">
+    <h2 style="color:#388e3c; border-bottom: 2px solid #aed581; padding-bottom: 5px;">
+        💰 Available Surplus: R {{ available_surplus|default:"0.00"|floatformat:2 }}
+    </h2>
+    <h2>Open Bills for Reconciliation</h2>
+    <div class="billing-buttons-container">
+        {% with code=unity_record.A_Company_Code|default:unity_record.a_company_code %}
+        <a href="{% url 'create_pre_bill' company_code=code %}" class="dashboard-button create-bill-button" style="padding: 10px 20px; font-size: 14px;">➕ Create New Pre-Bill</a>
+        {% endwith %}
+    </div>
+    
+    {% if open_bills %}
+        <div class="billing-table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Bill Date (ID)</th>
+                        <th>Schedule Amount</th>
+                        <th style="color: #F44336;">Unsettled Amount</th>
+                        <th>Active Members</th>
+                        <th>Status</th>
+                        <th>Pre-Bill Date</th>       
+                        <th>Schedule Date</th>
+                        <th>Confirm Date</th>       
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in open_bills %}
+                    <tr {% if record.display_status == 'AWAITING INPUT' %}style="background-color: #fff8e1;"{% endif %}>
+                        <td>{{ record.A_CCDatesMonth|date:"Y-m-d" }} (#{{ record.id }})</td>
+                        <td>R {{ record.H_Schedule_Amount|default:"0.00"|floatformat:2 }}</td>
+                        <td style="font-weight: bold; color: #F44336;">R {{ record.unsettled_amount|default:"0.00"|floatformat:2 }}</td>
+                        <td>{{ record.E_Active_Members }}</td>
+                        <td><span class="status-tag status-{{ record.display_status|lower|cut:' ' }}">{{ record.display_status }}</span></td>
+                        <td>{{ record.F_Pre_Bill_Date|date:"Y-m-d"|default:"-" }}</td>   
+                        <td>{{ record.G_Schedule_Date|date:"Y-m-d"|default:"-" }}</td>   
+                        <td>{{ record.J_Final_Date|date:"Y-m-d"|default:"-" }}</td>   
+                        <td>
+                            <a href="{% url 'edit_bill' company_code=record.C_Company_Code bill_id=record.id %}" class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #3f51b5;">Edit Bill</a>
+                            <a href="{% url 'pre_bill_reconciliation_summary' company_code=record.C_Company_Code bill_id=record.id %}" class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #3f51b5;">Recon</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="empty-message">No open billing records found.</p>
+    {% endif %}
+</div>
 
-            <div id="billing" class="tab-pane">
-                <h2>Settled Bill Audit History</h2>
-                {% if settled_bills %}
-                <div class="billing-table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Bill Date (ID)</th>
-                                <th>Active Members</th>
-                                <th>Schedule Amount</th>
-                                <th style="color: #388e3c; background-color: #c8e6c9;">Bankline Total</th>
-                                <th style="color: #8e3873ff; background-color: #c8e6c9;">Credit Allocated</th>
-                                <th style="color: #5e7014ff; background-color: #c8e6c9;">Surplus Allocated</th>
-                                <th style="color: #512da8; background-color: #c8e6c9;">Surplus Created</th>
-                                <th>Status</th>
-                                <th>Confirm Date</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        {% for record in settled_bills %}
-                            <tr style="background-color: #e8f5e9;">
-                                <td>{{ record.A_CCDatesMonth|date:"Y-m-d" }} (#{{ record.id }})</td>
-                                <td>{{ record.E_Active_Members }}</td>
-                                <td>R {{ record.H_Schedule_Amount|default:"0.00"|floatformat:2 }}</td>
-                                <td style="font-weight: bold; color: #388e3c;">R {{ record.bankline_total|default:"0.00"|floatformat:2 }}</td>
-                                <td style="font-weight: bold; color: #8e3873ff;">R {{ record.credit_allocated|default:"0.00"|floatformat:2 }}</td>
-                                <td style="font-weight: bold; color: #5e7014ff;">R {{ record.surplus_allocated_from_journals|default:"0.00"|floatformat:2 }}</td>
-                                <td style="font-weight: bold; color: #512da8;">R {{ record.surplus_created|default:"0.00"|floatformat:2 }}</td>
-                                <td><span class="status-tag status-{{ record.display_status|lower|cut:' ' }}">{{ record.display_status }}</span></td>
-                                <td>{{ record.J_Final_Date|date:"Y-m-d"|default:"-" }}</td>
-                                <td><a href="{% url 'settle_bill_report' company_code=record.C_Company_Code bill_id=record.id %}" class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #512da8;">View Audit Report</a></td>
-                            </tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                    <p class="empty-message">No settled billing records found.</p>
-                {% endif %}
-            </div>
+<div id="billing" class="tab-pane">
+    <h2>Settled Bill Audit History</h2>
+    {% if settled_bills %}
+    <div class="billing-table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Bill Date (ID)</th>
+                    <th>Active Members</th>
+                    <th>Schedule Amount</th>
+                    <th style="color: #388e3c; background-color: #c8e6c9;">Bank Settled (Consumed)</th>
+                    <th style="color: #8e3873ff; background-color: #f3e5f5;">Credit Allocated</th>
+                    <th style="color: #5e7014ff; background-color: #f9fbe7;">Surplus Applied</th>
+                    <th style="color: #512da8; background-color: #ede7f6;">Surplus Created (Overs)</th>
+                    <th>Status</th>
+                    <th>Confirm Date</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for record in settled_bills %}
+                <tr style="background-color: #e8f5e9;">
+                    <td>{{ record.A_CCDatesMonth|date:"Y-m-d" }} (#{{ record.id }})</td>
+                    <td>{{ record.E_Active_Members }}</td>
+                    <td>R {{ record.H_Schedule_Amount|default:"0.00"|floatformat:2 }}</td>
+                    
+                    <td style="font-weight: bold; color: #388e3c;">
+                        R {{ record.bankline_total|sub:record.total_surplus_overs|floatformat:2 }}
+                    </td>
+
+                    <td style="font-weight: bold; color: #8e3873ff;">R {{ record.credit_allocated|default:"0.00"|floatformat:2 }}</td>
+                    <td style="font-weight: bold; color: #5e7014ff;">R {{ record.surplus_allocated_from_journals|default:"0.00"|floatformat:2 }}</td>
+                    
+                    <td style="font-weight: bold; color: #512da8;">
+                        R {{ record.total_surplus_overs|floatformat:2 }}
+                    </td>
+
+                    <td><span class="status-tag status-{{ record.display_status|lower|cut:' ' }}">{{ record.display_status }}</span></td>
+                    <td>{{ record.J_Final_Date|date:"Y-m-d"|default:"-" }}</td>
+                    <td><a href="{% url 'settle_bill_report' company_code=record.C_Company_Code bill_id=record.id %}" class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #512da8;">View Audit Report</a></td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+        <p class="empty-message">No settled billing records found.</p>
+    {% endif %}
+</div>
 
             <div id="notes-log" class="tab-pane">
                 <div class="row" style="display: flex; gap: 20px; min-height: 80vh;">

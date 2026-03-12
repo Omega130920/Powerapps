@@ -6,6 +6,7 @@ from django.db import models
 from django.utils import timezone 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import User # Explicitly import User for claim notes FK
+from django.db.models import Sum
 
 User = get_user_model() # Define the User model alias (moved to the top)
 
@@ -120,39 +121,42 @@ class ImportBank(models.Model):
     def __str__(self):
         return f"Import Record: {self.account_number} on {self.date}"
 
-# --- Data Source Model 3: Unity Bill Records (CRITICAL FIX: New PK 'id') ---
 class UnityBill(models.Model):
-    """
-    Unmanaged model for Unity Bill records. PK transitioned to auto-increment 'id'.
-    """
-    # CRITICAL FIX: New Primary Key (Must exist in the database)
     id = models.AutoField(primary_key=True) 
-    
-    A_CCDatesMonth = models.DateField(db_column='A_CCDatesMonth') # No longer the PK
+    A_CCDatesMonth = models.DateField(db_column='A_CCDatesMonth')
     B_Fund_Code = models.CharField(max_length=20, db_column='B_Fund_Code', null=True, blank=True)
     C_Company_Code = models.CharField(max_length=20, db_column='C_Company_Code', null=True, blank=True)
     D_Company_Name = models.CharField(max_length=255, db_column='D_Company_Name', null=True, blank=True)
     E_Active_Members = models.IntegerField(db_column='E_Active_Members', null=True, blank=True)
-    
-    # Scheduled/Billed Amounts
     F_Pre_Bill_Date = models.DateField(null=True, blank=True, db_column='F_Pre_Bill_Date')
     G_Schedule_Date = models.DateField(null=True, blank=True, db_column='G_Schedule_Date')
     H_Schedule_Amount = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True, db_column='H_Schedule_Amount')
-    
-    # Final Submission Fields (RETAINED)
     I_Submitted_Date = models.DateField(null=True, blank=True, db_column='I_Submitted_Date')
     J_Final_Date = models.DateField(null=True, blank=True, db_column='J_Final_Date')
     is_reconciled = models.BooleanField(default=False)
-    
-    # NOTE: K_ through T_ fields removed here.
-    
+
+    # REMOVED: surplus_created (to stop the crash)
+
+    @property
+    def total_surplus_overs(self):
+        """
+        This finds the R 500 by looking at the bank lines 
+        linked to this bill via the BillSettlement table.
+        """
+        from decimal import Decimal
+        total = Decimal('0.00')
+
+        # We look at 'settled_lines' (BillSettlement records) 
+        # to find the Bank Lines used for this bill.
+        for settlement in self.settled_lines.all():
+            if settlement.reconned_bank_line:
+                # This calls the property on ReconnedBank that sums Credit Notes
+                total += settlement.reconned_bank_line.get_total_credit_moved
+        return total
+
     class Meta:
         managed = False 
         db_table = 'unity_bill'
-        verbose_name = 'Unity Bill Record'
-
-    def __str__(self):
-        return f"Bill for {self.C_Company_Code} (ID: {self.id})"
     
 from django.db import models
 from decimal import Decimal
@@ -183,8 +187,6 @@ class ReconnedBank(models.Model):
     review_note = models.CharField(max_length=255, null=True, blank=True)
     recon_status = models.CharField(max_length=50, default='Reconciled')
     
-    # REMOVED: review_note_text removed to resolve database sync issues
-    
     # CRITICAL: Tracks how much of the original transaction_amount has been paid.
     amount_settled = models.DecimalField(
         max_digits=15, 
@@ -193,6 +195,22 @@ class ReconnedBank(models.Model):
         null=False, 
         blank=False
     )
+    
+    @property
+    def get_total_credit_moved(self):
+        """Returns the sum of all credit notes created from this bank line"""
+        # Local import to prevent circular dependency issues
+        from .models import CreditNote 
+        total = CreditNote.objects.filter(source_bank_line=self).aggregate(Sum('schedule_amount'))['schedule_amount__sum']
+        return total or Decimal('0.00')
+
+    @property
+    def true_consumed_amount(self):
+        """
+        Calculates the actual amount used for bills.
+        e.g., If R1500 was exhausted, but R500 moved to credit, this returns R1000.
+        """
+        return self.amount_settled - self.get_total_credit_moved
     
     class Meta:
         managed = False  # Tells Django not to touch the DB schema

@@ -1,4 +1,5 @@
 {% load static %}
+{% load math_filters %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -27,13 +28,13 @@
     th { background-color: #e3f2fd; color: #0d47a1; padding: 10px; text-align: left; border-bottom: 2px solid #bbdefb; }
     td { padding: 10px; border-bottom: 1px solid #eee; color: #444; }
     .amount-col { text-align: right; font-family: Consolas, monospace; font-weight: bold; }
-    .fiscal-col { color: #e65100; font-weight: bold; } /* Orange for visibility */
+    .fiscal-col { color: #e65100; font-weight: bold; } 
     
     /* Totals */
     .total-row td { background-color: #fafafa; font-weight: bold; border-top: 2px solid #eee; }
     
     .grand-total-section { margin-top: 40px; border-top: 2px solid #ccc; padding-top: 20px; display: flex; justify-content: flex-end; }
-    .grand-total-table { width: 350px; }
+    .grand-total-table { width: 450px; } 
     .grand-total-table td { padding: 8px; font-size: 1.1em; }
     .final-balance { font-size: 1.4em; color: #2e7d32; font-weight: bold; border-top: 2px solid #2e7d32; }
 
@@ -77,14 +78,14 @@
             </div>
             <div class="summary-item">
                 <label>Original Scheduled Amount</label>
-                <span class="large-amount">R {{ bill.H_Schedule_Amount }}</span>
+                <span class="large-amount">R {{ bill.H_Schedule_Amount|floatformat:2 }}</span>
             </div>
         </div>
 
         {% if settlements %}
         <div class="section-heading">
             <span>Bank Line Settlements (Cash)</span>
-            <span>Total: R {{ settled_total|floatformat:2 }}</span>
+            <span>Total Cash: R {{ settled_total|floatformat:2 }}</span>
         </div>
         <table>
             <thead>
@@ -103,7 +104,7 @@
                         {{ s.reconned_bank_line.fiscal_date|date:"Y-m-d"|default:"-" }}
                     </td>
                     <td>{{ s.reconned_bank_line.bank_line.transaction_description|truncatechars:45 }}</td>
-                    <td>#{{ s.reconned_bank_line.bank_line_id }}</td>
+                    <td>#{{ s.reconned_bank_line.id }}</td>
                     <td class="amount-col">R {{ s.settled_amount|floatformat:2 }}</td>
                 </tr>
                 {% endfor %}
@@ -176,16 +177,43 @@
         <div class="grand-total-section">
             <table class="grand-total-table">
                 <tr>
+                    <td>Total Deposit Processed:</td>
+                    <td class="amount-col">
+                        R {{ settled_total|add:bill.total_surplus_overs|floatformat:2 }}
+                    </td>
+                </tr>
+
+                <tr>
                     <td>Total Schedule:</td>
                     <td class="amount-col">R {{ bill.H_Schedule_Amount|floatformat:2 }}</td>
                 </tr>
+
+                {% if bill.total_surplus_overs > 0 %}
+                <tr>
+                    <td style="color: #e65100; font-weight: bold;">Less Surplus Created (Overs):</td>
+                    <td class="amount-col" style="color: #e65100;">
+                        - R {{ bill.total_surplus_overs|floatformat:2 }}
+                    </td>
+                </tr>
+                {% endif %}
+
+                <tr>
+                    <td style="font-weight: bold; border-top: 1px solid #ccc;">Net Cash Applied:</td>
+                    <td class="amount-col" style="font-weight: bold; border-top: 1px solid #ccc;">
+                        R {{ settled_total|floatformat:2 }}
+                    </td>
+                </tr>
+
                 <tr>
                     <td>Less Total Paid:</td>
                     <td class="amount-col" style="border-bottom: 1px solid #999;">( R {{ total_paid|floatformat:2 }} )</td>
                 </tr>
+
                 <tr>
                     <td style="padding-top:10px; font-weight: bold;">Balance Remaining:</td>
-                    <td class="amount-col final-balance" style="padding-top:10px;">R 0.00</td> 
+                    <td class="amount-col final-balance" style="padding-top:10px;">
+                        R {{ settled_total|add:bill.total_surplus_overs|sub:total_paid|floatformat:2 }}
+                    </td> 
                 </tr>
 
                 {% if generated_surplus %}
