@@ -1098,9 +1098,8 @@
                     <th>Bill Date (ID)</th>
                     <th>Active Members</th>
                     <th>Schedule Amount</th>
+                    <th style="color: #1976d2; background-color: #e3f2fd;">Bank Assigned (Original)</th>
                     <th style="color: #388e3c; background-color: #c8e6c9;">Bank Settled (Consumed)</th>
-                    <th style="color: #8e3873ff; background-color: #f3e5f5;">Credit Allocated</th>
-                    <th style="color: #5e7014ff; background-color: #f9fbe7;">Surplus Applied</th>
                     <th style="color: #512da8; background-color: #ede7f6;">Surplus Created (Overs)</th>
                     <th>Status</th>
                     <th>Confirm Date</th>
@@ -1114,20 +1113,30 @@
                     <td>{{ record.E_Active_Members }}</td>
                     <td>R {{ record.H_Schedule_Amount|default:"0.00"|floatformat:2 }}</td>
                     
-                    <td style="font-weight: bold; color: #388e3c;">
-                        R {{ record.bankline_total|sub:record.total_surplus_overs|floatformat:2 }}
+                    {# --- Original amount from bank (e.g., R 1000.00) --- #}
+                    <td style="font-weight: bold; color: #1976d2;">
+                        R {{ record.bank_assigned_total|default:"0.00"|floatformat:2 }}
                     </td>
 
-                    <td style="font-weight: bold; color: #8e3873ff;">R {{ record.credit_allocated|default:"0.00"|floatformat:2 }}</td>
-                    <td style="font-weight: bold; color: #5e7014ff;">R {{ record.surplus_allocated_from_journals|default:"0.00"|floatformat:2 }}</td>
-                    
+                    {# --- Amount used for this bill (e.g., R 800) --- #}
+                    <td style="font-weight: bold; color: #388e3c;">
+                        R {{ record.bankline_total|default:"0.00"|floatformat:2 }}
+                    </td>
+
+                    {# --- The remainder moved to credits (e.g., R 200) --- #}
                     <td style="font-weight: bold; color: #512da8;">
-                        R {{ record.total_surplus_overs|floatformat:2 }}
+                        R {{ record.surplus_created|default:"0.00"|floatformat:2 }}
                     </td>
 
                     <td><span class="status-tag status-{{ record.display_status|lower|cut:' ' }}">{{ record.display_status }}</span></td>
                     <td>{{ record.J_Final_Date|date:"Y-m-d"|default:"-" }}</td>
-                    <td><a href="{% url 'settle_bill_report' company_code=record.C_Company_Code bill_id=record.id %}" class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #512da8;">View Audit Report</a></td>
+                    <td>
+                        <a href="{% url 'settle_bill_report' company_code=record.C_Company_Code bill_id=record.id %}" 
+                           class="dashboard-button" 
+                           style="padding: 5px 8px; font-size: 11px; background-color: #512da8;">
+                           View Audit Report
+                        </a>
+                    </td>
                 </tr>
             {% endfor %}
             </tbody>

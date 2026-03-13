@@ -298,6 +298,8 @@ def unity_information(request: HttpRequest, company_code):
     UPDATED: Fixed status filtering to ensure 'DEL' (Delegated) items are visible.
     UPDATED: Integrated DelegationTransactionLog to show sent replies in the history.
     UPDATED: Status display logic now matches unity_list behavior.
+    UPDATED: surplus_created now includes "Overs" moved to CreditNote table.
+    UPDATED: Added bank_assigned_total to show the original transaction amount (e.g., R 1000.00).
     """
     from .models import (
         EmailDelegation, DelegationTransactionLog, UnityNotes, 
@@ -433,7 +435,31 @@ def unity_information(request: HttpRequest, company_code):
             bill.bankline_total = BillSettlement.objects.filter(unity_bill_source_id=bill.id, reconned_bank_line_id__isnull=False).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
             bill.credit_allocated = BillSettlement.objects.filter(unity_bill_source_id=bill.id, source_credit_note_id__isnull=False).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
             bill.surplus_allocated_from_journals = JournalEntry.objects.filter(target_bill_id=bill.id).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
-            bill.surplus_created = ScheduleSurplus.objects.filter(unity_bill_source_id=bill.id).aggregate(total=Sum('surplus_amount'))['total'] or Decimal('0.00')
+            
+            # --- UPDATED: Surplus Created & Bank Assigned Total ---
+            # 1. Fetch bank lines used for THIS specific bill
+            used_line_ids = BillSettlement.objects.filter(
+                unity_bill_source_id=bill.id, 
+                reconned_bank_line_id__isnull=False
+            ).values_list('reconned_bank_line_id', flat=True)
+            
+            # 2. NEW: Calculate original bank assigned amount (e.g., R 1000.00)
+            bill.bank_assigned_total = ReconnedBank.objects.filter(
+                id__in=used_line_ids
+            ).aggregate(total=Sum('transaction_amount'))['total'] or Decimal('0.00')
+            
+            # 3. Look up Overs (credits) created from those specific lines for this period
+            overs_created = CreditNote.objects.filter(
+                source_bank_line_id__in=used_line_ids,
+                note_selection='OVERS',
+                ccdates_month=bill.A_CCDatesMonth
+            ).aggregate(total=Sum('schedule_amount'))['total'] or Decimal('0.00')
+            
+            # 4. Add any legacy surplus from the ScheduleSurplus table
+            legacy_surplus = ScheduleSurplus.objects.filter(unity_bill_source_id=bill.id).aggregate(total=Sum('surplus_amount'))['total'] or Decimal('0.00')
+            
+            bill.surplus_created = overs_created + legacy_surplus
+            
             settled_bills.append(bill)
         else:
             bill.display_status = 'OPEN' if bill.total_covered > Decimal('0.00') else 'SCHEDULED'
