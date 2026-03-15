@@ -1251,12 +1251,19 @@ def reconciliation_worksheet(request):
             for key, value in request.POST.items():
                 if key.startswith('payment_method_'):
                     row_id = key.split('_')[2]
+                    # UPDATED: Capture new LPI and Debit Success fields
                     ReconciliationWorksheet.objects.filter(pk=row_id).update(
                         company_status=request.POST.get(f'company_status_{row_id}'),
                         payment_method=request.POST.get(f'payment_method_{row_id}'),
                         arrears=request.POST.get(f'arrears_{row_id}', ''),
                         member_count_reconciled=request.POST.get(f'member_count_{row_id}', 0) or 0,
                         contribution_amount_reconciled=request.POST.get(f'amount_{row_id}', 0.00) or 0.00,
+                        
+                        # New Fields Added Here
+                        lpi_amount=request.POST.get(f'lpi_amount_{row_id}', 0.00) or 0.00,
+                        lpi_reason=request.POST.get(f'lpi_reason_{row_id}'),
+                        debit_order_success=request.POST.get(f'debit_success_{row_id}'),
+                        
                         reconciled_status=request.POST.get(f'recon_status_{row_id}'),
                         date_schedule_received=request.POST.get(f'schedule_{row_id}') or None,
                         date_confirmed_on_step=request.POST.get(f'confirmed_{row_id}') or None,
@@ -1299,19 +1306,16 @@ def reconciliation_worksheet(request):
                     fiscal_month=current_fiscal,
                     mg_name=item.mip_names,
                     mg_code=item.branch_code
-                    # FIXED: Removed payment_method assignment to prevent AttributeError
                 )
             records = ReconciliationWorksheet.objects.filter(fiscal_month=current_fiscal)
 
     # 5. SUBQUERY LOGIC FOR REQUIREMENTS 11.1 & 11.2
-    # This finds the most recent month this specific branch was Reconciled BEFORE the current view month
     last_ws_recon_sub = ReconciliationWorksheet.objects.filter(
         mg_name=OuterRef('mg_name'),
         fiscal_month__lt=current_fiscal,
         reconciled_status='Reconciled'
     ).order_by('-fiscal_month').values('fiscal_month')[:1]
 
-    # Fallback to Globalacvv notes
     acvv_member_sub = Globalacvv.objects.filter(mip_names=OuterRef('mg_name')).values('member')[:1]
     acvv_notes_sub = Globalacvv.objects.filter(mip_names=OuterRef('mg_name')).values('notes')[:1]
 
@@ -1323,7 +1327,6 @@ def reconciliation_worksheet(request):
 
     # 6. Apply Logic Loop
     for r in records:
-        # Prioritize Worksheet History (Req 11.1 & 11.2)
         if r.last_reconciled_ws:
             last_date = r.last_reconciled_ws
             r.last_fiscal_display = last_date.strftime("%B %Y")
@@ -1338,7 +1341,6 @@ def reconciliation_worksheet(request):
             last_date = None
             r.last_fiscal_display = "No Data"
 
-        # Overdue logic
         if last_date:
             diff = (current_fiscal.year - last_date.year) * 12 + (current_fiscal.month - last_date.month)
             r.is_overdue = diff >= 2

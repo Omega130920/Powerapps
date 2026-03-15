@@ -262,6 +262,13 @@ class ReconciliationWorksheet(models.Model):
     arrears = models.CharField(max_length=255, null=True, blank=True)
     member_count_reconciled = models.IntegerField(default=0)
     contribution_amount_reconciled = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    
+    # --- NEW FIELDS ---
+    lpi_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
+    lpi_reason = models.CharField(max_length=100, null=True, blank=True)
+    debit_order_success = models.CharField(max_length=10, null=True, blank=True)
+    # ------------------
+
     reconciled_status = models.CharField(max_length=50, default='Unreconciled')
     date_schedule_received = models.DateField(null=True, blank=True)
     date_confirmed_on_step = models.DateField(null=True, blank=True)
@@ -300,3 +307,4 @@ class TempExit(models.Model):
     class Meta:
         managed = False  # Tells Django not to touch the schema
         db_table = 'temp_exit'
+        

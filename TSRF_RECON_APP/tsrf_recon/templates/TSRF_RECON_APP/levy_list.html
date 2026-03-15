@@ -103,7 +103,6 @@
         tbody tr:nth-child(even) { background-color: #e6ffe6; }
         tbody tr:hover { background-color: #ccffcc; cursor: pointer; }
 
-        /* Pagination Styles */
         .pagination-container {
             display: flex;
             justify-content: center;
@@ -136,6 +135,7 @@
             <form method="get" class="filters-and-search">
                 <input type="hidden" name="billing_period_filter" value="{{ current_filters.billing_period_filter }}">
                 <input type="hidden" name="cbr_status_filter" value="{{ current_filters.cbr_status_filter }}">
+                <input type="hidden" name="agent_filter" value="{{ current_filters.agent_filter }}">
 
                 <select name="billing_period_filter" onchange="this.form.submit()">
                     <option value="">Billing Period</option>
@@ -155,10 +155,19 @@
                     {% endfor %}
                 </select>
 
+                <select name="agent_filter" onchange="this.form.submit()">
+                    <option value="">Filter by Agent</option>
+                    {% for agent in all_agents %}
+                        <option value="{{ agent }}" {% if agent == current_filters.agent_filter %}selected{% endif %}>
+                            {{ agent }}
+                        </option>
+                    {% endfor %}
+                </select>
+
                 <input type="text" name="search_query" placeholder="Search by Levy Number or Name..." value="{{ search_query }}">
                 <button type="submit">Filter/Search</button>
 
-                {% if search_query or current_filters.billing_period_filter or current_filters.cbr_status_filter %}
+                {% if search_query or current_filters.billing_period_filter or current_filters.cbr_status_filter or current_filters.agent_filter %}
                     <a href="{% url 'levy_list' %}" class="return-button" style="background: linear-gradient(to bottom, #ef5350, #d32f2f); border-radius: 25px;">Clear Filters</a>
                 {% endif %}
             </form>
@@ -173,7 +182,7 @@
                     <th>CBR Status</th>
                     <th>Overs/Unders</th>
                     <th>Due Amount</th>
-                    <th>Import Date</th>
+                    <th>Agent</th>
                 </tr>
             </thead>
             <tbody id="levy-table-body">
@@ -192,7 +201,7 @@
                     </td>
                     <td style="text-align: right;">{{ record.overs_unders|default:'0.00'|floatformat:2 }}</td>
                     <td style="text-align: right; font-weight: bold;">{{ record.due_amount|default:'0.00'|floatformat:2 }}</td>
-                    <td>{{ record.import_date|date:"Y-m-d" }}</td>
+                    <td>{{ record.agent_name|default:"Unassigned" }}</td>
                 </tr>
                 {% empty %}
                 <tr>
@@ -205,8 +214,8 @@
         {% if levy_records.paginator.num_pages > 1 %}
         <div class="pagination-container">
             {% if levy_records.has_previous %}
-                <a href="?page=1&search_query={{ search_query }}&billing_period_filter={{ current_filters.billing_period_filter }}&cbr_status_filter={{ current_filters.cbr_status_filter }}" class="return-button">« First</a>
-                <a href="?page={{ levy_records.previous_page_number }}&search_query={{ search_query }}&billing_period_filter={{ current_filters.billing_period_filter }}&cbr_status_filter={{ current_filters.cbr_status_filter }}" class="return-button">Previous</a>
+                <a href="?page=1&search_query={{ search_query }}&billing_period_filter={{ current_filters.billing_period_filter }}&cbr_status_filter={{ current_filters.cbr_status_filter }}&agent_filter={{ current_filters.agent_filter }}" class="return-button">« First</a>
+                <a href="?page={{ levy_records.previous_page_number }}&search_query={{ search_query }}&billing_period_filter={{ current_filters.billing_period_filter }}&cbr_status_filter={{ current_filters.cbr_status_filter }}&agent_filter={{ current_filters.agent_filter }}" class="return-button">Previous</a>
             {% else %}
                 <span class="return-button disabled-btn">Previous</span>
             {% endif %}
@@ -216,8 +225,8 @@
             </span>
 
             {% if levy_records.has_next %}
-                <a href="?page={{ levy_records.next_page_number }}&search_query={{ search_query }}&billing_period_filter={{ current_filters.billing_period_filter }}&cbr_status_filter={{ current_filters.cbr_status_filter }}" class="return-button">Next</a>
-                <a href="?page={{ levy_records.paginator.num_pages }}&search_query={{ search_query }}&billing_period_filter={{ current_filters.billing_period_filter }}&cbr_status_filter={{ current_filters.cbr_status_filter }}" class="return-button">Last »</a>
+                <a href="?page={{ levy_records.next_page_number }}&search_query={{ search_query }}&billing_period_filter={{ current_filters.billing_period_filter }}&cbr_status_filter={{ current_filters.cbr_status_filter }}&agent_filter={{ current_filters.agent_filter }}" class="return-button">Next</a>
+                <a href="?page={{ levy_records.paginator.num_pages }}&search_query={{ search_query }}&billing_period_filter={{ current_filters.billing_period_filter }}&cbr_status_filter={{ current_filters.cbr_status_filter }}&agent_filter={{ current_filters.agent_filter }}" class="return-button">Last »</a>
             {% else %}
                 <span class="return-button disabled-btn">Next</span>
             {% endif %}
@@ -227,7 +236,7 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // Logic for table row interaction can go here
+            // Table row interaction logic can be added here
         });
     </script>
 </body>

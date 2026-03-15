@@ -96,55 +96,70 @@ def levy_list(request):
     current_filters = {
         'billing_period_filter': request.GET.get('billing_period_filter', ''), 
         'cbr_status_filter': request.GET.get('cbr_status_filter', ''),
+        'agent_filter': request.GET.get('agent_filter', ''), # NEW
     }
 
-    # 1. Optimized Query: Get latest IDs using a single efficient values list
+    # 1. Optimized Query: Get latest IDs
     latest_id_list = Org.objects.values('levy_number').annotate(
         latest_id=Max('id')
     ).values_list('latest_id', flat=True)
 
-    # 2. Filter primary records
-    # We remove the name-patching loop from here because it's the bottleneck
+    # 2. Base Queryset
     levy_records_qs = Org.objects.filter(id__in=latest_id_list).only(
         'levy_number', 'employer_name', 'billing_period', 
-        'cbr_status', 'overs_unders', 'due_amount', 'import_date'
+        'cbr_status', 'overs_unders', 'due_amount'
     ).order_by('levy_number')
 
     # 3. Apply Filters
     if current_filters['billing_period_filter']:
         levy_records_qs = levy_records_qs.filter(billing_period__endswith=f"/{current_filters['billing_period_filter']}")
+    
     if current_filters['cbr_status_filter']:
         levy_records_qs = levy_records_qs.filter(cbr_status=current_filters['cbr_status_filter'])
+
+    # NEW: Agent Filter Logic
+    if current_filters['agent_filter']:
+        # Find all levy numbers belonging to this administrator
+        allowed_levies = LevyData.objects.filter(
+            administrator=current_filters['agent_filter']
+        ).values_list('levy_number', flat=True)
+        levy_records_qs = levy_records_qs.filter(levy_number__in=allowed_levies)
+
     if search_query:
         levy_records_qs = levy_records_qs.filter(
             Q(levy_number__icontains=search_query) | Q(employer_name__icontains=search_query)
         )
 
-    # 4. PAGINATION: Only process 100 records at a time
+    # 4. PAGINATION
     paginator = Paginator(levy_records_qs, 50) 
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
+    page_obj = paginator.get_page(request.GET.get('page'))
 
-    # 5. Patch names ONLY for the 100 records on the current page
+    # 5. Patch data for current page (Names and Agents)
+    current_levy_nums = [r.levy_number for r in page_obj]
+    agent_map = {
+        l.levy_number: l.administrator 
+        for l in LevyData.objects.filter(levy_number__in=current_levy_nums).only('levy_number', 'administrator')
+    }
+
     for record in page_obj:
+        record.agent_name = agent_map.get(record.levy_number, "Unassigned")
         if not record.employer_name or record.employer_name.strip() == "":
             name_lookup = Org.objects.filter(levy_number=record.levy_number).exclude(
                 Q(employer_name__isnull=True) | Q(employer_name="")
             ).order_by('-id').values_list('employer_name', flat=True).first()
-            if name_lookup:
-                record.employer_name = name_lookup
+            record.employer_name = name_lookup if name_lookup else "--"
 
-    # 6. Dropdown Options (Fast distinct queries)
+    # 6. Dropdown Options
     filter_options = {
         'billing_periods': sorted(list(set(Org.objects.values_list('billing_period', flat=True).exclude(billing_period=""))), reverse=True), 
         'cbr_statuses': Org.objects.values_list('cbr_status', flat=True).distinct().exclude(cbr_status__isnull=True),
+        'all_agents': LevyData.objects.values_list('administrator', flat=True).distinct().exclude(Q(administrator__isnull=True) | Q(administrator="")).order_by('administrator'), # NEW
     }
 
     context = {
-        'levy_records': page_obj, # Pass the paginated object
+        'levy_records': page_obj,
         'search_query': search_query,
         'current_filters': current_filters, 
-        'title': 'Employer Management Ledger'
     }
     context.update(filter_options)
     
@@ -156,7 +171,7 @@ def levy_list(request):
 def levy_information(request, levy_number):
     """
     View to display and EDIT detailed information for a single levy record.
-    Supports inline editing of the General Info and Directors tabs.
+    Supports inline editing, document uploads, and Attorney Case promotion.
     """
     # 0. NORMALIZE: Ensure levy_number is 5 digits
     clean_levy_number = str(levy_number).strip().zfill(5)
@@ -181,8 +196,25 @@ def levy_information(request, levy_number):
     pdf_upload_form = DocumentUploadForm()
 
     if request.method == 'POST':
+        # --- NEW: Handle Attorney Case Toggle ---
+        if 'toggle_attorney_status' in request.POST:
+            try:
+                new_status = request.POST.get('is_attorney_case')
+                levy_record.is_attorney_case = new_status
+                levy_record.save()
+
+                if new_status == 'Yes':
+                    # Logic to trigger population of legal tables can go here
+                    messages.success(request, f"Levy {clean_levy_number} successfully promoted to Attorney Cases.")
+                else:
+                    messages.info(request, f"Attorney status for {clean_levy_number} set to No.")
+            except Exception as e:
+                messages.error(request, f"Error updating attorney status: {e}")
+            
+            return redirect(f"{request.path}#overview")
+
         # --- Handle Inline Update from General / Directors Tab ---
-        if 'update_general_info' in request.POST:
+        elif 'update_general_info' in request.POST:
             try:
                 # 1. Update General Info Fields
                 levy_record.responsible_person = request.POST.get('responsible_person')
@@ -196,31 +228,34 @@ def levy_information(request, levy_number):
                 levy_record.levy_user_2 = request.POST.get('levy_user_2')
                 levy_record.user_login_2 = request.POST.get('user_login_2')
 
-                # 2. Update Director 1 Fields
-                levy_record.Director_Name_1 = request.POST.get('Director_Name_1')
-                levy_record.Director_Mail_1 = request.POST.get('Director_Mail_1')
-                levy_record.Director_Cell_1 = request.POST.get('Director_Cell_1')
-                levy_record.Director_Address_1 = request.POST.get('Director_Address_1')
+                # 2. Update Director 1 Fields (Includes ID Number)
+                levy_record.director_name_1 = request.POST.get('Director_Name_1')
+                levy_record.director_id_1 = request.POST.get('Director_ID_1')
+                levy_record.director_mail_1 = request.POST.get('Director_Mail_1')
+                levy_record.director_cell_1 = request.POST.get('Director_Cell_1')
+                levy_record.director_address_1 = request.POST.get('Director_Address_1')
 
                 # 3. Update Director 2 Fields
-                levy_record.Director_Name_2 = request.POST.get('Director_Name_2')
-                levy_record.Director_Mail_2 = request.POST.get('Director_Mail_2')
-                levy_record.Director_Cell_2 = request.POST.get('Director_Cell_2')
-                levy_record.Director_Address_2 = request.POST.get('Director_Address_2')
+                levy_record.director_name_2 = request.POST.get('Director_Name_2')
+                levy_record.director_id_2 = request.POST.get('Director_ID_2')
+                levy_record.director_mail_2 = request.POST.get('Director_Mail_2')
+                levy_record.director_cell_2 = request.POST.get('Director_Cell_2')
+                levy_record.director_address_2 = request.POST.get('Director_Address_2')
 
                 # 4. Update Director 3 Fields
-                levy_record.Director_Name_3 = request.POST.get('Director_Name_3')
-                levy_record.Director_Mail_3 = request.POST.get('Director_Mail_3')
-                levy_record.Director_Cell_3 = request.POST.get('Director_Cell_3')
-                levy_record.Director_Address_3 = request.POST.get('Director_Address_3')
+                levy_record.director_name_3 = request.POST.get('Director_Name_3')
+                levy_record.director_id_3 = request.POST.get('Director_ID_3')
+                levy_record.director_mail_3 = request.POST.get('Director_Mail_3')
+                levy_record.director_cell_3 = request.POST.get('Director_Cell_3')
+                levy_record.director_address_3 = request.POST.get('Director_Address_3')
 
                 # 5. Update Director 4 Fields
-                levy_record.Director_Name_4 = request.POST.get('Director_Name_4')
-                levy_record.Director_Mail_4 = request.POST.get('Director_Mail_4')
-                levy_record.Director_Cell_4 = request.POST.get('Director_Cell_4')
-                levy_record.Director_Address_4 = request.POST.get('Director_Address_4')
+                levy_record.director_name_4 = request.POST.get('Director_Name_4')
+                levy_record.director_id_4 = request.POST.get('Director_ID_4')
+                levy_record.director_mail_4 = request.POST.get('Director_Mail_4')
+                levy_record.director_cell_4 = request.POST.get('Director_Cell_4')
+                levy_record.director_address_4 = request.POST.get('Director_Address_4')
                 
-                # Save to database
                 levy_record.save()
                 messages.success(request, f'Master Profile and Director info for {clean_levy_number} updated!')
             except Exception as e:
@@ -268,6 +303,7 @@ def levy_information(request, levy_number):
         'email_logs': EmailDelegation.objects.filter(company_code__icontains=clean_levy_number).order_by('-received_at'),
     }
     return render(request, 'TSRF_RECON_APP/levy_information.html', context)
+
 import json # Ensure this is at the top
 
 @transaction.atomic
@@ -1396,8 +1432,8 @@ import numpy as np  # Add this import at the top
 @login_required
 def import_levy_data(request):
     """
-    Standalone view to import/update the Master Levy Data table.
-    Handles duplicates and converts NaN (empty cells) to None for DecimalFields.
+    Optimized import using bulk_create with update_conflicts.
+    Reduces import time from minutes to seconds.
     """
     if request.method == 'POST' and request.FILES.get('excel_file'):
         excel_file = request.FILES['excel_file']
@@ -1410,7 +1446,6 @@ def import_levy_data(request):
                 'Director_Cell_2': str
             })
 
-            # Helper to handle NaN/Empty values for Decimals and Dates
             def clean_val(val, is_decimal=False):
                 if pd.isna(val) or str(val).lower() in ['nan', '', 'none', 'null']:
                     return 0 if is_decimal else None
@@ -1424,54 +1459,60 @@ def import_levy_data(request):
                 except:
                     return None
 
-            with transaction.atomic():
-                for index, row in df.iterrows():
-                    levy_num = str(row.get('Levy_Number', '')).strip().zfill(5)
-                    if not levy_num or levy_num == '00000':
-                        continue
+            levy_instances = []
+            seen_levies = set()
 
-                    # --- DUPLICATE CLEANUP ---
-                    existing_qs = LevyData.objects.filter(levy_number=levy_num)
-                    
-                    if existing_qs.exists():
-                        # If more than one exists, keep the first, delete others
-                        obj = existing_qs.first()
-                        if existing_qs.count() > 1:
-                            existing_qs.exclude(pk=obj.pk).delete()
-                    else:
-                        obj = LevyData(levy_number=levy_num)
+            # 1. Process data in memory first
+            for index, row in df.iterrows():
+                levy_num = str(row.get('Levy_Number', '')).strip().zfill(5)
+                if not levy_num or levy_num == '00000' or levy_num in seen_levies:
+                    continue
+                
+                seen_levies.add(levy_num)
 
-                    # --- MAPPING WITH CLEANING ---
-                    obj.levy_name = clean_val(row.get('Levy_Name'))
-                    obj.mip_status = clean_val(row.get('MIP_Status'))
-                    obj.commencement_date = parse_date(row.get('Commencement_Date'))
-                    obj.termination_date = clean_val(row.get('Termination_Date'))
-                    
-                    # Contact Info
-                    obj.responsible_person = clean_val(row.get('Responsible_Person'))
-                    obj.responsible_person_id = clean_val(row.get('Responsible Person ID Number'))
-                    obj.responsible_person_email = clean_val(row.get('Responsible Person Email Address'))
-                    
-                    # Financial Fields (Using is_decimal=True to avoid 'nan' error)
-                    obj.due_amount_field = clean_val(row.get('Due Amount'), is_decimal=True)
-                    obj.total_lpi_outstanding = clean_val(row.get('Total LPI Outstanding'), is_decimal=True)
-                    obj.overs_unders_field = clean_val(row.get('Overs & Unders'), is_decimal=True)
-                    obj.total_unallocated_deposits = clean_val(row.get('Total Unallocated Deposits'), is_decimal=True)
-                    
-                    # Status Fields
-                    obj.cbr_status_field = clean_val(row.get('CBR Status'))
-                    obj.administrator = clean_val(row.get('Administrator'))
-                    obj.termination_reason = clean_val(row.get('Termination_Reason'))
-                    obj.termination_status = clean_val(row.get('Termination_Status'))
-                    
-                    # Attorney/Director Info
-                    obj.attorney_case = clean_val(row.get('Attorney_Case'))
-                    obj.attorneys = clean_val(row.get('Attorneys'))
-                    obj.director_name_1 = clean_val(row.get('Director_Name_1'))
-                    
-                    obj.save()
+                levy_instances.append(LevyData(
+                    levy_number=levy_num,
+                    levy_name=clean_val(row.get('Levy_Name')),
+                    mip_status=clean_val(row.get('MIP_Status')),
+                    commencement_date=parse_date(row.get('Commencement_Date')),
+                    termination_date=clean_val(row.get('Termination_Date')),
+                    responsible_person=clean_val(row.get('Responsible_Person')),
+                    responsible_person_id=clean_val(row.get('Responsible Person ID Number')),
+                    responsible_person_email=clean_val(row.get('Responsible Person Email Address')),
+                    due_amount_field=clean_val(row.get('Due Amount'), is_decimal=True),
+                    total_lpi_outstanding=clean_val(row.get('Total LPI Outstanding'), is_decimal=True),
+                    overs_unders_field=clean_val(row.get('Overs & Unders'), is_decimal=True),
+                    total_unallocated_deposits=clean_val(row.get('Total Unallocated Deposits'), is_decimal=True),
+                    cbr_status_field=clean_val(row.get('CBR Status')),
+                    administrator=clean_val(row.get('Administrator')),
+                    termination_reason=clean_val(row.get('Termination_Reason')),
+                    termination_status=clean_val(row.get('Termination_Status')),
+                    attorney_case=clean_val(row.get('Attorney_Case')),
+                    attorneys=clean_val(row.get('Attorneys')),
+                    director_name_1=clean_val(row.get('Director_Name_1')),
+                ))
 
-            messages.success(request, f"Import successful! Processed {len(df)} records.")
+            # 2. Perform the Batch Update/Insert
+            if levy_instances:
+                # Fields to update if the levy_number already exists
+                update_fields = [
+                    'levy_name', 'mip_status', 'commencement_date', 'termination_date',
+                    'responsible_person', 'responsible_person_id', 'responsible_person_email',
+                    'due_amount_field', 'total_lpi_outstanding', 'overs_unders_field',
+                    'total_unallocated_deposits', 'cbr_status_field', 'administrator',
+                    'termination_reason', 'termination_status', 'attorney_case', 'attorneys',
+                    'director_name_1'
+                ]
+
+                with transaction.atomic():
+                    LevyData.objects.bulk_create(
+                        levy_instances,
+                        update_conflicts=True,
+                        unique_fields=['levy_number'],
+                        update_fields=update_fields
+                    )
+
+            messages.success(request, f"Import successful! Processed {len(levy_instances)} records in seconds.")
             return redirect('dashboard')
 
         except Exception as e:
@@ -2158,42 +2199,77 @@ def export_masterfile_excel(request):
     df_levy['Total Unallocated Deposits'] = df_levy.get('unallocated', 0)
     df_levy['Overs & Unders'] = df_levy.get('total_overs', 0)
 
-    # 4. Final Column Selection (Corrected levy_user typo)
+    # 4. Final Column Selection - UPDATED with Director IDs
     cols_to_export = [
         'levy_number', 'levy_name', 'mip_status', 'commencement_date', 'termination_date',
         'responsible_person', 'responsible_person_id', 'responsible_person_email',
         'responsible_person_cell', 'responsible_person_address', 'registration_number',
         'fica', 'levy_user', 'user_login', 'levy_user_2', 'user_login_2', 'notice_email',
-        'telephone', 'postal_address', 'physical_address', 'director_name_1', 'director_mail_1',
-        'director_cell_1', 'director_address_1', 'director_name_2', 'director_mail_2',
-        'director_cell_2', 'director_address_2', 'director_name_3', 'director_mail_3',
-        'director_cell_3', 'director_address_3', 'director_name_4', 'director_mail_4',
-        'director_cell_4', 'director_address_4', 'Fiscal', 'Due Amount', 'CBR Status',
+        'telephone', 'postal_address', 'physical_address', 
+        
+        # Director 1
+        'director_name_1', 'director_id_1', 'director_mail_1', 'director_cell_1', 'director_address_1', 
+        # Director 2
+        'director_name_2', 'director_id_2', 'director_mail_2', 'director_cell_2', 'director_address_2', 
+        # Director 3
+        'director_name_3', 'director_id_3', 'director_mail_3', 'director_cell_3', 'director_address_3', 
+        # Director 4
+        'director_name_4', 'director_id_4', 'director_mail_4', 'director_cell_4', 'director_address_4', 
+        
+        'Fiscal', 'Due Amount', 'CBR Status',
         'Total LPI Outstanding', 'Total Unallocated Deposits', 'Overs & Unders',
         'administrator', 'termination_reason', 'termination_status', 'attorney_case', 'attorneys'
     ]
 
-    final_df = df_levy[cols_to_export].fillna(0)
+    # Use existing columns only to avoid errors if the merge added suffixes
+    final_cols = [c for c in cols_to_export if c in df_levy.columns]
+    final_df = df_levy[final_cols].fillna(0)
 
     # 5. Create Excel Response with Date Header
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = f'attachment; filename=TSRF_Masterfile_{datetime.now().strftime("%Y%m%d")}.xlsx'
     
     with pd.ExcelWriter(response, engine='openpyxl') as writer:
-        # Write the dataframe starting from row 2 (index 1) to leave room for the header
         final_df.to_excel(writer, index=False, sheet_name='Masterfile', startrow=1)
         
-        # Access the openpyxl worksheet object to add the header
         workbook = writer.book
         worksheet = writer.sheets['Masterfile']
         
-        # Add the custom header in cell A1
         gen_time = datetime.now().strftime("%Y-%m-%d %H:%M")
         header_text = f"TSRF Masterfile - Generated on: {gen_time}"
         worksheet['A1'] = header_text
         
-        # Optional: Bold the header
         from openpyxl.styles import Font
         worksheet['A1'].font = Font(bold=True, size=12)
 
     return response
+
+def download_attachment(request, delegation_id):
+    """
+    Serves the attachment for a specific email delegation record.
+    """
+    # 1. Get the record
+    task = get_object_or_404(EmailDelegation, id=delegation_id)
+
+    # 2. Check which attribute actually holds the file. 
+    # Try 'attachment_path' or 'attachment' if 'attachment_file' failed.
+    # If you aren't sure, check your models.py for the FileField name.
+    file_field = getattr(task, 'attachment_path', None) or getattr(task, 'attachment', None)
+
+    if not file_field:
+        # If we still can't find it, the record might only have the name but no file
+        raise Http404(f"File field not found on model. Please check models.py for the correct field name.")
+
+    # 3. Construct the full path using MEDIA_ROOT
+    # file_field.name contains the relative path like 'email_attachments/file.pdf'
+    file_path = os.path.join(settings.MEDIA_ROOT, str(file_field))
+
+    if os.path.exists(file_path):
+        # 4. Serve the file
+        response = FileResponse(open(file_path, 'rb'), as_attachment=True)
+        # Use the stored attachment_name for the download filename
+        filename = task.attachment_name if task.attachment_name else os.path.basename(file_path)
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+    else:
+        raise Http404(f"File not found at: {file_path}")

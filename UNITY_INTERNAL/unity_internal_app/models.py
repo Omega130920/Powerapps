@@ -598,7 +598,7 @@ class UnityNotes(models.Model):
     Model for the UNMANAGED external 'unity_notes' table.
     Updated to include dedicated columns for Outlook ID and attachments.
     """
-    ID = models.AutoField(primary_key=True) # Changed to AutoField if your DB uses Auto-Increment
+    ID = models.AutoField(primary_key=True) 
     member_group_code = models.TextField(db_column='Member Group Code')
     date = models.DateTimeField()
     user = models.TextField(db_column='User')
@@ -616,6 +616,14 @@ class UnityNotes(models.Model):
     attached_file_name = models.CharField(
         max_length=255, 
         db_column='attached_file_name', 
+        null=True, 
+        blank=True
+    )
+
+    # ADDED THIS FIELD TO FIX THE TYPEERROR:
+    attached_file = models.FileField(
+        upload_to='unity_notes_attachments/', 
+        db_column='attached_file', # This must exist in your MySQL table
         null=True, 
         blank=True
     )

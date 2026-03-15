@@ -15,15 +15,14 @@ User = get_user_model()
 class LevyData(models.Model):
     """
     Model representing the 'levy data' table.
-    Updated to include new fields from Excel import.
+    Includes comprehensive profile information, director details, and legal status.
     """
     levy_number = models.CharField(db_column='Levy_Number', max_length=255, primary_key=True)
     levy_name = models.CharField(db_column='Levy_Name', max_length=255, blank=True, null=True)
     mip_status = models.CharField(db_column='MIP_Status', max_length=255, blank=True, null=True)
     commencement_date = models.DateField(db_column='Commencement_Date', blank=True, null=True)
-    termination_date = models.CharField(db_column='Termination_Date', max_length=255, blank=True, null=True) # Changed to CharField to handle Excel date variations
+    termination_date = models.CharField(db_column='Termination_Date', max_length=255, blank=True, null=True)
     
-    # Responsible Person Fields
     responsible_person = models.CharField(db_column='Responsible_Person', max_length=255, blank=True, null=True)
     responsible_person_id = models.CharField(db_column='Responsible Person ID Number', max_length=255, blank=True, null=True)
     responsible_person_email = models.CharField(db_column='Responsible Person Email Address', max_length=255, blank=True, null=True)
@@ -33,8 +32,9 @@ class LevyData(models.Model):
     registration_number = models.CharField(db_column='Registration_Number', max_length=255, blank=True, null=True)
     fica = models.CharField(db_column='FICA', max_length=255, blank=True, null=True)
     
-    # Attorney Fields
-    attorney_case = models.CharField(db_column='Attorney_Case', max_length=255, blank=True, null=True)
+    # Legal / Attorney Fields
+    # We map 'is_attorney_case' to 'Attorney_Case' for the Yes/No toggle logic
+    is_attorney_case = models.CharField(db_column='Attorney_Case', max_length=255, default='No', blank=True, null=True)
     attorneys = models.CharField(db_column='Attorneys', max_length=255, blank=True, null=True)
     
     levy_user = models.CharField(db_column='Levy_User', max_length=255, blank=True, null=True)
@@ -46,25 +46,35 @@ class LevyData(models.Model):
     postal_address = models.CharField(db_column='Postal_Address', max_length=255, blank=True, null=True)
     physical_address = models.CharField(db_column='Physical_Address', max_length=255, blank=True, null=True)
     
-    # Director Fields
+    # Director 1
     director_name_1 = models.CharField(db_column='Director_Name_1', max_length=255, blank=True, null=True)
+    director_id_1 = models.CharField(db_column='Director_ID_1', max_length=255, blank=True, null=True)
     director_mail_1 = models.CharField(db_column='Director_Mail_1', max_length=255, blank=True, null=True)
     director_cell_1 = models.CharField(db_column='Director_Cell_1', max_length=255, blank=True, null=True)
     director_address_1 = models.CharField(db_column='Director_Address_1', max_length=255, blank=True, null=True)
+    
+    # Director 2
     director_name_2 = models.CharField(db_column='Director_Name_2', max_length=255, blank=True, null=True)
+    director_id_2 = models.CharField(db_column='Director_ID_2', max_length=255, blank=True, null=True)
     director_mail_2 = models.CharField(db_column='Director_Mail_2', max_length=255, blank=True, null=True)
     director_cell_2 = models.CharField(db_column='Director_Cell_2', max_length=255, blank=True, null=True)
     director_address_2 = models.CharField(db_column='Director_Address_2', max_length=255, blank=True, null=True)
+    
+    # Director 3
     director_name_3 = models.CharField(db_column='Director_Name_3', max_length=255, blank=True, null=True)
+    director_id_3 = models.CharField(db_column='Director_ID_3', max_length=255, blank=True, null=True)
     director_mail_3 = models.CharField(db_column='Director_Mail_3', max_length=255, blank=True, null=True)
     director_cell_3 = models.CharField(db_column='Director_Cell_3', max_length=255, blank=True, null=True)
     director_address_3 = models.CharField(db_column='Director_Address_3', max_length=255, blank=True, null=True)
+    
+    # Director 4
     director_name_4 = models.CharField(db_column='Director_Name_4', max_length=255, blank=True, null=True)
+    director_id_4 = models.CharField(db_column='Director_ID_4', max_length=255, blank=True, null=True)
     director_mail_4 = models.CharField(db_column='Director_Mail_4', max_length=255, blank=True, null=True)
     director_cell_4 = models.CharField(db_column='Director_Cell_4', max_length=255, blank=True, null=True)
     director_address_4 = models.CharField(db_column='Director_Address_4', max_length=255, blank=True, null=True)
     
-    # Financial/Fiscal Fields
+    # Financial Fields
     fiscal = models.CharField(db_column='Fiscal', max_length=255, blank=True, null=True)
     due_amount_field = models.DecimalField(db_column='Due Amount', max_digits=15, decimal_places=2, blank=True, null=True)
     cbr_status_field = models.CharField(db_column='CBR Status', max_length=255, blank=True, null=True)
@@ -75,6 +85,9 @@ class LevyData(models.Model):
     administrator = models.CharField(db_column='Administrator', max_length=255, blank=True, null=True)
     termination_reason = models.CharField(db_column='Termination_Reason', max_length=255, blank=True, null=True)
     termination_status = models.CharField(db_column='Termination_Status', max_length=255, blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.levy_number} - {self.levy_name}"
 
     class Meta:
         managed = False

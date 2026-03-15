@@ -299,7 +299,9 @@ def unity_information(request: HttpRequest, company_code):
     UPDATED: Integrated DelegationTransactionLog to show sent replies in the history.
     UPDATED: Status display logic now matches unity_list behavior.
     UPDATED: surplus_created now includes "Overs" moved to CreditNote table.
-    UPDATED: Added bank_assigned_total to show the original transaction amount (e.g., R 1000.00).
+    UPDATED: Added bank_assigned_total to show the original transaction amount.
+    UPDATED: h_current_status now dynamically calculated to match unity_list priority.
+    UPDATED: Added File Upload handler for PDF attachments in UnityNotes.
     """
     from .models import (
         EmailDelegation, DelegationTransactionLog, UnityNotes, 
@@ -341,6 +343,30 @@ def unity_information(request: HttpRequest, company_code):
             return redirect('unity_list')
         is_fallback = True
         messages.warning(request, f"Full detail information is not available for {company_code}.")
+
+    # --- NEW: Dynamic Status Calculation (Matches unity_list logic) ---
+    latest_bill = UnityBill.objects.filter(C_Company_Code=lookup_code).order_by('-A_CCDatesMonth').first()
+    calculated_status = "NO BILLING"
+    
+    if latest_bill:
+        total_covered = JournalEntry.objects.filter(target_bill=latest_bill).aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
+        
+        if latest_bill.is_reconciled:
+            calculated_status = "RECON COMPLETE"
+        elif latest_bill.G_Schedule_Date and (latest_bill.H_Schedule_Amount or 0) > 0 and total_covered == 0:
+            calculated_status = "SCHEDULED"
+        elif (total_covered or 0) > 0:
+            calculated_status = "OPEN"
+        elif latest_bill.F_Pre_Bill_Date:
+            calculated_status = "PRE-BILL"
+        elif (latest_bill.H_Schedule_Amount or 0) == 0 and total_covered == 0:
+            calculated_status = "AWAITING SCHEDULE"
+        else:
+            calculated_status = "OPEN"
+    
+    # Override the database value with the calculated logic for the template
+    if unity_record:
+        unity_record.h_current_status = calculated_status
 
     # --- 2. Fetch Related Data ---
     notes = ClientNotes.objects.filter(a_company_code=company_code).order_by('-date')
@@ -436,26 +462,21 @@ def unity_information(request: HttpRequest, company_code):
             bill.credit_allocated = BillSettlement.objects.filter(unity_bill_source_id=bill.id, source_credit_note_id__isnull=False).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
             bill.surplus_allocated_from_journals = JournalEntry.objects.filter(target_bill_id=bill.id).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
             
-            # --- UPDATED: Surplus Created & Bank Assigned Total ---
-            # 1. Fetch bank lines used for THIS specific bill
             used_line_ids = BillSettlement.objects.filter(
                 unity_bill_source_id=bill.id, 
                 reconned_bank_line_id__isnull=False
             ).values_list('reconned_bank_line_id', flat=True)
             
-            # 2. NEW: Calculate original bank assigned amount (e.g., R 1000.00)
             bill.bank_assigned_total = ReconnedBank.objects.filter(
                 id__in=used_line_ids
             ).aggregate(total=Sum('transaction_amount'))['total'] or Decimal('0.00')
             
-            # 3. Look up Overs (credits) created from those specific lines for this period
             overs_created = CreditNote.objects.filter(
                 source_bank_line_id__in=used_line_ids,
                 note_selection='OVERS',
                 ccdates_month=bill.A_CCDatesMonth
             ).aggregate(total=Sum('schedule_amount'))['total'] or Decimal('0.00')
             
-            # 4. Add any legacy surplus from the ScheduleSurplus table
             legacy_surplus = ScheduleSurplus.objects.filter(unity_bill_source_id=bill.id).aggregate(total=Sum('surplus_amount'))['total'] or Decimal('0.00')
             
             bill.surplus_created = overs_created + legacy_surplus
@@ -492,8 +513,18 @@ def unity_information(request: HttpRequest, company_code):
             return redirect('unity_information', company_code=company_code)
         
         elif request.POST.get('note_content') or request.POST.get('action_notes'):
-            UnityNotes.objects.create(member_group_code=company_code, user=request.user.username, date=timezone.now(), communication_type=request.POST.get('communication_type') or 'Notes Log', action_notes=request.POST.get('action_notes'), notes=request.POST.get('note_content'))
-            messages.success(request, "Note added.")
+            # --- UPDATED: Handling PDF Uploads ---
+            pdf_file = request.FILES.get('note_pdf_attachment')
+            UnityNotes.objects.create(
+                member_group_code=company_code, 
+                user=request.user.username, 
+                date=timezone.now(), 
+                communication_type=request.POST.get('communication_type') or 'Notes Log', 
+                action_notes=request.POST.get('action_notes'), 
+                notes=request.POST.get('note_content'),
+                attached_file=pdf_file # Ensure your UnityNotes model has an 'attached_file' FileField
+            )
+            messages.success(request, "Note and attachment added.")
             return redirect(f"{reverse('unity_information', kwargs={'company_code': company_code})}#notes-log")
 
     context = {'unity_record': unity_record, 'notes': notes, 'communication_logs': communication_logs, 'combined_email_log': combined_email_log, 'is_fallback': is_fallback, 'bank_lines': bank_lines, 'credit_notes': credit_notes, 'open_bills': open_bills, 'settled_bills': settled_bills, 'company_claims': company_claims, 'available_surplus': available_surplus_value, 'my_delegated_emails': my_delegated_emails}

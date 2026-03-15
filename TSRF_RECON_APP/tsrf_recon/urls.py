@@ -73,6 +73,7 @@ urlpatterns = [
     path('get-aod-detail-ajax/<str:aod_number>/', views.get_aod_detail_ajax, name='get_aod_detail_ajax'),
     path('get-pfa-detail-ajax/<str:pfa_number>/', views.get_pfa_detail_ajax, name='get_pfa_detail_ajax'),
     path('export-masterfile/', views.export_masterfile_excel, name='export_masterfile'),
+    path('outlook/attachment/download/<int:delegation_id>/', views.download_attachment, name='download_attachment'),
 ]
 
 # This part ensures media files are accessible in your browser

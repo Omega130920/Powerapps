@@ -45,7 +45,7 @@
             background-color: #2e7d32;
         }
 
-        /* --- Original Email Card --- */
+        /* --- Email Card --- */
         .email-thread-card {
             background: #ffffff;
             border-radius: 8px;
@@ -66,10 +66,22 @@
             color: #1976d2;
         }
 
+        .meta-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            font-size: 14px;
+            color: #4a5568;
+        }
+
+        .meta-item strong { color: #2d3748; }
+
         .card-body-content {
             padding: 25px;
             line-height: 1.7;
             overflow-x: auto;
+            background-color: #fff;
+            min-height: 200px;
         }
 
         /* --- ATTACHMENT GALLERY --- */
@@ -119,14 +131,7 @@
             border: 1px solid #eee;
         }
 
-        .preview-container img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            cursor: zoom-in;
-        }
-
-        .file-icon { font-size: 35px; }
+        .file-icon { font-size: 35px; color: #607d8b; }
 
         .file-name {
             font-size: 11px;
@@ -140,7 +145,7 @@
             margin-bottom: 5px;
         }
 
-        .btn-download-small {
+        .btn-download {
             background-color: #43a047;
             color: white;
             text-decoration: none;
@@ -152,7 +157,7 @@
             text-align: center;
         }
 
-        /* --- Timeline (Audit Trail) --- */
+        /* --- Activity Timeline --- */
         .timeline-container {
             position: relative;
             padding-left: 50px;
@@ -189,7 +194,6 @@
             border: 4px solid white;
             border-radius: 50%;
             z-index: 2;
-            box-shadow: 0 0 0 3px #f4f7f6;
         }
 
         .badge-status {
@@ -202,114 +206,78 @@
             margin-bottom: 10px;
         }
 
+        .bg-tag { background-color: #e3f2fd; color: #0d47a1; }
         .bg-delegated { background-color: #ebf8ff; color: #2b6cb0; }
-        .bg-reply { background-color: #f3e5f5; color: #7b1fa2; }
-        .bg-direct { background-color: #fff3e0; color: #e65100; }
-        .bg-default { background-color: #f0fff4; color: #2f855a; }
-
-        .event-meta {
-            display: block;
-            margin-top: 10px;
-            font-size: 12px;
-            color: #718096;
-            border-top: 1px solid #f7fafc;
-            padding-top: 8px;
-        }
-
-        .event-text {
-            font-size: 14px;
-            color: #2d3748;
-            margin: 5px 0;
-        }
-        
-        .email-details-block {
-            background-color: #f8f9fa;
-            border-left: 3px solid #ccc;
-            padding: 8px 12px;
-            margin-top: 8px;
-            font-size: 0.95em;
-            color: #555;
-        }
     </style>
 </head>
 <body>
 
 <div class="thread-page-wrapper">
+
+    <a href="{% url 'download_attachment' task.id %}" class="btn-download">
+    <i class="fas fa-download"></i> Download
+</a>
     
     <div class="action-bar">
         <div>
-            <h1 style="margin:0; color: #2e7d32;">Communication History</h1>
+            <h1 style="margin:0; color: #2e7d32;">Message Details</h1>
             <p style="margin:0; color: #666;">Levy Ref: {{ task.company_code|default:"N/A" }}</p>
         </div>
-        <a href="{% url 'levy_information' task.company_code %}" class="return-button">← Back to Email History</a>
+        <a href="{% url 'levy_information' task.company_code %}" class="return-button">← Back to Levy History</a>
     </div>
 
     <div class="email-thread-card">
         <div class="card-header-main">
-            <h3>{{ task.email_id|truncatechars:100 }}</h3>
-            <div style="font-size: 14px; color: #4a5568;">
-                <strong>Log ID:</strong> {{ task.id }} <br>
-                <strong>Timestamp:</strong> {{ task.received_at|date:"d M Y, H:i" }}
+            <h3>{{ task.email_id|default:"(No Subject)" }}</h3>
+            <div class="meta-grid">
+                <div class="meta-item"><strong>Note Type:</strong> {{ task.action_note|default:"N/A" }}</div>
+                <div class="meta-item"><strong>Enquiry Type:</strong> {{ task.enquiry_type|default:"General" }}</div>
+                <div class="meta-item"><strong>Status:</strong> {{ task.status }}</div>
+                <div class="meta-item"><strong>Logged:</strong> {{ task.received_at|date:"d M Y, H:i" }}</div>
             </div>
         </div>
+
         <div class="card-body-content">
-            {{ email_body|safe }}
+            {% if task.notes %}
+                {{ task.notes|safe }}
+            {% else %}
+                <p style="color: #999; font-style: italic;">No message body found for this entry.</p>
+            {% endif %}
         </div>
 
-        {% if attachments %}
+        {% if task.attachment_name %}
         <div class="attachment-history-section">
             <strong style="display:block; margin-bottom:10px; color:#2e7d32; font-size: 14px;">
-                <i class="fas fa-paperclip"></i> Files associated with this thread:
+                <i class="fas fa-paperclip"></i> Attachment:
             </strong>
             <div class="attachment-gallery">
-                {% for att in attachments %}
                 <div class="attachment-card">
                     <div class="preview-container">
-                        {% if att.contentBytes %}
-                            <img src="data:{{ att.contentType }};base64,{{ att.contentBytes }}" 
-                                 onclick="window.open(this.src)" 
-                                 title="Click to expand"
-                                 onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                            <i class="fas fa-file-image file-icon" style="color: #607d8b; display:none;"></i>
-                        {% else %}
-                            <i class="fas fa-file-alt file-icon" style="color: #607d8b;"></i>
-                        {% endif %}
+                        <i class="fas fa-file-pdf file-icon" style="color: #e53935;"></i>
                     </div>
-                    <div class="file-name" title="{{ att.name }}">{{ att.name }}</div>
-                    <a href="#" class="btn-download-small">
+                    <div class="file-name" title="{{ task.attachment_name }}">{{ task.attachment_name }}</div>
+                    <a href="{% url 'download_attachment' task.id %}" class="btn-download">
                         <i class="fas fa-download"></i> Download
                     </a>
                 </div>
-                {% endfor %}
             </div>
         </div>
         {% endif %}
     </div>
 
-    <h2 style="font-size: 1.2em; color: #4a5568; margin-bottom: 20px; padding-left: 10px;">Activity Timeline</h2>
+    <h2 style="font-size: 1.2em; color: #4a5568; margin-bottom: 20px; padding-left: 10px;">Audit History</h2>
 
     <div class="timeline-container">
         <div class="timeline-event">
             <div class="timeline-icon" style="background-color: #2b6cb0;"></div>
-            <span class="badge-status bg-delegated">Entry Created</span>
-            <p class="event-text">
-                Communication logged and assigned to <strong>{{ task.assigned_user|default:"System" }}</strong>.
+            <span class="badge-status bg-delegated">Communication Logged</span>
+            <p style="font-size: 14px; margin: 5px 0;">
+                Entry assigned to <strong>{{ task.assigned_user|default:"System" }}</strong> under category <strong>{{ task.email_category }}</strong>.
             </p>
-            <span class="event-meta">
-                Date: {{ task.received_at|date:"d M Y, H:i" }}
-            </span>
+            <div style="font-size: 12px; color: #718096; border-top: 1px solid #f7fafc; padding-top: 8px;">
+                Timestamp: {{ task.received_at|date:"d M Y, H:i" }}
+            </div>
         </div>
-
-        {% for action in actions %}
-        <div class="timeline-event">
-            <div class="timeline-icon" style="background-color: #2f855a;"></div>
-            <span class="badge-status bg-default">{{ action.action_type|default:"Log Entry" }}</span>
-            <p class="event-text">{{ action.description }}</p>
-            <span class="event-meta">
-                Action by: <strong>{{ action.user }}</strong> | {{ action.timestamp|date:"d M Y, H:i" }}
-            </span>
-        </div>
-        {% endfor %}
     </div>
 </div>
 

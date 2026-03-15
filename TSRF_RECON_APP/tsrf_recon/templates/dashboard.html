@@ -116,20 +116,20 @@
     <h1>Welcome to TSRF RECON, {{ username }}</h1>
 
     <div class="button-container">
-        <a href="{% url 'levy_list' %}" class="button-block"><i class="fas fa-table"></i> Org Table</a>
+        <a href="{% url 'levy_list' %}" class="button-block"><i class="fas fa-table"></i> Billing Summary</a>
         <a href="{% url 'process_import' %}" class="button-block"><i class="fas fa-university"></i> Import BANK</a>
         <a href="{% url 'process_org_import' %}" class="button-block"><i class="fas fa-file-invoice"></i> Import ORG</a>
         <a href="{% url 'unreconciled_banklines' %}" class="button-block"><i class="fas fa-exclamation-triangle"></i> Unreconciled bank lines</a>
         
         <a href="{% url 'global_bank' %}" class="button-block"><i class="fas fa-book"></i> Global Bank</a>
         {% if user.username == 'omega' %}
-        <a href="{% url 'outlook_dashboard' %}" class="button-block"><i class="fas fa-envelope"></i> Email List</a>
+        <a href="{% url 'outlook_dashboard' %}" class="button-block"><i class="fas fa-envelope"></i> Delegations</a>
         {% endif %}
         <a href="{% url 'outlook_delegated_box' %}" class="button-block"><i class="fas fa-tasks"></i> My Dashboard</a>
         <a href="{% url 'outlook_recycle_bin' %}" class="button-block"><i class="fas fa-trash-alt"></i> Recycle Bin</a>
         
         <a href="{% url 'import_levy_excel' %}" class="button-block"><i class="fas fa-sync-alt"></i> Update Master</a>
-        <a href="{% url 'billing_summary' %}" class="button-block"><i class="fas fa-chart-pie"></i> Billing Summary</a>
+        <!--<a href="{% url 'billing_summary' %}" class="button-block"><i class="fas fa-chart-pie"></i> Billing Summary</a>-->
         <a href="{% url 'attorney_list' %}" class="button-block"><i class="fas fa-gavel"></i> Attorney Summary</a>
         <a href="{% url 'aod_list' %}" class="button-block"><i class="fas fa-file-contract"></i> AOD Records</a>
         

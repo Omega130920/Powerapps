@@ -497,7 +497,7 @@
                     <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Billing Method</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{{ unity_record.f_billing_method }}</td></tr>
                     <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Current Fiscal</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{{ unity_record.g_current_fiscal }}</td></tr>
                     
-                    {# --- MATCHING UNITY_LIST STATUS LOGIC --- #}
+                    {# --- VIEW MODE STATUS DISPLAY --- #}
                     <tr>
                         <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Current Status</th>
                         <td style="padding: 8px; border-bottom: 1px solid #ddd;">
@@ -590,14 +590,24 @@
 
                         <tr><th style="padding: 8px;">Current Fiscal (G)</th><td><input type="text" name="current_fiscal" value="{{ unity_record.g_current_fiscal|default:'' }}" class="form-input" style="width: 100%; padding: 5px;"></td></tr>
                         
-                        <tr><th style="padding: 8px;">Current Status (H)</th><td>
-                            <select name="current_status" class="form-select" style="width: 100%; padding: 5px;">
-                                <option value="RECON COMPLETE" {% if unity_record.h_current_status == 'RECON COMPLETE' %}selected{% endif %}>Reconciled</option>
-                                <option value="SCHEDULED" {% if unity_record.h_current_status == 'SCHEDULED' %}selected{% endif %}>Schedule</option>
-                                <option value="PRE-BILL" {% if unity_record.h_current_status == 'PRE-BILL' %}selected{% endif %}>Pre-Bill</option>
-                                <option value="OPEN" {% if unity_record.h_current_status == 'OPEN' %}selected{% endif %}>N/A</option>
-                            </select>
-                        </td></tr>
+                        {# --- UPDATED: READ-ONLY CURRENT STATUS --- #}
+                        <tr>
+                            <th style="padding: 8px;">Current Status (H)</th>
+                            <td style="padding: 8px; background-color: #f9f9f9; border-radius: 4px;">
+                                {% if unity_record.h_current_status == 'RECON COMPLETE' %}
+                                    <span style="background-color: #2e7d32; color: white; padding: 4px 15px; border-radius: 12px; font-size: 0.85em; font-weight: bold;">Reconciled</span>
+                                {% elif unity_record.h_current_status == 'SCHEDULED' %}
+                                    <span style="background-color: #0277bd; color: white; padding: 4px 15px; border-radius: 12px; font-size: 0.85em; font-weight: bold;">Schedule</span>
+                                {% elif unity_record.h_current_status == 'PRE-BILL' %}
+                                    <span style="background-color: #f7931e; color: white; padding: 4px 15px; border-radius: 12px; font-size: 0.85em; font-weight: bold;">Pre-Bill</span>
+                                {% else %}
+                                    <span style="background-color: #d32f2f; color: white; padding: 4px 15px; border-radius: 12px; font-size: 0.85em; font-weight: bold;">{{ unity_record.h_current_status|default:"N/A" }}</span>
+                                {% endif %}
+                                <small style="display: block; color: #666; margin-top: 5px; font-style: italic;">
+                                    ℹ️ Status is calculated based on the latest billing cycle and cannot be edited manually.
+                                </small>
+                            </td>
+                        </tr>
 
                         <tr><th style="padding: 8px;">Arrears (J)</th><td><input type="text" name="arrears" value="{{ unity_record.j_arrears|default:'' }}" class="form-input" style="width: 100%; padding: 5px;"></td></tr>
                     </tbody>
@@ -1147,81 +1157,98 @@
     {% endif %}
 </div>
 
-            <div id="notes-log" class="tab-pane">
-                <div class="row" style="display: flex; gap: 20px; min-height: 80vh;">
-                    <div class="col-left" style="flex: 2; min-width: 450px;">
-                        <form method="post" action="{% url 'unity_information' company_code=unity_record.A_Company_Code|default:unity_record.a_company_code %}" id="notes_master_form" enctype="multipart/form-data">
-                            {% csrf_token %}
-                            <input type="hidden" name="communication_type" id="hidden_comm_type" value="Notes Log">
-                            <h2 style="margin-top: 0; font-size: 1.8em; color: #1e88e5;">New Action / Note</h2>
-                            
-                            <div class="row" style="display: flex; gap: 15px; margin-bottom: 15px;">
-                                <div class="col-md-12" style="flex: 1;">
-                                    <div class="card card-notes-select" style="background-color: #e3f2fd; padding: 15px; border-radius: 8px;">
-                                        <label for="id_action_notes" style="font-weight: bold; display: block; margin-bottom: 5px; color: #1565c0;">Note Selector / Action:</label>
-                                        <select id="id_action_notes" name="action_notes" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" required>
-                                            <option value="" disabled selected>Select Action Note</option>
-                                            <option value="0101 BALANCE CONFIRMATION FROM SANLAM">0101 BALANCE CONFIRMATION FROM SANLAM</option>
-                                            <option value="AD HOC NOTE">AD HOC NOTE</option>
-                                            <option value="FEEDBACK TO CRM">FEEDBACK TO CRM</option>
-                                            <option value="FEEDBACK TO EMPLOYER">FEEDBACK TO EMPLOYER</option>
-                                            <option value="FEEDBACK TO SANLAM">FEEDBACK TO SANLAM</option>
-                                            <option value="INBOUND CALL">INBOUND CALL</option>
-                                            <option value="NOT FOR RECON - FW TO CORRECT DEPARTMENT">NOT FOR RECON - FW TO CORRECT DEPARTMENT</option>
-                                            <option value="OUTBOUND CALL">OUTBOUND CALL</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="add-note-form-section" id="regular-note-area" style="display: none; background-color: #f0fff0; padding: 15px; border-radius: 8px; border: 1px solid #c3e6cb;">
-                                <h3 style="margin-top: 0; font-size: 1.3em; color: #38761d;">Note Content</h3>
-                                <div style="display: flex; gap: 5px; align-items: stretch;">
-                                    <textarea name="note_content" id="regular_note_content" placeholder="Type your detailed note or log of the incoming interaction here..." style="flex-grow: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; min-height: 80px;"></textarea>
-                                    <button type="submit" name="note_submission_action" value="regular_note" id="regular_note_submit" class="add-note-button" style="padding: 8px 12px; white-space: nowrap; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; height: 100%;">Save Log</button>
-                                </div>
-                            </div>
-
-                            <div class="dialer-area" id="dialer-area" style="display: none; margin-top: 15px; padding: 15px; border: 2px dashed #38761d; border-radius: 8px; background-color: #f0fff0;">
-                                <h3 style="color: #38761d; margin-top: 0; font-size: 1.3em;">☎️ Outgoing Call Details</h3>
-                                <div style="display: flex; gap: 15px; margin-bottom: 15px;">
-                                    <div class="form-group" style="flex: 1;"><label for="dialer_number" style="font-weight: bold;">Number to Dial:</label><input type="text" id="dialer_number" name="dialer_number" placeholder="Mobile or Work Number" style="width: 100%; padding: 10px; border: 1px solid #ccc;"></div>
-                                    <div class="form-group" style="flex: 1;"><label for="call_status" style="font-weight: bold;">Call Status:</label><select id="call_status" name="call_status" style="width: 100%; padding: 8px; border: 1px solid #ccc;"><option value="">Select Outcome</option><option value="Completed - Success">Completed - Success</option><option value="Completed - Follow Up">Completed - Follow Up</option><option value="Completed - No Answer">Completed - No Answer</option></select></div>
-                                </div>
-                                <div style="text-align: center;">
-                                    <button type="button" id="trigger_call_dialer" style="padding: 10px; background-color: #4CAF50; color: white; border: none;">📞 Dial Number</button>
-                                    <input type="hidden" name="call_duration_seconds" id="call_duration_seconds" value="0">
-                                    <button type="submit" name="call_submission_action" value="log_call_note" id="call_note_submit" style="background-color: #3f51b5; color: white; border: none; padding: 10px; margin-left: 10px;">Log Outgoing Call Note</button>
-                                </div>
-                            </div>
-                        </form>
-                    </div>
-
-                    <div class="col-right" style="flex: 1; min-width: 350px; padding: 15px; background-color: #e3f2fd; border-radius: 8px; overflow-y: auto;">
-                        <h2 style="margin-top: 0; font-size: 1.5em; color: #1565c0;">Notes Log</h2>
-                        <p style="font-size: 0.9em; color: #555;">Showing Calls, Meetings, and System Notes.</p>
-                        
-                        {% if communication_logs %}
-                            {% for log in communication_logs %}
-                            <div class="note-item" style="border-left: 4px solid {% if log.communication_type == 'Incoming Call' %}#4CAF50{% elif log.communication_type == 'Outgoing Call' %}#2196F3{% else %}#795548{% endif %}; padding: 10px; margin-bottom: 10px; background-color: #fff; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
-                                <div style="font-size: 0.85em; display: flex; justify-content: space-between; color: #555;"><span style="font-weight: bold; color: #333;">{{ log.user }}</span><span>{{ log.date|date:"Y-m-d H:i" }}</span></div>
-                                <div style="font-size: 0.85em; color: #1565c0; font-weight: bold;">{{ log.communication_type }} {% if log.action_notes %} | <span style="color: #e65100;">{{ log.action_notes }}</span>{% endif %}</div>
-                                <p style="margin: 0; font-size: 0.95em; line-height: 1.4; color: #333;">{{ log.notes|linebreaksbr }}</p>
-                            </div>
-                            {% endfor %}
-                        {% else %}
-                            <p class="empty-message">No notes found.</p>
-                        {% endif %}
-                        
-                        {% if notes %}
-                        <h3 style="margin-top: 20px; font-size: 1.1em; color: #888; border-top: 1px dashed #ccc; padding-top: 10px;">Legacy Notes</h3>
-                        {% for note in notes %}
-                        <div class="note-item" style="background-color: #f9f9f9; padding: 8px; margin-bottom: 5px; border-left: 3px solid #ccc;"><small style="color: #777;">{{ note.user }} - {{ note.date|date:"Y-m-d" }}</small><p style="margin: 2px 0 0 0; font-size: 0.9em;">{{ note.notes }}</p></div>
-                        {% endfor %}
-                        {% endif %}
+<div id="notes-log" class="tab-pane">
+    <div class="row" style="display: flex; gap: 20px; min-height: 80vh;">
+        <div class="col-left" style="flex: 2; min-width: 450px;">
+            <form method="post" action="{% url 'unity_information' company_code=unity_record.A_Company_Code|default:unity_record.a_company_code %}" id="notes_master_form" enctype="multipart/form-data">
+                {% csrf_token %}
+                <input type="hidden" name="communication_type" id="hidden_comm_type" value="Notes Log">
+                <h2 style="margin-top: 0; font-size: 1.8em; color: #1e88e5;">New Action / Note</h2>
+                
+                <div class="row" style="display: flex; gap: 15px; margin-bottom: 15px;">
+                    <div class="col-md-12" style="flex: 1;">
+                        <div class="card card-notes-select" style="background-color: #e3f2fd; padding: 15px; border-radius: 8px;">
+                            <label for="id_action_notes" style="font-weight: bold; display: block; margin-bottom: 5px; color: #1565c0;">Note Selector / Action:</label>
+                            <select id="id_action_notes" name="action_notes" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" required>
+                                <option value="" disabled selected>Select Action Note</option>
+                                <option value="0101 BALANCE CONFIRMATION FROM SANLAM">0101 BALANCE CONFIRMATION FROM SANLAM</option>
+                                <option value="AD HOC NOTE">AD HOC NOTE</option>
+                                <option value="FEEDBACK TO CRM">FEEDBACK TO CRM</option>
+                                <option value="FEEDBACK TO EMPLOYER">FEEDBACK TO EMPLOYER</option>
+                                <option value="FEEDBACK TO SANLAM">FEEDBACK TO SANLAM</option>
+                                <option value="INBOUND CALL">INBOUND CALL</option>
+                                <option value="NOT FOR RECON - FW TO CORRECT DEPARTMENT">NOT FOR RECON - FW TO CORRECT DEPARTMENT</option>
+                                <option value="OUTBOUND CALL">OUTBOUND CALL</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
-            </div>
+
+                <div class="add-note-form-section" id="regular-note-area" style="display: none; background-color: #f0fff0; padding: 15px; border-radius: 8px; border: 1px solid #c3e6cb;">
+                    <h3 style="margin-top: 0; font-size: 1.3em; color: #38761d;">Note Content</h3>
+                    
+                    {# --- UPDATED: PDF Attachment Section --- #}
+                    <div style="margin-bottom: 15px; padding: 10px; background-color: #ffffff; border-radius: 4px; border: 1px dashed #4CAF50;">
+                        <label for="note_pdf_attachment" style="font-weight: bold; color: #38761d; display: block; margin-bottom: 5px;">📎 Attach Document (PDF):</label>
+                        <input type="file" name="note_pdf_attachment" id="note_pdf_attachment" accept="application/pdf" style="width: 100%; font-size: 0.9em;">
+                    </div>
+
+                    <div style="display: flex; gap: 5px; align-items: stretch;">
+                        <textarea name="note_content" id="regular_note_content" placeholder="Type your detailed note or log of the incoming interaction here..." style="flex-grow: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; min-height: 80px;"></textarea>
+                        <button type="submit" name="note_submission_action" value="regular_note" id="regular_note_submit" class="add-note-button" style="padding: 8px 12px; white-space: nowrap; background-color: #4CAF50; color: white; border: none; border-radius: 4px; cursor: pointer; height: 100%;">Save Log</button>
+                    </div>
+                </div>
+
+                <div class="dialer-area" id="dialer-area" style="display: none; margin-top: 15px; padding: 15px; border: 2px dashed #38761d; border-radius: 8px; background-color: #f0fff0;">
+                    <h3 style="color: #38761d; margin-top: 0; font-size: 1.3em;">☎️ Outgoing Call Details</h3>
+                    <div style="display: flex; gap: 15px; margin-bottom: 15px;">
+                        <div class="form-group" style="flex: 1;"><label for="dialer_number" style="font-weight: bold;">Number to Dial:</label><input type="text" id="dialer_number" name="dialer_number" placeholder="Mobile or Work Number" style="width: 100%; padding: 10px; border: 1px solid #ccc;"></div>
+                        <div class="form-group" style="flex: 1;"><label for="call_status" style="font-weight: bold;">Call Status:</label><select id="call_status" name="call_status" style="width: 100%; padding: 8px; border: 1px solid #ccc;"><option value="">Select Outcome</option><option value="Completed - Success">Completed - Success</option><option value="Completed - Follow Up">Completed - Follow Up</option><option value="Completed - No Answer">Completed - No Answer</option></select></div>
+                    </div>
+                    <div style="text-align: center;">
+                        <button type="button" id="trigger_call_dialer" style="padding: 10px; background-color: #4CAF50; color: white; border: none;">📞 Dial Number</button>
+                        <input type="hidden" name="call_duration_seconds" id="call_duration_seconds" value="0">
+                        <button type="submit" name="call_submission_action" value="log_call_note" id="call_note_submit" style="background-color: #3f51b5; color: white; border: none; padding: 10px; margin-left: 10px;">Log Outgoing Call Note</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="col-right" style="flex: 1; min-width: 350px; padding: 15px; background-color: #e3f2fd; border-radius: 8px; overflow-y: auto;">
+            <h2 style="margin-top: 0; font-size: 1.5em; color: #1565c0;">Notes Log</h2>
+            <p style="font-size: 0.9em; color: #555;">Showing Calls, Meetings, and System Notes.</p>
+            
+            {% if communication_logs %}
+                {% for log in communication_logs %}
+                <div class="note-item" style="border-left: 4px solid {% if log.communication_type == 'Incoming Call' %}#4CAF50{% elif log.communication_type == 'Outgoing Call' %}#2196F3{% else %}#795548{% endif %}; padding: 10px; margin-bottom: 10px; background-color: #fff; border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.1);">
+                    <div style="font-size: 0.85em; display: flex; justify-content: space-between; color: #555;"><span style="font-weight: bold; color: #333;">{{ log.user }}</span><span>{{ log.date|date:"Y-m-d H:i" }}</span></div>
+                    <div style="font-size: 0.85em; color: #1565c0; font-weight: bold;">{{ log.communication_type }} {% if log.action_notes %} | <span style="color: #e65100;">{{ log.action_notes }}</span>{% endif %}</div>
+                    
+                    {# --- Display Attached PDF if exists --- #}
+                    {% if log.attached_file %}
+                    <div style="margin-top: 5px;">
+                        <a href="{{ log.attached_file.url }}" target="_blank" style="color: #d32f2f; font-size: 0.85em; text-decoration: none; font-weight: bold;">
+                            PDF: View Attachment 📄
+                        </a>
+                    </div>
+                    {% endif %}
+
+                    <p style="margin: 0; font-size: 0.95em; line-height: 1.4; color: #333;">{{ log.notes|linebreaksbr }}</p>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p class="empty-message">No notes found.</p>
+            {% endif %}
+            
+            {% if notes %}
+            <h3 style="margin-top: 20px; font-size: 1.1em; color: #888; border-top: 1px dashed #ccc; padding-top: 10px;">Legacy Notes</h3>
+            {% for note in notes %}
+            <div class="note-item" style="background-color: #f9f9f9; padding: 8px; margin-bottom: 5px; border-left: 3px solid #ccc;"><small style="color: #777;">{{ note.user }} - {{ note.date|date:"Y-m-d" }}</small><p style="margin: 2px 0 0 0; font-size: 0.9em;">{{ note.notes }}</p></div>
+            {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+</div>
 
 <div id="email-log" class="tab-pane">
     
