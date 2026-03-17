@@ -66,19 +66,35 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
     align-items: center; 
     background: white; 
     border: 1px solid #aed581; 
-    padding: 6px 15px; 
+    padding: 0; 
     border-radius: 20px; 
     margin-right: 10px; 
     margin-bottom: 8px;
     font-size: 13px;
-    cursor: pointer;
-    transition: all 0.2s ease;
+    overflow: hidden;
 }
-.attachment-badge:hover { 
+
+.attachment-preview-trigger {
+    padding: 6px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    transition: background-color 0.2s ease;
+}
+.attachment-preview-trigger:hover { 
     background-color: #e8f5e9;
-    border-color: #43a047;
-    transform: translateY(-1px);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.attachment-download-btn {
+    background-color: #43a047;
+    color: white;
+    padding: 6px 12px;
+    cursor: pointer;
+    border-left: 1px solid #aed581;
+    transition: background-color 0.2s ease;
+}
+.attachment-download-btn:hover {
+    background-color: #2e7d32;
 }
 
 /* --- PREVIEW MODAL STYLES --- */
@@ -153,15 +169,20 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
             {% if attachments %}
             <div class="attachment-list">
                 <div style="margin-bottom: 8px; color: #2e7d32; font-weight: bold; font-size: 14px;">
-                    📎 Click Attachment to Preview ({{ attachments|length }}):
+                    📎 Attachments ({{ attachments|length }}):
                 </div>
                 {% for att in attachments %}
-                <div class="attachment-badge" onclick="openPreview('{{ att.contentBytes }}', '{{ att.contentType }}', '{{ att.name|escapejs }}')">
-                    <span style="margin-right: 8px;">📄</span>
-                    <span style="font-weight: 500;">{{ att.name }}</span>
-                    <span style="margin-left: 8px; font-size: 11px; color: #666; background: #f0f0f0; padding: 2px 6px; border-radius: 10px;">
-                        {{ att.size|filesizeformat }}
-                    </span>
+                <div class="attachment-badge">
+                    <div class="attachment-preview-trigger" onclick="openPreview('{{ att.contentBytes }}', '{{ att.contentType }}', '{{ att.name|escapejs }}')" title="Preview File">
+                        <span style="margin-right: 8px;">📄</span>
+                        <span style="font-weight: 500;">{{ att.name }}</span>
+                        <span style="margin-left: 8px; font-size: 11px; color: #666; background: #f0f0f0; padding: 2px 6px; border-radius: 10px;">
+                            {{ att.size|filesizeformat }}
+                        </span>
+                    </div>
+                    <div class="attachment-download-btn" onclick="downloadAttachment('{{ att.contentBytes }}', '{{ att.contentType }}', '{{ att.name|escapejs }}')" title="Download File">
+                        <i class="fas fa-download"></i>
+                    </div>
                 </div>
                 {% endfor %}
             </div>
@@ -246,6 +267,15 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
 </div>
 
 <script>
+// --- ATTACHMENT DOWNLOAD LOGIC ---
+function downloadAttachment(base64, contentType, fileName) {
+    const linkSource = `data:${contentType};base64,${base64}`;
+    const downloadLink = document.createElement("a");
+    downloadLink.href = linkSource;
+    downloadLink.download = fileName;
+    downloadLink.click();
+}
+
 // --- ATTACHMENT PREVIEW LOGIC ---
 function openPreview(base64, contentType, fileName) {
     const modal = document.getElementById('previewModal');
@@ -253,9 +283,8 @@ function openPreview(base64, contentType, fileName) {
     const title = document.getElementById('previewTitle');
     
     title.innerText = "Previewing: " + fileName;
-    content.innerHTML = ""; // Clear old content
+    content.innerHTML = ""; 
     
-    // Create Data URL
     const dataUrl = `data:${contentType};base64,${base64}`;
     
     if (contentType.includes('pdf')) {
@@ -265,6 +294,7 @@ function openPreview(base64, contentType, fileName) {
     } else {
         content.innerHTML = `<div style="padding:40px; text-align:center; color:#666;">
             <p>Preview not available for this file type (<b>${contentType}</b>).</p>
+            <p><button onclick="downloadAttachment('${base64}', '${contentType}', '${fileName}')" class="btn-delegate" style="font-size:14px; display:inline-flex;">Download File</button></p>
         </div>`;
     }
     
@@ -308,7 +338,6 @@ document.addEventListener('DOMContentLoaded', function(){
     toggleFormSections();
 });
 
-// Close modal on outside click or ESC key
 window.onclick = function(event) {
     const modal = document.getElementById('previewModal');
     if (event.target == modal) closePreview();

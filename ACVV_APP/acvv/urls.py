@@ -65,4 +65,6 @@ urlpatterns = [
     path('export-two-pot-billing/', views.export_two_pot_tracking_acvv, name='export_two_pot_billing'),
 
     path('outlook/export-tasks/', views.export_email_tasks_excel, name='export_email_tasks_excel'),
+    path('outlook/attachment/download/<int:delegation_id>/<str:attachment_id>/', 
+     views.download_outlook_attachment, name='download_outlook_attachment'),
 ]

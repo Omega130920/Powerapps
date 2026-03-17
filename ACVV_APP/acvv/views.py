@@ -1,3 +1,4 @@
+import base64
 from itertools import count
 import os
 from django.shortcuts import render, redirect, get_object_or_404
@@ -1929,3 +1930,28 @@ def send_acvv_direct_email(request, company_code):
                 messages.error(request, f"Email failed: {result.get('error')}")
 
     return redirect('acvv_information', mip_names=company_code)
+
+@login_required
+def download_outlook_attachment(request, delegation_id, attachment_id):
+    """
+    Fetches the attachment from Outlook Graph API, decodes it, and serves it.
+    """
+    delegation = get_object_or_404(EmailDelegation, pk=delegation_id)
+    target_email = settings.OUTLOOK_EMAIL_ADDRESS
+    
+    # Endpoint for a specific attachment
+    endpoint = f"messages/{delegation.email_id}/attachments/{attachment_id}"
+    attachment_data = _make_graph_request(endpoint, target_email)
+    
+    if 'error' in attachment_data:
+        messages.error(request, "Could not fetch attachment from Outlook.")
+        return redirect(request.META.get('HTTP_REFERER', 'outlook_delegated_box'))
+
+    # Microsoft Graph returns file content in base64 format under 'contentBytes'
+    file_content = base64.b64decode(attachment_data.get('contentBytes'))
+    file_name = attachment_data.get('name', 'attachment')
+    content_type = attachment_data.get('contentType', 'application/octet-stream')
+
+    response = HttpResponse(file_content, content_type=content_type)
+    response['Content-Disposition'] = f'attachment; filename="{file_name}"'
+    return response

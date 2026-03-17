@@ -117,16 +117,33 @@
         overflow-y: auto;
     }
 
-    /* --- ATTACHMENT BADGE STYLES --- */
+    /* --- ATTACHMENT BADGE STYLES (UPDATED) --- */
     .attachment-list { margin-top: 15px; padding: 15px; background-color: #f0fff0; border-top: 1px solid #c3e6cb; }
     .attachment-badge { 
         display: inline-flex; align-items: center; background: white; border: 1px solid #aed581; 
-        padding: 6px 15px; border-radius: 20px; margin-right: 10px; margin-bottom: 8px;
-        font-size: 13px; cursor: pointer; transition: all 0.2s ease;
+        padding: 0; border-radius: 20px; margin-right: 10px; margin-bottom: 8px;
+        font-size: 13px; overflow: hidden;
     }
-    .attachment-badge:hover { 
-        background-color: #e8f5e9; border-color: #43a047; 
-        transform: translateY(-1px); box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
+    .attachment-preview-trigger {
+        padding: 6px 15px;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+        display: flex;
+        align-items: center;
+    }
+    .attachment-preview-trigger:hover { 
+        background-color: #e8f5e9;
+    }
+    .attachment-download-btn {
+        background-color: #43a047;
+        color: white;
+        padding: 6px 12px;
+        cursor: pointer;
+        border-left: 1px solid #aed581;
+        transition: background-color 0.2s ease;
+    }
+    .attachment-download-btn:hover {
+        background-color: #2e7d32;
     }
 
     /* --- PREVIEW MODAL STYLES --- */
@@ -262,16 +279,21 @@
                         <pre class="email-body-pre" style="white-space: pre-wrap; word-wrap: break-word; font-family: inherit;">{{ email.body.content }}</pre>
                     {% endif %}
 
-                    {# 🛑 INCOMING ATTACHMENTS SECTION 🛑 #}
+                    {# 🛑 INCOMING ATTACHMENTS SECTION (UPDATED) 🛑 #}
                     {% if attachments %}
                     <div class="attachment-list">
                         <div style="margin-bottom: 8px; color: #2e7d32; font-weight: bold; font-size: 13px;">
-                            📎 Click Attachment to Preview ({{ attachments|length }}):
+                            📎 Attachments ({{ attachments|length }}):
                         </div>
                         {% for att in attachments %}
-                        <div class="attachment-badge" onclick="openPreview('{{ att.contentBytes }}', '{{ att.contentType }}', '{{ att.name|escapejs }}')">
-                            <span>📄 {{ att.name }}</span>
-                            <span style="margin-left: 8px; font-size: 10px; color: #666;">({{ att.size|filesizeformat }})</span>
+                        <div class="attachment-badge">
+                            <div class="attachment-preview-trigger" onclick="openPreview('{{ att.contentBytes }}', '{{ att.contentType }}', '{{ att.name|escapejs }}')" title="Preview File">
+                                <span>📄 {{ att.name }}</span>
+                                <span style="margin-left: 8px; font-size: 10px; color: #666;">({{ att.size|filesizeformat }})</span>
+                            </div>
+                            <div class="attachment-download-btn" onclick="downloadAttachment('{{ att.contentBytes }}', '{{ att.contentType }}', '{{ att.name|escapejs }}')" title="Download File">
+                                <i class="fas fa-download"></i>
+                            </div>
                         </div>
                         {% endfor %}
                     </div>
@@ -371,6 +393,15 @@
 </div>
 
 <script>
+    // --- DOWNLOAD LOGIC ---
+    function downloadAttachment(base64, contentType, fileName) {
+        const linkSource = `data:${contentType};base64,${base64}`;
+        const downloadLink = document.createElement("a");
+        downloadLink.href = linkSource;
+        downloadLink.download = fileName;
+        downloadLink.click();
+    }
+
     // --- PREVIEW LOGIC ---
     function openPreview(base64, contentType, fileName) {
         const modal = document.getElementById('previewModal');
@@ -385,7 +416,10 @@
         } else if (contentType.includes('image')) {
             content.innerHTML = `<div style="text-align:center; height:100%; overflow:auto;"><img src="${dataUrl}" style="max-width:100%; border:1px solid #ccc;" /></div>`;
         } else {
-            content.innerHTML = `<div style="padding:40px; text-align:center; color:#666;"><p>Preview not available for this file type.</p></div>`;
+            content.innerHTML = `<div style="padding:40px; text-align:center; color:#666;">
+                <p>Preview not available for this file type (<b>${contentType}</b>).</p>
+                <p><button onclick="downloadAttachment('${base64}', '${contentType}', '${fileName}')" class="custom-btn btn-primary" style="font-size:14px; display:inline-flex;">Download File</button></p>
+            </div>`;
         }
         modal.style.display = 'block';
     }
