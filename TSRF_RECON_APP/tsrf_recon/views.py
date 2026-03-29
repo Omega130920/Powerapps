@@ -204,8 +204,24 @@ def levy_information(request, levy_number):
                 levy_record.save()
 
                 if new_status == 'Yes':
-                    # Logic to trigger population of legal tables can go here
-                    messages.success(request, f"Levy {clean_levy_number} successfully promoted to Attorney Cases.")
+                    # Check if a record already exists in the AttorneySummary table
+                    existing_attorney_record = AttorneySummary.objects.filter(a_levy_number=clean_levy_number).exists()
+                    
+                    if not existing_attorney_record:
+                        # Create new entry in AttorneySummary based on LevyData and Org data
+                        AttorneySummary.objects.create(
+                            a_levy_number=clean_levy_number,
+                            b_levy_name=levy_record.levy_name or "Unknown",
+                            c_attorney="TBA",  # Default placeholder
+                            d_aod="No",        # Default status
+                            e_pfa="No",        # Default status
+                            f_mip_status=levy_record.mip_status or "N/A",
+                            g_default_period=org_summary.billing_period if org_summary else "N/A",
+                            i_administrator=levy_record.administrator or "Unassigned"
+                        )
+                        messages.success(request, f"Levy {clean_levy_number} successfully promoted to Attorney Cases and added to the Summary.")
+                    else:
+                        messages.success(request, f"Levy {clean_levy_number} promoted to Attorney Cases (Summary record already exists).")
                 else:
                     messages.info(request, f"Attorney status for {clean_levy_number} set to No.")
             except Exception as e:
@@ -1039,8 +1055,9 @@ def outlook_delegated_box(request):
 def outlook_delegated_action(request, delegation_id):
     """
     TSRF Recon View: Handles task management, email replies, 
-    and restoration from the Recycle Bin (DLT/REC status).
+    restoration from Recycle Bin, and detail viewing.
     """
+    # Use delegation_id to match your URL path <int:delegation_id>
     delegation = get_object_or_404(EmailDelegation, pk=delegation_id)
     
     # PERMISSION CHECK: 
@@ -1058,7 +1075,7 @@ def outlook_delegated_action(request, delegation_id):
         if action_type == 'restore_to_inbox':
             delegation.status = 'NEW'
             delegation.work_related = True
-            delegation.assigned_user = None # Clear previous assignment
+            delegation.assigned_user = None 
             delegation.save()
 
             add_delegation_note(
@@ -1076,7 +1093,6 @@ def outlook_delegated_action(request, delegation_id):
             new_status = request.POST.get('status')
             
             delegation.status = new_status
-            # Sync work_related boolean based on status selection
             if new_status in ['DLT', 'REC']:
                 delegation.work_related = False
             else:
@@ -1094,13 +1110,12 @@ def outlook_delegated_action(request, delegation_id):
             else: messages.error(request, message)
             return redirect('outlook_delegated_action', delegation_id=delegation_id)
         
-        # 4. HANDLE EXTERNAL REPLY (Available if not in Recycle Bin)
+        # 4. HANDLE EXTERNAL REPLY
         elif 'reply_recipient' in request.POST and delegation.status not in ['DLT', 'REC']:
             recipient = request.POST.get('reply_recipient')
             subject = request.POST.get('reply_subject')
             body = request.POST.get('reply_body')
             
-            # Use the Class Method correctly
             result = outlook_graph_service.send_outlook_email(recipient, subject, body)
             
             if result.get('success'):
@@ -1110,16 +1125,18 @@ def outlook_delegated_action(request, delegation_id):
                 messages.error(request, f"Reply failed: {result.get('error')}")
             return redirect('outlook_delegated_action', delegation_id=delegation_id)
 
-    # Fetch email content
+    # Fetch email content from Microsoft Graph
     endpoint = f"messages/{delegation.email_id}"
     email_data = outlook_graph_service._make_graph_request(endpoint, target_email)
     
     context = {
         'delegation': delegation,
+        'log': delegation,  # Supports templates using 'log' or 'delegation'
         'email': email_data if 'error' not in email_data else None,
         'notes': delegation.notes.all().order_by('-created_at'),
         'target_email': target_email,
     }
+    
     return render(request, 'TSRF_RECON_APP/outlook_delegated_action.html', context)
 
 @login_required
@@ -1287,16 +1304,6 @@ def outlook_compose(request):
         'target_email': target_sender
     }
     return render(request, 'TSRF_RECON_APP/compose_email.html', context)
-
-@login_required
-def outlook_delegated_action(request, pk):
-    """View to handle clicking 'View Detail' on an email log."""
-    log = get_object_or_404(EmailDelegation, pk=pk)
-    
-    context = {
-        'log': log
-    }
-    return render(request, 'TSRF_RECON_APP/email_detail.html', context)
 
 
 @login_required

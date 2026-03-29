@@ -184,7 +184,7 @@
                 </tr>
 
                 <tr>
-                    <td>Total Schedule:</td>
+                    <td>Total Schedule (Billed):</td>
                     <td class="amount-col">R {{ bill.H_Schedule_Amount|floatformat:2 }}</td>
                 </tr>
 
@@ -204,15 +204,29 @@
                     </td>
                 </tr>
 
+                {% if credit_total > 0 %}
                 <tr>
-                    <td>Less Total Paid:</td>
-                    <td class="amount-col" style="border-bottom: 1px solid #999;">( R {{ total_paid|floatformat:2 }} )</td>
+                    <td>Credits Applied:</td>
+                    <td class="amount-col">R {{ credit_total|floatformat:2 }}</td>
+                </tr>
+                {% endif %}
+
+                {% if journal_total > 0 %}
+                <tr>
+                    <td>Journal Allocations:</td>
+                    <td class="amount-col">R {{ journal_total|floatformat:2 }}</td>
+                </tr>
+                {% endif %}
+
+                <tr>
+                    <td style="border-top: 1px solid #999;">Total Amount Paid:</td>
+                    <td class="amount-col" style="border-top: 1px solid #999;">( R {{ total_paid|floatformat:2 }} )</td>
                 </tr>
 
                 <tr>
                     <td style="padding-top:10px; font-weight: bold;">Balance Remaining:</td>
                     <td class="amount-col final-balance" style="padding-top:10px;">
-                        R {{ settled_total|add:bill.total_surplus_overs|sub:total_paid|floatformat:2 }}
+                        R {{ remaining_balance|floatformat:2 }}
                     </td> 
                 </tr>
 

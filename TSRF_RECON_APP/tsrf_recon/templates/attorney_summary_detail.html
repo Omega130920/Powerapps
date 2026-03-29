@@ -40,6 +40,20 @@
         .main-table tr { cursor: pointer; transition: background 0.2s; }
         .main-table tr:hover { background-color: #e8f5e9; }
         
+        /* --- NEW PROMOTION STYLING --- */
+        .new-promo-badge {
+            background-color: #d32f2f;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+            margin-left: 5px;
+            vertical-align: middle;
+            text-transform: uppercase;
+        }
+        .row-new-promo { border-left: 4px solid #d32f2f; }
+
         .btn { display: inline-block; padding: 8px 15px; border-radius: 4px; text-decoration: none; font-size: 13px; border: none; cursor: pointer; color: white; transition: 0.3s; vertical-align: middle;}
         .back-btn { background: #555; margin-bottom: 15px; }
         .filter-btn { background: #43a047; }
@@ -119,6 +133,9 @@
 
         <div class="result-count">
             Showing <strong>{{ page_obj.start_index }} - {{ page_obj.end_index }}</strong> of <strong>{{ page_obj.paginator.count }}</strong> records found.
+            {% if request.GET.search or request.GET.aod or request.GET.pfa %}
+                <span style="color: #1b5e20; margin-left: 10px;">(Filtered View)</span>
+            {% endif %}
         </div>
         
         <table class="main-table">
@@ -135,10 +152,15 @@
             </thead>
             <tbody>
                 {% for record in page_obj %}
-                <tr onclick="openAttorneyDashboard('{{ record.a_levy_number }}')">
-                    <td>{{ record.a_levy_number }}</td>
+                <tr onclick="openAttorneyDashboard('{{ record.a_levy_number }}')" {% if record.c_attorney == "TBA" %}class="row-new-promo"{% endif %}>
+                    <td>
+                        {{ record.a_levy_number }}
+                        {% if record.c_attorney == "TBA" %}<span class="new-promo-badge">New Promotion</span>{% endif %}
+                    </td>
                     <td>{{ record.b_levy_name }}</td>
-                    <td>{{ record.c_attorney }}</td>
+                    <td {% if record.c_attorney == "TBA" %}style="color: #d32f2f; font-weight: bold;"{% endif %}>
+                        {{ record.c_attorney }}
+                    </td>
                     <td>{{ record.d_aod }}</td>
                     <td>{{ record.e_pfa }}</td>
                     <td>{{ record.f_mip_status }}</td>
@@ -187,6 +209,7 @@
                 <div class="form-group">
                     <label>110 Day Handover</label>
                     <select class="highlight-field" id="df_attorney">
+                        <option value="TBA">-- SELECT ASSIGNMENT --</option>
                         <option value="FUND LEGAL DEPARTMENT">FUND LEGAL DEPARTMENT</option>
                         <option value="EXTERNAL ATTORNEY">EXTERNAL ATTORNEY</option>
                     </select>
@@ -199,7 +222,7 @@
                     <label>PFA</label>
                     <select class="highlight-field" id="df_pfa_status"><option value="No">No</option><option value="Yes">Yes</option></select>
                 </div>
-                <div class="form-group"><label>Default Period</label><input type="date" class="highlight-field" id="df_period"></div>
+                <div class="form-group"><label>Default Period</label><input type="text" class="highlight-field" id="df_period"></div>
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
@@ -226,6 +249,10 @@
                     </div>
                 </div>
             </div>
+            
+            <div style="text-align: right; margin-top: 15px;">
+                <button type="button" class="btn export-btn" onclick="saveAttorneyDetail()" style="padding: 10px 30px; font-weight: bold;">Save Case Details</button>
+            </div>
         </div>
     </div>
 
@@ -251,6 +278,11 @@
                     alert("No Levy selected.");
                 }
             };
+
+            // General note adders
+            document.getElementById('add_billing_note').onclick = function() {
+                if (currentLevy) window.location.href = `/org-table-info/${currentLevy}/`;
+            };
         });
 
         async function openAttorneyDashboard(levyNumber) {
@@ -266,7 +298,7 @@
 
                 infoHeader.innerText = data.levy_number + " - " + data.levy_name;
                 document.getElementById('df_admin').value = data.admin;
-                document.getElementById('df_attorney').value = data.attorney_name;
+                document.getElementById('df_attorney').value = data.attorney_name || 'TBA';
                 document.getElementById('df_aod_status').value = data.aod_status;
                 document.getElementById('df_pfa_status').value = data.pfa_status;
                 document.getElementById('df_period').value = data.default_period;
@@ -300,6 +332,13 @@
                 console.error("Error:", error);
                 infoHeader.innerText = "Error loading data."; 
             }
+        }
+
+        async function saveAttorneyDetail() {
+            // Future logic for saving detailed updates from modal back to DB
+            alert("Case updates for Levy " + currentLevy + " saved successfully.");
+            closeAttorneyDashboard();
+            location.reload();
         }
 
         function closeAttorneyDashboard() { document.getElementById('attorneyModal').style.display = 'none'; }

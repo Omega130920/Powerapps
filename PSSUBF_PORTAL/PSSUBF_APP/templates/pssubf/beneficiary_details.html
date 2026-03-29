@@ -41,8 +41,22 @@
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1); 
         }
 
-        /* Sidebar Tab Styling */
-        .tab-nav { list-style-type: none; padding: 0; margin: 0; width: 220px; display: flex; flex-direction: column; gap: 8px; }
+        /* Sidebar Tab Styling - UPDATED FOR SCROLLING */
+        .tab-nav { 
+            list-style-type: none; 
+            padding: 0 10px 0 0; 
+            margin: 0; 
+            width: 220px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 8px; 
+            overflow-y: auto; /* Enable vertical scroll */
+            max-height: 100%;
+            scrollbar-width: none; /* Hide for Firefox */
+            -ms-overflow-style: none; /* Hide for IE/Edge */
+        }
+        
+        .tab-nav::-webkit-scrollbar { display: none; } /* Hide for Chrome/Safari */
         
         .tab-nav li { 
             padding: 14px 20px; 
@@ -55,6 +69,7 @@
             font-size: 13px; 
             font-weight: 600;
             border: 1px solid transparent;
+            flex-shrink: 0; /* PREVENT TABS FROM SQUISHING */
         }
 
         .tab-nav li:hover { background: rgba(255, 255, 255, 0.3); }
@@ -167,91 +182,26 @@
                 </div>
                 <button type="button" onclick="closeModal('claimModal')" class="text-gray-400 hover:text-red-600 transition text-3xl">&times;</button>
             </div>
-
             <form method="POST" action="{% url 'claim_list' %}" enctype="multipart/form-data" class="p-8 grid grid-cols-1 md:grid-cols-4 gap-6 overflow-y-auto max-h-[85vh]">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="add_claim_entry">
                 <input type="hidden" name="next" value="{{ request.path }}">
                 <input type="hidden" name="membership_number" value="{{ member.membership_number }}">
-
-                <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Member Number</label>
-                    <input type="text" value="{{ member.membership_number }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Guardian Details</label>
-                    <input type="text" value="{{ member.guardian_first_name }} {{ member.guardian_last_name }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md italic">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Beneficiary Details</label>
-                    <input type="text" value="{{ member.first_name }} {{ member.last_name }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md italic">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Beneficiary DOB</label>
-                    <input type="text" id="claim_pop_dob" value="{{ member.dob|date:'Y-m-d' }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md">
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Claim Type</label>
-                    <select name="claim_type" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input">
-                        <option>Monthly Income</option>
-                        <option>Terminations</option>
-                        <option>Death Terminations</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Age at Claim Date</label>
-                    <input type="text" id="pop_claim_age" name="age_at_claim" readonly class="w-full p-2.5 border bg-green-50 font-bold text-green-800 rounded-md">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Termination Date</label>
-                    <input type="text" value="{{ member.cessation_date|date:'Y-m-d' }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Monthly Income Payment</label>
-                    <input type="text" name="monthly_income" value="{{ member.stipened }}" class="w-full p-2.5 border rounded-md clean-input">
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-green-700 uppercase mb-1">* Original Claim Form Date</label>
-                    <input type="date" name="date_logged" onchange="calculatePopupAge('claim_pop_dob', this.value, 'pop_claim_age')" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Portfolio Value</label>
-                    <input type="number" step="0.01" name="portfolio_value" required class="w-full p-2.5 border rounded-md clean-input">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Portfolio Value Date</label>
-                    <input type="date" name="portfolio_date" required class="w-full p-2.5 border rounded-md clean-input">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Amount Requested</label>
-                    <input type="number" step="0.01" name="amount_requested" required class="w-full p-2.5 border rounded-md clean-input">
-                </div>
-
-                <div class="md:col-span-4 mt-2">
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Claim Notes (Agent Tracking)</label>
-                    <textarea name="description" class="w-full p-4 border rounded-md h-32 clean-input resize-none" placeholder="Enter notes..."></textarea>
-                </div>
-
-                <div class="md:col-span-4 mt-2">
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Supporting Documentation (Files)</label>
-                    <div class="relative border-2 border-dashed border-gray-300 bg-white rounded-xl p-8 flex flex-col items-center justify-center hover:border-green-500 transition-all group cursor-pointer">
-                        <input type="file" name="supporting_document" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                        <div class="flex items-center gap-3">
-                            <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 group-hover:text-green-600 transition-colors"></i>
-                            <div class="text-center">
-                                <span class="text-sm font-semibold text-gray-600 group-hover:text-green-700">Click to upload or drag and drop</span>
-                                <p class="text-xs text-gray-400">PDF, PNG, JPG (Max 10MB)</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="md:col-span-4 flex justify-end gap-3 pt-6 border-t mt-4">
-                    <button type="button" onclick="closeModal('claimModal')" class="px-8 py-2.5 bg-gray-400 text-white font-bold rounded-lg hover:bg-gray-500 transition">Cancel</button>
-                    <button type="submit" class="px-8 py-2.5 bg-green-700 text-white font-bold rounded-lg hover:bg-green-800 shadow-lg transition">Save Claim Data</button>
-                </div>
+                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Member Number</label><input type="text" value="{{ member.membership_number }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md"></div>
+                <div><label class="block text-xs font-bold text-gray-400 uppercase mb-1">Guardian Details</label><input type="text" value="{{ member.guardian_first_name }} {{ member.guardian_last_name }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md italic"></div>
+                <div><label class="block text-xs font-bold text-gray-400 uppercase mb-1">Beneficiary Details</label><input type="text" value="{{ member.first_name }} {{ member.last_name }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md italic"></div>
+                <div><label class="block text-xs font-bold text-gray-400 uppercase mb-1">Beneficiary DOB</label><input type="text" id="claim_pop_dob" value="{{ member.dob|date:'Y-m-d' }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md"></div>
+                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Claim Type</label><select name="claim_type" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input"><option>Monthly Income</option><option>Terminations</option><option>Death Terminations</option></select></div>
+                <div><label class="block text-xs font-bold text-gray-400 uppercase mb-1">Age at Claim Date</label><input type="text" id="pop_claim_age" name="age_at_claim" readonly class="w-full p-2.5 border bg-green-50 font-bold text-green-800 rounded-md"></div>
+                <div><label class="block text-xs font-bold text-gray-400 uppercase mb-1">Termination Date</label><input type="text" value="{{ member.cessation_date|date:'Y-m-d' }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md"></div>
+                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Monthly Income Payment</label><input type="text" name="monthly_income" value="{{ member.stipened }}" class="w-full p-2.5 border rounded-md clean-input"></div>
+                <div><label class="block text-xs font-bold text-green-700 uppercase mb-1">* Original Claim Form Date</label><input type="date" name="date_logged" onchange="calculatePopupAge('claim_pop_dob', this.value, 'pop_claim_age')" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input"></div>
+                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Portfolio Value</label><input type="number" step="0.01" name="portfolio_value" required class="w-full p-2.5 border rounded-md clean-input"></div>
+                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Portfolio Value Date</label><input type="date" name="portfolio_date" required class="w-full p-2.5 border rounded-md clean-input"></div>
+                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Amount Requested</label><input type="number" step="0.01" name="amount_requested" required class="w-full p-2.5 border rounded-md clean-input"></div>
+                <div class="md:col-span-4 mt-2"><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Claim Notes (Agent Tracking)</label><textarea name="description" class="w-full p-4 border rounded-md h-32 clean-input resize-none" placeholder="Enter notes..."></textarea></div>
+                <div class="md:col-span-4 mt-2"><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Supporting Documentation (Files)</label><div class="relative border-2 border-dashed border-gray-300 bg-white rounded-xl p-8 flex flex-col items-center justify-center hover:border-green-500 transition-all group cursor-pointer"><input type="file" name="supporting_document" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"><div class="flex items-center gap-3"><i class="fas fa-cloud-upload-alt text-3xl text-gray-400 group-hover:text-green-600 transition-colors"></i><div class="text-center"><span class="text-sm font-semibold text-gray-600 group-hover:text-green-700">Click to upload or drag and drop</span><p class="text-xs text-gray-400">PDF, PNG, JPG (Max 10MB)</p></div></div></div></div>
+                <div class="md:col-span-4 flex justify-end gap-3 pt-6 border-t mt-4"><button type="button" onclick="closeModal('claimModal')" class="px-8 py-2.5 bg-gray-400 text-white font-bold rounded-lg hover:bg-gray-500 transition">Cancel</button><button type="submit" class="px-8 py-2.5 bg-green-700 text-white font-bold rounded-lg hover:bg-green-800 shadow-lg transition">Save Claim Data</button></div>
             </form>
         </div>
     </div>
@@ -263,82 +213,24 @@
                 <p class="text-sm font-semibold text-gray-500">ID/Passport: {{ member.id_number }}</p>
                 <h2 class="text-3xl font-light tracking-tight text-gray-800">Create New Ad Hoc Claim</h2>
             </div>
-
             <form method="POST" action="{% url 'adhoc_list' %}" enctype="multipart/form-data" class="p-8 grid grid-cols-1 md:grid-cols-4 gap-4 overflow-y-auto max-h-[85vh]">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="add_adhoc_entry">
                 <input type="hidden" name="next" value="{{ request.path }}">
                 <input type="hidden" name="membership_number" value="{{ member.membership_number }}">
-
-                <div>
-                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Member Number</label>
-                    <input type="text" value="{{ member.membership_number }}" readonly class="w-full p-2 border highlight-field rounded text-sm">
-                </div>
-                <div class="md:col-span-2">
-                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Beneficiary Name & Surname</label>
-                    <input type="text" value="{{ member.first_name }} {{ member.last_name }}" readonly class="w-full p-2 border highlight-field rounded text-sm italic">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Beneficiary DOB</label>
-                    <input type="text" id="adhoc_pop_dob" value="{{ member.dob|date:'Y-m-d' }}" readonly class="w-full p-2 border highlight-field rounded text-sm">
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-green-700 uppercase mb-1">* Original Claim Form Date</label>
-                    <input type="date" name="claim_form_date" onchange="calculateAdHocValues(this.value)" required class="w-full p-2 border-2 border-green-600 rounded text-sm clean-input">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Age at Claim Date</label>
-                    <input type="text" id="pop_adhoc_age" readonly class="w-full p-2 border highlight-field rounded text-sm">
-                </div>
-                <div class="md:col-span-2">
-                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Reason</label>
-                    <select name="title" required class="w-full p-2 border-r-8 border-green-600 rounded text-sm clean-input">
-                        <option value="School Fees">School Fees</option>
-                        <option value="School Clothing">School Clothing</option>
-                        <option value="Essentials">Essentials</option>
-                        <option value="Medical Expenses">Medical Expenses</option>
-                        <option value="Educational Expenses (other)">Educational Expenses (other)</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Years to Maturity</label>
-                    <input type="text" id="pop_maturity" name="years_to_maturity" readonly class="w-full p-2 border bg-green-50 rounded text-sm font-bold text-green-700">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Portfolio Value</label>
-                    <input type="number" step="0.01" name="portfolio_value" id="adhoc_portfolio" onchange="calcAffordability()" class="w-full p-2 border rounded text-sm clean-input">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Amount Requested</label>
-                    <input type="number" step="0.01" name="amount_requested" id="adhoc_req" onchange="calcAffordability()" class="w-full p-2 border rounded text-sm clean-input">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Affordability %</label>
-                    <input type="text" id="pop_afford" name="affordability_calculation" readonly class="w-full p-2 border highlight-field rounded text-sm">
-                </div>
-
-                <div class="md:col-span-4 mt-2">
-                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Ad Hoc Comments</label>
-                    <textarea name="comments" class="w-full p-4 border rounded-md h-32 clean-input resize-none" placeholder="Enter comments..."></textarea>
-                </div>
-
-                <div class="md:col-span-4 mt-2">
-                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Supporting Documentation (Files)</label>
-                    <div class="relative border-2 border-dashed border-gray-300 bg-white rounded-xl p-8 flex flex-col items-center justify-center hover:border-green-500 transition-all group cursor-pointer">
-                        <input type="file" name="supporting_document" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                        <div class="flex items-center gap-3">
-                            <i class="fas fa-paperclip text-3xl text-gray-400 group-hover:text-green-600 transition-colors"></i>
-                            <span class="text-sm font-semibold text-gray-600 group-hover:text-green-700">Attach Supporting File</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="md:col-span-4 flex justify-end gap-3 pt-4 border-t mt-4">
-                    <button type="button" onclick="closeModal('adhocModal')" class="px-8 py-2.5 bg-gray-400 text-white font-bold rounded-lg hover:bg-gray-500 transition">Cancel</button>
-                    <button type="submit" class="px-8 py-2.5 bg-green-700 text-white font-bold rounded-lg hover:bg-green-800 shadow-lg transition">Save Entry</button>
-                </div>
+                <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Member Number</label><input type="text" value="{{ member.membership_number }}" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
+                <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Beneficiary Name & Surname</label><input type="text" value="{{ member.first_name }} {{ member.last_name }}" readonly class="w-full p-2 border highlight-field rounded text-sm italic"></div>
+                <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Beneficiary DOB</label><input type="text" id="adhoc_pop_dob" value="{{ member.dob|date:'Y-m-d' }}" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
+                <div><label class="block text-xs font-bold text-green-700 uppercase mb-1">* Original Claim Form Date</label><input type="date" name="claim_form_date" onchange="calculateAdHocValues(this.value)" required class="w-full p-2 border-2 border-green-600 rounded text-sm clean-input"></div>
+                <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Age at Claim Date</label><input type="text" id="pop_adhoc_age" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
+                <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Reason</label><select name="title" required class="w-full p-2 border-r-8 border-green-600 rounded text-sm clean-input"><option value="School Fees">School Fees</option><option value="School Clothing">School Clothing</option><option value="Essentials">Essentials</option><option value="Medical Expenses">Medical Expenses</option><option value="Educational Expenses (other)">Educational Expenses (other)</option></select></div>
+                <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Years to Maturity</label><input type="text" id="pop_maturity" name="years_to_maturity" readonly class="w-full p-2 border bg-green-50 rounded text-sm font-bold text-green-700"></div>
+                <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Portfolio Value</label><input type="number" step="0.01" name="portfolio_value" id="adhoc_portfolio" onchange="calcAffordability()" class="w-full p-2 border rounded text-sm clean-input"></div>
+                <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Amount Requested</label><input type="number" step="0.01" name="amount_requested" id="adhoc_req" onchange="calcAffordability()" class="w-full p-2 border rounded text-sm clean-input"></div>
+                <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Affordability %</label><input type="text" id="pop_afford" name="affordability_calculation" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
+                <div class="md:col-span-4 mt-2"><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Ad Hoc Comments</label><textarea name="comments" class="w-full p-4 border rounded-md h-32 clean-input resize-none" placeholder="Enter comments..."></textarea></div>
+                <div class="md:col-span-4 mt-2"><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Supporting Documentation (Files)</label><div class="relative border-2 border-dashed border-gray-300 bg-white rounded-xl p-8 flex flex-col items-center justify-center hover:border-green-500 transition-all group cursor-pointer"><input type="file" name="supporting_document" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"><div class="flex items-center gap-3"><i class="fas fa-paperclip text-3xl text-gray-400 group-hover:text-green-600 transition-colors"></i><span class="text-sm font-semibold text-gray-600 group-hover:text-green-700">Attach Supporting File</span></div></div></div>
+                <div class="md:col-span-4 flex justify-end gap-3 pt-4 border-t mt-4"><button type="button" onclick="closeModal('adhocModal')" class="px-8 py-2.5 bg-gray-400 text-white font-bold rounded-lg hover:bg-gray-500 transition">Cancel</button><button type="submit" class="px-8 py-2.5 bg-green-700 text-white font-bold rounded-lg hover:bg-green-800 shadow-lg transition">Save Entry</button></div>
             </form>
         </div>
     </div>
@@ -348,70 +240,30 @@
             {% csrf_token %}
             
             <div class="flex items-center justify-between mb-8 pb-4 border-b border-white border-opacity-20">
-                <div class="view-controls">
-                    <a href="{% url 'beneficiary_list' %}" class="action-btn bg-white bg-opacity-40 text-green-900">
-                        <i class="fas fa-chevron-left mr-2"></i> Back to List
-                    </a>
-                </div>
-
+                <div class="view-controls"><a href="{% url 'beneficiary_list' %}" class="action-btn bg-white bg-opacity-40 text-green-900"><i class="fas fa-chevron-left mr-2"></i> Back to List</a></div>
                 <h1 class="text-2xl font-black text-emerald-900">Member: {{ member.membership_number }}</h1>
-
                 <div class="flex gap-3 view-controls">
-                    <div class="status-badge {% if member.is_expired %}expired{% else %}active-member{% endif %}">
-                        <i class="fas {% if member.is_expired %}fa-clock{% else %}fa-check-circle{% endif %} mr-1"></i>
-                        {% if member.is_expired %}EXPIRED (18+){% else %}ACTIVE{% endif %}
-                    </div>
-                    <button type="button" onclick="enableEditMode()" class="action-btn bg-emerald-700 text-white border-emerald-800">
-                        <i class="fas fa-edit mr-2"></i> Edit Profile
-                    </button>
+                    <div class="status-badge {% if member.is_expired %}expired{% else %}active-member{% endif %}"><i class="fas {% if member.is_expired %}fa-clock{% else %}fa-check-circle{% endif %} mr-1"></i>{% if member.is_expired %}EXPIRED (18+){% else %}ACTIVE{% endif %}</div>
+                    <button type="button" onclick="enableEditMode()" class="action-btn bg-emerald-700 text-white border-emerald-800"><i class="fas fa-edit mr-2"></i> Edit Profile</button>
                 </div>
-
-                <div class="flex gap-3 edit-controls">
-                    <button type="button" onclick="disableEditMode()" class="action-btn bg-red-500 text-white border-red-600 shadow-lg">
-                        Cancel
-                    </button>
-                    <button type="submit" class="action-btn bg-emerald-900 text-white shadow-lg">
-                        <i class="fas fa-save mr-2"></i> Save Changes
-                    </button>
-                </div>
+                <div class="flex gap-3 edit-controls"><button type="button" onclick="disableEditMode()" class="action-btn bg-red-500 text-white border-red-600 shadow-lg">Cancel</button><button type="submit" class="action-btn bg-emerald-900 text-white shadow-lg"><i class="fas fa-save mr-2"></i> Save Changes</button></div>
             </div>
 
-            <div class="flex gap-8 flex-1 min-height-0">
+            <div class="flex gap-8 flex-1 min-h-0">
                 <ul class="tab-nav">
-                    <li class="active" data-tab-target="#personal">
-                        Member Profile <i class="fas fa-user-circle ml-2"></i>
-                    </li>
-                    <li data-tab-target="#financials">
-                        Fund Details <i class="fas fa-receipt ml-2"></i>
-                    </li>
-                    <li data-tab-target="#claims_tab">
-                        Claims Registry <i class="fas fa-file-invoice-dollar ml-2"></i>
-                    </li>
-                    <li data-tab-target="#adhoc_tab">
-                        Ad Hoc Registry <i class="fas fa-hand-holding-usd ml-2"></i>
-                    </li>
-                    <li data-tab-target="#contact">
-                        Contact Channels <i class="fas fa-phone-alt ml-2"></i>
-                    </li>
-                    <li data-tab-target="#guardian">
-                        Guardian Info <i class="fas fa-user-shield ml-2"></i>
-                    </li>
-                    <li data-tab-target="#audit">
-                        System History <i class="fas fa-history ml-2"></i>
-                    </li>
-                    <li data-tab-target="#email-log">
-                        Email Log <i class="fas fa-envelope-open-text ml-2"></i>
-                    </li>
-                    <li data-tab-target="#direct-email">
-                        Direct Email <i class="fas fa-paper-plane ml-2"></i>
-                    </li>
-                    <li data-tab-target="#notes">
-                        Notes <i class="fas fa-sticky-note ml-2"></i>
-                    </li>
+                    <li class="active" data-tab-target="#personal">Member Profile <i class="fas fa-user-circle ml-2"></i></li>
+                    <li data-tab-target="#financials">Fund Details <i class="fas fa-receipt ml-2"></i></li>
+                    <li data-tab-target="#claims_tab">Claims Registry <i class="fas fa-file-invoice-dollar ml-2"></i></li>
+                    <li data-tab-target="#adhoc_tab">Ad Hoc Registry <i class="fas fa-hand-holding-usd ml-2"></i></li>
+                    <li data-tab-target="#contact">Contact Channels <i class="fas fa-phone-alt ml-2"></i></li>
+                    <li data-tab-target="#guardian">Guardian Info <i class="fas fa-user-shield ml-2"></i></li>
+                    <li data-tab-target="#audit">System History <i class="fas fa-history ml-2"></i></li>
+                    <li data-tab-target="#email-log">Email Log <i class="fas fa-envelope-open-text ml-2"></i></li>
+                    <li data-tab-target="#direct-email">Direct Email <i class="fas fa-paper-plane ml-2"></i></li>
+                    <li data-tab-target="#notes">Notes <i class="fas fa-sticky-note ml-2"></i></li>
                 </ul>
 
                 <div class="tab-content">
-                    
                     <div id="personal" class="tab-pane active">
                         <table class="w-full">
                             <tr><th>Membership Number</th><td><input type="text" name="membership_number" value="{{ member.membership_number }}" class="glass-input opacity-60" readonly></td></tr>
@@ -437,60 +289,16 @@
                     </div>
 
                     <div id="claims_tab" class="tab-pane">
-                        <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-emerald-900 font-bold uppercase text-sm">Linked Claim Records</h3>
-                            <button type="button" onclick="openModal('claimModal')" class="text-xs bg-green-700 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-green-800 transition">
-                                <i class="fas fa-plus mr-1"></i> New Claim
-                            </button>
-                        </div>
-                        <table class="w-full registry-table">
-                            <thead>
-                                <tr class="border-b border-white border-opacity-20">
-                                    <th>Ref No.</th><th>Type</th><th>Logged Date</th><th>Status</th><th>Amount (R)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for claim in claims %}
-                                <tr class="hover:bg-white hover:bg-opacity-10 transition">
-                                    <td class="font-bold text-emerald-900">{{ claim.reference_no }}</td>
-                                    <td>{{ claim.claim_type }}</td>
-                                    <td>{{ claim.date_logged|date:"d M Y" }}</td>
-                                    <td><span class="text-[10px] font-black uppercase">{{ claim.status }}</span></td>
-                                    <td>{{ claim.amount_requested }}</td>
-                                </tr>
-                                {% empty %}
-                                <tr><td colspan="5" class="text-center py-10 opacity-50 italic">No linked claims found.</td></tr>
-                                {% endfor %}
-                            </tbody>
+                        <div class="flex justify-between items-center mb-4"><h3 class="text-emerald-900 font-bold uppercase text-sm">Linked Claim Records</h3><button type="button" onclick="openModal('claimModal')" class="text-xs bg-green-700 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-green-800 transition"><i class="fas fa-plus mr-1"></i> New Claim</button></div>
+                        <table class="w-full registry-table"><thead><tr class="border-b border-white border-opacity-20"><th>Ref No.</th><th>Type</th><th>Logged Date</th><th>Status</th><th>Amount (R)</th></tr></thead>
+                            <tbody>{% for claim in claims %}<tr class="hover:bg-white hover:bg-opacity-10 transition"><td class="font-bold text-emerald-900">{{ claim.reference_no }}</td><td>{{ claim.claim_type }}</td><td>{{ claim.date_logged|date:"d M Y" }}</td><td><span class="text-[10px] font-black uppercase">{{ claim.status }}</span></td><td>{{ claim.amount_requested }}</td></tr>{% empty %}<tr><td colspan="5" class="text-center py-10 opacity-50 italic">No linked claims found.</td></tr>{% endfor %}</tbody>
                         </table>
                     </div>
 
                     <div id="adhoc_tab" class="tab-pane">
-                        <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-emerald-900 font-bold uppercase text-sm">Linked Ad Hoc Records</h3>
-                            <button type="button" onclick="openModal('adhocModal')" class="text-xs bg-green-700 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-green-800 transition">
-                                <i class="fas fa-plus mr-1"></i> New Ad Hoc
-                            </button>
-                        </div>
-                        <table class="w-full registry-table">
-                            <thead>
-                                <tr class="border-b border-white border-opacity-20">
-                                    <th>Reason</th><th>Claim Date</th><th>Status</th><th>Requested (R)</th><th>Affordability</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for adhoc in adhoc_records %}
-                                <tr class="hover:bg-white hover:bg-opacity-10 transition">
-                                    <td class="font-bold text-emerald-900">{{ adhoc.title }}</td>
-                                    <td>{{ adhoc.claim_form_date|date:"d M Y" }}</td>
-                                    <td><span class="text-[10px] font-black uppercase">{{ adhoc.status }}</span></td>
-                                    <td>{{ adhoc.amount_requested }}</td>
-                                    <td class="text-emerald-800 font-bold">{{ adhoc.affordability_calculation }}</td>
-                                </tr>
-                                {% empty %}
-                                <tr><td colspan="5" class="text-center py-10 opacity-50 italic">No ad hoc records found.</td></tr>
-                                {% endfor %}
-                            </tbody>
+                        <div class="flex justify-between items-center mb-4"><h3 class="text-emerald-900 font-bold uppercase text-sm">Linked Ad Hoc Records</h3><button type="button" onclick="openModal('adhocModal')" class="text-xs bg-green-700 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-green-800 transition"><i class="fas fa-plus mr-1"></i> New Ad Hoc</button></div>
+                        <table class="w-full registry-table"><thead><tr class="border-b border-white border-opacity-20"><th>Reason</th><th>Claim Date</th><th>Status</th><th>Requested (R)</th><th>Affordability</th></tr></thead>
+                            <tbody>{% for adhoc in adhoc_records %}<tr class="hover:bg-white hover:bg-opacity-10 transition"><td class="font-bold text-emerald-900">{{ adhoc.title }}</td><td>{{ adhoc.claim_form_date|date:"d M Y" }}</td><td><span class="text-[10px] font-black uppercase">{{ adhoc.status }}</span></td><td>{{ adhoc.amount_requested }}</td><td class="text-emerald-800 font-bold">{{ adhoc.affordability_calculation }}</td></tr>{% empty %}<tr><td colspan="5" class="text-center py-10 opacity-50 italic">No ad hoc records found.</td></tr>{% endfor %}</tbody>
                         </table>
                     </div>
 
@@ -517,227 +325,96 @@
                     </div>
 
                     <div id="audit" class="tab-pane">
-                        <table class="w-full">
-                            <thead>
-                                <tr class="text-left border-b border-white border-opacity-10">
-                                    <th class="py-2">User</th>
-                                    <th>Action</th>
-                                    <th>Timestamp</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for action in pssubf_actions %}
-                                <tr>
-                                    <td>{{ action.action_user }}</td>
-                                    <td>{{ action.action_type }}</td>
-                                    <td>{{ action.action_timestamp|date:"Y-m-d H:i" }}</td>
-                                </tr>
-                                {% empty %}
-                                <tr><td colspan="3" class="text-center py-4 opacity-50">No action history recorded.</td></tr>
-                                {% endfor %}
-                            </tbody>
+                        <table class="w-full"><thead><tr class="text-left border-b border-white border-opacity-10"><th class="py-2">User</th><th>Action</th><th>Timestamp</th></tr></thead>
+                            <tbody>{% for action in pssubf_actions %}<tr><td>{{ action.action_user }}</td><td>{{ action.action_type }}</td><td>{{ action.action_timestamp|date:"Y-m-d H:i" }}</td></tr>{% empty %}<tr><td colspan="3" class="text-center py-4 opacity-50">No action history recorded.</td></tr>{% endfor %}</tbody>
                         </table>
                     </div>
 
                     <div id="email-log" class="tab-pane">
-                        <table class="w-full">
-                            <thead>
-                                <tr class="text-left border-b border-white border-opacity-10">
-                                    <th class="py-2">Dir</th>
-                                    <th>Agent</th>
-                                    <th>Subject</th>
-                                    <th>Date</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for email in email_logs %}
-                                <tr>
-                                    <td>
-                                        {% if email.type == 'INCOMING' %}
-                                            <span class="badge-in">📩 Delegated</span>
-                                        {% else %}
-                                            <span class="badge-out">📤 Direct Email</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>{{ email.agent }}</td>
-                                    <td class="text-sm">{{ email.subject|truncatechars:60 }}</td>
-                                    <td class="text-xs">{{ email.date|date:"d M Y H:i" }}</td>
-                                    <td>
-                                        <span class="text-xs opacity-75 font-bold uppercase">{{ email.status }}</span>
-                                    </td>
-                                </tr>
-                                {% empty %}
-                                <tr><td colspan="5" class="text-center py-4 opacity-50">No communication history found.</td></tr>
-                                {% endfor %}
-                            </tbody>
+                        <table class="w-full"><thead><tr class="text-left border-b border-white border-opacity-10"><th class="py-2">Dir</th><th>Agent</th><th>Subject</th><th>Date</th><th>Status</th></tr></thead>
+                            <tbody>{% for email in email_logs %}<tr><td>{% if email.type == 'INCOMING' %}<span class="badge-in">📩 Delegated</span>{% else %}<span class="badge-out">📤 Direct Email</span>{% endif %}</td><td>{{ email.agent }}</td><td class="text-sm">{{ email.subject|truncatechars:60 }}</td><td class="text-xs">{{ email.date|date:"d M Y H:i" }}</td><td><span class="text-xs opacity-75 font-bold uppercase">{{ email.status }}</span></td></tr>{% empty %}<tr><td colspan="5" class="text-center py-4 opacity-50">No communication history found.</td></tr>{% endfor %}</tbody>
                         </table>
                     </div>
 
                     <div id="direct-email" class="tab-pane">
                         <div class="space-y-4">
-                            <input type="hidden" name="action" value="send_direct_email">
-                            <input type="hidden" name="email_html_content" id="email_html_content">
-                            <div>
-                                <label class="text-xs font-bold uppercase opacity-60">To:</label>
-                                <input type="email" name="to_email" value="{{ member.email_1 }}" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10">
-                            </div>
-                            <div>
-                                <label class="text-xs font-bold uppercase opacity-60">Subject:</label>
-                                <input type="text" name="subject" value="Regarding PSSUBF Membership: {{ member.membership_number }}" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10">
-                            </div>
-                            <div id="editor" class="rich-text-editor" contenteditable="true">
-                                <p>Dear {{ member.first_name }},</p>
-                                <p><br></p>
-                                <p>Kind regards,</p>
-                                <p>{{ request.user.username }}</p>
-                            </div>
-                            <div class="text-right">
-                                <button type="submit" onclick="document.getElementById('email_html_content').value = document.getElementById('editor').innerHTML" class="action-btn bg-emerald-800 text-white shadow-lg">
-                                    Send & Log Email
-                                </button>
-                            </div>
+                            <input type="hidden" name="action" value="send_direct_email"><input type="hidden" name="email_html_content" id="email_html_content">
+                            <div><label class="text-xs font-bold uppercase opacity-60">To:</label><input type="email" name="to_email" value="{{ member.email_1 }}" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10"></div>
+                            <div><label class="text-xs font-bold uppercase opacity-60">Subject:</label><input type="text" name="subject" value="Regarding PSSUBF Membership: {{ member.membership_number }}" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10"></div>
+                            <div id="editor" class="rich-text-editor" contenteditable="true"><p>Dear {{ member.first_name }},</p><p><br></p><p>Kind regards,</p><p>{{ request.user.username }}</p></div>
+                            <div class="text-right"><button type="submit" onclick="document.getElementById('email_html_content').value = document.getElementById('editor').innerHTML" class="action-btn bg-emerald-800 text-white shadow-lg">Send & Log Email</button></div>
                         </div>
                     </div>
 
                     <div id="notes" class="tab-pane">
-                        <div class="mb-6 p-4 border border-white border-opacity-10 rounded-xl bg-white bg-opacity-10">
-                            <textarea name="note_text" placeholder="Add an internal note..." class="w-full bg-transparent outline-none h-20 text-sm"></textarea>
-                            <div class="flex justify-end mt-2">
-                                <button type="submit" name="save_note" onclick="showNoteLoading(this)" class="text-xs font-bold uppercase text-emerald-900 hover:underline flex items-center">
-                                    <span id="noteSpinner" class="spinner" style="display:none;"></span>
-                                    Save Profile Note
-                                </button>
-                            </div>
-                        </div>
-                        <div class="space-y-4">
-                            {% for note in internal_notes %}
-                            <div class="p-4 border-b border-white border-opacity-10">
-                                <div class="flex justify-between items-center mb-1">
-                                    <span class="font-bold text-emerald-900 text-sm">{{ note.agent_name }}</span>
-                                    <span class="text-[10px] opacity-60">{{ note.created_at|date:"d M Y H:i" }}</span>
-                                </div>
-                                <p class="text-sm opacity-90">{{ note.note_text }}</p>
-                            </div>
-                            {% empty %}
-                            <p class="text-center py-10 opacity-50 italic">No notes recorded for this beneficiary.</p>
-                            {% endfor %}
-                        </div>
+                        <div class="mb-6 p-4 border border-white border-opacity-10 rounded-xl bg-white bg-opacity-10"><textarea name="note_text" placeholder="Add an internal note..." class="w-full bg-transparent outline-none h-20 text-sm"></textarea><div class="flex justify-end mt-2"><button type="submit" name="save_note" onclick="showNoteLoading(this)" class="text-xs font-bold uppercase text-emerald-900 hover:underline flex items-center"><span id="noteSpinner" class="spinner" style="display:none;"></span>Save Profile Note</button></div></div>
+                        <div class="space-y-4">{% for note in internal_notes %}<div class="p-4 border-b border-white border-opacity-10"><div class="flex justify-between items-center mb-1"><span class="font-bold text-emerald-900 text-sm">{{ note.agent_name }}</span><span class="text-[10px] opacity-60">{{ note.created_at|date:"d M Y H:i" }}</span></div><p class="text-sm opacity-90">{{ note.note_text }}</p></div>{% empty %}<p class="text-center py-10 opacity-50 italic">No notes recorded for this beneficiary.</p>{% endfor %}</div>
                     </div>
-
                 </div>
             </div>
         </form>
     </div>
 
     <script>
-        // Tab switching logic
         document.querySelectorAll('.tab-nav li').forEach(tab => {
             tab.addEventListener('click', () => {
                 document.querySelectorAll('.tab-nav li').forEach(t => t.classList.remove('active'));
                 document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-                
                 tab.classList.add('active');
                 const target = document.querySelector(tab.dataset.tabTarget);
                 if(target) target.classList.add('active');
             });
         });
 
-        // Toggle Edit Mode Logic
         function enableEditMode() {
             document.getElementById('profileBody').classList.add('edit-mode');
-            document.querySelectorAll('.glass-input.editable').forEach(input => {
-                input.disabled = false;
-            });
+            document.querySelectorAll('.glass-input.editable').forEach(input => { input.disabled = false; });
         }
-
         function disableEditMode() {
             document.getElementById('profileBody').classList.remove('edit-mode');
-            document.querySelectorAll('.glass-input.editable').forEach(input => {
-                input.disabled = true;
-            });
+            document.querySelectorAll('.glass-input.editable').forEach(input => { input.disabled = true; });
             document.getElementById('profileForm').reset();
         }
 
-        // Notes Loading
         function showNoteLoading(btn) {
             const spinner = document.getElementById('noteSpinner');
             if (spinner) spinner.style.display = 'inline-block';
-            btn.style.opacity = '0.7';
-            btn.style.pointerEvents = 'none';
+            btn.style.opacity = '0.7'; btn.style.pointerEvents = 'none';
         }
 
-        // Modal Controls
-        function openModal(id) {
-            document.getElementById(id).style.display = 'block';
-        }
+        function openModal(id) { document.getElementById(id).style.display = 'block'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        function showEmail(subject, body) { document.getElementById('modalSubject').innerText = subject; document.getElementById('modalBody').innerHTML = body; document.getElementById('emailModal').style.display = 'block'; }
 
-        function closeModal(id) {
-            document.getElementById(id).style.display = 'none';
-        }
-
-        function showEmail(subject, body) {
-            document.getElementById('modalSubject').innerText = subject;
-            document.getElementById('modalBody').innerHTML = body;
-            document.getElementById('emailModal').style.display = 'block';
-        }
-
-        // --- CALCULATION LOGIC ---
-
-        // Shared Age Calculation (Years.Months)
         function calculatePopupAge(dobId, claimDateVal, targetId) {
             const dobStr = document.getElementById(dobId).value;
             if(!dobStr || !claimDateVal) return;
-            
-            const birth = new Date(dobStr);
-            const claim = new Date(claimDateVal);
-            
+            const birth = new Date(dobStr); const claim = new Date(claimDateVal);
             let age = claim.getFullYear() - birth.getFullYear();
             let m = claim.getMonth() - birth.getMonth();
-            
-            if (m < 0 || (m === 0 && claim.getDate() < birth.getDate())) {
-                age--;
-                m = (m < 0) ? 12 + m : m;
-            }
-            
+            if (m < 0 || (m === 0 && claim.getDate() < birth.getDate())) { age--; m = (m < 0) ? 12 + m : m; }
             document.getElementById(targetId).value = `${age}.${m}`;
         }
 
-        // Ad Hoc Specific Calculations
         function calculateAdHocValues(claimDate) {
-            // 1. Calculate Age
             calculatePopupAge('adhoc_pop_dob', claimDate, 'pop_adhoc_age');
-            
-            // 2. Calculate Maturity (Years until 18)
             const termDateStr = "{{ member.cessation_date|date:'Y-m-d' }}";
             if(termDateStr && claimDate) {
-                const term = new Date(termDateStr);
-                const claim = new Date(claimDate);
+                const term = new Date(termDateStr); const claim = new Date(claimDate);
                 let diff = term.getFullYear() - claim.getFullYear();
                 document.getElementById('pop_maturity').value = diff > 0 ? diff : 0;
             }
         }
 
-        // Affordability Logic
         function calcAffordability() {
             const portfolio = parseFloat(document.getElementById('adhoc_portfolio').value) || 0;
             const requested = parseFloat(document.getElementById('adhoc_req').value) || 0;
             const target = document.getElementById('pop_afford');
-            
-            if (portfolio > 0) {
-                const result = (requested / portfolio) * 100;
-                target.value = result.toFixed(2) + '%';
-            } else {
-                target.value = '0.00%';
-            }
+            if (portfolio > 0) { target.value = ((requested / portfolio) * 100).toFixed(2) + '%'; } 
+            else { target.value = '0.00%'; }
         }
 
-        // Close modals if user clicks outside the content box
-        window.onclick = function(event) {
-            if (event.target.classList.contains('modal')) {
-                event.target.style.display = "none";
-            }
-        }
+        window.onclick = function(event) { if (event.target.classList.contains('modal')) { event.target.style.display = "none"; } }
     </script>
 </body>
 </html>

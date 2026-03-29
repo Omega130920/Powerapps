@@ -176,7 +176,7 @@ def index(request):
 def unity_list(request):
     """
     Displays a list combining InternalFunds and UnityMgListing.
-    Calculates the 'Current Status' based on the latest UnityBill record.
+    Calculates the 'Current Status' and 'Current Fiscal' based on the latest UnityBill.
     """
     
     # 1. Fetch Base Records
@@ -188,38 +188,39 @@ def unity_list(request):
     # 2. Manual Calculation Setup
     bill_map = dict(UnityBill.objects.values_list('id', 'C_Company_Code'))
     
-    # Aggregate Surplus
+    # Aggregate Surplus & Allocation (Keep your existing logic here)
     surplus_map = defaultdict(Decimal)
     for s in ScheduleSurplus.objects.values('unity_bill_source_id', 'surplus_amount'):
         b_id = s['unity_bill_source_id']
         if b_id in bill_map:
-            surplus_map[bill_map[b_id]] += (s['surplus_amount'] or ZERO_DECIMAL)
+            surplus_map[bill_map[b_id]] += (s['surplus_amount'] or Decimal('0.00'))
 
-    # Aggregate Allocation
     allocation_map = defaultdict(Decimal)
     for a in JournalEntry.objects.values('target_bill_id', 'amount'):
         b_id = a['target_bill_id']
         if b_id in bill_map:
-            allocation_map[bill_map[b_id]] += (a['amount'] or ZERO_DECIMAL)
+            allocation_map[bill_map[b_id]] += (a['amount'] or Decimal('0.00'))
 
-    # --- UPDATED: Calculate "Current Billing Status" Logic ---
+    # --- NEW: Calculate "Current Billing Status" AND "Fiscal Date" Map ---
     billing_status_map = {}
-    # Order by date so the latest bill for each company is processed last
+    fiscal_date_map = {} # This will store the latest A_CCDatesMonth
+    
+    # Order by date so the latest bill for each company is processed last 
+    # and overwrites previous entries in our maps.
     all_bills = UnityBill.objects.all().order_by('A_CCDatesMonth')
     
     for b in all_bills:
         code = b.C_Company_Code
-        # Calculate Total Covered for the specific bill
         total_covered = JournalEntry.objects.filter(target_bill=b).aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
         
-        # Priority Logic
+        # Priority Logic for Status
         if b.is_reconciled:
             status = "RECON COMPLETE"
         elif b.G_Schedule_Date and (b.H_Schedule_Amount or 0) > 0 and total_covered == 0:
             status = "SCHEDULED"
         elif (total_covered or 0) > 0:
             status = "OPEN"
-        elif b.F_Pre_Bill_Date: # or G_Pre_Bill_Date based on your model
+        elif b.F_Pre_Bill_Date:
             status = "PRE-BILL"
         elif (b.H_Schedule_Amount or 0) == 0 and total_covered == 0:
             status = "AWAITING SCHEDULE"
@@ -227,6 +228,11 @@ def unity_list(request):
             status = "OPEN"
             
         billing_status_map[code] = status
+        
+        # UPDATE: Capture the Fiscal Date from the Bill
+        if b.A_CCDatesMonth:
+            # Storing as string to match the Varchar type of the fallback column
+            fiscal_date_map[code] = b.A_CCDatesMonth.strftime('%Y-%m-%d')
 
     # 3. Build Combined List
     combined_records = []
@@ -236,8 +242,13 @@ def unity_list(request):
         company_code = fund_record.A_Company_Code
         detail_record = unity_listing_map.pop(company_code, None)
         
-        active_surplus_value = surplus_map.get(company_code, ZERO_DECIMAL) - allocation_map.get(company_code, ZERO_DECIMAL)
+        active_surplus_value = surplus_map.get(company_code, Decimal('0.00')) - allocation_map.get(company_code, Decimal('0.00'))
         
+        # PRIORITY LOGIC FOR FISCAL DATE: Bill Date -> Listing Date -> "N/A"
+        final_fiscal = fiscal_date_map.get(company_code)
+        if not final_fiscal and detail_record:
+            final_fiscal = detail_record.g_current_fiscal
+
         combined_records.append({
             'A_Company_Code': fund_record.A_Company_Code,
             'B_Company_Name': fund_record.B_Company_Name,
@@ -246,8 +257,7 @@ def unity_list(request):
             'c_agent': detail_record.c_agent if detail_record else None,
             'e_payment_method': detail_record.e_payment_method if detail_record else None,
             'f_billing_method': detail_record.f_billing_method if detail_record else None,
-            'g_current_fiscal': detail_record.g_current_fiscal if detail_record else None,
-            # OVERWRITTEN WITH CALCULATED STATUS:
+            'g_current_fiscal': final_fiscal or "N/A",
             'h_current_status': billing_status_map.get(company_code, "N/A"),
             'j_arrears': detail_record.j_arrears if detail_record else None,
             'has_details': bool(detail_record),
@@ -256,8 +266,11 @@ def unity_list(request):
 
     # Phase 2: Remaining UnityMgListing
     for company_code, detail_record in unity_listing_map.items():
-        active_surplus_value = surplus_map.get(company_code, ZERO_DECIMAL) - allocation_map.get(company_code, ZERO_DECIMAL)
+        active_surplus_value = surplus_map.get(company_code, Decimal('0.00')) - allocation_map.get(company_code, Decimal('0.00'))
         
+        # PRIORITY LOGIC FOR FISCAL DATE: Bill Date -> Listing Date
+        final_fiscal = fiscal_date_map.get(company_code) or detail_record.g_current_fiscal
+
         combined_records.append({
             'A_Company_Code': detail_record.a_company_code,
             'B_Company_Name': detail_record.b_company_name,
@@ -266,15 +279,14 @@ def unity_list(request):
             'c_agent': detail_record.c_agent,
             'e_payment_method': detail_record.e_payment_method,
             'f_billing_method': detail_record.f_billing_method,
-            'g_current_fiscal': detail_record.g_current_fiscal,
-            # OVERWRITTEN WITH CALCULATED STATUS:
+            'g_current_fiscal': final_fiscal,
             'h_current_status': billing_status_map.get(company_code, "NO BILLING"),
             'j_arrears': detail_record.j_arrears,
             'has_details': True,
             'active_surplus': active_surplus_value,
         })
         
-    # 4. Filters (Standard Logic)
+    # 4. Context for Rendering
     context = {
         'unity_records': combined_records,
         'distinct_source': InternalFunds.objects.values_list('Source', flat=True).distinct().exclude(Source__isnull=True),
@@ -302,6 +314,7 @@ def unity_information(request: HttpRequest, company_code):
     UPDATED: Added bank_assigned_total to show the original transaction amount.
     UPDATED: h_current_status now dynamically calculated to match unity_list priority.
     UPDATED: Added File Upload handler for PDF attachments in UnityNotes.
+    UPDATED: Dynamic Fiscal Date priority logic (Bill Date -> Listing Table).
     """
     from .models import (
         EmailDelegation, DelegationTransactionLog, UnityNotes, 
@@ -344,13 +357,15 @@ def unity_information(request: HttpRequest, company_code):
         is_fallback = True
         messages.warning(request, f"Full detail information is not available for {company_code}.")
 
-    # --- NEW: Dynamic Status Calculation (Matches unity_list logic) ---
+    # --- NEW: Dynamic Status & Fiscal Calculation (Matches unity_list logic) ---
     latest_bill = UnityBill.objects.filter(C_Company_Code=lookup_code).order_by('-A_CCDatesMonth').first()
     calculated_status = "NO BILLING"
+    calculated_fiscal = None
     
     if latest_bill:
         total_covered = JournalEntry.objects.filter(target_bill=latest_bill).aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
         
+        # 1. Status Logic
         if latest_bill.is_reconciled:
             calculated_status = "RECON COMPLETE"
         elif latest_bill.G_Schedule_Date and (latest_bill.H_Schedule_Amount or 0) > 0 and total_covered == 0:
@@ -363,10 +378,17 @@ def unity_information(request: HttpRequest, company_code):
             calculated_status = "AWAITING SCHEDULE"
         else:
             calculated_status = "OPEN"
+
+        # 2. Fiscal Logic (Bill priority)
+        if latest_bill.A_CCDatesMonth:
+            calculated_fiscal = latest_bill.A_CCDatesMonth.strftime('%Y-%m-%d')
     
     # Override the database value with the calculated logic for the template
     if unity_record:
         unity_record.h_current_status = calculated_status
+        # Use Bill date if it exists, otherwise leave the listing table value as is
+        if calculated_fiscal:
+            unity_record.g_current_fiscal = calculated_fiscal
 
     # --- 2. Fetch Related Data ---
     notes = ClientNotes.objects.filter(a_company_code=company_code).order_by('-date')
@@ -2151,14 +2173,15 @@ def allocate_surplus_to_bill(request, bill_id):
 def settle_bill_report(request, company_code, bill_id):
     """
     Read-only Audit Report for a settled bill.
-    FIX: Attaches the full CreditNote object to the BillSettlement record 
-         to supply the necessary details (like Import Date and Review Note) 
-         to the audit report template.
+    FIX: Added remaining_balance logic to prevent incorrect negative credit display.
     """
     from decimal import Decimal
     from django.db.models import Sum
     from django.shortcuts import get_object_or_404, render
-    from .models import UnityBill, BillSettlement, CreditNote, JournalEntry, ScheduleSurplus # Ensure models are imported
+    # Ensure ZERO_DECIMAL is defined if not global
+    ZERO_DECIMAL = Decimal('0.00')
+    
+    from .models import UnityBill, BillSettlement, CreditNote, JournalEntry, ScheduleSurplus
 
     bill_record = get_object_or_404(UnityBill, id=bill_id, C_Company_Code=company_code)
     
@@ -2178,17 +2201,12 @@ def settle_bill_report(request, company_code, bill_id):
     
     credit_total = sum(c.settled_amount or ZERO_DECIMAL for c in credit_settlements)
 
-    # 3. ATTACH CREDIT NOTE DETAILS (CRITICAL NEW LOGIC)
-    
-    # Get all CreditNote IDs involved in the settlements
+    # 3. ATTACH CREDIT NOTE DETAILS
     credit_ids = [s.source_credit_note_id for s in credit_settlements if s.source_credit_note_id is not None]
-    
-    # Fetch all relevant CreditNote objects in one query and map them
     credit_note_map = {
         cn.id: cn for cn in CreditNote.objects.filter(id__in=credit_ids)
     }
     
-    # Attach the full CreditNote object to the BillSettlement record
     for settlement in credit_settlements:
         settlement.original_credit_note = credit_note_map.get(settlement.source_credit_note_id)
 
@@ -2200,8 +2218,12 @@ def settle_bill_report(request, company_code, bill_id):
 
     journal_total = sum(j.settled_amount or ZERO_DECIMAL for j in journal_settlements)
 
-    # 5. Grand Total Paid
+    # 5. Calculation Logic Fix
     total_paid = settled_total + credit_total + journal_total
+    scheduled_amount = bill_record.H_Schedule_Amount or ZERO_DECIMAL
+    
+    # This is the fix: Baseline is the Schedule, not the Cash Received
+    remaining_balance = scheduled_amount - total_paid
     
     # 6. Check for Surplus Generated
     generated_surplus = ScheduleSurplus.objects.filter(unity_bill_source_id=bill_record.id).first()
@@ -2212,15 +2234,16 @@ def settle_bill_report(request, company_code, bill_id):
         
         # Data Lists
         'settlements': settlements,
-        'credit_settlements': credit_settlements, # <-- Now includes the attached original_credit_note
+        'credit_settlements': credit_settlements,
         'journal_settlements': journal_settlements,
         'generated_surplus': generated_surplus,
         
         # Totals
-        'settled_total': settled_total,
+        'settled_total': settled_total,    # This is your "Net Cash"
         'credit_total': credit_total,
         'journal_total': journal_total,
         'total_paid': total_paid,
+        'remaining_balance': remaining_balance, # Use this in your template for the balance row
         'zero': ZERO_DECIMAL
     }
     

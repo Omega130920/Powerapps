@@ -44,4 +44,6 @@ urlpatterns = [
     path('get-claim-details/<int:claim_id>/', views.get_claim_details, name='get_claim_details'),
     path('export-adhoc/', views.export_adhoc_excel, name='export_adhoc'),
     path('claims/export/', views.export_claims_excel, name='export_claims'),
+    path('affordability-tool/', views.affordability_dashboard, name='affordability_dashboard'),
+    path('affordability/run/', views.run_manual_calc, name='run_manual_calc'),  
 ]

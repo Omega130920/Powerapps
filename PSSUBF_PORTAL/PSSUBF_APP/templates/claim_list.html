@@ -14,6 +14,7 @@
         .clean-input:focus { border-color: #059669 !important; outline: none; box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1); }
         .overflow-x-auto::-webkit-scrollbar { height: 8px; }
         .overflow-x-auto::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 4px; }
+        .history-row { background-color: rgba(254, 249, 195, 0.4); } /* Light yellow for imported/orphaned rows */
     </style>
 </head>
 <body class="p-4 sm:p-8 text-gray-800">
@@ -25,7 +26,7 @@
         </div>
         <div class="flex gap-3">
             <a href="{% url 'pssubf_switchboard' %}" class="px-4 py-2 bg-white/30 hover:bg-white/50 border border-white/40 rounded-lg text-green-900 font-semibold transition backdrop-blur-md">
-                <i class="fas fa-arrow-left mr-2"></i> Back to Home Screen
+                <i class="fas fa-arrow-left mr-2"></i> Back to Home
             </a>
             <a href="{% url 'export_claims' %}" class="px-4 py-2 bg-white/30 hover:bg-white/50 border border-white/40 rounded-lg text-green-900 font-semibold transition backdrop-blur-md">
                 <i class="fas fa-file-excel mr-2"></i> Export Excel
@@ -38,51 +39,88 @@
 
     <div class="max-w-full mx-auto glass-card p-4 rounded-xl mb-6 flex flex-wrap items-center gap-3">
         <button onclick="window.location.reload()" class="p-2 text-green-800 hover:rotate-180 transition-transform duration-500 text-xl"><i class="fas fa-sync-alt"></i></button>
+        
         <div class="flex items-center bg-white rounded shadow-sm border border-gray-300">
             <input type="date" class="p-2 outline-none text-sm w-40">
             <span class="bg-green-600 p-2.5 text-white"><i class="fas fa-calendar-alt"></i></span>
         </div>
-        <div class="flex items-center bg-white rounded shadow-sm border border-gray-300">
-            <input type="date" class="p-2 outline-none text-sm w-40">
-            <span class="bg-green-600 p-2.5 text-white"><i class="fas fa-calendar-alt"></i></span>
-        </div>
+
         <select class="p-2 border-r-8 border-green-600 rounded bg-white text-sm outline-none min-w-[160px] shadow-sm">
             <option value="">Claim Status</option>
             <option>Created</option>
             <option>Paid</option>
             <option>Rejected</option>
         </select>
+
         <div class="flex-grow">
             <input type="text" placeholder="Search Member, Name or Guardian..." class="w-full p-2 border-r-8 border-green-600 rounded bg-white text-sm outline-none shadow-sm">
         </div>
+
+        <div class="flex items-center gap-2 px-4 py-1.5 bg-white/50 rounded-lg border border-white/40 shadow-sm">
+            <span class="text-xs font-bold text-green-900 uppercase tracking-tighter">Show History</span>
+            <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="historyToggle" class="sr-only peer" onchange="filterTableRows()">
+                <div class="w-10 h-5 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-600"></div>
+            </label>
+        </div>
+
         <button class="bg-green-800 text-white p-2.5 rounded hover:bg-green-900 transition shadow-md"><i class="fas fa-search"></i></button>
     </div>
 
     <div class="max-w-full mx-auto glass-card rounded-2xl overflow-hidden shadow-2xl">
         <div class="overflow-x-auto">
-            <table class="min-w-full">
+            <table class="min-w-full" id="claimsTable">
                 <thead>
                     <tr class="bg-green-600 text-white text-left text-xs font-bold uppercase tracking-wider">
                         <th class="px-6 py-4 border-r border-green-500">Member No.</th>
                         <th class="px-6 py-4 border-r border-green-500">Beneficiary Details</th>
                         <th class="px-6 py-4 border-r border-green-500">Guardian Details</th>
-                        <th class="px-6 py-4 border-r border-green-500">Claim Form Date</th>
-                        <th class="px-6 py-4 border-r border-green-500">Claim Status</th>
+                        <th class="px-6 py-4 border-r border-green-500 text-center">Form Date</th>
+                        <th class="px-6 py-4 border-r border-green-500 text-center">Status</th>
                         <th class="px-6 py-4 border-r border-green-500">Claim Type</th>
-                        <th class="px-6 py-4 border-r border-green-500 text-center">Support Docs</th>
+                        <th class="px-6 py-4 border-r border-green-500 text-right">Portfolio Value</th>
                         <th class="px-6 py-4 text-center"><i class="fas fa-paperclip"></i></th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-white/20 bg-white/10">
                     {% for claim in claims %}
-                    <tr class="hover:bg-white/30 transition cursor-pointer" onclick="openClaimModal('{{ claim.id }}')">
-                        <td class="px-6 py-4 text-sm font-bold text-green-900">{{ claim.beneficiary.membership_number }}</td>
-                        <td class="px-6 py-4 text-sm">{{ claim.beneficiary.first_name }} {{ claim.beneficiary.last_name }}</td>
-                        <td class="px-6 py-4 text-sm">{{ claim.beneficiary.guardian_first_name }} {{ claim.beneficiary.guardian_last_name }}</td>
-                        <td class="px-6 py-4 text-sm">{{ claim.date_logged|date:"d/m/Y" }}</td>
-                        <td class="px-6 py-4 text-sm font-semibold">{{ claim.status }}</td>
-                        <td class="px-6 py-4 text-sm">{{ claim.claim_type }}</td>
-                        <td class="px-6 py-4 text-sm text-center">{{ claim.supporting_docs_attached }}</td>
+                    <tr class="claim-row transition cursor-pointer hover:bg-white/40 {% if not claim.beneficiary %}is-history hidden history-row{% endif %}" 
+                        onclick="openClaimModal('{{ claim.id }}')">
+                        
+                        <td class="px-6 py-4 text-sm font-bold text-green-900">
+                            {{ claim.beneficiary.membership_number|default:claim.beneficiary_id }}
+                        </td>
+                        
+                        <td class="px-6 py-4 text-sm">
+                            <span class="font-semibold">{{ claim.beneficiary_name|default:claim.beneficiary.first_name }}</span>
+                            {% if not claim.beneficiary %}<span class="ml-1 text-[10px] bg-yellow-200 text-yellow-800 px-1 rounded">HIST</span>{% endif %}<br>
+                            <span class="text-xs text-gray-500">DOB: {{ claim.beneficiary_dob|date:"d/m/Y" }}</span>
+                        </td>
+
+                        <td class="px-6 py-4 text-sm">
+                            {{ claim.guardian_name|default:claim.beneficiary.guardian_first_name|default:"--" }}
+                        </td>
+
+                        <td class="px-6 py-4 text-sm text-center">
+                            {{ claim.date_logged|date:"d/m/Y" }}
+                        </td>
+
+                        <td class="px-6 py-4 text-sm text-center font-bold">
+                            {% if claim.status == 'Paid' %}
+                                <span class="text-green-700"><i class="fas fa-check-circle mr-1"></i>{{ claim.status }}</span>
+                            {% else %}
+                                {{ claim.status }}
+                            {% endif %}
+                        </td>
+
+                        <td class="px-6 py-4 text-sm">
+                            {{ claim.claim_type }}
+                        </td>
+
+                        <td class="px-6 py-4 text-sm font-mono text-right">
+                            R {{ claim.portfolio_value|default:"0.00" }}
+                        </td>
+
                         <td class="px-6 py-4 text-center">
                             {% if claim.attachment_path %}<i class="fas fa-paperclip text-green-800"></i>{% endif %}
                         </td>
@@ -100,7 +138,7 @@
             <div class="p-5 border-b flex justify-between items-center bg-white">
                 <div class="flex items-center gap-4">
                     <span class="text-2xl font-serif font-bold text-green-700 italic">futura</span>
-                    <h2 class="text-2xl font-light tracking-tight text-gray-800" id="modalTitle">Create New Claim</h2>
+                    <h2 class="text-2xl font-light tracking-tight text-gray-800" id="modalTitle">Claim Details</h2>
                 </div>
                 <button onclick="closeClaimModal()" class="text-gray-400 hover:text-red-600 transition text-3xl">&times;</button>
             </div>
@@ -116,16 +154,16 @@
                     <input type="text" name="membership_number" id="membership_number" onchange="fetchMemberData(this.value)" class="w-full p-2.5 border rounded-md clean-input">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Guardian Details</label>
-                    <input type="text" id="g_name" readonly class="w-full p-2.5 border bg-gray-100 rounded-md italic">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Guardian Name</label>
+                    <input type="text" id="guardian_name" name="guardian_name" class="w-full p-2.5 border rounded-md clean-input">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Beneficiary Details</label>
-                    <input type="text" id="b_name" readonly class="w-full p-2.5 border bg-gray-100 rounded-md italic">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Beneficiary Name</label>
+                    <input type="text" id="beneficiary_name" name="beneficiary_name" class="w-full p-2.5 border rounded-md clean-input">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Beneficiary DOB</label>
-                    <input type="text" id="b_dob" readonly class="w-full p-2.5 border bg-gray-100 rounded-md">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Beneficiary DOB</label>
+                    <input type="date" id="beneficiary_dob" name="beneficiary_dob" onchange="calculateAge()" class="w-full p-2.5 border rounded-md clean-input">
                 </div>
 
                 <div>
@@ -137,47 +175,43 @@
                     </select>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Age at Claim Date</label>
+                    <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Age at Claim</label>
                     <input type="text" id="age_at_claim" name="age_at_claim" readonly class="w-full p-2.5 border bg-green-50 font-bold text-green-800 rounded-md">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-400 uppercase mb-1">Termination Date</label>
-                    <input type="text" id="term_date" readonly class="w-full p-2.5 border bg-gray-100 rounded-md">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Term. Date</label>
+                    <input type="date" id="termination_date" name="termination_date" class="w-full p-2.5 border rounded-md clean-input">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Monthly Income Payment</label>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Monthly Income</label>
                     <input type="text" id="monthly_income" name="monthly_income" class="w-full p-2.5 border rounded-md clean-input">
                 </div>
 
                 <div>
-                    <label class="block text-xs font-bold text-green-700 uppercase mb-1">* Original Claim Form Date</label>
+                    <label class="block text-xs font-bold text-green-700 uppercase mb-1">* Form Date</label>
                     <input type="date" id="claim_form_date" name="date_logged" onchange="calculateAge()" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Portfolio Value</label>
-                    <input type="number" step="0.01" id="portfolio_value" name="portfolio_value" required class="w-full p-2.5 border rounded-md clean-input">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Portfolio Value</label>
+                    <input type="number" step="0.01" id="portfolio_value" name="portfolio_value" class="w-full p-2.5 border rounded-md clean-input">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Portfolio Value Date</label>
-                    <input type="date" id="portfolio_date" name="portfolio_date" required class="w-full p-2.5 border rounded-md clean-input">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Value Date</label>
+                    <input type="date" id="portfolio_date" name="portfolio_date" class="w-full p-2.5 border rounded-md clean-input">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Amount Requested</label>
-                    <input type="number" step="0.01" id="amount_requested" name="amount_requested" required class="w-full p-2.5 border rounded-md clean-input">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Amt Requested</label>
+                    <input type="number" step="0.01" id="amount_requested" name="amount_requested" class="w-full p-2.5 border rounded-md clean-input">
                 </div>
 
                 <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Claim Status</label>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Status</label>
                     <select name="status" id="status" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input">
                         <option>Created</option>
                         <option>In Progress</option>
                         <option>Supervisor</option>
                         <option>Complete</option>
-                        <option>Submitted BOT</option>
-                        <option>Submitted Sanlam</option>
                         <option>Paid</option>
-                        <option>Repudiated</option>
-                        <option>Repudiated by BOT</option>
                     </select>
                 </div>
                 <div>
@@ -185,54 +219,47 @@
                     <input type="date" id="date_paid" name="date_paid" class="w-full p-2.5 border rounded-md clean-input">
                 </div>
                 <div class="md:col-span-2">
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Supporting Docs Attached</label>
-                    <select name="supporting_docs_attached" id="supporting_docs_attached" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Docs Attached?</label>
+                    <select name="supporting_docs_attached" id="supporting_docs_attached" class="w-full p-2.5 border rounded-md clean-input">
                         <option value="No">No</option>
                         <option value="Yes">Yes</option>
                     </select>
                 </div>
 
                 <div class="md:col-span-4 mt-2">
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Claim Notes (Agent Tracking)</label>
-                    <textarea name="description" id="description" class="w-full p-4 border rounded-md h-32 clean-input resize-none" placeholder="Enter notes..."></textarea>
-                </div>
-
-                <div class="md:col-span-4 mt-2">
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Supporting Documentation (Files)</label>
-                    <div id="file_status_bar" class="hidden mb-2 p-3 bg-green-50 border border-green-200 rounded-lg flex justify-between items-center">
-                        <span class="text-sm font-medium text-green-800"><i class="fas fa-file-pdf mr-2"></i> <span id="current_file_name"></span></span>
-                        <button type="button" onclick="handleFileRemoval()" class="text-red-500 text-xs font-bold uppercase hover:underline">Remove & Replace</button>
-                    </div>
-                    <div id="drop_zone" class="relative border-2 border-dashed border-gray-300 bg-white rounded-xl p-8 flex flex-col items-center justify-center hover:border-green-500 transition-all group cursor-pointer">
-                        <input type="file" name="supporting_document" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                        <div class="flex items-center gap-3">
-                            <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 group-hover:text-green-600 transition-colors"></i>
-                            <div class="text-center">
-                                <span class="text-sm font-semibold text-gray-600 group-hover:text-green-700">Click to upload or drag and drop</span>
-                                <p class="text-xs text-gray-400">PDF, PNG, JPG (Max 10MB)</p>
-                            </div>
-                        </div>
-                    </div>
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Internal Notes</label>
+                    <textarea name="description" id="description" class="w-full p-4 border rounded-md h-32 clean-input resize-none"></textarea>
                 </div>
 
                 <div class="md:col-span-4 flex justify-end gap-3 pt-6 border-t mt-4">
                     <button type="button" onclick="closeClaimModal()" class="px-8 py-2.5 bg-gray-400 text-white font-bold rounded-lg hover:bg-gray-500 transition">Cancel</button>
-                    <button type="submit" class="px-8 py-2.5 bg-green-700 text-white font-bold rounded-lg hover:bg-green-800 shadow-lg transition">Save Claim Data</button>
+                    <button type="submit" class="px-8 py-2.5 bg-green-700 text-white font-bold rounded-lg hover:bg-green-800 shadow-lg transition">Save Changes</button>
                 </div>
             </form>
         </div>
     </div>
 
     <script>
+        // FUNCTION TO TOGGLE HISTORY ROWS
+        function filterTableRows() {
+            const showHistory = document.getElementById('historyToggle').checked;
+            const rows = document.querySelectorAll('.is-history');
+            rows.forEach(row => {
+                if (showHistory) {
+                    row.classList.remove('hidden');
+                } else {
+                    row.classList.add('hidden');
+                }
+            });
+        }
+
         function openClaimModal(claimId = null) {
             const modal = document.getElementById('claimModal');
             const form = document.getElementById('claimForm');
             modal.classList.remove('hidden');
-            document.getElementById('file_status_bar').classList.add('hidden');
-            document.getElementById('remove_attachment').value = "false";
 
             if (claimId) {
-                document.getElementById('modalTitle').innerText = "Edit/View Claim Details";
+                document.getElementById('modalTitle').innerText = "Update Claim Record";
                 document.getElementById('formAction').value = "update_claim_entry";
                 document.getElementById('claim_id').value = claimId;
 
@@ -240,10 +267,10 @@
                     .then(res => res.json())
                     .then(data => {
                         document.getElementById('membership_number').value = data.membership_number;
-                        document.getElementById('g_name').value = data.guardian_name;
-                        document.getElementById('b_name').value = data.beneficiary_name;
-                        document.getElementById('b_dob').value = data.dob;
-                        document.getElementById('term_date').value = data.term_date;
+                        document.getElementById('guardian_name').value = data.guardian_name;
+                        document.getElementById('beneficiary_name').value = data.beneficiary_name;
+                        document.getElementById('beneficiary_dob').value = data.beneficiary_dob;
+                        document.getElementById('termination_date').value = data.termination_date;
                         document.getElementById('claim_type').value = data.claim_type;
                         document.getElementById('age_at_claim').value = data.age_at_claim;
                         document.getElementById('monthly_income').value = data.monthly_income;
@@ -254,14 +281,7 @@
                         document.getElementById('status').value = data.status;
                         document.getElementById('date_paid').value = data.date_paid;
                         document.getElementById('description').value = data.description;
-                        document.getElementById('supporting_docs_attached').value = data.docs_attached;
-                        
-                        if(data.attachment_path) {
-                            document.getElementById('file_status_bar').classList.remove('hidden');
-                            document.getElementById('current_file_name').innerText = data.attachment_path;
-                        }
-                        // Re-calculate age based on pulled data
-                        calculateAge();
+                        document.getElementById('supporting_docs_attached').value = data.supporting_docs_attached;
                     });
             } else {
                 document.getElementById('modalTitle').innerText = "Create New Claim";
@@ -272,7 +292,7 @@
         }
 
         function calculateAge() {
-            const dobStr = document.getElementById('b_dob').value;
+            const dobStr = document.getElementById('beneficiary_dob').value;
             const claimDateStr = document.getElementById('claim_form_date').value;
             if(!dobStr || !claimDateStr) return;
             const birth = new Date(dobStr);
@@ -284,11 +304,6 @@
             document.getElementById('age_at_claim').value = `${age}.${months}`;
         }
 
-        function handleFileRemoval() {
-            document.getElementById('file_status_bar').classList.add('hidden');
-            document.getElementById('remove_attachment').value = "true";
-        }
-
         function closeClaimModal() { document.getElementById('claimModal').classList.add('hidden'); }
 
         function fetchMemberData(mNum) {
@@ -296,13 +311,14 @@
             fetch(`/get-beneficiary-data/${mNum}/`)
                 .then(res => res.json())
                 .then(data => {
-                    document.getElementById('g_name').value = data.guardian_name;
-                    document.getElementById('b_name').value = data.beneficiary_name;
-                    document.getElementById('b_dob').value = data.dob;
-                    document.getElementById('term_date').value = data.term_date;
-                    document.getElementById('monthly_income').value = data.stipened;
-                    // Auto calculate age once DOB is fetched
-                    calculateAge();
+                    if(data.beneficiary_name) {
+                        document.getElementById('guardian_name').value = data.guardian_name;
+                        document.getElementById('beneficiary_name').value = data.beneficiary_name;
+                        document.getElementById('beneficiary_dob').value = data.dob;
+                        document.getElementById('termination_date').value = data.term_date;
+                        document.getElementById('monthly_income').value = data.stipened;
+                        calculateAge();
+                    }
                 });
         }
     </script>

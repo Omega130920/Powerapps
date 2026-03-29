@@ -20,7 +20,7 @@ from .services.outlook_graph_service import OutlookGraphService
 logger = logging.getLogger(__name__)
 
 # Import your unmanaged models
-from .models import AdHocList, ClaimList, PssubfBeneficiary, PssubfDirectEmail, PssubfInbox, PssubfDelegate, PssubfAction, PssubfNote, PssubfProfileNote
+from .models import AdHocList, ClaimAffordability, ClaimList, PssubfBeneficiary, PssubfDirectEmail, PssubfInbox, PssubfDelegate, PssubfAction, PssubfNote, PssubfProfileNote
 # Import your verified services
 from PSSUBF_APP.services.outlook_graph_service import OutlookGraphService
 from PSSUBF_APP.services.delegation_service import delegate_pssubf_task
@@ -129,6 +129,7 @@ def pssubf_action_view(request, email_id):
     """
     Agent Action View: Handles Notes, Metadata Updates, Completion, 
     and Email Replies while resolving broken inline images.
+    Now includes Call Audit fields (Direction, Method, Type).
     """
     task = get_object_or_404(PssubfDelegate, email_id=email_id)
     target_email = settings.OUTLOOK_EMAIL_ADDRESS 
@@ -151,11 +152,16 @@ def pssubf_action_view(request, email_id):
             )
             messages.success(request, "Task information updated successfully.")
 
-        # 2. Add Internal Note
+        # 2. Add Internal Note (Updated with Call Audit)
         elif action_type == 'add_note':
             note_text = request.POST.get('note_content')
             new_category = request.POST.get('email_category')
             new_status = request.POST.get('status')
+            
+            # Capture New Call Fields
+            call_direction = request.POST.get('call_direction', 'Outbound')
+            call_method = request.POST.get('call_method', 'Note')
+            call_type = request.POST.get('call_type', 'General Note')
             
             if new_category:
                 task.email_category = new_category
@@ -163,11 +169,14 @@ def pssubf_action_view(request, email_id):
                 task.status = new_status
             task.save()
 
-            # Save to pssubf_notes
+            # Save to pssubf_notes (Added audit fields to text for now, 
+            # or update your model fields if you added specific columns)
+            audit_string = f"[{call_direction} | {call_method} | {call_type}]"
+            
             PssubfNote.objects.create(
                 task_email_id=email_id,
                 agent_name=request.user.username,
-                note_text=note_text,
+                note_text=f"{audit_string} {note_text}",
                 classification_at_time=task.email_category,
                 status_at_time=task.status
             )
@@ -177,16 +186,21 @@ def pssubf_action_view(request, email_id):
                 task_email_id=email_id,
                 action_user=request.user.username,
                 action_type="NOTE",
-                note_content=note_text
+                note_content=f"{audit_string} {note_text}"
             )
             messages.success(request, "Internal note saved.")
 
-        # 3. Handle External Email Reply
+        # 3. Handle External Email Reply (Updated with Call Audit)
         elif action_type == 'send_reply':
             recipient = request.POST.get('reply_recipient')
             subject = request.POST.get('reply_subject')
             body_content = request.POST.get('reply_body')
             
+            # Fixed values for Email Reply audit
+            call_direction = "Outbound"
+            call_method = "Emails"
+            call_type = "Feedback to Beneficiary"
+
             uploaded_files = request.FILES.getlist('reply_attachments')
             attachments_payload = []
             
@@ -215,19 +229,21 @@ def pssubf_action_view(request, email_id):
             if isinstance(response, dict) and 'error' in response:
                 messages.error(request, f"Email failed: {response.get('error')}")
             else:
-                # LOGGING FIX: Save actual body to pssubf_actions
+                audit_string = f"[{call_direction} | {call_method} | {call_type}]"
+                
+                # LOGGING: Save to pssubf_actions
                 PssubfAction.objects.create(
                     task_email_id=email_id,
                     action_user=request.user.username,
                     action_type="EMAIL_REPLY",
-                    note_content=f"To: {recipient}\nSubject: {subject}\n\n{body_content}"
+                    note_content=f"{audit_string}\nTo: {recipient}\nSubject: {subject}\n\n{body_content}"
                 )
 
-                # LOGGING FIX: Save to pssubf_notes so it appears in the Communication Log
+                # LOGGING: Save to pssubf_notes
                 PssubfNote.objects.create(
                     task_email_id=email_id,
                     agent_name=request.user.username,
-                    note_text=f"REPLY SENT TO {recipient}: {body_content}",
+                    note_text=f"{audit_string} REPLY SENT TO {recipient}: {body_content}",
                     classification_at_time=task.email_category,
                     status_at_time=task.status
                 )
@@ -681,7 +697,7 @@ def beneficiary_list_view(request):
         # Members 18 and older
         queryset = queryset.filter(cessation_date__lte=today)
     elif status_filter == 'active':
-        # Members under 18
+        # Members under 18 ( this is to avoid the wrong withdrawal amount to minors)
         queryset = queryset.filter(cessation_date__gt=today)
 
     # 3. Pagination (36 per page)
@@ -1001,7 +1017,9 @@ def claim_list_view(request):
         m_num = request.POST.get('membership_number')
         
         try:
-            member = get_object_or_404(PssubfBeneficiary, membership_number=m_num)
+            # We use .filter().first() instead of get_object_or_404 
+            # so the system doesn't crash if adding a claim for a non-existent member
+            member = PssubfBeneficiary.objects.filter(membership_number=m_num).first()
             uploaded_file = request.FILES.get('supporting_document')
             file_name = uploaded_file.name if uploaded_file else None
 
@@ -1010,8 +1028,13 @@ def claim_list_view(request):
 
             if action == 'add_claim_entry':
                 ClaimList.objects.create(
-                    beneficiary=member,
+                    beneficiary=member, # Can be None for imported/historical lines
+                    beneficiary_membership_number=m_num, # Ensure raw field is saved
                     reference_no=f"CLM-{timezone.now().strftime('%Y%m%d%H%M')}",
+                    guardian_name=request.POST.get('guardian_name'),
+                    beneficiary_name=request.POST.get('beneficiary_name'),
+                    beneficiary_dob=request.POST.get('beneficiary_dob') or None,
+                    termination_date=request.POST.get('termination_date') or None,
                     claim_type=request.POST.get('claim_type'),
                     description=(request.POST.get('description') or "") + agent_stamp,
                     date_logged=request.POST.get('date_logged') or None,
@@ -1022,6 +1045,8 @@ def claim_list_view(request):
                     age_at_claim=request.POST.get('age_at_claim'),
                     supporting_docs_attached=request.POST.get('supporting_docs_attached'),
                     monthly_income_payment=clean_numeric(request.POST.get('monthly_income')),
+                    date_paid=request.POST.get('date_paid') or None,
+                    loaded_by_agent=request.user.username,
                     attachment_path=file_name
                 )
                 msg = f"Claim for Member {m_num} logged."
@@ -1035,24 +1060,25 @@ def claim_list_view(request):
                 elif request.POST.get('remove_attachment') == 'true':
                     claim.attachment_path = None
 
+                claim.guardian_name = request.POST.get('guardian_name')
+                claim.beneficiary_name = request.POST.get('beneficiary_name')
+                claim.beneficiary_dob = request.POST.get('beneficiary_dob') or None
+                claim.termination_date = request.POST.get('termination_date') or None
+                claim.date_paid = request.POST.get('date_paid') or None
                 claim.claim_type = request.POST.get('claim_type')
                 claim.description = (request.POST.get('description') or "") + agent_stamp
                 claim.date_logged = request.POST.get('date_logged') or None
                 claim.status = request.POST.get('status')
-                # Use getattr/setattr or ensure date_paid exists in your DB for ClaimList
-                if hasattr(claim, 'date_paid'):
-                    claim.date_paid = request.POST.get('date_paid') or None
-                
                 claim.portfolio_value = clean_numeric(request.POST.get('portfolio_value'))
                 claim.portfolio_date = request.POST.get('portfolio_date') or None
                 claim.amount_requested = clean_numeric(request.POST.get('amount_requested'))
                 claim.age_at_claim = request.POST.get('age_at_claim')
                 claim.supporting_docs_attached = request.POST.get('supporting_docs_attached')
                 claim.monthly_income_payment = clean_numeric(request.POST.get('monthly_income'))
+                
                 claim.save()
                 msg = f"Claim {claim_id} updated."
 
-            # Action History Logging
             PssubfAction.objects.create(
                 task_email_id=f"CLAIM_{m_num}",
                 action_type="Claim Record Managed",
@@ -1067,10 +1093,14 @@ def claim_list_view(request):
         except Exception as e:
             messages.error(request, f"Error: {str(e)}")
 
+    # FETCH LOGIC: 
+    # Removed select_related('beneficiary') to ensure we get ALL claims, 
+    # even those without a matching member profile.
     membership_number = request.GET.get('membership_number')
-    claims = ClaimList.objects.all().select_related('beneficiary').order_by('-date_logged')
+    claims = ClaimList.objects.all().order_by('-date_logged')
+    
     if membership_number:
-        claims = claims.filter(beneficiary__membership_number=membership_number)
+        claims = claims.filter(beneficiary_membership_number=membership_number)
 
     return render(request, 'claim_list.html', {'claims': claims, 'title': 'Claims Registry'})
 
@@ -1439,3 +1469,56 @@ def export_claims_excel(request):
     response['Content-Disposition'] = f'attachment; filename=Claims_List_{date.today()}.xlsx'
     wb.save(response)
     return response
+
+from dateutil.relativedelta import relativedelta
+
+@login_required
+def affordability_dashboard(request):
+    """View the calculator and history"""
+    results = ClaimAffordability.objects.all().order_by('-calculated_at')
+    return render(request, 'affordability_dashboard.html', {'results': results})
+
+@login_required
+def run_manual_calc(request):
+    """Pulls data from Beneficiaries table and calculates affordability"""
+    if request.method == 'POST':
+        m_num = request.POST.get('membership_number')
+        
+        # 1. Pull data from the Beneficiaries Table
+        member = get_object_or_404(PssubfBeneficiary, membership_number=m_num)
+        
+        # 2. Get User Inputs
+        fund_val = float(request.POST.get('fund_value') or 0)
+        quote_amt = float(request.POST.get('quote_amount') or 0)
+        
+        # Use Beneficiary data for the rest
+        dob = member.dob
+        stipend = float(member.stipened or 0) # Pulls 'stipened' from your column list
+        
+        if dob:
+            # 3. Excel Logic (Months to 18)
+            majority_date = dob + relativedelta(years=18)
+            diff = relativedelta(majority_date, date.today())
+            total_months = (diff.years * 12) + diff.months
+            years_to_maj = round(total_months / 12, 2)
+
+            # 4. Financial Projection
+            total_stipend_cost = stipend * total_months
+            fund_after_stipend = fund_val - total_stipend_cost
+            final_bal = fund_after_stipend - quote_amt
+
+            # 5. Save to Analysis Table
+            ClaimAffordability.objects.update_or_create(
+                membership_number=m_num,
+                defaults={
+                    'majority_date': majority_date,
+                    'years_to_majority': years_to_maj,
+                    'months_to_majority': total_months,
+                    'total_stipend_commitment': total_stipend_cost,
+                    'fund_after_stipend': fund_after_stipend,
+                    'final_projected_balance': final_bal,
+                    'requires_letter': final_bal < 0
+                }
+            )
+            
+    return redirect('affordability_dashboard')

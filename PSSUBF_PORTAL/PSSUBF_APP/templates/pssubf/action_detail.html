@@ -124,7 +124,7 @@
                                 <option value="Schedule" {% if task.email_category == 'Schedule' %}selected{% endif %}>Schedule</option>
                                 <option value="Fund Value Confirmation" {% if task.email_category == 'Fund Value Confirmation' %}selected{% endif %}>Fund Value Confirmation</option>
                                 <option value="Unsure" {% if task.email_category == 'Unsure' %}selected{% endif %}>Unsure</option>
-                                </select>
+                            </select>
                         </div>
 
                         <div class="mb-3">
@@ -146,6 +146,47 @@
                         {% csrf_token %}
                         <input type="hidden" name="action_type" value="add_note">
                         
+                        <input type="hidden" name="call_direction" value="Outbound">
+                        
+                        <div class="mb-2">
+                            <label class="small fw-bold opacity-75">Call Method:</label>
+                            <select name="call_method" class="form-select form-select-sm form-control-glass" required>
+                                <option value="" disabled selected>Select Method</option>
+                                <option value="Phone">Phone</option>
+                                <option value="Emails">Emails</option>
+                                <option value="SMS">SMS</option>
+                                <option value="Letter">Letter</option>
+                            </select>
+                        </div>
+
+                        <div class="mb-2">
+                            <label class="small fw-bold opacity-75">Call Type:</label>
+                            <select name="call_type" class="form-select form-select-sm form-control-glass" required>
+                                <option value="" disabled selected>Select Type</option>
+                                <option value="Acknowledgement Letter Sent">Acknowledgement Letter Sent</option>
+                                <option value="Beneficiary Deceased">Beneficiary Deceased</option>
+                                <option value="Beneficiary Reached Maturity">Beneficiary Reached Maturity</option>
+                                <option value="Complete Claim Loaded">Complete Claim Loaded</option>
+                                <option value="Failed Bank Validation">Failed Bank Validation</option>
+                                <option value="Feedback to Beneficiary">Feedback to Beneficiary</option>
+                                <option value="Feedback to Guardian">Feedback to Guardian</option>
+                                <option value="Feedback to Other">Feedback to Other</option>
+                                <option value="Feedback to SALT">Feedback to SALT</option>
+                                <option value="Feedback to Sanlam">Feedback to Sanlam</option>
+                                <option value="Follow Up Incomplete Claim Pack">Follow Up Incomplete Claim Pack</option>
+                                <option value="Funds Depleted">Funds Depleted</option>
+                                <option value="Funds Less than R10 000">Funds Less than R10 000</option>
+                                <option value="Guardian - Welcome Pack Sent">Guardian - Welcome Pack Sent</option>
+                                <option value="Guardian Deceased">Guardian Deceased</option>
+                                <option value="Invalid ID">Invalid ID</option>
+                                <option value="New Entrance Pack Submitted to Sanlam">New Entrance Pack Submitted to Sanlam</option>
+                                <option value="Proof of Payment Sent">Proof of Payment Sent</option>
+                                <option value="SALT - Record does not exist">SALT - Record does not exist</option>
+                                <option value="SALT - Return New Entrance Pack (Incomplete)">SALT - Return New Entrance Pack (Incomplete)</option>
+                                <option value="Sanlam - Overdue Payments">Sanlam - Overdue Payments</option>
+                                <option value="Tracing Claim Sent to Sanlam">Tracing Claim Sent to Sanlam</option>
+                            </select>
+                        </div>
                         <div class="mb-2">
                             <label class="small fw-bold opacity-75">Confirm Category:</label>
                             <select name="email_category" class="form-select form-select-sm form-control-glass">
@@ -222,6 +263,10 @@
                             {% csrf_token %}
                             <input type="hidden" name="action_type" value="send_reply">
                             
+                            <input type="hidden" name="call_direction" value="Outbound">
+                            <input type="hidden" name="call_method" value="Emails">
+                            <input type="hidden" name="call_type" value="Feedback to Beneficiary">
+
                             <div class="row mb-3">
                                 <div class="col-md-6">
                                     <label class="form-label small fw-bold">To:</label>
@@ -233,9 +278,11 @@
                                 </div>
                             </div>
 
-                            <div class="mb-3">
-                                <label class="form-label small fw-bold"><i class="bi bi-paperclip"></i> Add Files:</label>
-                                <input type="file" name="reply_attachments" class="form-control form-control-sm form-control-glass" multiple>
+                            <div class="row mb-3">
+                                <div class="col-md-12">
+                                    <label class="form-label small fw-bold"><i class="bi bi-paperclip"></i> Add Files:</label>
+                                    <input type="file" name="reply_attachments" class="form-control form-control-sm form-control-glass" multiple>
+                                </div>
                             </div>
 
                             <div class="mb-3">
@@ -260,7 +307,6 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Auto-close standard Django alerts after 3 seconds
         const alerts = document.querySelectorAll('.auto-close-alert');
         alerts.forEach(function(alert) {
             setTimeout(function() {
@@ -269,7 +315,6 @@
             }, 3000);
         });
 
-        // Add "Processing" visuals when submitting forms
         const forms = ['metadataForm', 'noteForm', 'replyFormContent'];
         forms.forEach(function(formId) {
             const form = document.getElementById(formId);

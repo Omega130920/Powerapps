@@ -155,6 +155,7 @@ class PssubfDirectEmail(models.Model):
         db_table = 'pssubf_direct_emails'
         
 class ClaimList(models.Model):
+    # Foreign Key to Beneficiary
     beneficiary = models.ForeignKey(
         'PssubfBeneficiary', 
         on_delete=models.CASCADE, 
@@ -162,20 +163,34 @@ class ClaimList(models.Model):
         to_field='membership_number',
         related_name='claims'
     )
+    
+    # Existing & Metadata Fields
     reference_no = models.CharField(max_length=100)
-    claim_type = models.CharField(max_length=100)
+    claim_type = models.CharField(max_length=100) # This maps to Excel "Reason"
     description = models.TextField(blank=True, null=True)
-    date_logged = models.DateField(null=True, blank=True) # Original Claim Form Date
+    date_logged = models.DateField(null=True, blank=True) # Maps to "Original Claim Form Date"
     status = models.CharField(max_length=50, default='Pending')
     
-    # NEW FIELDS
-    portfolio_value = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
-    portfolio_date = models.DateField(null=True, blank=True)
-    amount_requested = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
-    age_at_claim = models.CharField(max_length=20, blank=True, null=True)
-    supporting_docs_attached = models.CharField(max_length=10, default='No')
-    monthly_income_payment = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
+    # NEW FIELDS FROM EXCEL DATA
+    guardian_name = models.CharField(max_length=255, blank=True, null=True) # Excel: Guardian Name & Surname
+    beneficiary_name = models.CharField(max_length=255, blank=True, null=True) # Excel: Beneficiary Name & Surname
+    beneficiary_dob = models.DateField(null=True, blank=True) # Excel: Beneficiary Date Of Birth
+    termination_date = models.DateField(null=True, blank=True) # Excel: Termination Date
+    
+    # Financials & Calculations
+    portfolio_value = models.DecimalField(max_digits=15, decimal_places=2, default=0.00) # Excel: Portfolio Value
+    portfolio_date = models.DateField(null=True, blank=True) # Excel: Portfolio Value Date
+    amount_requested = models.DecimalField(max_digits=15, decimal_places=2, default=0.00) # Excel: Amount Requested
+    monthly_income_payment = models.DecimalField(max_digits=15, decimal_places=2, default=0.00) # Excel: Monthly Income Payment
+    age_at_claim = models.CharField(max_length=20, blank=True, null=True) # Excel: Age at Claim Date
+    
+    # Status & Audit
+    supporting_docs_attached = models.CharField(max_length=10, default='No') # Excel: Supporting Documents Attached
+    date_paid = models.DateField(null=True, blank=True) # Excel: Date Paid
+    loaded_by_agent = models.CharField(max_length=100, blank=True, null=True) # Excel: Loaded by Agent
+    
     attachment_path = models.CharField(max_length=255, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = 'pssubf_claim_list'
@@ -220,3 +235,18 @@ class AdHocList(models.Model):
     class Meta:
         db_table = 'pssubf_ad_hoc_list'
         managed = False  # Reminder: You must run the ALTER TABLE SQL manually
+        
+class ClaimAffordability(models.Model):
+    claim = models.OneToOneField('ClaimList', on_delete=models.CASCADE, related_name='affordability')
+    membership_number = models.CharField(max_length=100)
+    majority_date = models.DateField()
+    years_to_majority = models.DecimalField(max_digits=5, decimal_places=2)
+    months_to_majority = models.IntegerField()
+    total_stipend_commitment = models.DecimalField(max_digits=15, decimal_places=2)
+    fund_after_stipend = models.DecimalField(max_digits=15, decimal_places=2)
+    final_projected_balance = models.DecimalField(max_digits=15, decimal_places=2)
+    requires_letter = models.BooleanField(default=False)
+    calculated_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'pssubf_claim_affordability'
