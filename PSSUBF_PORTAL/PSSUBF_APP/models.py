@@ -58,16 +58,35 @@ class PssubfOutlookToken(models.Model):
         db_table = 'pssubf_outlook_token'
         
 class PssubfNote(models.Model):
-    task_email_id = models.CharField(max_length=255)
-    agent_name = models.CharField(max_length=100)
-    note_text = models.TextField()
-    classification_at_time = models.CharField(max_length=100)
-    status_at_time = models.CharField(max_length=50)
-    created_at = models.DateTimeField(auto_now_add=True)
+    # primary_key=True is required if 'id' is your PK in MySQL
+    id = models.AutoField(primary_key=True) 
+    
+    # task_email_id: used to link notes to specific emails or "PROFILE_XXX"
+    task_email_id = models.CharField(max_length=255, db_column='task_email_id', blank=True, null=True)
+    
+    # agent_name: Stores the username of the person who wrote the note
+    agent_name = models.CharField(max_length=100, db_column='agent_name', blank=True, null=True)
+    
+    # note_text: The actual content of the note
+    note_text = models.TextField(db_column='note_text', blank=True, null=True)
+    
+    # classification_at_time: e.g., "General Note", "Claim Note", etc.
+    classification_at_time = models.CharField(max_length=100, db_column='classification_at_time', blank=True, null=True)
+    
+    # status_at_time: Captures the member/task status when the note was made
+    status_at_time = models.CharField(max_length=50, db_column='status_at_time', blank=True, null=True)
+    
+    # created_at: Maps to the timestamp column in MySQL
+    created_at = models.DateTimeField(auto_now_add=True, db_column='created_at')
 
     class Meta:
-        managed = False  # Django will not manage this table
+        managed = False  # Django will not attempt to create or alter this table
         db_table = 'pssubf_notes'
+        verbose_name = "Pssubf Note"
+        verbose_name_plural = "Pssubf Notes"
+
+    def __str__(self):
+        return f"Note by {self.agent_name} on {self.created_at}"
         
 class PssubfBeneficiary(models.Model):
     # Member Identification

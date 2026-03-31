@@ -147,6 +147,20 @@
             backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
             border-radius: 24px; border: 1px solid var(--glass-border); color: var(--text-dark);
         }
+
+        /* --- UTILITY --- */
+        .page-link-custom {
+            text-decoration: none;
+            color: var(--text-dark);
+            font-weight: 600;
+            padding: 5px 10px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.3);
+        }
+        .page-link-custom.disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -183,6 +197,7 @@
         </thead>
         <tbody id="tableBody">
             {% for task in delegations %}
+            {% if task.status != 'Completed' %} {# ADDED: Hide completed tasks #}
             <tr class="task-row">
                 <td>
                     <div class="text-truncate fw-bold search-field" style="max-width: 320px;" title="{{ task.subject }}">
@@ -205,7 +220,7 @@
                 </td>
 
                 <td>
-                    <span class="badge-status {% if task.status == 'Completed' %}bg-success text-white{% elif task.status == 'In Progress' %}bg-warning text-dark{% else %}bg-info text-white{% endif %}">
+                    <span class="badge-status {% if task.status == 'In Progress' %}bg-warning text-dark{% else %}bg-info text-white{% endif %}">
                         {{ task.status }}
                     </span>
                 </td>
@@ -232,6 +247,7 @@
                     </a>
                 </td>
             </tr>
+            {% endif %}
             {% empty %}
             <tr id="emptyRow">
                 <td colspan="8" class="text-center py-5">
@@ -274,6 +290,7 @@
     let currentPage = 1;
     let filteredRows = [];
     const searchInput = document.getElementById('liveSearch');
+    // We only select task-rows that actually made it into the DOM (non-completed ones)
     const allRows = Array.from(document.querySelectorAll('.task-row'));
 
     function updateTable() {
@@ -281,6 +298,7 @@
         filteredRows = allRows.filter(row => row.innerText.toLowerCase().includes(searchTerm));
         const totalRows = filteredRows.length;
         const totalPages = Math.ceil(totalRows / rowsPerPage);
+        
         if (currentPage > totalPages) currentPage = Math.max(1, totalPages);
         const start = (currentPage - 1) * rowsPerPage;
         const end = start + rowsPerPage;
@@ -291,6 +309,20 @@
         document.getElementById('totalCount').innerText = totalRows;
         document.getElementById('prevBtn').classList.toggle('disabled', currentPage === 1);
         document.getElementById('nextBtn').classList.toggle('disabled', currentPage === totalPages || totalPages === 0);
+        
+        // Handle empty search result display
+        const tableBody = document.getElementById('tableBody');
+        const existingEmptyMessage = document.getElementById('searchEmptyRow');
+        if (totalRows === 0 && searchTerm !== "") {
+            if (!existingEmptyMessage) {
+                const emptyRow = document.createElement('tr');
+                emptyRow.id = 'searchEmptyRow';
+                emptyRow.innerHTML = `<td colspan="8" class="text-center py-4 text-muted italic">No active tasks match your search.</td>`;
+                tableBody.appendChild(emptyRow);
+            }
+        } else if (existingEmptyMessage) {
+            existingEmptyMessage.remove();
+        }
     }
 
     function nextPage() { currentPage++; updateTable(); }

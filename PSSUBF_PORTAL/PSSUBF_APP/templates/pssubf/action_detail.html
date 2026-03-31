@@ -223,6 +223,7 @@
                     <h5 class="mb-1 text-primary fw-bold">{{ email_subject }}</h5>
                     <div class="d-flex justify-content-between align-items-center">
                         <span class="small opacity-75"><strong>From:</strong> {{ task.sender }}</span>
+                        <spam class="small opacity-75"><strong>Received:</strong> {{ task.created_at|date:"M d, Y H:i" }}</span>
                         <span class="badge bg-dark rounded-pill">Agent: {{ task.assigned_agent }}</span>
                     </div>
                 </div>

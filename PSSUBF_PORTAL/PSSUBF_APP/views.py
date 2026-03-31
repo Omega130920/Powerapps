@@ -361,18 +361,13 @@ def sync_pssubf_inbox(request):
 @login_required
 def pssubf_delegations_list(request):
     """
-    Displays the active queue with the original Email Received timestamp.
+    Displays the active queue, excluding completed and recycled items.
     """
-    # If your model has a ForeignKey to the inbox:
-    # delegations = PssubfDelegate.objects.exclude(status='Recycled').select_related('inbox').order_by('-created_at')
-
-    # If they are just linked by email_id (common in managed=False models):
-    delegations = PssubfDelegate.objects.exclude(status='Recycled').order_by('-created_at')
+    # Exclude both Recycled and Completed to keep the dashboard focused on active work
+    delegations = PssubfDelegate.objects.exclude(
+        status__in=['Recycled', 'Completed', 'Complete']
+    ).order_by('-created_at')
     
-    # We will pass the delegations. Your template will access the inbox timestamp 
-    # via the relationship (e.g., task.inbox_reference.received_timestamp)
-    # OR if you have a property/method on the model to fetch it.
-
     return render(request, 'pssubf/delegations_list.html', {
         'delegations': delegations
     })
@@ -757,6 +752,14 @@ def beneficiary_details_view(request, membership_number):
         elif 'save_note' in request.POST:
             note_text = request.POST.get('note_text')
             if note_text:
+                current_status = "Expired" if member.is_expired else "Active"
+                PssubfNote.objects.create(
+                    task_email_id=f"PROFILE_{membership_number}",
+                    agent_name=request.user.username,
+                    note_text=note_text,
+                    classification_at_time="Profile Detail Note",
+                    status_at_time=current_status
+                )
                 PssubfProfileNote.objects.create(
                     membership_number=membership_number,
                     agent_name=request.user.username,
@@ -770,13 +773,12 @@ def beneficiary_details_view(request, membership_number):
                     action_timestamp=timezone.now()
                 )
                 messages.success(request, "Internal note added to profile.")
-            else:
-                messages.warning(request, "Note content cannot be empty.")
             return redirect('beneficiary_details', membership_number=membership_number)
 
         # --- 3. HANDLE CORE PROFILE UPDATES ---
         else:
             try:
+                # ... (Profile update logic remains the same as your previous version)
                 member.old_membership_number = request.POST.get('old_membership_number')
                 member.title = request.POST.get('title')
                 member.initials = request.POST.get('initials')
@@ -822,16 +824,12 @@ def beneficiary_details_view(request, membership_number):
                     note_content="Modified beneficiary personal/financial details.",
                     action_timestamp=timezone.now()
                 )
-
                 messages.success(request, f"Changes saved for Member {member.membership_number}.")
                 return redirect('beneficiary_details', membership_number=member.membership_number)
-                
             except Exception as e:
                 messages.error(request, f"Error updating record: {str(e)}")
 
     # --- 4. FETCH DATA FOR TABS ---
-    
-    # NEW: Fetch linked registry records for the new tabs
     claims = ClaimList.objects.filter(beneficiary=member).order_by('-date_logged')
     adhoc_records = AdHocList.objects.filter(beneficiary=member).order_by('-claim_form_date')
 
@@ -841,6 +839,7 @@ def beneficiary_details_view(request, membership_number):
     combined_emails = []
     for e in incoming_emails:
         combined_emails.append({
+            'email_id': e.email_id, 
             'agent': e.assigned_agent or "Unassigned",
             'subject': e.subject,
             'date': e.created_at,
@@ -850,6 +849,8 @@ def beneficiary_details_view(request, membership_number):
 
     for e in outgoing_emails:
         combined_emails.append({
+            # We prefix local IDs to differentiate them from Graph API IDs in the URL
+            'email_id': f"DIRECT_{e.id}", 
             'agent': e.agent_name,
             'subject': e.subject,
             'date': e.sent_at,
@@ -858,19 +859,19 @@ def beneficiary_details_view(request, membership_number):
         })
 
     combined_emails.sort(key=lambda x: x['date'] if x['date'] else timezone.now(), reverse=True)
-    internal_notes = PssubfProfileNote.objects.filter(membership_number=membership_number).order_by('-created_at')
+    
+    internal_notes = PssubfNote.objects.filter(task_email_id__icontains=membership_number).order_by('-created_at')
     pssubf_actions = PssubfAction.objects.filter(Q(task_email_id__icontains=membership_number)).order_by('-action_timestamp')
 
     context = {
         'member': member,
-        'claims': claims,                 # Passed to Registry Tab
-        'adhoc_records': adhoc_records,   # Passed to Registry Tab
+        'claims': claims,
+        'adhoc_records': adhoc_records,
         'email_logs': combined_emails,
         'internal_notes': internal_notes,
         'pssubf_actions': pssubf_actions,
         'title': f"Member Profile - {membership_number}"
     }
-
     return render(request, 'pssubf/beneficiary_details.html', context)
 
 from datetime import date
@@ -1522,3 +1523,42 @@ def run_manual_calc(request):
             )
             
     return redirect('affordability_dashboard')
+
+import io
+from django.http import HttpResponse
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+
+@login_required
+def download_email_eml(request, email_id):
+    """
+    Generates and downloads a .eml file for both Delegated and Direct emails.
+    """
+    msg = MIMEMultipart()
+    
+    if email_id.startswith("DIRECT_"):
+        # Fetch from local Direct Email table
+        local_id = email_id.replace("DIRECT_", "")
+        email_obj = get_object_or_404(PssubfDirectEmail, id=local_id)
+        
+        msg['Subject'] = email_obj.subject
+        msg['From'] = settings.OUTLOOK_EMAIL_ADDRESS
+        msg['To'] = email_obj.recipient
+        body_content = email_obj.body_html
+    else:
+        # Fetch from Delegated incoming table
+        task = get_object_or_404(PssubfDelegate, email_id=email_id)
+        msg['Subject'] = task.subject or "(No Subject)"
+        msg['From'] = task.sender or "System"
+        msg['To'] = settings.OUTLOOK_EMAIL_ADDRESS
+        body_content = f"Source: PSSUBF Portal Delegation\nSender: {task.sender}\nDate: {task.created_at}"
+
+    msg.attach(MIMEText(body_content, 'html'))
+
+    buf = io.BytesIO()
+    buf.write(msg.as_bytes())
+    buf.seek(0)
+    
+    response = HttpResponse(buf.read(), content_type='message/rfc822')
+    response['Content-Disposition'] = f'attachment; filename="Email_Record.eml"'
+    return response

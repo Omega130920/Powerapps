@@ -46,4 +46,5 @@ urlpatterns = [
     path('claims/export/', views.export_claims_excel, name='export_claims'),
     path('affordability-tool/', views.affordability_dashboard, name='affordability_dashboard'),
     path('affordability/run/', views.run_manual_calc, name='run_manual_calc'),  
+    path('email/download/<str:email_id>/', views.download_email_eml, name='download_email_eml'),
 ]
