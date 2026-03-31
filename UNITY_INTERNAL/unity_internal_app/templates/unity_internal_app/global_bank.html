@@ -72,7 +72,7 @@
     .date-input { width: 130px; }
     .clear-btn { background-color: #f44336; color: white; padding: 0.4em 0.8em; border-radius: 4px; text-decoration: none; font-weight: bold; font-size: 0.9em; }
 
-    .desc-text { color: #666; font-size: 11px; display: block; margin-top: 4px; font-style: italic; border-top: 1px dashed #eee; padding-top: 2px; }
+    .desc-text { color: #666; font-size: 11px; display: block; font-style: italic; }
 </style>
 
 <div class="container-custom">
@@ -109,7 +109,8 @@
                     <th style="width: 85px;">Date</th>
                     <th style="width: 80px;">Source</th>
                     <th style="width: 80px;">Reconned</th>
-                    <th style="width: 200px;">Member Group & Bank Desc</th>
+                    <th style="width: 140px;">Member Group</th>
+                    <th style="width: 180px;">Bank Description</th>
                     <th style="width: 100px;">Deposit</th>
                     <th style="width: 100px;">Used Amount</th>
                     <th style="width: 100px;">Remaining</th>
@@ -139,11 +140,16 @@
                     <td>
                         <strong>{{ item.company_code }}</strong><br>
                         <small>{{ item.company_name }}</small>
-                        {# --- ADDED TRANSACTION DESCRIPTION HERE --- #}
+                    </td>
+                    <td>
                         <span class="desc-text">{{ item.transaction_description|default:"No description provided" }}</span>
                     </td>
                     <td style="color: #1b5e20; font-weight: bold;">R {{ item.amount|floatformat:2 }}</td>
-                    <td style="color: #43a047;">R {{ item.settled|floatformat:2 }}</td>
+                    
+                    <td style="color: #43a047;">
+                        R {{ item.settled_amount|default:"0.00"|floatformat:2 }}
+                    </td>
+
                     <td style="{% if item.remaining > 0.009 %}color: #d32f2f; font-weight: bold;{% endif %}">
                         R {{ item.remaining|floatformat:2 }}
                     </td>
@@ -173,7 +179,7 @@
                     </td>
                 </tr>
                 {% empty %}
-                <tr><td colspan="10" style="text-align: center; padding: 20px;">No records found for the selected criteria.</td></tr>
+                <tr><td colspan="11" style="text-align: center; padding: 20px;">No records found for the selected criteria.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

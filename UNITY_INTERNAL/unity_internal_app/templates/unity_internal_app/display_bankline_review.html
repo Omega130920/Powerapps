@@ -41,8 +41,36 @@ h3{color:#1b5e20;margin-top:30px}
 
 .modal-content textarea { resize: vertical; min-height: 80px; }
 
-/* Email Section Styling */
-.email-box { margin-top: 15px; padding: 15px; background-color: #e3f2fd; border-radius: 8px; border: 1px solid #90caf9; }
+/* SEARCH SEARCH STYLES */
+.search-wrapper { position: relative; margin-top: 5px; }
+.search-input-field { 
+    width: 100%; 
+    padding: 10px; 
+    border: 2px solid #3f51b5; 
+    border-radius: 4px; 
+    box-sizing: border-box; 
+    margin-bottom: 2px;
+}
+.search-results-container {
+    max-height: 150px;
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    background: white;
+    display: none;
+    position: absolute;
+    width: 100%;
+    z-index: 10;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+.search-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+    font-size: 0.9em;
+}
+.search-item:hover { background-color: #e3f2fd; }
+.search-item.selected { background-color: #3f51b5; color: white; }
+
 </style>
 </head>
 <body>
@@ -103,7 +131,6 @@ h3{color:#1b5e20;margin-top:30px}
             </td>
         </tr>
         
-        {# Display any leftover that hasn't been dealt with yet #}
         {% with total_out=recon_record.amount_settled %}
         {% if recon_record.transaction_amount|sub:total_out > 0.009 %}
         <tr>
@@ -150,16 +177,22 @@ h3{color:#1b5e20;margin-top:30px}
             
             <input type="hidden" name="source_param" value="{{ source }}">
 
-            <label for="company_code_select">Change Company Code:</label>
-            <select id="company_code_select" name="company_code_select">
-                <option value="" {% if not recon_record.company_code %}selected{% endif %}>--- Clear Allocation ---</option>
-                <option value="{{ recon_record.company_code }}" {% if recon_record.company_code %}selected{% endif %}>{{ recon_record.company_code|default:"N/A" }} (Current)</option>
-                {% for code in company_codes %}
-                    {% if code != recon_record.company_code %}
-                        <option value="{{ code }}">{{ code }}</option>
-                    {% endif %}
-                {% endfor %}
-            </select>
+            <label for="mg_search">Search/Change Company Code:</label>
+            <div class="search-wrapper">
+                <input type="text" id="mg_search" class="search-input-field" placeholder="Type to search company code..." autocomplete="off" value="{{ recon_record.company_code|default:'' }}">
+                <div id="mg_results" class="search-results-container">
+                    <div class="search-item" data-value="">--- Clear Allocation ---</div>
+                    {% for code in company_codes %}
+                        <div class="search-item" data-value="{{ code }}">{{ code }}</div>
+                    {% endfor %}
+                </div>
+                <select id="company_code_select" name="company_code_select" style="display: none;">
+                    <option value="" {% if not recon_record.company_code %}selected{% endif %}>--- Clear Allocation ---</option>
+                    {% for code in company_codes %}
+                        <option value="{{ code }}" {% if recon_record.company_code == code %}selected{% endif %}>{{ code }}</option>
+                    {% endfor %}
+                </select>
+            </div>
 
             <label for="fiscal_date">Assign Fiscal Date:</label>
             <input type="date" id="fiscal_date" name="fiscal_date" value="{{ recon_record.fiscal_date|date:'Y-m-d'|default:'' }}">
@@ -190,12 +223,60 @@ document.addEventListener('DOMContentLoaded', function() {
     const closeBtn = document.getElementById('closeBtn');
     const form = document.getElementById('reviewForm');
     
+    // Search elements
+    const searchInput = document.getElementById('mg_search');
+    const resultsContainer = document.getElementById('mg_results');
+    const hiddenSelect = document.getElementById('company_code_select');
+    const searchItems = document.querySelectorAll('.search-item');
+
     if (btn) btn.onclick = () => modal.style.display = "block";
     closeBtn.onclick = () => modal.style.display = "none";
     
     window.onclick = (event) => {
-        if (event.target == modal) modal.style.display = "none";
+        if (event.target == modal) {
+            modal.style.display = "none";
+            resultsContainer.style.display = "none";
+        }
     }
+
+    // --- SEARCH LOGIC ---
+    searchInput.addEventListener('focus', () => {
+        resultsContainer.style.display = "block";
+    });
+
+    searchInput.addEventListener('input', function() {
+        const filter = this.value.toUpperCase();
+        resultsContainer.style.display = "block";
+        let hasResults = false;
+
+        searchItems.forEach(item => {
+            const text = item.textContent || item.innerText;
+            if (text.toUpperCase().indexOf(filter) > -1) {
+                item.style.display = "";
+                hasResults = true;
+            } else {
+                item.style.display = "none";
+            }
+        });
+
+        if (!hasResults) resultsContainer.style.display = "none";
+    });
+
+    searchItems.forEach(item => {
+        item.addEventListener('click', function() {
+            const val = this.getAttribute('data-value');
+            searchInput.value = this.textContent;
+            hiddenSelect.value = val;
+            resultsContainer.style.display = "none";
+        });
+    });
+
+    // Close results when clicking outside the search wrapper
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.search-wrapper')) {
+            resultsContainer.style.display = "none";
+        }
+    });
 
     form.onsubmit = function(e) {
         e.preventDefault(); 

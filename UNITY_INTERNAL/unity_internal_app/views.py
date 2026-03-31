@@ -4522,26 +4522,30 @@ def reject_credit_link(request, note_id):
 
 @login_required
 def global_bank_view(request):
-    from django.db.models import F, Q
+    from django.db.models import F, Q, Sum
     from decimal import Decimal
     from django.core.paginator import Paginator
+    # Import the necessary models for calculation
+    from .models import (
+        ReconnedBank, CreditNote, BillSettlement, UnityMgListing
+    )
 
     query = request.GET.get('q')
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
     
     # --- 1. Fetch Physical Bank Lines ---
-    # We use select_related to join the importbank table (bank_line) immediately
     bank_qs = ReconnedBank.objects.select_related('bank_line').order_by('-transaction_date', '-id')
     
     if start_date and end_date:
         bank_qs = bank_qs.filter(transaction_date__range=[start_date, end_date])
     
     if query:
+        # FIXED: Changed to lowercase fields to prevent "Unsupported lookup" FieldError
         bank_qs = bank_qs.filter(
             Q(company_code__icontains=query) |
-            Q(bank_line__Transaction_description__icontains=query) | 
-            Q(bank_line__Statement_reference__icontains=query)
+            Q(bank_line__transaction_description__icontains=query) | 
+            Q(bank_line__statement_reference__icontains=query)
         )
 
     # --- 2. Fetch Approved Virtual Credits (The Overs) ---
@@ -4555,7 +4559,26 @@ def global_bank_view(request):
     if query:
         credit_qs = credit_qs.filter(Q(member_group_code__icontains=query))
 
-    # --- 3. Build MG Map for Names and Agents ---
+    # --- 3. Pre-Calculate Bill Settlements for Bank Lines ---
+    bank_line_ids = list(bank_qs.values_list('id', flat=True))
+    
+    # Map of actual bill usage (consumption) per bank line
+    bill_usage_map = {
+        item['reconned_bank_line_id']: item['total']
+        for item in BillSettlement.objects.filter(reconned_bank_line_id__in=bank_line_ids)
+        .values('reconned_bank_line_id')
+        .annotate(total=Sum('settled_amount'))
+    }
+
+    # Map of overs/credits created from these bank lines
+    overs_usage_map = {
+        item['source_bank_line_id']: item['total']
+        for item in CreditNote.objects.filter(source_bank_line_id__in=bank_line_ids, note_selection='OVERS')
+        .values('source_bank_line_id')
+        .annotate(total=Sum('schedule_amount'))
+    }
+
+    # --- 4. Build MG Map for Names and Agents ---
     all_codes = list(bank_qs.values_list('company_code', flat=True).distinct()) + \
                 list(credit_qs.values_list('member_group_code', flat=True).distinct())
     
@@ -4564,27 +4587,33 @@ def global_bank_view(request):
         for item in UnityMgListing.objects.filter(a_company_code__in=all_codes).values('a_company_code', 'b_company_name', 'c_agent')
     }
 
-    # --- 4. Unify the Data into the combined_list ---
+    # --- 5. Unify the Data into the combined_list ---
     combined_list = []
 
     # Map Bank Lines
     for r in bank_qs:
         mg_info = mg_map.get(r.company_code, {})
         
-        # Robust Drill-Down Logic
+        # Get actual bill-only usage (e.g., R 1200)
+        bill_usage = bill_usage_map.get(r.id, Decimal('0.00'))
+        credit_overs = overs_usage_map.get(r.id, Decimal('0.00'))
+
         raw_description = "No description found"
         if r.bank_line:
-            # We try the exact DB name first, then a lowercase version just in case
-            raw_description = getattr(r.bank_line, 'Transaction_description', 
-                                     getattr(r.bank_line, 'transaction_description', "No description found"))
+            # Handle potential casing variations in the object attributes
+            raw_description = getattr(r.bank_line, 'transaction_description', 
+                                     getattr(r.bank_line, 'Transaction_description', "No description found"))
 
         combined_list.append({
             'id': r.id,
             'source': 'BANK',
             'transaction_date': r.transaction_date,
             'amount': r.transaction_amount,
-            'settled': r.amount_settled,
-            'remaining': r.transaction_amount - r.amount_settled,
+            # FIXED: "Used Amount" now shows only the bill consumption
+            'settled_amount': bill_usage, 
+            'credit_amount': credit_overs,
+            # FIXED: "Remaining" now shows the surplus (amount - consumption)
+            'remaining': r.transaction_amount - bill_usage,
             'status': r.recon_status or "Unidentified",
             'company_code': r.company_code or "—",
             'company_name': mg_info.get('name', "Unassigned") if r.company_code else "—",
@@ -4600,7 +4629,8 @@ def global_bank_view(request):
             'source': 'CREDIT',
             'transaction_date': c.authorized_at.date() if c.authorized_at else c.processed_date,
             'amount': c.schedule_amount,
-            'settled': Decimal('0.00'),
+            'settled_amount': Decimal('0.00'), 
+            'credit_amount': Decimal('0.00'),
             'remaining': c.schedule_amount,
             'status': "APPROVED VIRTUAL",
             'company_code': c.member_group_code,
@@ -4631,12 +4661,14 @@ def global_bank_view(request):
 def export_global_bank_excel(request):
     """
     Exports the Global Bank history to Excel.
-    UPDATED: Splits review_note into 'Note Category' and 'Internal Note' columns.
+    UPDATED: Matches dashboard logic for Correct Settled vs Remaining math.
+    UPDATED: Splits review_note into 'Note Category' and 'Internal Note'.
     """
     import openpyxl
     from django.http import HttpResponse
-    from django.db.models import Q
+    from django.db.models import Q, Sum
     from decimal import Decimal
+    from .models import ReconnedBank, CreditNote, BillSettlement, UnityMgListing
     
     query = request.GET.get('q')
     
@@ -4646,7 +4678,8 @@ def export_global_bank_excel(request):
     if query:
         bank_records = bank_records.filter(
             Q(company_code__icontains=query) |
-            Q(bank_line__transaction_description__icontains=query) |
+            Q(bank_line__Transaction_description__icontains=query) |
+            Q(bank_line__Statement_reference__icontains=query) |
             Q(recon_status__icontains=query) |
             Q(review_note__icontains=query)
         )
@@ -4664,7 +4697,17 @@ def export_global_bank_excel(request):
             Q(member_group_name__icontains=query)
         )
 
-    # --- 3. Build Company Lookup Map ---
+    # --- 3. Pre-Calculate Bill Settlements for Bank Lines ---
+    # This is the critical step to ensure math (Deposit - Settled = Remaining) is correct
+    bank_line_ids = list(bank_records.values_list('id', flat=True))
+    bill_usage_map = {
+        item['reconned_bank_line_id']: item['total']
+        for item in BillSettlement.objects.filter(reconned_bank_line_id__in=bank_line_ids)
+        .values('reconned_bank_line_id')
+        .annotate(total=Sum('settled_amount'))
+    }
+
+    # --- 4. Build Company Lookup Map ---
     bank_codes = list(bank_records.values_list('company_code', flat=True).distinct())
     credit_codes = list(credit_records.values_list('member_group_code', flat=True).distinct())
     all_codes = set(bank_codes + credit_codes)
@@ -4677,17 +4720,25 @@ def export_global_bank_excel(request):
         for item in UnityMgListing.objects.filter(a_company_code__in=all_codes).values('a_company_code', 'b_company_name', 'c_agent')
     }
 
-    # --- 4. Normalize and Merge Data ---
+    # --- 5. Normalize and Merge Data ---
     export_rows = []
 
     # Process Bank Lines
     for r in bank_records:
         mg_info = mg_map.get(r.company_code, {})
         
-        # --- UNPACK NOTE FOR EXCEL (TWO COLUMNS) ---
+        # Calculate actual bill usage vs remaining (Overs)
+        bill_usage = bill_usage_map.get(r.id, Decimal('0.00'))
+        
+        # Robust Description handling
+        raw_description = "No description found"
+        if r.bank_line:
+            raw_description = getattr(r.bank_line, 'Transaction_description', 
+                                     getattr(r.bank_line, 'transaction_description', "No description found"))
+
+        # Unpack notes
         note_category = ""
         internal_note_text = ""
-        
         if r.review_note:
             if " | " in r.review_note:
                 parts = r.review_note.split(" | ", 1)
@@ -4695,20 +4746,19 @@ def export_global_bank_excel(request):
                 internal_note_text = parts[1]
             else:
                 note_category = r.review_note
-                internal_note_text = ""
 
         export_rows.append({
             'date': r.transaction_date,
-            'description': r.bank_line.transaction_description,
+            'description': raw_description,
             'code': r.company_code or "Unassigned",
             'name': mg_info.get('name', "—"),
             'deposit': r.transaction_amount,
-            'settled': r.amount_settled,
-            'remaining': (r.transaction_amount - r.amount_settled),
+            'settled': bill_usage, # The R 1200
+            'remaining': r.transaction_amount - bill_usage, # The R 300
             'status': r.recon_status,
             'agent': mg_info.get('agent', "System"),
-            'note_category': note_category,      # Column 10
-            'internal_note': internal_note_text  # Column 11
+            'note_category': note_category,
+            'internal_note': internal_note_text
         })
 
     # Process Credit Notes (Overs)
@@ -4718,7 +4768,7 @@ def export_global_bank_excel(request):
 
         export_rows.append({
             'date': c_date,
-            'description': "APPROVED OVERS (Virtual Credit)",
+            'description': f"APPROVED OVERS (Virtual Credit: {c.note_selection})",
             'code': c.member_group_code,
             'name': c_name,
             'deposit': c.schedule_amount,
@@ -4727,10 +4777,10 @@ def export_global_bank_excel(request):
             'status': "APPROVED VIRTUAL",
             'agent': c.authorized_by or "Manager",
             'note_category': "OVERS",
-            'internal_note': "Virtual Credit Line"
+            'internal_note': "Virtual Credit Line created from surplus"
         })
 
-    # --- 5. Sort Combined List ---
+    # Sort Combined List by Date
     export_rows.sort(key=lambda x: x['date'], reverse=True)
 
     # --- 6. Write to Excel ---
@@ -4738,17 +4788,20 @@ def export_global_bank_excel(request):
     ws = wb.active
     ws.title = "Global Bank Export"
 
-    # HEADERS WITH BOTH COLUMNS
+    # HEADERS
     headers = [
-        "Date", "Description", "Company Code", "Company Name", 
-        "Deposit Amount", "Settled Amount", "Remaining Balance", 
+        "Date", "Bank Description", "Company Code", "Company Name", 
+        "Deposit Amount", "Settled (Bill Usage)", "Remaining (Surplus/Overs)", 
         "Status", "Agent", "Note Category", "Internal Note"
     ]
     ws.append(headers)
 
+    # Bold headers
     for cell in ws[1]:
         cell.font = openpyxl.styles.Font(bold=True)
+        cell.alignment = openpyxl.styles.Alignment(horizontal="center")
 
+    # Append rows
     for row in export_rows:
         ws.append([
             row['date'], row['description'], row['code'], row['name'],
@@ -4757,9 +4810,13 @@ def export_global_bank_excel(request):
             row['note_category'], row['internal_note']
         ])
 
-    # Styling for readability
-    ws.column_dimensions['J'].width = 25 # Note Category
-    ws.column_dimensions['K'].width = 60 # Internal Note
+    # Auto-adjust column widths for better look
+    col_widths = {
+        'A': 15, 'B': 45, 'C': 15, 'D': 30, 'E': 18, 
+        'F': 18, 'G': 18, 'H': 15, 'I': 15, 'J': 25, 'K': 60
+    }
+    for col, width in col_widths.items():
+        ws.column_dimensions[col].width = width
     
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = 'attachment; filename="Global_Bank_Export.xlsx"'

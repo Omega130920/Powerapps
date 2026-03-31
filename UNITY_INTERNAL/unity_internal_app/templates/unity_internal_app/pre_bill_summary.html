@@ -208,7 +208,7 @@ R {{ line.remaining_debt|floatformat:2 }}
 <input type="number" name="amount_to_apply" id="amount-{{ line.id }}" class="amount-input" step="0.01" min="0.01" max="{{ line.remaining_debt|floatformat:2 }}" placeholder="0.00">
 <label title="If the applied amount is less than the available balance, check this box to create a new unassigned ReconnedBank line for the remainder.">
 <input type="hidden" name="split_and_reallocate" value="False">
-<input type="checkbox" name="split_and_reallocate" value="True"> Split & Unassign Remainder
+<!-- <input type="checkbox" name="split_and_reallocate" value="True"> Split & Unassign Remainder -->
 </label>
 <button type="submit" class="action-button">Apply Cash</button>
 </div>
