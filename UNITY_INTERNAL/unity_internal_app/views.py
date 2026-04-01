@@ -984,6 +984,7 @@ def bankline_recon(request, record_id):
     """
     Handles the reconciliation/assignment of bank lines OR Approved Credits.
     UPDATED: Returns to bank_list.html after successful assignment.
+    UPDATED: Allows saving without a company code if 'is_bulk' is ticked.
     """
     from django.urls import reverse
     
@@ -1026,28 +1027,48 @@ def bankline_recon(request, record_id):
 
     if request.method == 'POST':
         allocated_company_code_value = request.POST.get('company_code')
+        # Capture Bulk Tick Box
+        is_bulk_ticked = request.POST.get('is_bulk') == 'on'
         
-        if not allocated_company_code_value or allocated_company_code_value == 'None':
-            messages.error(request, "You must select a Company Code for reconciliation.")
-            return redirect('bankline_recon', record_id=record_id)
-
-        try:
-            code_exists = InternalFunds.objects.filter(A_Company_Code=allocated_company_code_value).exists() or \
-                         UnityMgListing.objects.filter(a_company_code=allocated_company_code_value).exists()
-
-            if not code_exists:
-                messages.error(request, f"Company code '{allocated_company_code_value}' is not recognized.")
+        # --- FIX: Only require Company Code if NOT a bulk split ---
+        if not is_bulk_ticked:
+            if not allocated_company_code_value or allocated_company_code_value == 'None':
+                messages.error(request, "You must select a Company Code for reconciliation OR mark as Bulk Split.")
                 return redirect('bankline_recon', record_id=record_id)
 
+        try:
+            # Only validate the company code if one was provided
+            if allocated_company_code_value and allocated_company_code_value != 'None':
+                code_exists = InternalFunds.objects.filter(A_Company_Code=allocated_company_code_value).exists() or \
+                             UnityMgListing.objects.filter(a_company_code=allocated_company_code_value).exists()
+
+                if not code_exists:
+                    messages.error(request, f"Company code '{allocated_company_code_value}' is not recognized.")
+                    return redirect('bankline_recon', record_id=record_id)
+
             # --- ASSIGNMENT ---
-            recon_segment.company_code = allocated_company_code_value
+            # Set company_code to the provided value, or None if it's a Bulk Split without a code
+            recon_segment.company_code = allocated_company_code_value if allocated_company_code_value != 'None' else None
             recon_segment.agent = request.user.get_full_name() or request.user.username
-            recon_segment.recon_status = 'Unreconciled - Assigned'
+            
+            # Apply Bulk Logic if ticked
+            if is_bulk_ticked:
+                recon_segment.recon_status = 'Unreconciled - Bulk Split'
+                recon_segment.review_note = 'BULK'
+            else:
+                recon_segment.recon_status = 'Unreconciled - Assigned'
+                
             recon_segment.save()
             
-            messages.success(request, f"Bank line segment {record_id} assigned to Code: {allocated_company_code_value}.")
+            success_msg = f"Bank line segment {record_id} processed successfully."
+            if is_bulk_ticked:
+                success_msg += " (Marked for Bulk Processing)"
+            elif allocated_company_code_value:
+                success_msg += f" (Assigned to Code: {allocated_company_code_value})"
+                
+            messages.success(request, success_msg)
             
-            # --- FIX: REDIRECT TO BANK LIST INSTEAD OF UNITY_INFORMATION ---
+            # REDIRECT TO BANK LIST
             return redirect('bank_list')
 
         except Exception as e:
@@ -5275,3 +5296,137 @@ def move_bank_line_to_credit(request, recon_id):
 
     messages.success(request, f"R{remaining_balance} moved to Credit Pool. Awaiting Manager Approval.")
     return redirect('unity_information', company_code=company_code)
+
+@login_required
+def bulk_billing_dashboard(request):
+    from .models import ReconnedBank, UnityMgListing, UnityBill
+    from django.db.models import Q, Sum
+    from django.shortcuts import render
+
+    # 1. Fetch bank lines marked for bulk that aren't fully processed
+    bulk_bank_lines = ReconnedBank.objects.filter(
+        review_note__icontains="BULK", 
+        recon_status__icontains="Unreconciled"
+    ).select_related('bank_line').order_by('-transaction_date')
+
+    # 2. Get the bill totals per company code from UnityBill
+    # FIXED: Using 'H_Schedule_Amount' as identified in your model choices
+    bill_aggregates = UnityBill.objects.filter(
+        is_reconciled=False
+    ).values('C_Company_Code').annotate(
+        total_outstanding=Sum('H_Schedule_Amount')
+    )
+
+    # Create a lookup dictionary: { 'code': amount }
+    amounts_map = {item['C_Company_Code']: item['total_outstanding'] for item in bill_aggregates}
+
+    # 3. Fetch the Member names from UnityMgListing
+    members_queryset = UnityMgListing.objects.filter(
+        a_company_code__in=amounts_map.keys()
+    ).values_list('a_company_code', 'b_company_name')
+
+    # 4. Build the 3-tuple (Code, Name, Amount) for the HTML loop
+    eligible_members = [
+        (code, name, amounts_map.get(code, 0)) 
+        for code, name in members_queryset
+    ]
+
+    context = {
+        'bulk_bank_lines': bulk_bank_lines,
+        'eligible_members': eligible_members,
+    }
+    return render(request, 'unity_internal_app/bulk_billing.html', context)
+
+from django.db import transaction
+
+@login_required
+def process_bulk_allocation(request):
+    if request.method == 'POST':
+        from .models import ReconnedBank, UnityBill, BillSettlement
+        from django.db.models import Sum
+        from decimal import Decimal
+        from django.contrib import messages
+        from django.utils import timezone
+        from django.db import transaction
+
+        bank_line_id = request.POST.get('bank_line_id')
+        member_codes = request.POST.getlist('member_codes[]')
+        amounts = request.POST.getlist('amounts[]')
+
+        try:
+            with transaction.atomic():
+                # Lock the bank line for processing
+                bank_line = ReconnedBank.objects.select_for_update().get(id=bank_line_id)
+                total_successfully_allocated = Decimal('0.00')
+
+                for code, amount_str in zip(member_codes, amounts):
+                    if not code or not amount_str: continue
+                    
+                    requested_amount = Decimal(amount_str)
+                    
+                    # 1. Find the oldest open bill
+                    target_bill = UnityBill.objects.filter(
+                        C_Company_Code=code, 
+                        is_reconciled=False
+                    ).order_by('A_CCDatesMonth').first()
+
+                    if not target_bill:
+                        messages.warning(request, f"Skipped {code}: No open bill found.")
+                        continue
+
+                    # 2. Calculate exactly what is still owed on this bill
+                    # (Total Bill Amount - Total already settled by other bank lines/credits)
+                    already_paid = BillSettlement.objects.filter(
+                        unity_bill_source=target_bill
+                    ).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
+                    
+                    # We also check JournalEntries if your system uses them for surplus/journals
+                    from .models import JournalEntry
+                    journals_paid = JournalEntry.objects.filter(
+                        target_bill=target_bill
+                    ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+
+                    remaining_on_bill = target_bill.H_Schedule_Amount - already_paid - journals_paid
+
+                    # 3. STRICTOR LOGIC: Cap the amount to prevent "Overs"
+                    # We take the lesser of what the user typed vs what is actually owed
+                    actual_settle_amount = min(requested_amount, remaining_on_bill)
+
+                    if actual_settle_amount <= 0:
+                        messages.info(request, f"Note: {code} bill is already covered.")
+                        continue
+
+                    # 4. Create the Settlement
+                    BillSettlement.objects.create(
+                        unity_bill_source=target_bill,
+                        reconned_bank_line=bank_line,
+                        settled_amount=actual_settle_amount,
+                        date_applied=timezone.now()
+                    )
+
+                    # Update tallies
+                    bank_line.amount_settled += actual_settle_amount
+                    total_successfully_allocated += actual_settle_amount
+
+                    # 5. Check if the bill is now finished
+                    if (already_paid + journals_paid + actual_settle_amount) >= (target_bill.H_Schedule_Amount - Decimal('0.01')):
+                        target_bill.is_reconciled = True
+                        target_bill.save()
+                    
+                    # Inform user if the amount was capped
+                    if actual_settle_amount < requested_amount:
+                        messages.info(request, f"{code}: Only R {actual_settle_amount} was used (Bill Balance reached).")
+
+                # 6. Update Bank Line Status based on the new total
+                if bank_line.amount_settled >= (bank_line.transaction_amount - Decimal('0.01')):
+                    bank_line.recon_status = "Fully Reconciled"
+                else:
+                    bank_line.recon_status = "Partially Reconciled"
+                
+                bank_line.save()
+                messages.success(request, f"Bulk processing complete. Total Allocated: R {total_successfully_allocated}")
+
+        except Exception as e:
+            messages.error(request, f"Error during bulk processing: {e}")
+
+    return redirect('bulk_billing_dashboard')

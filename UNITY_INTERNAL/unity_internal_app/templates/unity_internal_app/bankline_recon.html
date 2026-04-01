@@ -6,25 +6,31 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Reconcile Bank Line #{{ current_recon.id }}</title>
 <style>
-/* Add your standard form styles here */
+/* Standard form styles */
 body { font-family: sans-serif; margin: 20px; background-color: #f4f4f4; }
-.container { max-width: 700px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 0 10px rgba(0 0, 0, 0.1); }
+.container { max-width: 700px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1); }
 h1 { color: #1b5e20; border-bottom: 2px solid #81c784; padding-bottom: 10px; margin-bottom: 20px; }
 .bank-details p { margin: 5px 0; font-size: 15px; }
 .bank-details strong { display: inline-block; width: 150px; color: #43a047; }
 form { margin-top: 25px; padding: 20px; border: 1px solid #ccc; border-radius: 5px; background-color: #e6ffe6; }
 label { display: block; margin-bottom: 8px; font-weight: bold; }
-/* Styling for the new input field */
+
+/* Input Styling */
 #company_code_input, input[type="submit"] { width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; }
-input[type="submit"] { background-color: #43a047; color: white; cursor: pointer; transition: background-color 0.3s; }
+input[type="submit"] { background-color: #43a047; color: white; cursor: pointer; transition: background-color 0.3s; margin-top: 10px; font-weight: bold; font-size: 16px; border: none; }
 input[type="submit"]:hover { background-color: #388e3c; }
 
-/* Styling for warning messages */
-.message.warning {
-    background-color: #ffe0b2; /* Light orange/yellow */
-    color: #e65100; /* Darker orange text */
-    border-left: 5px solid #ff9800;
-}
+/* Messages */
+.message { padding: 10px; margin-bottom: 15px; border-radius: 4px; }
+.message.success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+.message.error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+.message.warning { background-color: #ffe0b2; color: #e65100; border-left: 5px solid #ff9800; }
+
+/* Checkbox Styling */
+.checkbox-group { display: flex; align-items: center; background: #fff; padding: 12px; border-radius: 4px; border: 1px solid #ccc; margin-bottom: 5px; }
+.checkbox-group input { width: 22px; height: 22px; margin-right: 12px; cursor: pointer; }
+.checkbox-group label { margin-bottom: 0; cursor: pointer; color: #2e7d32; font-size: 16px; }
+.help-text { font-size: 12px; color: #666; margin-bottom: 15px; display: block; padding-left: 5px; }
 </style>
 </head>
 <body>
@@ -32,62 +38,82 @@ input[type="submit"]:hover { background-color: #388e3c; }
 <h1>Assign Bank Line #{{ current_recon.id }}</h1>
 
 {% if messages %}
-{% for message in messages %}
-<div class="message {{ message.tags }}" style="padding: 10px; margin-bottom: 15px;">
-    {{ message }}
-</div>
-{% endfor %}
+    {% for message in messages %}
+    <div class="message {{ message.tags }}">
+        {{ message }}
+    </div>
+    {% endfor %}
 {% endif %}
 
 <div class="bank-details">
-<h2>Transaction Details</h2>
-<p><strong>Deposit Date:</strong> {{ current_recon.transaction_date }}</p>
+    <h2>Transaction Details</h2>
+    <p><strong>Deposit Date:</strong> {{ current_recon.transaction_date }}</p>
+    <p><strong>Segment Amount:</strong> R{{ current_recon.transaction_amount|floatformat:2 }}</p>
+    <p><strong>Deposit Reference:</strong> {{ bank_record.transaction_description }}</p>
+    <p><strong>Original Import ID:</strong> #{{ bank_record.id }}</p>
+    <p><strong>Amount Settled:</strong> R{{ current_recon.amount_settled|floatformat:2 }}</p>
+    <p><strong>Current Allocation:</strong> <span style="font-style: italic; color: #3f51b5;">{{ current_recon.company_code|default:"None" }}</span></p>
+    <p><strong>Status:</strong> <span style="font-weight: bold; color: {% if current_recon.recon_status == 'Unidentified' %}#F44336{% else %}#1b5e20{% endif %};">{{ current_recon.recon_status|default:"Unidentified" }}</span></p>
 
-<p><strong>Segment Amount:</strong> R{{ current_recon.transaction_amount|floatformat:2 }}</p>
-
-<p><strong>Deposit Reference:</strong> {{ bank_record.transaction_description }}</p>
-
-<p><strong>Original Import ID:</strong> #{{ bank_record.id }}</p>
-
-<p><strong>Amount Settled:</strong> R{{ current_recon.amount_settled|floatformat:2 }}</p>
-
-<p><strong>Current Allocation:</strong> <span style="font-style: italic; color: #3f51b5;">{{ current_recon.company_code|default:"None" }}</span></p>
-
-<p><strong>Status:</strong> <span style="font-weight: bold; color: {% if current_recon.recon_status == 'Unidentified' %}#F44336{% else %}#1b5e20{% endif %};">{{ current_recon.recon_status|default:"Unidentified" }}</span></p>
-
-{% if current_recon.company_code %}
-<div class="message warning">
-    This line is already assigned. Saving amendments will redirect you to the **Bank Line Review** page.
-</div>
-{% endif %}
+    {% if current_recon.company_code %}
+    <div class="message warning">
+        This line is already assigned. Saving amendments will redirect you to the **Bank Line Review** page.
+    </div>
+    {% endif %}
 </div>
 
-<form method="post">
-{% csrf_token %}
-<label for="company_code_input">Assign to Company Code (Start Typing to Search):</label>
+<form method="post" id="reconForm">
+    {% csrf_token %}
+    <label for="company_code_input">Assign to Company Code:</label>
+    <input list="company_codes_list" 
+           name="company_code" 
+           id="company_code_input" 
+           placeholder="Search or enter Company Code..."
+           {% if current_recon.review_note != 'BULK' %}required{% endif %}>
 
-<input list="company_codes_list" 
-       name="company_code" 
-       id="company_code_input" 
-       placeholder="Search or enter Company Code..."
-       required>
+    <datalist id="company_codes_list">
+        {% for code in company_codes %}
+        <option value="{{ code }}">
+        {% endfor %}
+    </datalist>
 
-<script>
-    document.getElementById('company_code_input').value = "{{ current_recon.company_code|default:'' }}";
-</script>
+    <div class="checkbox-group">
+        <input type="checkbox" name="is_bulk" id="is_bulk" {% if current_recon.review_note == 'BULK' %}checked{% endif %}>
+        <label for="is_bulk">Mark for Bulk Split Processing</label>
+    </div>
+    <small class="help-text">Tick this if the payment needs to be split across multiple accounts/months via the Bulk Billing Dashboard.</small>
 
-<datalist id="company_codes_list">
-{% for code in company_codes %}
-<option value="{{ code }}">
-{% endfor %}
-</datalist>
-
-<input type="submit" value="Save Amendment">
+    <input type="submit" value="Save Amendment">
 </form>
 
 <p style="margin-top: 20px;">
     <a href="{% url 'bank_list' %}">← Back to Bank List</a>
 </p>
 </div>
+
+<script>
+    const bulkCheck = document.getElementById('is_bulk');
+    const codeInput = document.getElementById('company_code_input');
+
+    // Function to toggle requirement
+    function toggleRequirement() {
+        if (bulkCheck.checked) {
+            codeInput.removeAttribute('required');
+            codeInput.placeholder = "Optional for Bulk Splits...";
+        } else {
+            codeInput.setAttribute('required', '');
+            codeInput.placeholder = "Search or enter Company Code...";
+        }
+    }
+
+    // Listen for changes
+    bulkCheck.addEventListener('change', toggleRequirement);
+
+    // Run on load to set initial state
+    window.onload = function() {
+        codeInput.value = "{{ current_recon.company_code|default:'' }}";
+        toggleRequirement();
+    };
+</script>
 </body>
 </html>

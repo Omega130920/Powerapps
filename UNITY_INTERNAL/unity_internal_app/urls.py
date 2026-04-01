@@ -89,4 +89,7 @@ urlpatterns = [
     path('download-email/<str:email_id>/', views.download_email_file, name='download_email_file'),
     path('export_two_pot_invoice/', views.export_two_pot_invoice, name='export_two_pot_invoice'),
     path('export_two_pot_tracking/', views.export_two_pot_tracking, name='export_two_pot_tracking'),
+    
+    path('bank/bulk-process/', views.process_bulk_allocation, name='process_bulk_allocation'),
+    path('bank/bulk-billing/', views.bulk_billing_dashboard, name='bulk_billing_dashboard'),
 ]
