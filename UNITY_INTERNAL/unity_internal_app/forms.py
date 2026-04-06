@@ -35,7 +35,9 @@ class PreBillForm(forms.ModelForm):
     class Meta:
         model = UnityBill
         fields = [
-            'A_CCDatesMonth', 'B_Fund_Code', 'C_Company_Code', 'D_Company_Name', 
+            'A_CCDatesMonth', 
+            #'B_Fund_Code',
+            'C_Company_Code', 'D_Company_Name', 
             'E_Active_Members', 'F_Pre_Bill_Date', 'G_Schedule_Date', 
             'H_Schedule_Amount', 'I_Submitted_Date', 'J_Final_Date',
             # All deposit fields (K, L, M, N, O, P, Q, R, S, T) are excluded.

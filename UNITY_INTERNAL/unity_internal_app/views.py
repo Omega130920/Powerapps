@@ -5299,36 +5299,27 @@ def move_bank_line_to_credit(request, recon_id):
 
 @login_required
 def bulk_billing_dashboard(request):
-    from .models import ReconnedBank, UnityMgListing, UnityBill
-    from django.db.models import Q, Sum
+    from .models import ReconnedBank, UnityBill
+    from django.db.models import Q, Sum, Min
     from django.shortcuts import render
 
-    # 1. Fetch bank lines marked for bulk that aren't fully processed
+    # 1. Fetch bank lines marked for bulk
     bulk_bank_lines = ReconnedBank.objects.filter(
         review_note__icontains="BULK", 
         recon_status__icontains="Unreconciled"
     ).select_related('bank_line').order_by('-transaction_date')
 
-    # 2. Get the bill totals per company code from UnityBill
-    # FIXED: Using 'H_Schedule_Amount' as identified in your model choices
+    # 2. FIXED: Added A_CCDatesMonth to .values() so bills for different dates don't consolidate
     bill_aggregates = UnityBill.objects.filter(
         is_reconciled=False
-    ).values('C_Company_Code').annotate(
+    ).values('C_Company_Code', 'A_CCDatesMonth').annotate(
         total_outstanding=Sum('H_Schedule_Amount')
-    )
+    ).order_by('C_Company_Code', 'A_CCDatesMonth')
 
-    # Create a lookup dictionary: { 'code': amount }
-    amounts_map = {item['C_Company_Code']: item['total_outstanding'] for item in bill_aggregates}
-
-    # 3. Fetch the Member names from UnityMgListing
-    members_queryset = UnityMgListing.objects.filter(
-        a_company_code__in=amounts_map.keys()
-    ).values_list('a_company_code', 'b_company_name')
-
-    # 4. Build the 3-tuple (Code, Name, Amount) for the HTML loop
+    # 3. Build the tuple (Code, Date, Amount)
     eligible_members = [
-        (code, name, amounts_map.get(code, 0)) 
-        for code, name in members_queryset
+        (item['C_Company_Code'], item['A_CCDatesMonth'], item['total_outstanding']) 
+        for item in bill_aggregates
     ]
 
     context = {
@@ -5342,7 +5333,7 @@ from django.db import transaction
 @login_required
 def process_bulk_allocation(request):
     if request.method == 'POST':
-        from .models import ReconnedBank, UnityBill, BillSettlement
+        from .models import ReconnedBank, UnityBill, BillSettlement, JournalEntry
         from django.db.models import Sum
         from decimal import Decimal
         from django.contrib import messages
@@ -5351,75 +5342,71 @@ def process_bulk_allocation(request):
 
         bank_line_id = request.POST.get('bank_line_id')
         member_codes = request.POST.getlist('member_codes[]')
+        bill_dates = request.POST.getlist('bill_dates[]') # NEW: Capture dates from popup
         amounts = request.POST.getlist('amounts[]')
 
         try:
             with transaction.atomic():
-                # Lock the bank line for processing
                 bank_line = ReconnedBank.objects.select_for_update().get(id=bank_line_id)
+                bank_available = bank_line.transaction_amount - bank_line.amount_settled
                 total_successfully_allocated = Decimal('0.00')
 
-                for code, amount_str in zip(member_codes, amounts):
+                # Updated zip to include bill_dates
+                for code, bill_date, amount_str in zip(member_codes, bill_dates, amounts):
                     if not code or not amount_str: continue
                     
                     requested_amount = Decimal(amount_str)
-                    
-                    # 1. Find the oldest open bill
+                    if requested_amount <= 0: continue
+
+                    if total_successfully_allocated + requested_amount > bank_available:
+                        requested_amount = bank_available - total_successfully_allocated
+                        if requested_amount <= 0: break 
+
+                    # 2. UPDATED: Find the SPECIFIC bill for that code and date
                     target_bill = UnityBill.objects.filter(
                         C_Company_Code=code, 
+                        A_CCDatesMonth=bill_date, # Filter by specific date
                         is_reconciled=False
-                    ).order_by('A_CCDatesMonth').first()
+                    ).first()
 
                     if not target_bill:
-                        messages.warning(request, f"Skipped {code}: No open bill found.")
+                        messages.warning(request, f"Skipped {code} for {bill_date}: Bill not found or already reconciled.")
                         continue
 
-                    # 2. Calculate exactly what is still owed on this bill
-                    # (Total Bill Amount - Total already settled by other bank lines/credits)
+                    # 3. Calculate exactly what is still owed
                     already_paid = BillSettlement.objects.filter(
                         unity_bill_source=target_bill
                     ).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
                     
-                    # We also check JournalEntries if your system uses them for surplus/journals
-                    from .models import JournalEntry
                     journals_paid = JournalEntry.objects.filter(
                         target_bill=target_bill
                     ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
 
                     remaining_on_bill = target_bill.H_Schedule_Amount - already_paid - journals_paid
 
-                    # 3. STRICTOR LOGIC: Cap the amount to prevent "Overs"
-                    # We take the lesser of what the user typed vs what is actually owed
                     actual_settle_amount = min(requested_amount, remaining_on_bill)
 
                     if actual_settle_amount <= 0:
-                        messages.info(request, f"Note: {code} bill is already covered.")
                         continue
 
-                    # 4. Create the Settlement
+                    # 5. Create the Settlement
                     BillSettlement.objects.create(
                         unity_bill_source=target_bill,
                         reconned_bank_line=bank_line,
                         settled_amount=actual_settle_amount,
-                        date_applied=timezone.now()
+                        settlement_date=timezone.now(),
+                        confirmed_by=request.user
                     )
 
-                    # Update tallies
                     bank_line.amount_settled += actual_settle_amount
                     total_successfully_allocated += actual_settle_amount
 
-                    # 5. Check if the bill is now finished
                     if (already_paid + journals_paid + actual_settle_amount) >= (target_bill.H_Schedule_Amount - Decimal('0.01')):
                         target_bill.is_reconciled = True
                         target_bill.save()
-                    
-                    # Inform user if the amount was capped
-                    if actual_settle_amount < requested_amount:
-                        messages.info(request, f"{code}: Only R {actual_settle_amount} was used (Bill Balance reached).")
 
-                # 6. Update Bank Line Status based on the new total
                 if bank_line.amount_settled >= (bank_line.transaction_amount - Decimal('0.01')):
-                    bank_line.recon_status = "Fully Reconciled"
+                    bank_line.recon_status = "Reconciled"
                 else:
                     bank_line.recon_status = "Partially Reconciled"
                 
@@ -5427,6 +5414,6 @@ def process_bulk_allocation(request):
                 messages.success(request, f"Bulk processing complete. Total Allocated: R {total_successfully_allocated}")
 
         except Exception as e:
-            messages.error(request, f"Error during bulk processing: {e}")
+            messages.error(request, f"Error during bulk processing: {str(e)}")
 
     return redirect('bulk_billing_dashboard')

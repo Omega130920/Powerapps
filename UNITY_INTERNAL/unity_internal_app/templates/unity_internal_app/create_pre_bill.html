@@ -70,12 +70,6 @@ input[type="text"], input[type="number"], input[type="date"] {
 
 <div class="container">
     <h2>➕ Create New Pre-Bill for {{ company_name }} ({{ company_code }})</h2>
-    
-    {% if messages %}
-        {% for message in messages %}
-            <p style="color: red;">{{ message }}</p>
-        {% endfor %}
-    {% endif %}
 
     <form method="post">
         {% csrf_token %}

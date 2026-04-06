@@ -1,78 +1,156 @@
 {% block content %}
 <style>
-    .bulk-container { max-width: 1200px; margin: 20px auto; padding: 20px; background: #f0fff0; border-radius: 8px; }
-    .bank-card { background: white; padding: 15px; margin-bottom: 15px; border-left: 5px solid #2e7d32; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    /* Main Page Styles */
+    body { font-family: sans-serif; background: linear-gradient(to bottom, #d1e2c4, #d1e2c4); margin: 0; color: #333; line-height: 1.6; }
+    .container { max-width: 98%; margin: 2em auto; padding: 1em; background-color: #f0fff0; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+    h2 { color: #1b5e20; border-bottom: 2px solid #aed581; padding-bottom: 10px; margin-bottom: 20px; }
     
-    /* Modal Styles */
-    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
-    .modal-content { background: white; margin: 5% auto; padding: 20px; width: 90%; max-width: 900px; border-radius: 8px; }
-    
-    .member-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; background: #f9f9f9; padding: 10px; border-radius: 4px; border: 1px solid #eee; }
-    .add-btn { background: #1b5e20; color: white; border: none; padding: 10px; border-radius: 50%; cursor: pointer; width: 40px; height: 40px; }
-    .remove-btn { background: #d32f2f; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
-    
-    .search-box { width: 50%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
-    .amount-input { width: 20%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+    /* Table Styles */
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); font-size: 13px; table-layout: auto; background: white; } 
+    thead th { background-color: #43a047; color: white; padding: 12px 10px; text-align: left; font-weight: bold; white-space: nowrap; }
+    tbody td { padding: 10px; border-bottom: 1px solid #aed581; vertical-align: top; }
+    tbody tr:nth-child(even) { background-color: #e6ffe6; }
 
-    /* New Styling for Bill Amount Badge */
-    .bill-info-badge {
-        width: 20%;
-        background: #e8f5e9;
-        color: #2e7d32;
-        padding: 8px;
-        border-radius: 4px;
-        font-weight: bold;
-        font-size: 0.85rem;
-        text-align: center;
-        border: 1px solid #c8e6c9;
+    /* Action Buttons */
+    .action-button { padding: 6px 10px; background-color: #3f51b5; border: 1px solid #3f51b5; border-radius: 4px; text-decoration: none; color: white; transition: background-color 0.3s ease; font-size: 0.9em; cursor: pointer; display: inline-block; }
+    .action-button:hover { background-color: #303f9f; }
+    .back-btn { background-color: #81c784; border-color: #81c784; }
+
+    /* Status Colors */
+    .status-partial { color: #e65100; font-weight: bold; }
+    .status-new { color: #2e7d32; font-weight: bold; }
+
+    /* MODAL STYLES */
+    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); }
+    
+    .modal-content { 
+        background: white; 
+        margin: 5% auto; 
+        padding: 25px; 
+        width: 90%; 
+        max-width: 950px; 
+        border-radius: 12px; 
+        box-shadow: 0 10px 30px rgba(0,0,0,0.2); 
+        border-top: 8px solid #43a047;
     }
+
+    #modalTitle { color: #1b5e20; border-bottom: 2px solid #aed581; padding-bottom: 10px; margin-top: 0; }
+    
+    .member-row { 
+        display: flex; 
+        gap: 12px; 
+        margin-bottom: 12px; 
+        align-items: center; 
+        background: #f9fff9; 
+        padding: 12px; 
+        border-radius: 6px; 
+        border: 1px solid #aed581; 
+    }
+
+    .search-box, .amount-input { 
+        border: 1px solid #ccc; 
+        border-radius: 4px; 
+        padding: 8px; 
+        font-size: 0.95em;
+    }
+
+    .bill-info-badge { 
+        min-width: 120px; 
+        background: #e8f5e9; 
+        color: #2e7d32; 
+        padding: 8px; 
+        border-radius: 4px; 
+        font-weight: bold; 
+        font-size: 0.85rem; 
+        text-align: center; 
+        border: 1px solid #c8e6c9; 
+    }
+
+    .add-btn { background: #43a047; color: white; border: none; padding: 10px; border-radius: 50%; cursor: pointer; width: 40px; height: 40px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .remove-btn { background: #f44336; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
 </style>
 
-<div class="bulk-container">
-    <h2><i class="fas fa-layer-group"></i> Bulk Billing Queue</h2>
-    <hr>
-
-    {% for line in bulk_bank_lines %}
-    <div class="bank-card">
-        <div>
-            <strong>{{ line.bank_line.transaction_description }}</strong><br>
-            <small>Date: {{ line.transaction_date }} | Ref: {{ line.bank_line.statement_reference }}</small>
-        </div>
-        <div style="text-align: right;">
-            <h3 style="margin:0; color: #2e7d32;">R {{ line.transaction_amount|floatformat:2 }}</h3>
-            <button class="action-button" onclick="openBulkModal('{{ line.id }}', '{{ line.transaction_amount }}')">
-                Process Bulk Allocation
-            </button>
-        </div>
+<div class="container">
+    <div class="header-main" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
+        <a href="{% url 'dashboard' %}" class="action-button back-btn">&larr; Back to Home Screen</a>
     </div>
-    {% empty %}
-    <p>No bank lines marked for bulk payment.</p>
-    {% endfor %}
+
+    <h2>Bulk Billing Queue</h2>
+    <p>Displays bank lines marked for <strong>Bulk Allocation</strong>.</p>
+
+    {% if bulk_bank_lines %}
+    <div class="table-responsive">
+        <table>
+            <thead>
+                <tr>
+                    <th style="width:40px;">ID</th>
+                    <th style="width:90px;">Date</th>
+                    <th style="width:150px;">Reference</th>
+                    <th>Description</th>
+                    <th style="width:110px;">Total</th>
+                    <th style="width:110px;">Remaining</th>
+                    <th style="width:100px;">Status</th>
+                    <th style="width:120px; text-align: right;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for line in bulk_bank_lines %}
+                <tr>
+                    <td>{{ line.id }}</td>
+                    <td>{{ line.transaction_date|date:"Y-m-d" }}</td>
+                    <td><strong>{{ line.bank_line.statement_reference }}</strong></td>
+                    <td title="{{ line.bank_line.transaction_description }}">
+                        {{ line.bank_line.transaction_description|truncatechars:80 }}
+                    </td>
+                    <td style="color: #666;">R {{ line.transaction_amount|floatformat:2 }}</td>
+                    <td style="font-weight: bold; color: #2e7d32;">R {{ line.get_remaining_balance|floatformat:2 }}</td>
+                    <td>
+                        {% if line.amount_settled > 0 %}
+                            <span class="status-partial">Partial</span>
+                        {% else %}
+                            <span class="status-new">New</span>
+                        {% endif %}
+                    </td>
+                    <td style="text-align: right;">
+                        <button class="action-button" onclick="openBulkModal('{{ line.id }}', '{{ line.get_remaining_balance|floatformat:2 }}')">
+                            Process Bulk
+                        </button>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="info-message" style="text-align:center; padding:40px; color:#666; background: white; border-radius: 8px; border: 1px solid #aed581;">
+        No bank lines marked for bulk payment.
+    </div>
+    {% endif %}
 </div>
 
 <div id="bulkModal" class="modal">
     <div class="modal-content">
-        <h3 id="modalTitle">Bulk Allocation</h3>
-        <p>Total Bank Amount: <strong id="totalBankAmount">0.00</strong></p>
+        <h3 id="modalTitle"><i class="fas fa-layer-group"></i> Bulk Allocation</h3>
+        <p style="margin-bottom: 20px;">Bank Amount Available: <strong id="totalBankAmount" style="color: #2e7d32; font-size: 1.2em;">0.00</strong></p>
         
         <form id="bulkForm" method="POST" action="{% url 'process_bulk_allocation' %}">
             {% csrf_token %}
             <input type="hidden" name="bank_line_id" id="modal_bank_id">
             
-            <div id="memberRowsContainer">
-                </div>
+            <div id="memberRowsContainer"></div>
 
-            <button type="button" class="add-btn" onclick="addMemberRow()">
-                <i class="fas fa-plus"></i>
-            </button>
+            <div style="padding: 10px 0;">
+                <button type="button" class="add-btn" onclick="addMemberRow()">+</button>
+                <small style="margin-left: 10px; color: #666; font-style: italic;">Select specific bills to allocate</small>
+            </div>
 
-            <div style="margin-top: 20px; border-top: 2px solid #eee; padding-top: 15px; display: flex; justify-content: space-between;">
+            <div style="margin-top: 25px; border-top: 2px solid #aed581; padding-top: 20px; display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                    <strong>Total Allocated: R <span id="runningTotal">0.00</span></strong>
+                    <strong style="font-size: 1.1em;">Total Allocated: R <span id="runningTotal">0.00</span></strong>
                 </div>
-                <div>
-                    <button type="button" onclick="closeModal()" class="return-button" style="background:#888; border: none; padding: 10px 20px; color: white; border-radius: 4px; cursor: pointer;">Cancel</button>
-                    <button type="submit" class="edit-button" style="background: #1b5e20; border: none; padding: 10px 20px; color: white; border-radius: 4px; cursor: pointer; font-weight: bold;">Finalize Bulk Payment</button>
+                <div style="display: flex; gap: 10px;">
+                    <button type="button" onclick="closeModal()" class="action-button" style="background:#78909c; border-color:#78909c;">Cancel</button>
+                    <button type="submit" class="action-button" style="background: #1b5e20; border-color: #1b5e20; font-weight: bold; padding: 10px 20px;">Finalize Bulk Payment</button>
                 </div>
             </div>
         </form>
@@ -80,19 +158,24 @@
 </div>
 
 <script>
-// UPDATED: Assuming your view passes (code, name, bill_amount)
+// This array now contains unique entries for each bill date
 let eligibleMembers = [
-    {% for code, name, bill_amount in eligible_members %}
-    { code: "{{ code }}", name: "{{ name }}", bill: "{{ bill_amount|default:0 }}" },
+    {% for code, bill_date, bill_amount in eligible_members %}
+    { 
+        code: "{{ code }}", 
+        date: "{{ bill_date|date:'Y-m-d' }}", 
+        bill: "{{ bill_amount|default:0 }}" 
+    },
     {% endfor %}
 ];
 
 let bankLimit = 0;
 
 function openBulkModal(id, amount) {
+    const cleanAmount = amount.replace(/[^0-9.]/g, '');
     document.getElementById('modal_bank_id').value = id;
-    document.getElementById('totalBankAmount').innerText = amount;
-    bankLimit = parseFloat(amount);
+    document.getElementById('totalBankAmount').innerText = "R " + cleanAmount;
+    bankLimit = parseFloat(cleanAmount);
     document.getElementById('memberRowsContainer').innerHTML = ''; 
     addMemberRow(); 
     document.getElementById('bulkModal').style.display = 'block';
@@ -101,45 +184,50 @@ function openBulkModal(id, amount) {
 function addMemberRow() {
     const container = document.getElementById('memberRowsContainer');
     const rowId = Date.now();
-    
     const rowHtml = `
         <div class="member-row" id="row_${rowId}">
-            <select name="member_codes[]" class="search-box" required onchange="updateBillInfo(this, '${rowId}')">
-                <option value="">-- Select Member --</option>
-                ${eligibleMembers.map(m => `<option value="${m.code}">${m.code} - ${m.name}</option>`).join('')}
+            <select name="member_codes[]" class="search-box" style="width: 50%;" required onchange="updateBillInfo(this, '${rowId}')">
+                <option value="">-- Select Bill (Member - Date) --</option>
+                ${eligibleMembers.map((m, index) => `
+                    <option value="${m.code}" data-date="${m.date}" data-index="${index}">
+                        ${m.code} - Date: ${m.date}
+                    </option>`).join('')}
             </select>
             
-            <div class="bill-info-badge" id="bill_display_${rowId}">
-                Bill: R 0.00
-            </div>
+            <input type="hidden" name="bill_dates[]" id="date_input_${rowId}">
 
-            <input type="number" name="amounts[]" class="amount-input" step="0.01" placeholder="Allocation R" required oninput="calculateTotal()">
-            <button type="button" class="remove-btn" onclick="removeRow('${rowId}')">X</button>
+            <div class="bill-info-badge" id="bill_display_${rowId}">Bill: R 0.00</div>
+            <input type="number" name="amounts[]" class="amount-input" style="width: 20%;" step="0.01" placeholder="Allocation R" required oninput="calculateTotal()">
+            <button type="button" class="remove-btn" onclick="removeRow('${rowId}')">Remove</button>
         </div>
     `;
     container.insertAdjacentHTML('beforeend', rowHtml);
 }
 
-// NEW FUNCTION: Updates the Bill Display when a member is selected
 function updateBillInfo(selectElement, rowId) {
-    const selectedCode = selectElement.value;
+    const selectedOption = selectElement.options[selectElement.selectedIndex];
+    const dataIndex = selectedOption.getAttribute('data-index');
     const displayBox = document.getElementById(`bill_display_${rowId}`);
+    const dateInput = document.getElementById(`date_input_${rowId}`);
     
-    // Find the member in our data array
-    const memberData = eligibleMembers.find(m => m.code === selectedCode);
-    
-    if (memberData) {
+    if (dataIndex !== null) {
+        const memberData = eligibleMembers[dataIndex];
         const amount = parseFloat(memberData.bill).toFixed(2);
+        
+        // Update the visible badge and the hidden date input
         displayBox.innerHTML = `Bill: R ${amount}`;
-        // Optional: Auto-fill the amount input with the bill total if it's empty
+        dateInput.value = memberData.date;
+
+        // Auto-fill the amount if empty
         const row = document.getElementById(`row_${rowId}`);
         const amtInput = row.querySelector('.amount-input');
-        if (!amtInput.value) {
+        if (!amtInput.value || amtInput.value == "0.00") {
             amtInput.value = amount;
             calculateTotal();
         }
     } else {
         displayBox.innerHTML = `Bill: R 0.00`;
+        dateInput.value = "";
     }
 }
 
@@ -153,13 +241,9 @@ function calculateTotal() {
     document.querySelectorAll('.amount-input').forEach(input => {
         total += parseFloat(input.value || 0);
     });
-    document.getElementById('runningTotal').innerText = total.toFixed(2);
-    
-    if (total > bankLimit) {
-        document.getElementById('runningTotal').style.color = 'red';
-    } else {
-        document.getElementById('runningTotal').style.color = 'green';
-    }
+    const totalSpan = document.getElementById('runningTotal');
+    totalSpan.innerText = total.toFixed(2);
+    totalSpan.style.color = (total > (bankLimit + 0.01)) ? '#f44336' : '#2e7d32';
 }
 
 function closeModal() {
@@ -168,12 +252,12 @@ function closeModal() {
 
 document.getElementById('bulkForm').onsubmit = function(e) {
     const total = parseFloat(document.getElementById('runningTotal').innerText);
-    if (total > bankLimit) {
-        alert("Error: Allocated amount exceeds bank deposit!");
+    if (total > (bankLimit + 0.01)) {
+        alert("Error: Total allocation (R " + total.toFixed(2) + ") exceeds available bank deposit (R " + bankLimit.toFixed(2) + ")!");
         e.preventDefault();
         return;
     }
-    if (!confirm("Confirm bulk allocation to these members?")) {
+    if (!confirm("Confirm bulk allocation?")) {
         e.preventDefault();
     }
 };
