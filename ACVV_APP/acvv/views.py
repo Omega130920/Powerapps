@@ -6,7 +6,7 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from datetime import datetime
+from datetime import datetime, timedelta
 from django.db.models import Q
 from django.urls import reverse # Required for clean redirects
 from django.conf import settings # Required for target_email default
@@ -1231,8 +1231,11 @@ def export_temp_exists(request):
 def reconciliation_worksheet(request):
     today = timezone.now().date()
     
-    # 1. Default to the 1st of the current month
-    fiscal_start = today.replace(day=1)
+    # 1. N-1 LOGIC: Default to the previous month (the one we are reconciling for)
+    # If today is April, first_of_this_month is April 1st. 
+    # Subtracting 1 day gets us March, and replace(day=1) ensures we point to March 1st.
+    first_of_this_month = today.replace(day=1)
+    last_month_date = (first_of_this_month - timedelta(days=1)).replace(day=1)
 
     # 2. Handle GET parameters for Navigation
     req_year = request.GET.get('year')
@@ -1242,52 +1245,73 @@ def reconciliation_worksheet(request):
         try:
             current_fiscal = datetime.strptime(f"{req_year}-{req_month}-01", '%Y-%m-%d').date()
         except ValueError:
-            current_fiscal = fiscal_start
+            current_fiscal = last_month_date
     else:
-        current_fiscal = fiscal_start
+        current_fiscal = last_month_date
 
     # 3. Handle POST Actions (Save/Close)
     if request.method == 'POST':
+        # CHECK IF LOCKED: See if this month is already closed
+        is_already_closed = ReconciliationWorksheet.objects.filter(
+            fiscal_month=current_fiscal, 
+            is_closed=True
+        ).exists()
+
         if 'save_changes' in request.POST:
-            for key, value in request.POST.items():
-                if key.startswith('payment_method_'):
-                    row_id = key.split('_')[2]
-                    # UPDATED: Capture new LPI and Debit Success fields
-                    ReconciliationWorksheet.objects.filter(pk=row_id).update(
-                        company_status=request.POST.get(f'company_status_{row_id}'),
-                        payment_method=request.POST.get(f'payment_method_{row_id}'),
-                        arrears=request.POST.get(f'arrears_{row_id}', ''),
-                        member_count_reconciled=request.POST.get(f'member_count_{row_id}', 0) or 0,
-                        contribution_amount_reconciled=request.POST.get(f'amount_{row_id}', 0.00) or 0.00,
-                        
-                        # New Fields Added Here
-                        lpi_amount=request.POST.get(f'lpi_amount_{row_id}', 0.00) or 0.00,
-                        lpi_reason=request.POST.get(f'lpi_reason_{row_id}'),
-                        debit_order_success=request.POST.get(f'debit_success_{row_id}'),
-                        
-                        reconciled_status=request.POST.get(f'recon_status_{row_id}'),
-                        date_schedule_received=request.POST.get(f'schedule_{row_id}') or None,
-                        date_confirmed_on_step=request.POST.get(f'confirmed_{row_id}') or None,
-                        debit_order_date=request.POST.get(f'debit_{row_id}') or None
-                    )
-            messages.success(request, "Progress saved successfully.")
+            if is_already_closed:
+                messages.error(request, "This month is closed and locked. No further changes can be saved.")
+            else:
+                for key, value in request.POST.items():
+                    if key.startswith('payment_method_'):
+                        row_id = key.split('_')[2]
+                        # UPDATED: Capture new LPI and Debit Success fields
+                        ReconciliationWorksheet.objects.filter(pk=row_id).update(
+                            company_status=request.POST.get(f'company_status_{row_id}'),
+                            payment_method=request.POST.get(f'payment_method_{row_id}'),
+                            arrears=request.POST.get(f'arrears_{row_id}', ''),
+                            member_count_reconciled=request.POST.get(f'member_count_{row_id}', 0) or 0,
+                            contribution_amount_reconciled=request.POST.get(f'amount_{row_id}', 0.00) or 0.00,
+                            
+                            # New Fields
+                            lpi_amount=request.POST.get(f'lpi_amount_{row_id}', 0.00) or 0.00,
+                            lpi_reason=request.POST.get(f'lpi_reason_{row_id}'),
+                            debit_order_success=request.POST.get(f'debit_success_{row_id}'),
+                            
+                            reconciled_status=request.POST.get(f'recon_status_{row_id}'),
+                            date_schedule_received=request.POST.get(f'schedule_{row_id}') or None,
+                            date_confirmed_on_step=request.POST.get(f'confirmed_{row_id}') or None,
+                            debit_order_date=request.POST.get(f'debit_{row_id}') or None
+                        )
+                messages.success(request, "Progress saved successfully.")
 
         elif 'close_month' in request.POST:
-            # Close any record matching this year/month
-            records_to_update = ReconciliationWorksheet.objects.filter(
-                fiscal_month__year=current_fiscal.year, 
-                fiscal_month__month=current_fiscal.month
-            )
-            
-            # Update Global Master Note only for those that were successfully reconciled
-            for rec in records_to_update:
-                if rec.reconciled_status == 'Reconciled':
-                    formatted_note_date = current_fiscal.strftime("01.%m.%Y")
-                    Globalacvv.objects.filter(mip_names=rec.mg_name).update(notes=formatted_note_date)
+            # SEQUENTIAL CLOSING GUARD: Check if the previous month is closed
+            prev_month = (current_fiscal.replace(day=1) - timedelta(days=1)).replace(day=1)
+            prev_exists = ReconciliationWorksheet.objects.filter(fiscal_month=prev_month).exists()
+            prev_closed = ReconciliationWorksheet.objects.filter(fiscal_month=prev_month, is_closed=True).exists()
 
-            records_to_update.update(is_closed=True, closed_at=timezone.now())
-            messages.success(request, f"Fiscal month {current_fiscal.strftime('%B %Y')} closed.")
-            return redirect('reconciliation_worksheet')
+            if prev_exists and not prev_closed:
+                messages.error(request, f"Cannot close {current_fiscal.strftime('%B %Y')} until {prev_month.strftime('%B %Y')} is closed.")
+            else:
+                # Close any record matching this year/month
+                records_to_update = ReconciliationWorksheet.objects.filter(
+                    fiscal_month__year=current_fiscal.year, 
+                    fiscal_month__month=current_fiscal.month
+                )
+                
+                # Update Global Master Note only for those that were successfully reconciled
+                for rec in records_to_update:
+                    if rec.reconciled_status == 'Reconciled':
+                        formatted_note_date = current_fiscal.strftime("01.%m.%Y")
+                        Globalacvv.objects.filter(mip_names=rec.mg_name).update(notes=formatted_note_date)
+
+                records_to_update.update(is_closed=True, closed_at=timezone.now())
+                messages.success(request, f"Fiscal month {current_fiscal.strftime('%B %Y')} closed and locked.")
+            
+            # Redirect using hyphenated name and reverse to fix 404
+            from django.urls import reverse
+            target_url = reverse('reconciliation_worksheet')
+            return redirect(f"{target_url}?year={current_fiscal.year}&month={current_fiscal.month}")
 
     # 4. FETCH & AUTO-GENERATE LOGIC
     records = ReconciliationWorksheet.objects.filter(fiscal_month=current_fiscal)
@@ -1349,13 +1373,14 @@ def reconciliation_worksheet(request):
             r.is_overdue = True
 
     history = ReconciliationWorksheet.objects.values('fiscal_month').distinct().order_by('-fiscal_month')
+    is_month_locked = records.filter(is_closed=True).exists()
 
     return render(request, 'acvv_app/reconciliation_worksheet.html', {
         'records': records,
         'display_name': current_fiscal.strftime("%B %Y"),
         'history': history,
-        'is_closed': records.filter(is_closed=True).exists(),
-        'can_close': not records.filter(is_closed=True).exists(),
+        'is_closed': is_month_locked,
+        'can_close': not is_month_locked,
         'current_fiscal': current_fiscal
     })
     

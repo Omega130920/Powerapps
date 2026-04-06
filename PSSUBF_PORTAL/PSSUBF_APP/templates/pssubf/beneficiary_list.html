@@ -121,6 +121,21 @@
             text-transform: uppercase;
         }
 
+        .age-badge {
+            background: rgba(255, 255, 255, 0.4);
+            padding: 5px 12px;
+            border-radius: 8px;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: 800;
+            border: 1px solid var(--glass-border);
+            color: var(--text-dark);
+        }
+
+        .row-expired .age-badge {
+            border-color: rgba(211, 47, 47, 0.3);
+            background: rgba(211, 47, 47, 0.1);
+        }
+
         .btn-view {
             background: var(--accent-green);
             color: white;
@@ -162,7 +177,7 @@
     <div class="header-section">
         <div>
             <h2 class="fw-bold"><i class="bi bi-people-fill me-2"></i> Beneficiary Master List</h2>
-            <small class="text-muted">Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ total_count }} total records</small>
+            <small class="text-muted">Live Age Monitoring | Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ total_count }} total records</small>
         </div>
         <div class="d-flex gap-2">
             <button onclick="exportToExcel()" class="btn btn-outline-primary border-white rounded-pill">
@@ -188,7 +203,7 @@
             <form method="GET" action="." id="filterForm">
                 <select name="status" class="filter-select" onchange="this.form.submit()">
                     <option value="all" {% if current_status == 'all' or not current_status %}selected{% endif %}>All Beneficiaries</option>
-                    <option value="active" {% if current_status == 'active' %}selected{% endif %}>Active Members (< 18)</option>
+                    <option value="active" {% if current_status == 'active' %}selected{% endif %}>Active Members (&lt; 18)</option>
                     <option value="expired" {% if current_status == 'expired' %}selected{% endif %}>Expired Members (18+)</option>
                 </select>
                 <input type="hidden" name="page" value="1">
@@ -203,7 +218,7 @@
                 <th style="width: 15%;">Membership No</th>
                 <th style="width: 15%;">ID Number</th>
                 <th style="width: 15%;">Date of Birth</th>
-                <th style="width: 15%;">Current Age</th>
+                <th style="width: 15%;">Current Age (Y/M)</th>
                 <th style="width: 15%;" class="text-end">Actions</th>
             </tr>
         </thead>
@@ -219,7 +234,9 @@
                 <td>{{ member.membership_number }}</td>
                 <td>{{ member.id_number }}</td>
                 <td>{{ member.dob|date:"d M Y" }}</td>
-                <td>{{ member.cessation_date|date:"d M Y" }}</td>
+                <td>
+                    <span class="age-badge">{{ member.calculated_age }}</span>
+                </td>
                 <td class="text-end">
                     <a href="{% url 'beneficiary_details' member.membership_number %}" class="btn-view">
                         View Profile
@@ -283,7 +300,6 @@
     // Excel Export Logic
     function exportToExcel() {
         const status = document.querySelector('select[name="status"]').value;
-        // Construct the URL with current filter status
         const exportUrl = "{% url 'export_beneficiaries' %}?status=" + status;
         window.location.href = exportUrl;
     }

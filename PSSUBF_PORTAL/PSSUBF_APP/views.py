@@ -681,30 +681,58 @@ def beneficiary_import_view(request):
 
 @login_required
 def beneficiary_list_view(request):
-    # 1. Get all records
+    # 1. Get all records from the database
     queryset = PssubfBeneficiary.objects.all().order_by('last_name')
 
-    # 2. Filter Logic (Age Status)
+    # 2. Filter Logic (Status based on cessation_date)
     status_filter = request.GET.get('status')
-    today = date.today()
+    today = date.today()  # Live date for current calculation
 
     if status_filter == 'expired':
-        # Members 18 and older
+        # Members 18 and older (cessation date has passed or is today)
         queryset = queryset.filter(cessation_date__lte=today)
     elif status_filter == 'active':
-        # Members under 18 ( this is to avoid the wrong withdrawal amount to minors)
+        # Members under 18 (cessation date is in the future)
         queryset = queryset.filter(cessation_date__gt=today)
 
-    # 3. Pagination (36 per page)
+    # 3. Pagination (36 records per page)
     paginator = Paginator(queryset, 36)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
-    # 4. Handle Session Errors
+    # 4. LIVE CALCULATION: Years and Months
+    # This loop runs only for the 36 records on the current page for performance
+    for member in page_obj:
+        if member.dob:
+            birth = member.dob
+            
+            # Calculate total months difference
+            # Formula: (Years Diff * 12) + Months Diff
+            total_months = (today.year - birth.year) * 12 + (today.month - birth.month)
+            
+            # Adjustment: If today's day of the month is earlier than the birth day, 
+            # the current month hasn't fully completed yet.
+            if today.day < birth.day:
+                total_months -= 1
+            
+            # Prevent negative months for edge cases
+            total_months = max(0, total_months)
+            
+            # Split total months into Years (Y) and remaining Months (M)
+            years = total_months // 12
+            months = total_months % 12
+            
+            # Format output: e.g., "19Y 03M"
+            # Using :02d ensures months always show two digits (e.g., 03M instead of 3M)
+            member.calculated_age = f"{years}Y {months:02d}M"
+        else:
+            member.calculated_age = "N/A"
+
+    # 5. Handle Session Errors (from Excel imports)
     import_errors = request.session.pop('import_errors', [])
     
     return render(request, 'pssubf/beneficiary_list.html', {
-        'page_obj': page_obj,  # We use page_obj in the loop now
+        'page_obj': page_obj,
         'import_errors': import_errors,
         'current_status': status_filter,
         'total_count': queryset.count()
