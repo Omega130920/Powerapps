@@ -1278,7 +1278,7 @@ def reconciliation_worksheet(request):
                         )
                 messages.success(request, "Progress saved successfully.")
 
-        # ACTION: CLOSE MONTH
+        # ACTION: CLOSE MONTH (WITH PROGRESSIVE +1 LOGIC)
         elif 'close_month' in request.POST:
             print(f"\n--- RECONCILIATION DEBUG ---")
             print(f"Targeting Fiscal Month: {current_fiscal}")
@@ -1294,22 +1294,39 @@ def reconciliation_worksheet(request):
             if record_count > 0:
                 for rec in records_to_update:
                     if rec.reconciled_status == 'Reconciled':
-                        # Updates Master record with viewing month (e.g., 01.04.2026)
-                        formatted_recon_date = current_fiscal.strftime("01.%m.%Y")
-                        Globalacvv.objects.filter(mip_names=rec.mg_name).update(notes=formatted_recon_date)
+                        # --- PROGRESSIVE LOGIC START ---
+                        # 1. Fetch the current date stored in the master record
+                        master_obj = Globalacvv.objects.filter(mip_names=rec.mg_name).first()
+                        
+                        if master_obj and master_obj.notes:
+                            try:
+                                # 2. Convert note to date
+                                last_date = datetime.strptime(master_obj.notes, "%d.%m.%Y").date()
+                                # 3. Increment by 1 Month (+32 days then reset to 1st)
+                                next_month_date = (last_date.replace(day=28) + timedelta(days=5)).replace(day=1)
+                                new_note_val = next_month_date.strftime("%d.%m.%Y")
+                            except:
+                                # Fallback if note is invalid format
+                                new_note_val = current_fiscal.strftime("01.%m.%Y")
+                        else:
+                            # Start fresh from worksheet date if no master note exists
+                            new_note_val = current_fiscal.strftime("01.%m.%Y")
+
+                        # 4. Update Master Record with the NEXT month in their cycle
+                        Globalacvv.objects.filter(mip_names=rec.mg_name).update(notes=new_note_val)
+                        # --- PROGRESSIVE LOGIC END ---
 
                 updated_rows = records_to_update.update(is_closed=True, closed_at=timezone.now())
-                print(f"SUCCESS: {updated_rows} rows marked as closed for fiscal period {current_fiscal}")
-                messages.success(request, f"Fiscal month {current_fiscal.strftime('%B %Y')} closed and locked.")
+                print(f"SUCCESS: {updated_rows} rows marked as closed. Master records stepped forward +1 month.")
+                messages.success(request, f"Fiscal month {current_fiscal.strftime('%B %Y')} closed. Members moved forward 1 cycle.")
             else:
-                print("ERROR: No records found for this specific date range.")
                 messages.warning(request, "No records found for this period.")
             
             print(f"--- DEBUG END ---\n")
             target_url = reverse('reconciliation_worksheet')
             return redirect(f"{target_url}?year={current_fiscal.year}&month={current_fiscal.month}")
 
-        # ACTION: RE-OPEN MONTH (NEW)
+        # ACTION: RE-OPEN MONTH
         elif 'reopen_month' in request.POST:
             records_to_reopen = ReconciliationWorksheet.objects.filter(
                 fiscal_month__year=current_fiscal.year, 
@@ -1317,7 +1334,7 @@ def reconciliation_worksheet(request):
             )
             if records_to_reopen.exists():
                 records_to_reopen.update(is_closed=False, closed_at=None)
-                messages.warning(request, f"Fiscal month {current_fiscal.strftime('%B %Y')} has been RE-OPENED for editing.")
+                messages.warning(request, f"Fiscal month {current_fiscal.strftime('%B %Y')} RE-OPENED.")
             
             target_url = reverse('reconciliation_worksheet')
             return redirect(f"{target_url}?year={current_fiscal.year}&month={current_fiscal.month}")
@@ -1373,6 +1390,7 @@ def reconciliation_worksheet(request):
             last_date = None
             r.last_fiscal_display = "No Data"
 
+        # Calculate Overdue based on the distance between worksheet month and last reconciled date
         if last_date:
             diff = (current_fiscal.year - last_date.year) * 12 + (current_fiscal.month - last_date.month)
             r.is_overdue = diff >= 2
