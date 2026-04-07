@@ -1176,26 +1176,38 @@ def generate_recon_statement(request, recon_id):
 # --- BANKLINE REVIEW VIEWS ---
 @login_required
 def display_bankline_review(request, recon_id):
-    """Displays a single reconciled bank line for review using separate note fields."""
+    """Displays a single reconciled bank line for review and includes bulk allocation breakdown."""
+    from .models import ReconnedBank, InternalFunds, BillSettlement
+    from django.shortcuts import get_object_or_404, render
+    
     # --- CAPTURE NAVIGATION SOURCE ---
     source_param = request.GET.get('from')
     is_from_unity_info = request.GET.get('source') == 'unity' or source_param == 'unity'
     
+    # Fetch the recon record with the original bank line details
     recon_record = get_object_or_404(ReconnedBank.objects.select_related('bank_line'), pk=recon_id)
     
+    # --- NEW: FETCH BULK SETTLEMENTS ---
+    # This pulls every member and bill date linked to this bank line
+    settlements = BillSettlement.objects.filter(
+        reconned_bank_line=recon_record
+    ).select_related('unity_bill_source')
+
     # Fetch unique company codes for the selection dropdown
     company_codes = InternalFunds.objects.values_list('A_Company_Code', flat=True).distinct().order_by('A_Company_Code')
 
     context = {
         'recon_record': recon_record,
         'bank_record': recon_record.bank_line,
+        'settlements': settlements,  # <--- Added for the HTML breakdown table
         'company_codes': company_codes,
         'review_notes': REVIEW_NOTES_OPTIONS,
         'current_category': recon_record.review_note,      
-        # REMOVED: 'current_custom_text': recon_record.review_note_text, <--- THIS LINE WAS CAUSING THE ERROR
         'is_from_unity_info': is_from_unity_info,
         'source': source_param,                       
     }
+    # Note: 'current_custom_text' removed as per your correction to avoid the FieldError
+    
     return render(request, 'unity_internal_app/display_bankline_review.html', context)
 
 @login_required

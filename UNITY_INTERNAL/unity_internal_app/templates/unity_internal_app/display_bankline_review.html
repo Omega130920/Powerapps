@@ -27,6 +27,10 @@ h3{color:#1b5e20;margin-top:30px}
 .status-fully-recon{background-color:#1b5e20;} 
 .status-reconciled{background-color:#FFC107;color:#333}
 
+/* New Breakdown Styles */
+.breakdown-header { background-color: #43a047 !important; color: white !important; font-weight: bold; }
+.breakdown-row:hover { background-color: #f1f8e9; }
+
 /* --- MODAL STYLES --- */
 .modal{display:none;position:fixed;z-index:100;left:0;top:0;width:100%;height:100%;overflow:auto;background-color:rgba(0,0,0,.4)}
 .modal-content{background-color:#fefefe;margin:5% auto;padding:20px;border:1px solid #888;width:90%;max-width:550px;border-radius:8px;box-shadow:0 5px 15px rgba(0,0,0,.3)}
@@ -82,7 +86,7 @@ h3{color:#1b5e20;margin-top:30px}
     <table class="data-table" style="width: 100%;">
         <tr>
             <th>Current Company Code</th>
-            <td>{{ recon_record.company_code }}</td>
+            <td><strong>{{ recon_record.company_code|default:"BULK ALLOCATION" }}</strong></td>
         </tr>
         <tr>
             <th>Current Fiscal Date</th>
@@ -94,7 +98,7 @@ h3{color:#1b5e20;margin-top:30px}
         </tr>
         <tr>
             <th>Detailed Internal Note</th>
-            <td>{{ current_custom_text|default:"No details provided" }}</td>
+            <td>{{ recon_record.review_note_text|default:"No details provided" }}</td>
         </tr>
         <tr>
             <th>Current Recon Status</th>
@@ -111,6 +115,34 @@ h3{color:#1b5e20;margin-top:30px}
             </td>
         </tr>
     </table>
+
+    {% if settlements %}
+    <h3><i class="fas fa-layer-group"></i> Detailed Bulk Allocation Breakdown</h3>
+    <table class="data-table" style="width: 100%; border-collapse: collapse;">
+        <thead>
+            <tr>
+                <th class="breakdown-header">Member Group Code</th>
+                <th class="breakdown-header">Fiscal / Pre-Bill Date</th>
+                <th class="breakdown-header" style="text-align: right;">Amount Allocated</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for settlement in settlements %}
+            <tr class="breakdown-row">
+                <td><strong>{{ settlement.unity_bill_source.C_Company_Code }}</strong></td>
+                <td>{{ settlement.unity_bill_source.A_CCDatesMonth|date:"Y-m-d" }}</td>
+                <td style="text-align: right; font-weight: bold; color: #2e7d32;">
+                    R {{ settlement.settled_amount|floatformat:2 }}
+                </td>
+            </tr>
+            {% endfor %}
+            <tr style="background-color: #e6ffe6;">
+                <td colspan="2" style="text-align: right; font-weight: bold;">Total Consumed From Bank:</td>
+                <td style="text-align: right; font-weight: bold; color: #1b5e20;">R {{ recon_record.amount_settled|floatformat:2 }}</td>
+            </tr>
+        </tbody>
+    </table>
+    {% endif %}
     
     <h3>Settlement Status</h3>
     <table class="data-table" style="width: 100%;">
@@ -121,7 +153,7 @@ h3{color:#1b5e20;margin-top:30px}
         <tr>
             <th>Actual Bill Settlement (Consumed)</th>
             <td style="font-weight: bold; color: #ff9800;">
-                R {{ recon_record.true_consumed_amount|floatformat:2 }}
+                R {{ recon_record.amount_settled|floatformat:2 }}
             </td>
         </tr>
         <tr>
@@ -146,6 +178,7 @@ h3{color:#1b5e20;margin-top:30px}
     <h3>Source Transaction Details</h3>
     <table class="data-table" style="width: 100%;">
         <tr><th>Transaction Date</th><td>{{ bank_record.date|date:"Y-m-d" }}</td></tr>
+        <tr><th>Reference</th><td>{{ bank_record.statement_reference|default:"N/A" }}</td></tr>
         <tr><th>Description</th><td>{{ bank_record.transaction_description|default:"N/A" }}</td></tr>
     </table>
 
@@ -206,7 +239,7 @@ h3{color:#1b5e20;margin-top:30px}
             </select>
 
             <label for="review_note_text">Internal Comments / Details:</label>
-            <textarea id="review_note_text" name="review_note_text" placeholder="Add specific details...">{{ current_custom_text }}</textarea>
+            <textarea id="review_note_text" name="review_note_text" placeholder="Add specific details...">{{ recon_record.review_note_text }}</textarea>
 
             <div class="modal-footer">
                 <button type="button" class="modal-cancel-button" id="closeBtn">Cancel</button>

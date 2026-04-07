@@ -40,13 +40,12 @@ from django.db.models import Q
 def pssubf_dashboard(request):
     """
     Shows all emails that haven't been processed yet.
-    Excludes emails with 'Delegated' or 'Completed' status.
+    Excludes emails with 'Delegated', 'Completed', or 'Recycled' status.
     """
-    # We exclude specific statuses. This ensures that 'New', NULL, 
-    # or empty statuses still show up in your triage list.
     inbox_items = PssubfInbox.objects.exclude(
         Q(status__iexact='Delegated') | 
-        Q(status__iexact='Completed')
+        Q(status__iexact='Completed') |
+        Q(status__iexact='Recycled') # <--- Add this line
     ).order_by('-received_timestamp')
 
     return render(request, 'pssubf/inbox_list.html', {
@@ -77,8 +76,19 @@ def pssubf_delegate_view(request, email_id):
         )
         
         if success:
+            # --- 🚀 FIX: Update the status of the Inbox record so it leaves the Dashboard ---
+            if inbox_item:
+                if is_recycle:
+                    inbox_item.status = 'Recycled'
+                else:
+                    # Mark it as Delegated so the exclude() filter in pssubf_dashboard catches it
+                    inbox_item.status = 'Delegated'
+                inbox_item.save()
+            # -----------------------------------------------------------------------------
+
             messages.success(request, message)
-            return redirect('pssubf_dashboard')
+            # Redirect to delegations list so you can see the active queue after assignment
+            return redirect('pssubf_delegations_list')
         else:
             messages.error(request, f"Error: {message}")
 
@@ -121,7 +131,7 @@ def pssubf_delegate_view(request, email_id):
         'email_content': email_content,
         'attachments': attachments,
         'available_users': available_users,
-        'inbox_item': inbox_item  # This carries the received_timestamp
+        'inbox_item': inbox_item
     })
 
 @login_required
@@ -396,22 +406,36 @@ def pssubf_recycle_bin(request):
 @login_required
 def pssubf_restore_item(request, email_id):
     """
-    Restores an item from the Recycle Bin back to the main Inbox/Queue.
+    Restores an item from the Recycle Bin back to the Triage Dashboard.
+    Clears the status so the Dashboard filter no longer excludes it.
     """
+    # 1. Get the recycled task record
     task = get_object_or_404(PssubfDelegate, email_id=email_id)
-    task.status = 'Pending'  # Or 'NEW' depending on your naming convention
-    task.save()
     
-    # Log the restoration
+    # 2. Find the original Inbox record (The one the dashboard looks at)
+    inbox_item = PssubfInbox.objects.filter(email_id=email_id).first()
+
+    if inbox_item:
+        # 🚀 CRITICAL: Clear the status. 
+        # Setting it to '' or None makes it "New" again so it shows in the Dashboard.
+        inbox_item.status = '' 
+        inbox_item.save()
+
+    # 3. Delete the 'Recycled' delegate entry so the system sees it as a fresh start
+    task.delete() 
+    
+    # 4. Log the action
     PssubfAction.objects.create(
         task_email_id=email_id,
         action_user=request.user.username,
         action_type="RESTORE",
-        note_content="Item restored from Recycle Bin to active queue."
+        note_content="Item restored. Status cleared to return to Triage Dashboard."
     )
     
-    messages.success(request, "Item successfully restored.")
-    return redirect('pssubf_recycle_bin')
+    messages.success(request, "Email restored to Dashboard. You can now assign an agent.")
+    
+    # 5. Redirect to the Dashboard so you can see it's back
+    return redirect('pssubf_dashboard')
 
 @login_required
 def pssubf_audit_logs(request):

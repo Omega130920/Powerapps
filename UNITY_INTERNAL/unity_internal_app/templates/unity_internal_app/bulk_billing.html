@@ -1,4 +1,5 @@
-{% block content %}
+{% load static %}
+{% load math_filters %} {% block content %}
 <style>
     /* Main Page Styles */
     body { font-family: sans-serif; background: linear-gradient(to bottom, #d1e2c4, #d1e2c4); margin: 0; color: #333; line-height: 1.6; }
@@ -103,7 +104,11 @@
                         {{ line.bank_line.transaction_description|truncatechars:80 }}
                     </td>
                     <td style="color: #666;">R {{ line.transaction_amount|floatformat:2 }}</td>
-                    <td style="font-weight: bold; color: #2e7d32;">R {{ line.get_remaining_balance|floatformat:2 }}</td>
+                    
+                    <td style="font-weight: bold; color: #2e7d32;">
+                        R {{ line.transaction_amount|sub:line.amount_settled|floatformat:2 }}
+                    </td>
+                    
                     <td>
                         {% if line.amount_settled > 0 %}
                             <span class="status-partial">Partial</span>
@@ -112,7 +117,8 @@
                         {% endif %}
                     </td>
                     <td style="text-align: right;">
-                        <button class="action-button" onclick="openBulkModal('{{ line.id }}', '{{ line.get_remaining_balance|floatformat:2 }}')">
+                        <button class="action-button" 
+                                onclick="openBulkModal('{{ line.id }}', '{{ line.transaction_amount|sub:line.amount_settled|floatformat:2 }}')">
                             Process Bulk
                         </button>
                     </td>
@@ -131,7 +137,7 @@
 <div id="bulkModal" class="modal">
     <div class="modal-content">
         <h3 id="modalTitle"><i class="fas fa-layer-group"></i> Bulk Allocation</h3>
-        <p style="margin-bottom: 20px;">Bank Amount Available: <strong id="totalBankAmount" style="color: #2e7d32; font-size: 1.2em;">0.00</strong></p>
+        <p style="margin-bottom: 20px;">Bank Amount Available: <strong id="totalBankAmount" style="color: #2e7d32; font-size: 1.2em;">R 0.00</strong></p>
         
         <form id="bulkForm" method="POST" action="{% url 'process_bulk_allocation' %}">
             {% csrf_token %}
@@ -158,7 +164,6 @@
 </div>
 
 <script>
-// This array now contains unique entries for each bill date
 let eligibleMembers = [
     {% for code, bill_date, bill_amount in eligible_members %}
     { 
@@ -172,9 +177,15 @@ let eligibleMembers = [
 let bankLimit = 0;
 
 function openBulkModal(id, amount) {
-    const cleanAmount = amount.replace(/[^0-9.]/g, '');
+    // Handling SA localization (replacing comma with dot for parseFloat)
+    let cleanAmount = amount.replace(/[^0-9,.]/g, '').replace(',', '.');
+    
     document.getElementById('modal_bank_id').value = id;
-    document.getElementById('totalBankAmount').innerText = "R " + cleanAmount;
+    
+    // Convert to float and format back to 2 decimal places for display
+    let formattedDisplay = parseFloat(cleanAmount).toFixed(2);
+    document.getElementById('totalBankAmount').innerText = "R " + formattedDisplay;
+    
     bankLimit = parseFloat(cleanAmount);
     document.getElementById('memberRowsContainer').innerHTML = ''; 
     addMemberRow(); 
@@ -214,11 +225,9 @@ function updateBillInfo(selectElement, rowId) {
         const memberData = eligibleMembers[dataIndex];
         const amount = parseFloat(memberData.bill).toFixed(2);
         
-        // Update the visible badge and the hidden date input
         displayBox.innerHTML = `Bill: R ${amount}`;
         dateInput.value = memberData.date;
 
-        // Auto-fill the amount if empty
         const row = document.getElementById(`row_${rowId}`);
         const amtInput = row.querySelector('.amount-input');
         if (!amtInput.value || amtInput.value == "0.00") {
