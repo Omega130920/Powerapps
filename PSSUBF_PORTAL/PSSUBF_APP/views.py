@@ -1070,8 +1070,7 @@ def claim_list_view(request):
         m_num = request.POST.get('membership_number')
         
         try:
-            # We use .filter().first() instead of get_object_or_404 
-            # so the system doesn't crash if adding a claim for a non-existent member
+            # Safely fetch member. If none found, we still save the m_num raw.
             member = PssubfBeneficiary.objects.filter(membership_number=m_num).first()
             uploaded_file = request.FILES.get('supporting_document')
             file_name = uploaded_file.name if uploaded_file else None
@@ -1080,9 +1079,10 @@ def claim_list_view(request):
             agent_stamp = f"\n\n--- Managed by {request.user.username} on {timestamp} ---"
 
             if action == 'add_claim_entry':
-                ClaimList.objects.create(
-                    beneficiary=member, # Can be None for imported/historical lines
-                    beneficiary_membership_number=m_num, # Ensure raw field is saved
+                # Create the object instance first without agent_username
+                new_claim = ClaimList(
+                    beneficiary=member,
+                    beneficiary_membership_number=m_num,
                     reference_no=f"CLM-{timezone.now().strftime('%Y%m%d%H%M')}",
                     guardian_name=request.POST.get('guardian_name'),
                     beneficiary_name=request.POST.get('beneficiary_name'),
@@ -1102,6 +1102,8 @@ def claim_list_view(request):
                     loaded_by_agent=request.user.username,
                     attachment_path=file_name
                 )
+                # Manually call save.
+                new_claim.save()
                 msg = f"Claim for Member {m_num} logged."
 
             elif action == 'update_claim_entry':
@@ -1132,6 +1134,7 @@ def claim_list_view(request):
                 claim.save()
                 msg = f"Claim {claim_id} updated."
 
+            # Log the action in the separate pssubf_actions table
             PssubfAction.objects.create(
                 task_email_id=f"CLAIM_{m_num}",
                 action_type="Claim Record Managed",
@@ -1144,11 +1147,13 @@ def claim_list_view(request):
             return redirect('claim_list')
             
         except Exception as e:
-            messages.error(request, f"Error: {str(e)}")
+            # DEBUG: Keep this here so you can see the SQL error in your console
+            import traceback
+            print("--- CLAIM SAVE ERROR ---")
+            print(traceback.format_exc())
+            messages.error(request, f"Database Error: {str(e)}")
 
-    # FETCH LOGIC: 
-    # Removed select_related('beneficiary') to ensure we get ALL claims, 
-    # even those without a matching member profile.
+    # FETCH LOGIC
     membership_number = request.GET.get('membership_number')
     claims = ClaimList.objects.all().order_by('-date_logged')
     
@@ -1531,50 +1536,90 @@ def affordability_dashboard(request):
     results = ClaimAffordability.objects.all().order_by('-calculated_at')
     return render(request, 'affordability_dashboard.html', {'results': results})
 
+from django.db.models import Sum
+
 @login_required
 def run_manual_calc(request):
-    """Pulls data from Beneficiaries table and calculates affordability"""
     if request.method == 'POST':
         m_num = request.POST.get('membership_number')
-        
-        # 1. Pull data from the Beneficiaries Table
         member = get_object_or_404(PssubfBeneficiary, membership_number=m_num)
         
-        # 2. Get User Inputs
-        fund_val = float(request.POST.get('fund_value') or 0)
-        quote_amt = float(request.POST.get('quote_amount') or 0)
+        # Use the stored fund value from the database
+        fund_val = float(member.total_fund_value or 0)
+        stipend = float(member.stipened or 0)
         
-        # Use Beneficiary data for the rest
-        dob = member.dob
-        stipend = float(member.stipened or 0) # Pulls 'stipened' from your column list
-        
-        if dob:
-            # 3. Excel Logic (Months to 18)
-            majority_date = dob + relativedelta(years=18)
-            diff = relativedelta(majority_date, date.today())
-            total_months = (diff.years * 12) + diff.months
-            years_to_maj = round(total_months / 12, 2)
+        if member.dob:
+            today = date.today()
+            majority_date = member.dob + relativedelta(years=18)
+            
+            # Calculate months remaining
+            if majority_date <= today:
+                total_months = 0
+            else:
+                diff = relativedelta(majority_date, today)
+                total_months = (diff.years * 12) + diff.months
 
-            # 4. Financial Projection
-            total_stipend_cost = stipend * total_months
-            fund_after_stipend = fund_val - total_stipend_cost
-            final_bal = fund_after_stipend - quote_amt
+            # CORE MATH: Only Stipends
+            total_stipend_commitment = stipend * total_months
+            
+            # Final Balance is Fund minus what we OWE in stipends
+            final_bal = fund_val - total_stipend_commitment
 
-            # 5. Save to Analysis Table
             ClaimAffordability.objects.update_or_create(
                 membership_number=m_num,
                 defaults={
                     'majority_date': majority_date,
-                    'years_to_majority': years_to_maj,
+                    'years_to_majority': round(total_months / 12, 2),
                     'months_to_majority': total_months,
-                    'total_stipend_commitment': total_stipend_cost,
-                    'fund_after_stipend': fund_after_stipend,
+                    'total_stipend_commitment': total_stipend_commitment,
+                    'fund_after_stipend': final_bal, 
                     'final_projected_balance': final_bal,
                     'requires_letter': final_bal < 0
                 }
             )
             
     return redirect('affordability_dashboard')
+
+@login_required
+def get_beneficiary_data(request, membership_number):
+    member = get_object_or_404(PssubfBeneficiary, membership_number=membership_number)
+    today = date.today()
+    birth = member.dob
+    
+    # 1. Stipend Time Logic
+    diff_used = relativedelta(today, birth)
+    months_paid = (diff_used.years * 12) + diff_used.months
+    
+    majority_date = birth + relativedelta(years=18)
+    months_remaining = 0
+    if majority_date > today:
+        diff_rem = relativedelta(majority_date, today)
+        months_remaining = (diff_rem.years * 12) + diff_rem.months
+
+    # 2. Historical Claims & Ad Hoc Totals
+    # We filter by 'beneficiary' (which is the member object)
+    past_claims_total = ClaimList.objects.filter(
+        beneficiary=member
+    ).aggregate(Sum('amount_requested'))['amount_requested__sum'] or 0
+
+    past_adhoc_total = AdHocList.objects.filter(
+        beneficiary=member
+    ).aggregate(Sum('amount_requested'))['amount_requested__sum'] or 0
+
+    stipend_rate = 1000.00
+    opening_fund = 500000.00
+
+    data = {
+        'beneficiary_name': f"{member.first_name} {member.last_name}",
+        'age': today.year - birth.year - ((today.month, today.day) < (birth.month, birth.day)),
+        'stipend_rate': stipend_rate,
+        'opening_fund': opening_fund,
+        'months_paid': months_paid,
+        'months_remaining': months_remaining,
+        'past_claims_total': float(past_claims_total),
+        'past_adhoc_total': float(past_adhoc_total),
+    }
+    return JsonResponse(data)
 
 import io
 from django.http import HttpResponse

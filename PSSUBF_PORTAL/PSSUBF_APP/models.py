@@ -107,12 +107,14 @@ class PssubfBeneficiary(models.Model):
     # Fund Dates
     fund_join_date = models.DateField(blank=True, null=True)
     
-    # Cessation Date (Note: In MySQL this is generated, so we mark it as read-only)
+    # Cessation Date (MySQL Generated Column)
     cessation_date = models.DateField(editable=False)
     
     # Financials
     stipened_frequency = models.CharField(max_length=50, blank=True, null=True)
     stipened = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
+    # NEW: Added to resolve the AttributeError
+    total_fund_value = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
     
     # Contact Info
     mobile_1 = models.CharField(max_length=20, blank=True, null=True)
@@ -141,11 +143,10 @@ class PssubfBeneficiary(models.Model):
 
     class Meta:
         db_table = 'pssubf_beneficiaries'
-        managed = False  # Set to False because we are using MySQL generated columns
+        managed = False  # Controlled by MySQL
 
     @property
     def is_expired(self):
-        """Python-side check to assist with the Bold Red logic in HTML"""
         return date.today() >= self.cessation_date
 
     def __str__(self):
@@ -256,7 +257,16 @@ class AdHocList(models.Model):
         managed = False  # Reminder: You must run the ALTER TABLE SQL manually
         
 class ClaimAffordability(models.Model):
-    claim = models.OneToOneField('ClaimList', on_delete=models.CASCADE, related_name='affordability')
+    # FIXED: Added null/blank to resolve IntegrityError during manual audits
+    # Added db_column to ensure exact match with MySQL
+    claim = models.OneToOneField(
+        'ClaimList', 
+        on_delete=models.CASCADE, 
+        related_name='affordability',
+        null=True, 
+        blank=True,
+        db_column='claim_id'
+    )
     membership_number = models.CharField(max_length=100)
     majority_date = models.DateField()
     years_to_majority = models.DecimalField(max_digits=5, decimal_places=2)
@@ -269,3 +279,4 @@ class ClaimAffordability(models.Model):
 
     class Meta:
         db_table = 'pssubf_claim_affordability'
+        managed = False  # Set to False as you are managing this via SQL statements
