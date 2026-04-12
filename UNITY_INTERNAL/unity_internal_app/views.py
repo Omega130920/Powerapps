@@ -52,6 +52,11 @@ from .services.delegation_service import (
     log_delegation_transaction
 )
 
+import logging
+
+# Initialize the logger for this module
+logger = logging.getLogger(__name__)
+
 from dateutil import parser
 
 from django.utils.safestring import mark_safe # for the email body & signature
@@ -315,6 +320,7 @@ def unity_information(request: HttpRequest, company_code):
     UPDATED: h_current_status now dynamically calculated to match unity_list priority.
     UPDATED: Added File Upload handler for PDF attachments in UnityNotes.
     UPDATED: Dynamic Fiscal Date priority logic (Bill Date -> Listing Table).
+    UPDATED: Added applied_credit_total calculation for recon history.
     """
     from .models import (
         EmailDelegation, DelegationTransactionLog, UnityNotes, 
@@ -357,7 +363,7 @@ def unity_information(request: HttpRequest, company_code):
         is_fallback = True
         messages.warning(request, f"Full detail information is not available for {company_code}.")
 
-    # --- NEW: Dynamic Status & Fiscal Calculation (Matches unity_list logic) ---
+    # --- NEW: Dynamic Status & Fiscal Calculation ---
     latest_bill = UnityBill.objects.filter(C_Company_Code=lookup_code).order_by('-A_CCDatesMonth').first()
     calculated_status = "NO BILLING"
     calculated_fiscal = None
@@ -365,7 +371,6 @@ def unity_information(request: HttpRequest, company_code):
     if latest_bill:
         total_covered = JournalEntry.objects.filter(target_bill=latest_bill).aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
         
-        # 1. Status Logic
         if latest_bill.is_reconciled:
             calculated_status = "RECON COMPLETE"
         elif latest_bill.G_Schedule_Date and (latest_bill.H_Schedule_Amount or 0) > 0 and total_covered == 0:
@@ -379,21 +384,17 @@ def unity_information(request: HttpRequest, company_code):
         else:
             calculated_status = "OPEN"
 
-        # 2. Fiscal Logic (Bill priority)
         if latest_bill.A_CCDatesMonth:
             calculated_fiscal = latest_bill.A_CCDatesMonth.strftime('%Y-%m-%d')
     
-    # Override the database value with the calculated logic for the template
     if unity_record:
         unity_record.h_current_status = calculated_status
-        # Use Bill date if it exists, otherwise leave the listing table value as is
         if calculated_fiscal:
             unity_record.g_current_fiscal = calculated_fiscal
 
     # --- 2. Fetch Related Data ---
     notes = ClientNotes.objects.filter(a_company_code=company_code).order_by('-date')
 
-    # --- Calculate Available Surplus ---
     company_bill_ids = UnityBill.objects.filter(C_Company_Code=lookup_code).values_list('id', flat=True)
     if company_bill_ids:
         total_created = ScheduleSurplus.objects.filter(
@@ -411,7 +412,6 @@ def unity_information(request: HttpRequest, company_code):
     else:
         available_surplus_value = Decimal('0.00')
     
-    # --- Bankline Logic ---
     bank_lines_assigned = ReconnedBank.objects.filter(company_code=company_code).select_related('bank_line').order_by('-transaction_date')
     for line in bank_lines_assigned:
         line.actual_bill_usage = BillSettlement.objects.filter(reconned_bank_line_id=line.id).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
@@ -423,7 +423,6 @@ def unity_information(request: HttpRequest, company_code):
     bank_lines = bank_lines_assigned
     credit_notes = CreditNote.objects.filter(member_group_code=company_code).order_by('-ccdates_month')
 
-    # --- Fetch Company Claims ---
     try:
         company_claims = UnityClaim.objects.filter(company_code=company_code).prefetch_related('notes').order_by('-claim_created_date', 'member_surname')
         delegation_pks = [c.linked_email_id for c in company_claims if c.linked_email_id]
@@ -481,8 +480,15 @@ def unity_information(request: HttpRequest, company_code):
         if bill.is_reconciled:
             bill.display_status = 'RECON COMPLETE'
             bill.bankline_total = BillSettlement.objects.filter(unity_bill_source_id=bill.id, reconned_bank_line_id__isnull=False).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
+            
+            # --- Credit Notes ---
             bill.credit_allocated = BillSettlement.objects.filter(unity_bill_source_id=bill.id, source_credit_note_id__isnull=False).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
+            
+            # --- Journal Surplus Transfers ---
             bill.surplus_allocated_from_journals = JournalEntry.objects.filter(target_bill_id=bill.id).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+            
+            # 🚀 NEW: Combined Applied Credit (Manual Credits + Surplus Journals)
+            bill.applied_credit_total = bill.credit_allocated + bill.surplus_allocated_from_journals
             
             used_line_ids = BillSettlement.objects.filter(
                 unity_bill_source_id=bill.id, 
@@ -502,7 +508,6 @@ def unity_information(request: HttpRequest, company_code):
             legacy_surplus = ScheduleSurplus.objects.filter(unity_bill_source_id=bill.id).aggregate(total=Sum('surplus_amount'))['total'] or Decimal('0.00')
             
             bill.surplus_created = overs_created + legacy_surplus
-            
             settled_bills.append(bill)
         else:
             bill.display_status = 'OPEN' if bill.total_covered > Decimal('0.00') else 'SCHEDULED'
@@ -516,6 +521,7 @@ def unity_information(request: HttpRequest, company_code):
             subject, recipient, email_body_html, action_note_val = request.POST.get('member_email_subject_reply', 'Claim Update'), request.POST.get('member_recipient_email'), request.POST.get('email_body_html_content'), request.POST.get('action_notes', 'Email Composed')
             if recipient and email_body_html:
                 from .services import OutlookGraphService 
+                # Ensure attachment=None is passed or handled if updated previously
                 response = OutlookGraphService.send_outlook_email(settings.OUTLOOK_EMAIL_ADDRESS, recipient, subject, email_body_html, 'HTML')
                 if response.get('success'):
                     UnityNotes.objects.create(member_group_code=company_code, user=request.user.username, date=timezone.now(), communication_type='Sent Email', action_notes=action_note_val[:90], attached_email_id=response.get('id', ''), notes=f"To: {recipient}\nSubject: {subject}\n{email_body_html}")
@@ -535,7 +541,6 @@ def unity_information(request: HttpRequest, company_code):
             return redirect('unity_information', company_code=company_code)
         
         elif request.POST.get('note_content') or request.POST.get('action_notes'):
-            # --- UPDATED: Handling PDF Uploads ---
             pdf_file = request.FILES.get('note_pdf_attachment')
             UnityNotes.objects.create(
                 member_group_code=company_code, 
@@ -544,7 +549,7 @@ def unity_information(request: HttpRequest, company_code):
                 communication_type=request.POST.get('communication_type') or 'Notes Log', 
                 action_notes=request.POST.get('action_notes'), 
                 notes=request.POST.get('note_content'),
-                attached_file=pdf_file # Ensure your UnityNotes model has an 'attached_file' FileField
+                attached_file=pdf_file 
             )
             messages.success(request, "Note and attachment added.")
             return redirect(f"{reverse('unity_information', kwargs={'company_code': company_code})}#notes-log")
@@ -3229,52 +3234,66 @@ def global_two_pot_view(request):
 @login_required
 def save_global_claim(request):
     if request.method == 'POST':
-        # Determine where to redirect based on the claim type
-        claim_type_input = request.POST.get('claim_type')
+        # 1. Make a mutable copy of the POST data
+        post_data = request.POST.copy()
+        
+        claim_type_input = post_data.get('claim_type', 'Standard')
         redirect_url = 'global_two_pot' if claim_type_input == 'Two Pot' else 'global_claims'
         
-        claim_id = request.POST.get('claim_id')
-        
-        # 1. Capture Old State to detect changes for logging
+        claim_id = post_data.get('claim_id')
         old_linked_email_id = None
+        
         if claim_id:
             claim_instance = get_object_or_404(UnityClaim, pk=claim_id)
             old_linked_email_id = claim_instance.linked_email_id
-            form = UnityClaimForm(request.POST, request.FILES, instance=claim_instance)
+            form = UnityClaimForm(post_data, request.FILES, instance=claim_instance)
         else:
-            form = UnityClaimForm(request.POST, request.FILES)
+            form = UnityClaimForm(post_data, request.FILES)
+
+        # --- THE FIX: Silence the allocation requirement ---
+        # This prevents the "Select a valid choice" error from blocking the save.
+        if 'claim_allocation' in form.fields:
+            form.fields['claim_allocation'].required = False
 
         if form.is_valid():
             saved_claim = form.save(commit=False)
             
-            # --- Two Pot Logic: Explicitly handle specific fields ---
+            # Ensure Company Code is set (Global view doesn't have it in URL)
+            if not saved_claim.company_code:
+                saved_claim.company_code = post_data.get('company_code')
+
+            # --- Two Pot Specific Field Override ---
             if claim_type_input == 'Two Pot':
                 saved_claim.claim_type = 'Two Pot'
-                saved_claim.mip_number = request.POST.get('mip_number')
+                saved_claim.mip_number = post_data.get('mip_number')
                 
-                # Handle decimal/float for claim_amount safely
-                amount = request.POST.get('claim_amount')
-                if amount and amount.strip():
-                    try:
-                        saved_claim.claim_amount = float(amount)
-                    except ValueError:
-                        saved_claim.claim_amount = 0.00
-                else:
+                # We set the allocation here manually if it's missing
+                if not saved_claim.claim_allocation:
+                    saved_claim.claim_allocation = "Two Pot"
+                
+                # Checkboxes: 'on' if checked, else False
+                saved_claim.vested_pot_available = post_data.get('vested_pot_available') == 'on'
+                saved_claim.savings_pot_available = post_data.get('savings_pot_available') == 'on'
+                
+                # Dates: Ensure empty strings become None for the DB
+                v_date = post_data.get('vested_pot_paid_date')
+                saved_claim.vested_pot_paid_date = v_date if v_date else None
+                
+                s_date = post_data.get('savings_pot_paid_date')
+                saved_claim.savings_pot_paid_date = s_date if s_date else None
+                
+                p_date = post_data.get('infund_cert_date')
+                saved_claim.infund_preservation_cert_received_date = p_date if p_date else None
+
+                # Handle Amount
+                amount = post_data.get('claim_amount')
+                try:
+                    saved_claim.claim_amount = float(amount) if amount and amount.strip() else 0.00
+                except ValueError:
                     saved_claim.claim_amount = 0.00
 
-            # --- NEW Logic: Pot Availability and Certificates ---
-            # Checkboxes return 'on' if checked, else None
-            saved_claim.vested_pot_available = request.POST.get('vested_pot_available') == 'on'
-            saved_claim.vested_pot_paid_date = request.POST.get('vested_pot_paid_date') or None
-
-            saved_claim.savings_pot_available = request.POST.get('savings_pot_available') == 'on'
-            saved_claim.savings_pot_paid_date = request.POST.get('savings_pot_paid_date') or None
-
-            # In-Fund Preservation
-            saved_claim.infund_preservation_cert_received_date = request.POST.get('infund_cert_date') or None
-
-            # --- Explicitly Handle Linked Email ID (ID reference) ---
-            new_linked_email_id = request.POST.get('linked_email_id')
+            # Handle Email Linking
+            new_linked_email_id = post_data.get('linked_email_id')
             if new_linked_email_id and new_linked_email_id.strip():
                 saved_claim.linked_email_id = new_linked_email_id
 
@@ -3283,66 +3302,32 @@ def save_global_claim(request):
 
             saved_claim.save()
 
-            # ---------------------------------------------------------------
-            # 2. LOG EMAIL LINK: Create a note if the link has changed
-            # ---------------------------------------------------------------
-            str_old = str(old_linked_email_id) if old_linked_email_id else ""
-            str_new = str(new_linked_email_id) if new_linked_email_id else ""
-
-            if str_new and str_new != str_old:
+            # Logging & Notes
+            # 1. Email Link Note
+            if str(new_linked_email_id or "") != str(old_linked_email_id or ""):
                 UnityClaimNote.objects.create(
                     claim=saved_claim,
                     note_selection="SUBMITTED VIA E-MAIL",
-                    note_description=f"System: Attached Delegated Email ID #{str_new}",
+                    note_description=f"System: Attached Email ID #{new_linked_email_id}",
                     created_by=request.user
                 )
 
-            # ---------------------------------------------------------------
-            # 3. LOGIC: HANDLE "COMPOSE & SEND" EMAIL
-            # ---------------------------------------------------------------
-            email_action = request.POST.get('email_submission_action')
-            if email_action == 'send_email_and_log':
-                recipient = request.POST.get('member_recipient_email')
-                subject = request.POST.get('member_email_subject_reply')
-                email_body_html = request.POST.get('email_body_html_content')
-
-                if recipient and email_body_html:
-                    response = OutlookGraphService.send_outlook_email(
-                        settings.OUTLOOK_EMAIL_ADDRESS, recipient, subject, email_body_html, 'HTML'
-                    )
-                    
-                    if response.get('success'):
-                        UnityClaimNote.objects.create(
-                            claim=saved_claim,
-                            note_selection="SUBMITTED VIA E-MAIL",
-                            note_description=f"EMAIL SENT SUCCESSFULLY\nTo: {recipient}\nSubject: {subject}",
-                            created_by=request.user
-                        )
-                        messages.success(request, f"Email sent to {recipient} and claim saved.")
-                    else:
-                        messages.warning(request, f"Claim saved, but Email failed: {response.get('error')}")
-
-            # ---------------------------------------------------------------
-            # 4. LOGIC: MANUAL TEXT NOTE / STATUS HELPER NOTE
-            # ---------------------------------------------------------------
-            note_selection = request.POST.get('note_selection') or "GENERAL NOTE"
-            note_description = request.POST.get('note_description')
-
-            if note_description and note_description.strip():
+            # 2. Manual Note
+            note_desc = post_data.get('note_description')
+            if note_desc and note_desc.strip():
                 UnityClaimNote.objects.create(
                     claim=saved_claim,
-                    note_selection=note_selection,
-                    note_description=note_description,
+                    note_selection=post_data.get('note_selection') or "GENERAL NOTE",
+                    note_description=note_desc,
                     created_by=request.user
                 )
-            
-            if not messages.get_messages(request):
-                messages.success(request, "Claim saved successfully.")
-                
+
+            messages.success(request, f"Claim for {saved_claim.member_surname} saved successfully.")
             return redirect(redirect_url)
             
         else:
-            messages.error(request, f"Error saving claim: {form.errors}")
+            # If any other errors remain, they will show up in the messages block
+            messages.error(request, f"Could not save claim: {form.errors}")
             return redirect(redirect_url)
             
     return redirect('global_claims')
@@ -3583,7 +3568,7 @@ def outlook_delegated_box(request):
 def outlook_delegated_action(request, delegation_id):
     """
     Handles Notes, Replies, Metadata Updates, RESTORATION, and COMPLETION.
-    UPDATED: Fetches attachment metadata and raw bytes for image previews.
+    Now supports sending file attachments with replies.
     """
     delegation = get_object_or_404(EmailDelegation, pk=delegation_id)
     
@@ -3616,7 +3601,7 @@ def outlook_delegated_action(request, delegation_id):
 
         # --- 2. HANDLE COMPLETE ---
         elif action_type == 'mark_complete':
-            delegation.status = 'COM'  # Completed / Actioned
+            delegation.status = 'COM'
             delegation.save()
 
             add_delegation_note(
@@ -3643,8 +3628,8 @@ def outlook_delegated_action(request, delegation_id):
             return redirect('outlook_delegated_action', delegation_id=delegation_id)
 
         # --- 4. HANDLE NOTE SUBMISSION ---
-        elif 'note_content' in request.POST:
-            note_content = request.POST.get('note_content')
+        elif action_type == 'add_note':
+            note_content = request.POST.get('internal_note')
             success, message = add_delegation_note(delegation_id, request.user, note_content)
             if success: 
                 messages.success(request, "Internal note saved.")
@@ -3661,8 +3646,18 @@ def outlook_delegated_action(request, delegation_id):
             action_destination = request.POST.get('action_notes', 'EMAIL_REPLY')
             
             log_type = request.POST.get('email_log_type', 'DIRECT') 
+            
+            # 🚀 NEW: Grab the file from the request
+            reply_file = request.FILES.get('reply_file')
 
-            response = OutlookGraphService.send_outlook_email(target_email, recipient, subject, body_html)
+            # Pass the file to the service
+            response = OutlookGraphService.send_outlook_email(
+                target_email, 
+                recipient, 
+                subject, 
+                body_html,
+                attachment=reply_file
+            )
             
             if response.get('success'):
                 final_action_type = 'REPLIED' if log_type == 'REPLY' else action_destination
@@ -3675,7 +3670,7 @@ def outlook_delegated_action(request, delegation_id):
                     action_type=final_action_type 
                 )
                 
-                messages.success(request, f"Reply sent successfully and logged as {final_action_type}.")
+                messages.success(request, f"Reply sent successfully with attachment (if provided).")
             else:
                 messages.error(request, f"Failed to send email: {response.get('error')}")
                 
@@ -3685,20 +3680,18 @@ def outlook_delegated_action(request, delegation_id):
     endpoint = f"messages/{delegation.email_id}"
     email_data = OutlookGraphService._make_graph_request(endpoint, target_email, method='GET')
     
-    # Fetch Attachment Metadata
     attachments = OutlookGraphService.fetch_attachments(target_email, delegation.email_id)
     
-    # 🚀 NEW: Loop through attachments to fetch contentBytes for image previews
+    # Loop through attachments for image previews
     for att in attachments:
         content_type = att.get('contentType', '').lower()
-        # If it's an image, we fetch the full raw data to get 'contentBytes' for <img> tags
         if 'image' in content_type:
             raw_att = OutlookGraphService.get_attachment_raw(target_email, delegation.email_id, att['id'])
-            if 'contentBytes' in raw_att:
+            if isinstance(raw_att, dict) and 'contentBytes' in raw_att:
                 att['contentBytes'] = raw_att['contentBytes']
     
-    if 'error' in email_data:
-        messages.warning(request, "Could not fetch live email content. Showing local snippet instead.")
+    if isinstance(email_data, dict) and 'error' in email_data:
+        messages.warning(request, "Could not fetch live email content.")
         email_display = {'subject': delegation.email_id, 'body': {'content': 'Live content unavailable.'}}
     else:
         email_display = email_data
@@ -3706,7 +3699,7 @@ def outlook_delegated_action(request, delegation_id):
     context = {
         'delegation': delegation,
         'email': email_display,
-        'attachments': attachments,  # Now includes contentBytes for images
+        'attachments': attachments,
         'notes': delegation.notes.all().order_by('-created_at'),
         'target_email': target_email,
         'is_manager': is_manager,
@@ -4859,22 +4852,46 @@ def export_global_bank_excel(request):
 @login_required
 def download_attachment_view(request, message_id, attachment_id):
     """
-    Acts as a proxy to download files from Microsoft Graph without 
-    exposing the access token to the frontend.
+    Acts as a proxy to download files from Microsoft Graph.
+    Handles both FileAttachments (PDF, Excel, etc.) and ItemAttachments (nested emails).
     """
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     
-    # Fetch the attachment data from Graph
+    # 1. Fetch the metadata first to determine the attachment type
     attachment_data = OutlookGraphService.get_attachment_raw(target_email, message_id, attachment_id)
     
-    if 'error' in attachment_data:
-        return HttpResponse("Error retrieving attachment from Microsoft.", status=400)
+    if isinstance(attachment_data, dict) and 'error' in attachment_data:
+        logger.error(f"Metadata retrieval failed for {attachment_id}: {attachment_data}")
+        return HttpResponse("Error retrieving attachment info from Microsoft.", status=400)
 
-    # Graph returns the file content as a base64 encoded string
-    file_content = base64.b64decode(attachment_data['contentBytes'])
+    odata_type = attachment_data.get('@odata.type', '')
     file_name = attachment_data.get('name', 'attachment')
-    content_type = attachment_data.get('contentType', 'application/octet-stream')
 
+    # 2. Extract content based on type
+    if odata_type == '#microsoft.graph.fileAttachment':
+        # Standard file: content is already in the metadata as a base64 string
+        if 'contentBytes' in attachment_data:
+            file_content = base64.b64decode(attachment_data['contentBytes'])
+            content_type = attachment_data.get('contentType', 'application/octet-stream')
+        else:
+            return HttpResponse("Attachment content is missing from metadata.", status=404)
+
+    elif odata_type == '#microsoft.graph.itemAttachment':
+        # Nested Email: must be fetched as raw MIME via the /$value endpoint
+        file_content = OutlookGraphService.get_attachment_mime(target_email, message_id, attachment_id)
+        
+        # Check if binary content was returned or an error dict
+        if not file_content or (isinstance(file_content, dict) and 'error' in file_content):
+            return HttpResponse("Could not retrieve nested email content from Microsoft.", status=400)
+            
+        content_type = 'message/rfc822'
+        # Force .eml extension so Windows handles the file correctly
+        if not file_name.lower().endswith('.eml'):
+            file_name += ".eml"
+    else:
+        return HttpResponse(f"Unsupported attachment type: {odata_type}", status=400)
+
+    # 3. Build and return the final response
     response = HttpResponse(file_content, content_type=content_type)
     response['Content-Disposition'] = f'attachment; filename="{file_name}"'
     return response

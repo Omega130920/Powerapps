@@ -1,5 +1,6 @@
 import requests
 import json
+import base64
 from django.conf import settings
 from .token_manager import get_current_access_token 
 from dateutil import parser
@@ -20,7 +21,7 @@ class OutlookGraphService:
     def _make_graph_request(endpoint, target_email, method='GET', data=None, is_raw=False):
         """
         Generic internal function to handle authenticated requests.
-        Updated to support is_raw for binary/MIME content.
+        Supports is_raw for binary/MIME content (returns response.content).
         """
         access_token = get_current_access_token()
         
@@ -45,7 +46,7 @@ class OutlookGraphService:
             
             response.raise_for_status() 
 
-            # If we need the raw binary content (e.g., for .eml files)
+            # If we need the raw binary content (e.g., for .eml files or attachment /$value)
             if is_raw:
                 return response.content
 
@@ -58,7 +59,6 @@ class OutlookGraphService:
             status_code = e.response.status_code
             logger.error(f"Graph API HTTP Error {status_code}: {e.response.text}")
             
-            # Try to return JSON error if available, else string
             try:
                 error_details = e.response.json()
             except:
@@ -127,10 +127,11 @@ class OutlookGraphService:
         return response
 
     @staticmethod
-    def send_outlook_email(target_email, recipient_email, subject, body_content, content_type='HTML'):
+    def send_outlook_email(target_email, recipient_email, subject, body_content, content_type='HTML', attachment=None):
         """
         Sends an email via Microsoft Graph and retrieves the newly created ID 
         from Sent Items to allow for future viewing and downloading.
+        Updated to support optional file attachments from request.FILES.
         """
         email_data = {
             "message": {
@@ -146,24 +147,37 @@ class OutlookGraphService:
                         }
                     }
                 ],
+                "attachments": []  # Initialize empty attachments list
             },
             "saveToSentItems": "true" 
         }
+
+        # 🚀 ADDED: Process the attachment if it exists
+        if attachment:
+            try:
+                # Read the file and encode to base64
+                file_content = attachment.read()
+                encoded_string = base64.b64encode(file_content).decode('utf-8')
+                
+                email_data["message"]["attachments"].append({
+                    "@odata.type": "#microsoft.graph.fileAttachment",
+                    "name": attachment.name,
+                    "contentType": attachment.content_type,
+                    "contentBytes": encoded_string
+                })
+            except Exception as e:
+                logger.error(f"Failed to package attachment '{attachment.name}': {e}")
         
         endpoint = "sendMail"
-        # 1. Send the email
         send_res = OutlookGraphService._make_graph_request(endpoint, target_email, method='POST', data=email_data)
         
-        # 2. Check for success (202 Accepted returns {'success': True} in your _make_graph_request)
         if isinstance(send_res, dict) and send_res.get('success') is True:
             try:
-                # 3. Retrieve the ID of the email just placed in 'Sent Items'
-                # We filter by subject to ensure we get the right one
+                # Retrieve the ID of the email just placed in 'Sent Items'
                 sent_endpoint = f"mailFolders/sentitems/messages?$top=1&$select=id&$filter=subject eq '{subject}'"
                 sent_check = OutlookGraphService._make_graph_request(sent_endpoint, target_email)
                 
                 if sent_check and 'value' in sent_check and len(sent_check['value']) > 0:
-                    # Return the ID so the View can save it in UnityNotes
                     return {
                         'success': True, 
                         'id': sent_check['value'][0]['id'],
@@ -172,7 +186,6 @@ class OutlookGraphService:
             except Exception as e:
                 logger.error(f"Email sent but Sent Items ID retrieval failed: {e}")
         
-        # Fallback if ID couldn't be fetched but mail was sent
         return send_res
     
     # --- Attachment & Raw Content Handling ---
@@ -189,16 +202,24 @@ class OutlookGraphService:
     @staticmethod
     def get_attachment_raw(target_email, message_id, attachment_id):
         """
-        Fetches specific attachment data.
+        Fetches specific attachment metadata (JSON).
         """
         endpoint = f"messages/{message_id}/attachments/{attachment_id}"
         return OutlookGraphService._make_graph_request(endpoint, target_email)
 
     @staticmethod
+    def get_attachment_mime(target_email, message_id, attachment_id):
+        """
+        Fetches the raw binary content of an attachment using the /$value segment.
+        Required for ItemAttachments (nested emails).
+        """
+        endpoint = f"messages/{message_id}/attachments/{attachment_id}/$value"
+        return OutlookGraphService._make_graph_request(endpoint, target_email, is_raw=True)
+
+    @staticmethod
     def fetch_raw_eml(target_email, message_id):
         """
-        Fetches the raw MIME content of a message for .eml download.
-        Uses the /$value segment.
+        Fetches the raw MIME content of a main message for .eml download.
         """
         endpoint = f"messages/{message_id}/$value"
         return OutlookGraphService._make_graph_request(endpoint, target_email, is_raw=True)

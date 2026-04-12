@@ -174,40 +174,42 @@ class PssubfDirectEmail(models.Model):
         managed = False
         db_table = 'pssubf_direct_emails'
         
+from django.db import models
+
+from django.db import models
+
 class ClaimList(models.Model):
-    # Foreign Key to Beneficiary
+    # This is the ONLY field. It handles the DB column AND the relationship.
     beneficiary = models.ForeignKey(
         'PssubfBeneficiary', 
         on_delete=models.CASCADE, 
-        db_column='beneficiary_membership_number',
-        to_field='membership_number',
-        related_name='claims'
+        db_column='beneficiary_membership_number', # The actual column name in MySQL
+        to_field='membership_number',               # The column it links to in the other table
+        related_name='claims',
+        null=True,
+        blank=True
     )
     
-    # Existing & Metadata Fields
     reference_no = models.CharField(max_length=100)
-    claim_type = models.CharField(max_length=100) # This maps to Excel "Reason"
+    claim_type = models.CharField(max_length=100) 
     description = models.TextField(blank=True, null=True)
-    date_logged = models.DateField(null=True, blank=True) # Maps to "Original Claim Form Date"
+    date_logged = models.DateField(null=True, blank=True) 
     status = models.CharField(max_length=50, default='Pending')
     
-    # NEW FIELDS FROM EXCEL DATA
-    guardian_name = models.CharField(max_length=255, blank=True, null=True) # Excel: Guardian Name & Surname
-    beneficiary_name = models.CharField(max_length=255, blank=True, null=True) # Excel: Beneficiary Name & Surname
-    beneficiary_dob = models.DateField(null=True, blank=True) # Excel: Beneficiary Date Of Birth
-    termination_date = models.DateField(null=True, blank=True) # Excel: Termination Date
+    guardian_name = models.CharField(max_length=255, blank=True, null=True) 
+    beneficiary_name = models.CharField(max_length=255, blank=True, null=True) 
+    beneficiary_dob = models.DateField(null=True, blank=True) 
+    termination_date = models.DateField(null=True, blank=True) 
     
-    # Financials & Calculations
-    portfolio_value = models.DecimalField(max_digits=15, decimal_places=2, default=0.00) # Excel: Portfolio Value
-    portfolio_date = models.DateField(null=True, blank=True) # Excel: Portfolio Value Date
-    amount_requested = models.DecimalField(max_digits=15, decimal_places=2, default=0.00) # Excel: Amount Requested
-    monthly_income_payment = models.DecimalField(max_digits=15, decimal_places=2, default=0.00) # Excel: Monthly Income Payment
-    age_at_claim = models.CharField(max_length=20, blank=True, null=True) # Excel: Age at Claim Date
+    portfolio_value = models.DecimalField(max_digits=15, decimal_places=2, default=0.00) 
+    portfolio_date = models.DateField(null=True, blank=True) 
+    amount_requested = models.DecimalField(max_digits=15, decimal_places=2, default=0.00) 
+    monthly_income_payment = models.DecimalField(max_digits=15, decimal_places=2, default=0.00) 
+    age_at_claim = models.CharField(max_length=20, blank=True, null=True) 
     
-    # Status & Audit
-    supporting_docs_attached = models.CharField(max_length=10, default='No') # Excel: Supporting Documents Attached
-    date_paid = models.DateField(null=True, blank=True) # Excel: Date Paid
-    loaded_by_agent = models.CharField(max_length=100, blank=True, null=True) # Excel: Loaded by Agent
+    supporting_docs_attached = models.CharField(max_length=10, default='No') 
+    date_paid = models.DateField(null=True, blank=True) 
+    loaded_by_agent = models.CharField(max_length=100, blank=True, null=True) 
     
     attachment_path = models.CharField(max_length=255, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)

@@ -62,11 +62,26 @@
     .header-meta-item strong { color: #202124; width: 80px; display: inline-block; }
     .email-body-container { padding: 40px 50px; background: #ffffff; max-height: 55vh; overflow-y: auto; color: #3c4043; font-size: 1.05rem; line-height: 1.6; all: revert; }
     .preview-footer { padding: 15px 35px; background: #f8f9fa; text-align: right; border-top: 1px solid #eee; }
+
+    /* Added Message Alert Style */
+    .alert { padding: 12px; margin-bottom: 15px; border-radius: 6px; font-weight: bold; }
+    .alert-error { background-color: #fce4e4; color: #c62828; border: 1px solid #f1aeb5; }
+    .alert-success { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container">
+    {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags|default:'info' }}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
     <div class="dashboard-header">
         <a href="{% url 'dashboard' %}" class="dashboard-button" style="background-color: #757575;">Back to Home Screen</a>
         <h1>💰 Two-Pot Claims Register</h1>
@@ -138,11 +153,15 @@
                             data-mip_number="{{ claim.mip_number|default:'' }}"
                             data-claim_type="{{ claim.claim_type }}"
                             data-claim_status="{{ claim.claim_status }}"
-                            data-claim_allocation="{{ claim.claim_allocation }}"
                             data-payment_option="{{ claim.payment_option }}"
                             data-claim_amount="{{ claim.claim_amount|default:'' }}"
                             data-claim_created_date="{{ claim.claim_created_date|date:'Y-m-d' }}"
                             data-linked_email_id="{{ claim.linked_email_id|default:'' }}"
+                            data-vested_pot_available="{{ claim.vested_pot_available|yesno:'True,False' }}"
+                            data-savings_pot_available="{{ claim.savings_pot_available|yesno:'True,False' }}"
+                            data-vested_pot_paid_date="{{ claim.vested_pot_paid_date|date:'Y-m-d' }}"
+                            data-savings_pot_paid_date="{{ claim.savings_pot_paid_date|date:'Y-m-d' }}"
+                            data-infund_cert_date="{{ claim.infund_preservation_cert_received_date|date:'Y-m-d' }}"
                         >Edit</button>
 
                         <template id="notes-data-{{ claim.id }}">
@@ -202,7 +221,7 @@
                     <input list="company_list" name="company_code" id="company_code_input" class="form-input" required>
                     <datalist id="company_list">
                         {% for c in all_companies %}
-                            <option value="{{ c.mip_names }}" data-agent="{{ c.branch_code }}">{{ c.mip_names }}</option>
+                            <option value="{{ c.a_company_code }}" data-agent="{{ c.c_agent }}">{{ c.b_company_name }}</option>
                         {% endfor %}
                     </datalist>
                 </div>
@@ -216,11 +235,27 @@
                 <div><label style="font-weight:bold;">Surname *</label><input type="text" name="member_surname" class="form-input" required></div>
             </div>
 
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px; padding: 15px; background: #f1f8e9; border: 1px solid #aed581; border-radius: 8px;">
+                <div>
+                    <label style="font-weight:bold;"><input type="checkbox" name="vested_pot_available" id="vested_check"> Vested Pot Available</label>
+                    <input type="date" name="vested_pot_paid_date" id="vested_date" class="form-input" title="Paid Date">
+                </div>
+                <div>
+                    <label style="font-weight:bold;"><input type="checkbox" name="savings_pot_available" id="savings_check"> Savings Pot Available</label>
+                    <input type="date" name="savings_pot_paid_date" id="savings_date" class="form-input" title="Paid Date">
+                </div>
+                <div>
+                    <label style="font-weight:bold;">In-Fund Preservation Cert</label>
+                    <input type="date" name="infund_cert_date" id="infund_date" class="form-input" title="Received Date">
+                </div>
+            </div>
+
             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                 <div>
                     <label style="font-weight:bold;">Claim Type</label>
                     <input type="text" name="claim_type" value="Two Pot" class="form-input" readonly style="background: #f9f9f9;">
                 </div>
+                
                 <div>
                     <label style="font-weight:bold;">Claim Status</label>
                     <select name="claim_status" id="claim_status_select" class="form-select" onchange="toggleWithdrawalSubFields()">
@@ -238,6 +273,11 @@
                     </select>
                 </div>
                 <div><label style="font-weight:bold;">Created Date *</label><input type="date" name="claim_created_date" class="form-input" required></div>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <label style="font-weight:bold;">Claim Amount</label>
+                <input type="number" step="0.01" name="claim_amount" id="claim_amount_input" class="form-input" placeholder="0.00">
             </div>
 
             <div id="div_two_pot_withdrawal_details" style="display:none; margin-top: 15px; padding: 15px; background: #fffde7; border: 1px solid #fbc02d; border-radius: 8px;">
@@ -320,6 +360,14 @@
         document.querySelector('select[name="payment_option"]').value = d.payment_option;
         document.querySelector('input[name="claim_created_date"]').value = d.claim_created_date;
 
+        /* --- POPULATE POT FIELDS --- */
+        document.getElementById('claim_amount_input').value = d.claim_amount;
+        document.getElementById('vested_check').checked = (d.vested_pot_available === 'True');
+        document.getElementById('savings_check').checked = (d.savings_pot_available === 'True');
+        document.getElementById('vested_date').value = d.vested_pot_paid_date || '';
+        document.getElementById('savings_date').value = d.savings_pot_paid_date || '';
+        document.getElementById('infund_date').value = d.infund_cert_date || '';
+
         const notesSrc = document.getElementById('notes-data-' + d.id);
         if (notesSrc) {
             document.getElementById('claim_notes_tbody').innerHTML = notesSrc.innerHTML;
@@ -328,13 +376,12 @@
         document.getElementById('claimModal').style.display = 'block';
     }
 
-    // --- INTEGRATED EXPORT LOGIC FOR MULTIPLE REPORTS ---
+    // --- EXPORT LOGIC ---
     function triggerExport(type) {
         const q = document.getElementById('search_q').value;
         const start = document.getElementById('search_start').value;
         const end = document.getElementById('search_end').value;
         
-        // Maps the 'type' parameter to the correct URL configured in urls.py
         let baseUrl = type === 'invoice' ? "{% url 'export_two_pot_invoice' %}" : "{% url 'export_two_pot_tracking' %}";
         
         window.location.href = baseUrl + "?q=" + encodeURIComponent(q) + 
@@ -354,7 +401,7 @@
 
     document.getElementById('company_code_input').addEventListener('input', function() {
         const val = this.value;
-        const opts = document.getElementById('company_list').childNodes;
+        const opts = document.getElementById('company_list').querySelectorAll('option');
         for (let i = 0; i < opts.length; i++) {
             if (opts[i].value === val) {
                 document.getElementById('agent_input').value = opts[i].getAttribute('data-agent');

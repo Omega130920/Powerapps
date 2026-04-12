@@ -14,7 +14,7 @@
         .clean-input:focus { border-color: #059669 !important; outline: none; box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1); }
         .overflow-x-auto::-webkit-scrollbar { height: 8px; }
         .overflow-x-auto::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 4px; }
-        .history-row { background-color: rgba(254, 249, 195, 0.4); } /* Light yellow for imported/orphaned rows */
+        .history-row { background-color: rgba(254, 249, 195, 0.4); } 
     </style>
 </head>
 <body class="p-4 sm:p-8 text-gray-800">
@@ -37,15 +37,15 @@
         </div>
     </div>
 
-    <div class="max-w-full mx-auto glass-card p-4 rounded-xl mb-6 flex flex-wrap items-center gap-3">
-        <button onclick="window.location.reload()" class="p-2 text-green-800 hover:rotate-180 transition-transform duration-500 text-xl"><i class="fas fa-sync-alt"></i></button>
+    <form method="GET" action="{% url 'claim_list' %}" class="max-w-full mx-auto glass-card p-4 rounded-xl mb-6 flex flex-wrap items-center gap-3">
+        <button type="button" onclick="window.location.href='{% url 'claim_list' %}'" class="p-2 text-green-800 hover:rotate-180 transition-transform duration-500 text-xl"><i class="fas fa-sync-alt"></i></button>
         
         <div class="flex items-center bg-white rounded shadow-sm border border-gray-300">
-            <input type="date" class="p-2 outline-none text-sm w-40">
+            <input type="date" name="date_filter" class="p-2 outline-none text-sm w-40">
             <span class="bg-green-600 p-2.5 text-white"><i class="fas fa-calendar-alt"></i></span>
         </div>
 
-        <select class="p-2 border-r-8 border-green-600 rounded bg-white text-sm outline-none min-w-[160px] shadow-sm">
+        <select name="status_filter" class="p-2 border-r-8 border-green-600 rounded bg-white text-sm outline-none min-w-[160px] shadow-sm">
             <option value="">Claim Status</option>
             <option>Created</option>
             <option>Paid</option>
@@ -53,7 +53,7 @@
         </select>
 
         <div class="flex-grow">
-            <input type="text" placeholder="Search Member, Name or Guardian..." class="w-full p-2 border-r-8 border-green-600 rounded bg-white text-sm outline-none shadow-sm">
+            <input type="text" name="membership_number" placeholder="Enter Membership Number..." value="{{ request.GET.membership_number|default:'' }}" class="w-full p-2 border-r-8 border-green-600 rounded bg-white text-sm outline-none shadow-sm">
         </div>
 
         <div class="flex items-center gap-2 px-4 py-1.5 bg-white/50 rounded-lg border border-white/40 shadow-sm">
@@ -64,8 +64,8 @@
             </label>
         </div>
 
-        <button class="bg-green-800 text-white p-2.5 rounded hover:bg-green-900 transition shadow-md"><i class="fas fa-search"></i></button>
-    </div>
+        <button type="submit" class="bg-green-800 text-white p-2.5 rounded hover:bg-green-900 transition shadow-md"><i class="fas fa-search"></i></button>
+    </form>
 
     <div class="max-w-full mx-auto glass-card rounded-2xl overflow-hidden shadow-2xl">
         <div class="overflow-x-auto">
@@ -88,17 +88,21 @@
                         onclick="openClaimModal('{{ claim.id }}')">
                         
                         <td class="px-6 py-4 text-sm font-bold text-green-900">
-                            {{ claim.beneficiary.membership_number|default:claim.beneficiary_id }}
+                            {{ claim.beneficiary_id }}
                         </td>
                         
                         <td class="px-6 py-4 text-sm">
-                            <span class="font-semibold">{{ claim.beneficiary_name|default:claim.beneficiary.first_name }}</span>
+                            <span class="font-semibold">{{ claim.beneficiary_name }}</span>
                             {% if not claim.beneficiary %}<span class="ml-1 text-[10px] bg-yellow-200 text-yellow-800 px-1 rounded">HIST</span>{% endif %}<br>
                             <span class="text-xs text-gray-500">DOB: {{ claim.beneficiary_dob|date:"d/m/Y" }}</span>
                         </td>
 
                         <td class="px-6 py-4 text-sm">
-                            {{ claim.guardian_name|default:claim.beneficiary.guardian_first_name|default:"--" }}
+                            {% if claim.guardian_name and claim.guardian_name != "undefined" %}
+                                {{ claim.guardian_name }}
+                            {% else %}
+                                --
+                            {% endif %}
                         </td>
 
                         <td class="px-6 py-4 text-sm text-center">
@@ -240,7 +244,6 @@
     </div>
 
     <script>
-        // FUNCTION TO TOGGLE HISTORY ROWS
         function filterTableRows() {
             const showHistory = document.getElementById('historyToggle').checked;
             const rows = document.querySelectorAll('.is-history');

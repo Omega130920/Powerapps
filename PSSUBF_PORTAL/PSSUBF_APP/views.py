@@ -25,6 +25,11 @@ from .models import AdHocList, ClaimAffordability, ClaimList, PssubfBeneficiary,
 from PSSUBF_APP.services.outlook_graph_service import OutlookGraphService
 from PSSUBF_APP.services.delegation_service import delegate_pssubf_task
 
+def clean_numeric(val):
+    if not val or str(val).lower() == 'undefined' or str(val).strip() == '': 
+        return 0
+    return str(val).replace('R', '').replace(',', '').replace('%', '').strip()
+
 @login_required
 def pssubf_switchboard(request):
     """
@@ -1059,10 +1064,12 @@ def get_beneficiary_data(request, membership_number):
 
 @login_required
 def claim_list_view(request):
-    """Main view for the full Claim Registry with Agent Tracking and File Management"""
+    """Main view for the full Claim Registry"""
     
     def clean_numeric(val):
-        if not val: return 0
+        # 🚀 CRITICAL: This stops "undefined" strings from crashing the save
+        if not val or str(val).lower() == 'undefined' or str(val).strip() == '':
+            return 0
         return str(val).replace('R', '').replace(',', '').replace('%', '').strip()
 
     if request.method == 'POST':
@@ -1070,19 +1077,17 @@ def claim_list_view(request):
         m_num = request.POST.get('membership_number')
         
         try:
-            # Safely fetch member. If none found, we still save the m_num raw.
             member = PssubfBeneficiary.objects.filter(membership_number=m_num).first()
             uploaded_file = request.FILES.get('supporting_document')
             file_name = uploaded_file.name if uploaded_file else None
-
             timestamp = timezone.now().strftime('%Y-%m-%d %H:%M')
             agent_stamp = f"\n\n--- Managed by {request.user.username} on {timestamp} ---"
 
             if action == 'add_claim_entry':
-                # Create the object instance first without agent_username
+                # Pass 'member' to the 'beneficiary' field. 
+                # Django will extract the membership_number and put it in the DB column.
                 new_claim = ClaimList(
                     beneficiary=member,
-                    beneficiary_membership_number=m_num,
                     reference_no=f"CLM-{timezone.now().strftime('%Y%m%d%H%M')}",
                     guardian_name=request.POST.get('guardian_name'),
                     beneficiary_name=request.POST.get('beneficiary_name'),
@@ -1102,9 +1107,8 @@ def claim_list_view(request):
                     loaded_by_agent=request.user.username,
                     attachment_path=file_name
                 )
-                # Manually call save.
                 new_claim.save()
-                msg = f"Claim for Member {m_num} logged."
+                messages.success(request, f"Claim for Member {m_num} logged.")
 
             elif action == 'update_claim_entry':
                 claim_id = request.POST.get('claim_id')
@@ -1130,11 +1134,9 @@ def claim_list_view(request):
                 claim.age_at_claim = request.POST.get('age_at_claim')
                 claim.supporting_docs_attached = request.POST.get('supporting_docs_attached')
                 claim.monthly_income_payment = clean_numeric(request.POST.get('monthly_income'))
-                
                 claim.save()
-                msg = f"Claim {claim_id} updated."
+                messages.success(request, f"Claim {claim_id} updated.")
 
-            # Log the action in the separate pssubf_actions table
             PssubfAction.objects.create(
                 task_email_id=f"CLAIM_{m_num}",
                 action_type="Claim Record Managed",
@@ -1142,23 +1144,20 @@ def claim_list_view(request):
                 note_content=f"Action: {action} | Status: {request.POST.get('status')}",
                 action_timestamp=timezone.now()
             )
-            
-            messages.success(request, msg)
             return redirect('claim_list')
             
         except Exception as e:
-            # DEBUG: Keep this here so you can see the SQL error in your console
             import traceback
-            print("--- CLAIM SAVE ERROR ---")
             print(traceback.format_exc())
-            messages.error(request, f"Database Error: {str(e)}")
+            messages.error(request, f"Error: {str(e)}")
 
-    # FETCH LOGIC
+    # Fetching logic
     membership_number = request.GET.get('membership_number')
     claims = ClaimList.objects.all().order_by('-date_logged')
     
     if membership_number:
-        claims = claims.filter(beneficiary_membership_number=membership_number)
+        # Filter using the relationship name
+        claims = claims.filter(beneficiary__membership_number=membership_number)
 
     return render(request, 'claim_list.html', {'claims': claims, 'title': 'Claims Registry'})
 

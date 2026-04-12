@@ -4,14 +4,13 @@
 
 {% block content %}
 <style>
-    /* ... (Your existing styles remain unchanged) ... */
     body { font-family: sans-serif; background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127)); display: flex; flex-direction: column; justify-content: flex-start; align-items: center; min-height: 100vh; padding: 40px 20px; box-sizing: border-box; }
     .task-container { width: 100%; max-width: 1200px; background: #ffffff; border-radius: 8px; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); padding: 30px; }
     .main-grid { display: flex; flex-wrap: wrap; gap: 20px; }
     .left-column { flex: 2; min-width: 300px; }
     .right-column { flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 15px; }
     .custom-card { border: 1px solid #ddd; border-radius: 6px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05); overflow: hidden; margin-bottom: 5px; }
-    .card-header-primary { background-color:  rgb(105, 187, 85); color: white; padding: 15px; font-weight: bold; display: flex; align-items: center; }
+    .card-header-primary { background-color: rgb(105, 187, 85); color: white; padding: 15px; font-weight: bold; display: flex; align-items: center; }
     .card-header-dark { background-color: #343a40; color: white; padding: 15px; font-weight: bold; display: flex; align-items: center; }
     .card-body-content { padding: 20px; }
     .task-header h1 { font-size: 28px; margin-bottom: 5px; color: #333; }
@@ -23,13 +22,13 @@
     .form-control { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; margin-bottom: 10px; }
     .notes-history-container { border: 1px solid #eee; background-color: #f8f9fa; padding: 10px; max-height: 380px; overflow-y: auto; border-radius: 4px; margin-bottom: 20px; }
     .note-item { border-left: 5px solid #28a745; padding: 10px; background: #ffffff; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05); border-radius: 0 4px 4px 0; }
-    .collapse-toggle { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 15px; background: #f8f9fa; border: none; text-align: left; font-size: 16px; font-weight: bold; cursor: pointer; border-bottom: 3px solid  rgb(105, 187, 85); color: #333; }
+    .collapse-toggle { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 15px; background: #f8f9fa; border: none; text-align: left; font-size: 16px; font-weight: bold; cursor: pointer; border-bottom: 3px solid rgb(105, 187, 85); color: #333; }
     .collapse-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
     .collapse-content.show { max-height: 1000px; padding: 20px; }
     .custom-btn { padding: 12px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: background-color 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; width: 100%; box-sizing: border-box; }
-    .btn-primary { background-color:  rgb(105, 187, 85); color: white; }
+    .btn-primary { background-color: rgb(105, 187, 85); color: white; }
     .btn-success { background-color: #28a745; color: white; }
-    .btn-update-metadata { background-color:  rgb(105, 187, 85); color: white; }
+    .btn-update-metadata { background-color: rgb(105, 187, 85); color: white; }
     .btn-back { background-color: white; color: #343a40; border: 1px solid #343a40; }
     .btn-restore { background-color: #d32f2f; color: white; width: 100%; font-size: 18px; padding: 15px; margin-bottom: 15px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.15); display: flex; align-items: center; justify-content: center; gap: 12px; }
 
@@ -89,7 +88,7 @@
     {% endif %}
 
     <div class="custom-card">
-        <div class="card-header-dark" style="background-color:  rgb(105, 187, 85)">
+        <div class="card-header-dark" style="background-color: rgb(105, 187, 85)">
             <i class="fas fa-info-circle" style="margin-right: 10px;"></i>
             <h5 style="margin: 0;">Internal Email Info</h5>
         </div>
@@ -132,7 +131,7 @@
         </div>
     </div>
 
-<div class="custom-card">
+    <div class="custom-card">
         <div class="card-header-dark" style="background-color: rgb(105, 187, 85)">
             <i class="fas fa-info-circle" style="margin-right: 10px;"></i>
             <h5 style="margin: 0;">Email Information</h5>
@@ -203,7 +202,7 @@
                     <i class="fas fa-chevron-down toggle-icon"></i>
                 </button>
                 <div class="collapse-content" id="collapseReplyForm">
-                    <form method="POST">
+                    <form method="POST" enctype="multipart/form-data">
                         {% csrf_token %}
                         <input type="hidden" name="email_log_type" value="REPLY">
                         <div class="form-group">
@@ -235,6 +234,12 @@
                             <label class="form-label">Body:</label>
                             <textarea class="form-control" name="reply_body" rows="6"></textarea>
                         </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label"><i class="fas fa-paperclip"></i> Attach File (Optional):</label>
+                            <input type="file" name="reply_file" class="form-control">
+                        </div>
+
                         <button type="submit" class="custom-btn btn-primary">Send Email</button>
                     </form>
                 </div>
@@ -291,30 +296,29 @@
                     </form>
                 </div>
 
-            {% if delegation.status == 'DLT' %}
-                <a href="{% url 'outlook_recycle_bin' %}" class="custom-btn btn-back">
-                    <i class="fas fa-arrow-left"></i> Back to Recycle Bin
-                </a>
-            {% else %}
-                <a href="{% url 'outlook_delegated_box' %}" class="custom-btn btn-back">
-                    <i class="fas fa-arrow-left"></i> Back to My Dashboard
-                </a>
-            {% endif %}
+                {% if delegation.status == 'DLT' %}
+                    <a href="{% url 'outlook_recycle_bin' %}" class="custom-btn btn-back">
+                        <i class="fas fa-arrow-left"></i> Back to Recycle Bin
+                    </a>
+                {% else %}
+                    <a href="{% url 'outlook_delegated_box' %}" class="custom-btn btn-back">
+                        <i class="fas fa-arrow-left"></i> Back to My Dashboard
+                    </a>
+                {% endif %}
 
-            {% if delegation.status != 'COM' and delegation.status != 'DLT' %}
-            <form method="POST">
-                {% csrf_token %}
-                <input type="hidden" name="action_type" value="mark_complete">
-                <button type="submit" class="custom-btn btn-success" style="margin-top: 10px;">
-                    <i class="fas fa-check-double"></i> MARK AS COMPLETED
-                </button>
-            </form>
-            {% endif %}
+                {% if delegation.status != 'COM' and delegation.status != 'DLT' %}
+                <form method="POST">
+                    {% csrf_token %}
+                    <input type="hidden" name="action_type" value="mark_complete">
+                    <button type="submit" class="custom-btn btn-success" style="margin-top: 10px;">
+                        <i class="fas fa-check-double"></i> MARK AS COMPLETED
+                    </button>
+                </form>
+                {% endif %}
+            </div>
         </div>
     </div>
 </div>
-
-
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {

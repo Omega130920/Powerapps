@@ -117,7 +117,7 @@ select option.hidden{display:none}
 </head>
 <body>
     <div class="action-container">
-        <h1>📝 Action Delegated Task: {{ email.subject|default:"(No Subject)" }}</h1>
+        <h1>📝 Action : {{ email.subject|default:"(No Subject)" }}</h1>
         
         {% if messages %}
             <ul class="messages">
