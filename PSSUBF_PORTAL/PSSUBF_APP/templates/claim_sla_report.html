@@ -1,0 +1,162 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body { font-family: 'Inter', sans-serif; background: linear-gradient(to bottom, #d1e2c4, #8fcf7f); min-height: 100vh; }
+        
+        /* Custom Accordion Styling */
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        input:checked ~ .accordion-content {
+            max-height: 2000px;
+        }
+        .rotate-icon {
+            transition: transform 0.3s ease;
+        }
+        input:checked ~ label .rotate-icon {
+            transform: rotate(180deg);
+        }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+
+    <div class="max-w-6xl mx-auto bg-[#f0fff0] rounded-xl shadow-2xl overflow-hidden border border-emerald-200">
+        <div class="p-6 bg-emerald-800 flex justify-between items-center border-b-4 border-emerald-600">
+            <div>
+                <h1 class="text-3xl font-extrabold text-white">SLA Performance Report</h1>
+                <p class="text-emerald-100 mt-1 text-sm font-medium">Claims, Actions, and Correspondence metrics.</p>
+            </div>
+            <div class="flex gap-3">
+                <a href="?export=excel&start_date={{ start_date }}&end_date={{ end_date }}" 
+                   class="bg-emerald-500 hover:bg-emerald-400 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg flex items-center gap-2 transition-all">
+                    <i class="fas fa-file-excel"></i> Export Excel
+                </a>
+            </div>
+        </div>
+
+        <div class="p-8">
+            <form method="GET" class="mb-8 bg-white p-6 rounded-xl border border-emerald-200 flex flex-wrap gap-6 items-end shadow-sm">
+                <div class="flex-1 min-w-[150px]">
+                    <label class="block text-xs font-bold text-emerald-700 uppercase mb-2">Start Date</label>
+                    <input type="date" name="start_date" value="{{ start_date }}" class="w-full border border-emerald-300 rounded-md px-3 py-1 bg-white">
+                </div>
+                <div class="flex-1 min-w-[150px]">
+                    <label class="block text-xs font-bold text-emerald-700 uppercase mb-2">End Date</label>
+                    <input type="date" name="end_date" value="{{ end_date }}" class="w-full border border-emerald-300 rounded-md px-3 py-1 bg-white">
+                </div>
+                <button type="submit" class="bg-emerald-600 text-white px-6 py-2 rounded-md font-bold hover:bg-emerald-700 shadow-md transition-colors">
+                    Filter Results
+                </button>
+            </form>
+
+            <div class="flex justify-between items-center mb-6">
+                <a href="{% url 'pssubf_switchboard' %}" class="flex items-center gap-2 text-emerald-800 hover:text-emerald-900 font-bold">
+                    <i class="fas fa-arrow-left"></i> Return to Home
+                </a>
+            </div>
+
+            <div class="rounded-lg border-2 border-emerald-800 bg-white overflow-hidden shadow-lg">
+                <div class="grid grid-cols-4 bg-emerald-900 text-white p-4 text-xs font-bold uppercase tracking-widest border-b border-emerald-700">
+                    <div class="col-span-1">Metric Category</div>
+                    <div class="col-span-1">Type / Subject</div>
+                    <div class="col-span-1">User / Details</div>
+                    <div class="col-span-1 text-right">Volume</div>
+                </div>
+
+                {# --- SECTION 1: CLAIMS --- #}
+                <div class="border-b border-emerald-200">
+                    <input type="checkbox" id="cat_claims" class="hidden peer" checked>
+                    <label for="cat_claims" class="flex justify-between items-center p-4 bg-emerald-50 hover:bg-emerald-100 cursor-pointer transition-all">
+                        <span class="font-bold text-emerald-800 flex items-center gap-3">
+                            <i class="fas fa-chevron-down rotate-icon text-emerald-500"></i>
+                            <i class="fas fa-file-invoice"></i> CLAIMS PROCESSED
+                        </span>
+                        <span class="bg-emerald-700 text-white px-3 py-1 rounded-full text-sm font-bold shadow-inner font-mono">
+                            Total: {{ report.TYPES_TOTAL|default:"0" }}
+                        </span>
+                    </label>
+                    <div class="accordion-content">
+                        {% for item in report.TYPES %}
+                        <div class="grid grid-cols-4 p-4 text-sm border-t border-emerald-100 hover:bg-gray-50 items-center">
+                            <div class="text-gray-400 italic text-xs">Claim Entry</div>
+                            <div class="font-medium text-gray-700">{{ item.claim_type }}</div>
+                            <div class="text-gray-600">Status: {{ item.status }}</div>
+                            <div class="text-right font-mono font-bold text-emerald-600">{{ item.total }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                {# --- SECTION 2: ACTIONS --- #}
+                <div class="border-b border-emerald-200">
+                    <input type="checkbox" id="cat_actions" class="hidden peer">
+                    <label for="cat_actions" class="flex justify-between items-center p-4 bg-emerald-50 hover:bg-emerald-100 cursor-pointer transition-all">
+                        <span class="font-bold text-emerald-800 flex items-center gap-3">
+                            <i class="fas fa-chevron-down rotate-icon text-emerald-500"></i>
+                            <i class="fas fa-user-check"></i> AGENT AUDIT ACTIONS
+                        </span>
+                        <span class="bg-emerald-700 text-white px-3 py-1 rounded-full text-sm font-bold shadow-inner font-mono">
+                            Total: {{ report.ACTIONS_TOTAL|default:"0" }}
+                        </span>
+                    </label>
+                    <div class="accordion-content">
+                        {% for item in report.ACTIONS %}
+                        <div class="grid grid-cols-4 p-4 text-sm border-t border-emerald-100 hover:bg-gray-50 items-center">
+                            <div class="text-gray-400 italic text-xs">Action Taken</div>
+                            <div class="font-medium text-gray-700">{{ item.action_type }}</div>
+                            <div class="text-gray-600">Agent: {{ item.action_user }}</div>
+                            <div class="text-right font-mono font-bold text-emerald-600">{{ item.total }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                {# --- SECTION 3: EMAILS --- #}
+                <div class="border-b border-emerald-200">
+                    <input type="checkbox" id="cat_emails" class="hidden peer">
+                    <label for="cat_emails" class="flex justify-between items-center p-4 bg-emerald-50 hover:bg-emerald-100 cursor-pointer transition-all">
+                        <span class="font-bold text-emerald-800 flex items-center gap-3">
+                            <i class="fas fa-chevron-down rotate-icon text-emerald-500"></i>
+                            <i class="fas fa-paper-plane"></i> SENT CORRESPONDENCE
+                        </span>
+                        <span class="bg-emerald-700 text-white px-3 py-1 rounded-full text-sm font-bold shadow-inner font-mono">
+                            Total: {{ report.SENT_TOTAL|default:"0" }}
+                        </span>
+                    </label>
+                    <div class="accordion-content">
+                        {% for item in report.SENT_EMAILS %}
+                        <div class="grid grid-cols-4 p-4 text-sm border-t border-emerald-100 hover:bg-gray-50 items-center">
+                            <div class="text-gray-400 italic text-xs">Email Outbound</div>
+                            <div class="font-medium text-gray-700">{{ item.subject|truncatechars:30 }}</div>
+                            <div class="text-gray-600">User: {{ item.agent_name }}</div>
+                            <div class="text-right font-mono font-bold text-emerald-600">{{ item.total }}</div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="bg-emerald-600 text-white p-6 flex justify-between items-center">
+                    <span class="text-xl font-black uppercase tracking-widest">Grand Total SLA Handled</span>
+                    <span class="text-4xl font-black tracking-tighter">{{ grand_total }}</span>
+                </div>
+            </div>
+
+            <p class="mt-8 text-[10px] text-emerald-700 font-medium italic text-center leading-relaxed">
+                * Data aggregated from ClaimList, PssubfAction, and PssubfDirectEmail.<br>
+                Sub-totals grouped by unique Type and User combinations.<br>
+                Generated on: {% now "Y-m-d H:i" %}
+            </p>
+        </div>
+    </div>
+</body>
+</html>

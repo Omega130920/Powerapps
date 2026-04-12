@@ -1658,3 +1658,139 @@ def download_email_eml(request, email_id):
     response = HttpResponse(buf.read(), content_type='message/rfc822')
     response['Content-Disposition'] = f'attachment; filename="Email_Record.eml"'
     return response
+
+import openpyxl
+from datetime import date
+from django.db.models import Q, Count
+from django.utils.dateparse import parse_date
+from django.http import HttpResponse
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+from openpyxl.styles import Font, PatternFill, Alignment
+# 🚀 FIX: Imported PssubfDirectEmail instead of DirectEmailLog
+from .models import ClaimList, PssubfAction, PssubfBeneficiary, PssubfDirectEmail
+
+@login_required
+def claim_sla_report_view(request):
+    if request.user.username.lower() not in ['omega', 'manager']:
+        return redirect('dashboard')
+
+    start_str = request.GET.get('start_date')
+    end_str = request.GET.get('end_date')
+    
+    def get_valid_date(date_val):
+        if date_val and date_val != "None" and date_val != "":
+            return parse_date(date_val)
+        return None
+
+    # 1. Setup Filters
+    claims_q = Q()
+    actions_q = Q()
+    emails_q = Q()
+
+    start_dt = get_valid_date(start_str)
+    if start_dt:
+        claims_q &= Q(date_logged__gte=start_dt)
+        actions_q &= Q(action_timestamp__date__gte=start_dt)
+        emails_q &= Q(sent_at__date__gte=start_dt)
+
+    end_dt = get_valid_date(end_str)
+    if end_dt:
+        claims_q &= Q(date_logged__lte=end_dt)
+        actions_q &= Q(action_timestamp__date__lte=end_dt)
+        emails_q &= Q(sent_at__date__lte=end_dt)
+
+    # 2. Handle Excel Export
+    if request.GET.get('export') == 'excel':
+        return export_claims_sla_excel(claims_q, actions_q, emails_q)
+
+    # 3. Aggregate Data for Dashboard
+    type_breakdown = ClaimList.objects.filter(claims_q).values('claim_type', 'status').annotate(total=Count('id')).order_by('claim_type')
+    action_breakdown = PssubfAction.objects.filter(actions_q).values('action_type', 'action_user').annotate(total=Count('id')).order_by('action_type')
+    
+    # 🚀 FIX: Using agent_name instead of sent_by_user
+    email_breakdown = PssubfDirectEmail.objects.filter(emails_q).values(
+        'subject', 'agent_name'
+    ).annotate(total=Count('id')).order_by('-total')
+
+    report_data = {
+        'TYPES': type_breakdown,
+        'TYPES_TOTAL': sum(item['total'] for item in type_breakdown),
+        
+        'ACTIONS': action_breakdown,
+        'ACTIONS_TOTAL': sum(item['total'] for item in action_breakdown),
+        
+        'SENT_EMAILS': email_breakdown,
+        'SENT_TOTAL': sum(item['total'] for item in email_breakdown),
+    }
+
+    grand_total = report_data['TYPES_TOTAL'] + report_data['ACTIONS_TOTAL'] + report_data['SENT_TOTAL']
+    recent_details = ClaimList.objects.filter(claims_q).order_by('-date_logged')[:50]
+
+    context = {
+        'report': report_data,
+        'grand_total': grand_total,
+        'start_date': start_str,
+        'end_date': end_str,
+        'details': recent_details,
+        'title': 'SLA Performance Report'
+    }
+    return render(request, 'claim_sla_report.html', context)
+
+def export_claims_sla_excel(claims_q, actions_q, emails_q):
+    wb = openpyxl.Workbook()
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="1B5E20", end_color="1B5E20", fill_type="solid")
+    
+    def clean_date(dt):
+        if dt:
+            try:
+                return dt.replace(tzinfo=None)
+            except AttributeError:
+                return dt 
+        return "N/A"
+
+    # --- SHEET 1: CLAIMS LOG ---
+    ws1 = wb.active
+    ws1.title = "Claims Audit Trail"
+    headers = ['Reference', 'Member No', 'Beneficiary', 'Claim Type', 'Date Logged', 'Status', 'Agent', 'Portfolio Value']
+    ws1.append(headers)
+    for cell in ws1[1]:
+        cell.font, cell.fill, cell.alignment = header_font, header_fill, Alignment(horizontal="center")
+
+    for c in ClaimList.objects.filter(claims_q).order_by('-date_logged'):
+        ws1.append([c.reference_no, c.beneficiary_id, c.beneficiary_name, c.claim_type, c.date_logged, c.status, c.loaded_by_agent, float(c.portfolio_value or 0)])
+
+    # --- SHEET 2: AGENT ACTIVITY ---
+    ws2 = wb.create_sheet(title="Agent Performance")
+    ws2.append(['Timestamp', 'Agent', 'Action', 'Target Record', 'Notes'])
+    for cell in ws2[1]:
+        cell.font, cell.fill, cell.alignment = header_font, header_fill, Alignment(horizontal="center")
+
+    for a in PssubfAction.objects.filter(actions_q).order_by('-action_timestamp'):
+        ws2.append([clean_date(a.action_timestamp), a.action_user, a.action_type, a.task_email_id, a.note_content])
+
+    # --- SHEET 3: EMAIL LOGS ---
+    ws3 = wb.create_sheet(title="Correspondence Log")
+    ws3.append(['Sent At', 'User', 'Recipient', 'Subject', 'Member No'])
+    for cell in ws3[1]:
+        cell.font, cell.fill, cell.alignment = header_font, header_fill, Alignment(horizontal="center")
+
+    # 🚀 FIX: Using PssubfDirectEmail and correct field names (agent_name, recipient)
+    for e in PssubfDirectEmail.objects.filter(emails_q).order_by('-sent_at'):
+        ws3.append([
+            clean_date(e.sent_at), 
+            e.agent_name, 
+            e.recipient, 
+            e.subject, 
+            e.membership_number
+        ])
+
+    for sheet in [ws1, ws2, ws3]:
+        for col in sheet.columns:
+            sheet.column_dimensions[col[0].column_letter].width = 25
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename="PSSUBF_SLA_{date.today()}.xlsx"'
+    wb.save(response)
+    return response
