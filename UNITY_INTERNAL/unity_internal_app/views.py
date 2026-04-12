@@ -5446,3 +5446,150 @@ def process_bulk_allocation(request):
             messages.error(request, f"Error during bulk processing: {str(e)}")
 
     return redirect('bulk_billing_dashboard')
+
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
+from django.http import HttpResponse
+from django.utils import timezone
+from datetime import timedelta
+from collections import defaultdict
+from .models import EmailDelegation, DelegationTransactionLog
+
+@login_required
+def sla_report_view(request):
+    """
+    SLA Report: Tracks First Response and Resolution using 'transactions' relation.
+    """
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+
+    # Base Query - prefetches 'transactions' (related_name in your model)
+    delegations = EmailDelegation.objects.all().select_related('assigned_user').prefetch_related('transactions')
+
+    if start_date and end_date and start_date != "None" and end_date != "None" and start_date != "" and end_date != "":
+        delegations = delegations.filter(received_at__range=[start_date, end_date])
+
+    report_data = []
+    agent_stats = defaultdict(lambda: {'count': 0, 'total_res_time': timedelta(), 'resolved_count': 0})
+
+    for d in delegations:
+        # Pull history from 'transactions' related_name
+        history_logs = d.transactions.all().order_by('timestamp')
+        
+        response_time = d.delegated_at - d.received_at if d.delegated_at and d.received_at else None
+        resolution_time = None
+        
+        if d.status in ['COM', 'CLS', 'DONE']:
+            last_act = history_logs.last()
+            finish_date = last_act.timestamp if last_act else timezone.now()
+            resolution_time = finish_date - d.received_at
+            
+            if d.assigned_user:
+                agent_stats[d.assigned_user.username]['resolved_count'] += 1
+                agent_stats[d.assigned_user.username]['total_res_time'] += resolution_time
+
+        if d.assigned_user:
+            agent_stats[d.assigned_user.username]['count'] += 1
+
+        is_overdue = resolution_time > timedelta(hours=24) if resolution_time else False
+
+        report_data.append({
+            'delegation': d,
+            'response_time': response_time,
+            'resolution_time': resolution_time,
+            'history_logs': history_logs,
+            'is_overdue': is_overdue
+        })
+
+    final_agent_stats = []
+    for agent, stats in agent_stats.items():
+        avg_res = stats['total_res_time'] / stats['resolved_count'] if stats['resolved_count'] > 0 else None
+        final_agent_stats.append({
+            'agent': agent,
+            'total_assigned': stats['count'],
+            'total_resolved': stats['resolved_count'],
+            'avg_resolution': str(avg_res).split('.')[0] if avg_res else "N/A"
+        })
+
+    return render(request, 'unity_internal_app/sla_report.html', {
+        'report_data': report_data,
+        'agent_stats': final_agent_stats,
+        'start_date': start_date if start_date != "None" else "",
+        'end_date': end_date if end_date != "None" else "",
+    })
+
+@login_required
+def export_sla_report_excel(request):
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    qs = EmailDelegation.objects.all().select_related('assigned_user').prefetch_related('transactions')
+    
+    if start_date and end_date and start_date != "None" and end_date != "None" and start_date != "":
+        qs = qs.filter(received_at__range=[start_date, end_date])
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Detailed SLA Report"
+
+    header_fill = PatternFill(start_color="065F46", end_color="065F46", fill_type="solid")
+    white_font = Font(color="FFFFFF", bold=True)
+
+    # Removed 'Subject' from columns because it doesn't exist on EmailDelegation
+    headers = [
+        "Work Related", "Company Code", "Category", "Agent", 
+        "Status", "Received At", "Delegated At", "Response Time", 
+        "Resolution Time", "Action History (Log with Subjects)"
+    ]
+    ws.append(headers)
+
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = white_font
+        cell.alignment = Alignment(horizontal="center")
+
+    for d in qs:
+        # Build history string using action_type, recipient, and the SUBJECT from the transaction log
+        notes_list = [
+            f"[{t.timestamp.strftime('%H:%M')}] {t.action_type} | Subj: {t.subject} | To: {t.recipient_email}" 
+            for t in d.transactions.all()
+        ]
+        full_notes_history = " | ".join(notes_list)
+
+        resp_str = str(d.delegated_at - d.received_at).split('.')[0] if d.delegated_at else "Pending"
+        res_str = "Open"
+        if d.status == 'COM':
+            last_act = d.transactions.last()
+            if last_act:
+                res_str = str(last_act.timestamp - d.received_at).split('.')[0]
+
+        ws.append([
+            "YES" if d.work_related else "NO",
+            d.company_code or "N/A",
+            d.email_category or "General",
+            d.assigned_user.username if d.assigned_user else "Unassigned",
+            d.get_status_display(),
+            d.received_at.strftime('%Y-%m-%d %H:%M') if d.received_at else "",
+            d.delegated_at.strftime('%Y-%m-%d %H:%M') if d.delegated_at else "",
+            resp_str,
+            res_str,
+            full_notes_history
+        ])
+
+    for col in ws.columns:
+        max_length = 0
+        column = col[0].column_letter
+        for cell in col:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except: pass
+        ws.column_dimensions[column].width = min(max_length + 2, 60)
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename="SLA_Log_{timezone.now().strftime("%Y%m%d")}.xlsx"'
+    wb.save(response)
+    return response

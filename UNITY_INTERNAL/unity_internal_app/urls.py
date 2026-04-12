@@ -92,4 +92,8 @@ urlpatterns = [
     
     path('bank/bulk-process/', views.process_bulk_allocation, name='process_bulk_allocation'),
     path('bank/bulk-billing/', views.bulk_billing_dashboard, name='bulk_billing_dashboard'),
+    path('sla-report/', views.sla_report_view, name='sla_report'),
+
+    # Excel Export View (Matches the name used in your HTML template)
+    path('sla-report/export/', views.export_sla_report_excel, name='export_sla_excel'),
 ]
