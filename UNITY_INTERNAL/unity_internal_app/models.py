@@ -165,16 +165,13 @@ from decimal import Decimal
 class ReconnedBank(models.Model):
     """
     Unmanaged model to store reconciliation results. Links to ImportBank.
-    PK is now 'id' in MySQL, allowing multiple ReconnedBank segments per original ImportBank line (splitting).
     """
-    # 1. NEW PRIMARY KEY (Matches the manually created 'id' column in MySQL)
     id = models.AutoField(primary_key=True) 
 
-    # 2. Changed from OneToOneField (primary_key=True) to standard ForeignKey
     bank_line = models.ForeignKey(
         'ImportBank',
         on_delete=models.CASCADE,
-        db_column='bank_line_id', # Explicitly map to the FK column in MySQL
+        db_column='bank_line_id', 
         related_name='reconned_segments',
         verbose_name="Original Bank Line",
     )
@@ -184,10 +181,10 @@ class ReconnedBank(models.Model):
     transaction_date = models.DateField()
     
     fiscal_date = models.DateField(null=True, blank=True)
-    review_note = models.CharField(max_length=255, null=True, blank=True)
+    review_note = models.CharField(max_length=255, null=True, blank=True) # Category
+    review_note_text = models.TextField(null=True, blank=True)          # Detailed Note
     recon_status = models.CharField(max_length=50, default='Reconciled')
     
-    # CRITICAL: Tracks how much of the original transaction_amount has been paid.
     amount_settled = models.DecimalField(
         max_digits=15, 
         decimal_places=2, 
@@ -199,21 +196,17 @@ class ReconnedBank(models.Model):
     @property
     def get_total_credit_moved(self):
         """Returns the sum of all credit notes created from this bank line"""
-        # Local import to prevent circular dependency issues
         from .models import CreditNote 
         total = CreditNote.objects.filter(source_bank_line=self).aggregate(Sum('schedule_amount'))['schedule_amount__sum']
         return total or Decimal('0.00')
 
     @property
     def true_consumed_amount(self):
-        """
-        Calculates the actual amount used for bills.
-        e.g., If R1500 was exhausted, but R500 moved to credit, this returns R1000.
-        """
+        """Calculates actual amount used for bills."""
         return self.amount_settled - self.get_total_credit_moved
     
     class Meta:
-        managed = False  # Tells Django not to touch the DB schema
+        managed = False  
         db_table = 'reconned_bank'
         verbose_name = 'Reconciled Bank Line'
 

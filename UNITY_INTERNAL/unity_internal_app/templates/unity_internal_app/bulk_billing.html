@@ -41,18 +41,26 @@
         display: flex; 
         gap: 12px; 
         margin-bottom: 12px; 
-        align-items: center; 
+        align-items: flex-end; /* Align to the bottom so the search/select looks balanced */
         background: #f9fff9; 
         padding: 12px; 
         border-radius: 6px; 
         border: 1px solid #aed581; 
     }
 
-    .search-box, .amount-input { 
+    .search-box, .amount-input, .dropdown-filter { 
         border: 1px solid #ccc; 
         border-radius: 4px; 
         padding: 8px; 
         font-size: 0.95em;
+    }
+
+    .dropdown-filter {
+        background-color: #ffffff;
+        border: 1px solid #43a047;
+        margin-bottom: 4px;
+        width: 100%;
+        box-sizing: border-box;
     }
 
     .bill-info-badge { 
@@ -65,10 +73,14 @@
         font-size: 0.85rem; 
         text-align: center; 
         border: 1px solid #c8e6c9; 
+        height: 35px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
     }
 
     .add-btn { background: #43a047; color: white; border: none; padding: 10px; border-radius: 50%; cursor: pointer; width: 40px; height: 40px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-    .remove-btn { background: #f44336; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+    .remove-btn { background: #f44336; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; height: 35px; }
 </style>
 
 <div class="container">
@@ -147,7 +159,7 @@
 
             <div style="padding: 10px 0;">
                 <button type="button" class="add-btn" onclick="addMemberRow()">+</button>
-                <small style="margin-left: 10px; color: #666; font-style: italic;">Select specific bills to allocate</small>
+                <small style="margin-left: 10px; color: #666; font-style: italic;">Search and select specific bills</small>
             </div>
 
             <div style="margin-top: 25px; border-top: 2px solid #aed581; padding-top: 20px; display: flex; justify-content: space-between; align-items: center;">
@@ -177,15 +189,10 @@ let eligibleMembers = [
 let bankLimit = 0;
 
 function openBulkModal(id, amount) {
-    // Handling SA localization (replacing comma with dot for parseFloat)
     let cleanAmount = amount.replace(/[^0-9,.]/g, '').replace(',', '.');
-    
     document.getElementById('modal_bank_id').value = id;
-    
-    // Convert to float and format back to 2 decimal places for display
     let formattedDisplay = parseFloat(cleanAmount).toFixed(2);
     document.getElementById('totalBankAmount').innerText = "R " + formattedDisplay;
-    
     bankLimit = parseFloat(cleanAmount);
     document.getElementById('memberRowsContainer').innerHTML = ''; 
     addMemberRow(); 
@@ -197,13 +204,16 @@ function addMemberRow() {
     const rowId = Date.now();
     const rowHtml = `
         <div class="member-row" id="row_${rowId}">
-            <select name="member_codes[]" class="search-box" style="width: 50%;" required onchange="updateBillInfo(this, '${rowId}')">
-                <option value="">-- Select Bill (Member - Date) --</option>
-                ${eligibleMembers.map((m, index) => `
-                    <option value="${m.code}" data-date="${m.date}" data-index="${index}">
-                        ${m.code} - Date: ${m.date}
-                    </option>`).join('')}
-            </select>
+            <div style="width: 50%;">
+                <input type="text" class="dropdown-filter" placeholder="🔍 Search member..." onkeyup="filterSelect(this, '${rowId}')">
+                <select name="member_codes[]" id="select_${rowId}" class="search-box" style="width: 100%;" required onchange="updateBillInfo(this, '${rowId}')">
+                    <option value="">-- Select Bill (Member - Date) --</option>
+                    ${eligibleMembers.map((m, index) => `
+                        <option value="${m.code}" data-date="${m.date}" data-index="${index}">
+                            ${m.code} - Date: ${m.date}
+                        </option>`).join('')}
+                </select>
+            </div>
             
             <input type="hidden" name="bill_dates[]" id="date_input_${rowId}">
 
@@ -213,6 +223,24 @@ function addMemberRow() {
         </div>
     `;
     container.insertAdjacentHTML('beforeend', rowHtml);
+}
+
+// Function to filter the dropdown based on search input
+function filterSelect(input, rowId) {
+    const filter = input.value.toUpperCase();
+    const select = document.getElementById(`select_${rowId}`);
+    const options = select.getElementsByTagName("option");
+
+    for (let i = 0; i < options.length; i++) {
+        let txtValue = options[i].textContent || options[i].innerText;
+        if (i === 0) continue; // Keep the placeholder visible
+        
+        if (txtValue.toUpperCase().indexOf(filter) > -1) {
+            options[i].style.display = "";
+        } else {
+            options[i].style.display = "none";
+        }
+    }
 }
 
 function updateBillInfo(selectElement, rowId) {

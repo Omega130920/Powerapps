@@ -1183,7 +1183,6 @@ def generate_recon_statement(request, recon_id):
 def display_bankline_review(request, recon_id):
     """Displays a single reconciled bank line for review and includes bulk allocation breakdown."""
     from .models import ReconnedBank, InternalFunds, BillSettlement
-    from django.shortcuts import get_object_or_404, render
     
     # --- CAPTURE NAVIGATION SOURCE ---
     source_param = request.GET.get('from')
@@ -1192,8 +1191,7 @@ def display_bankline_review(request, recon_id):
     # Fetch the recon record with the original bank line details
     recon_record = get_object_or_404(ReconnedBank.objects.select_related('bank_line'), pk=recon_id)
     
-    # --- NEW: FETCH BULK SETTLEMENTS ---
-    # This pulls every member and bill date linked to this bank line
+    # --- FETCH BULK SETTLEMENTS ---
     settlements = BillSettlement.objects.filter(
         reconned_bank_line=recon_record
     ).select_related('unity_bill_source')
@@ -1204,14 +1202,13 @@ def display_bankline_review(request, recon_id):
     context = {
         'recon_record': recon_record,
         'bank_record': recon_record.bank_line,
-        'settlements': settlements,  # <--- Added for the HTML breakdown table
+        'settlements': settlements,
         'company_codes': company_codes,
         'review_notes': REVIEW_NOTES_OPTIONS,
         'current_category': recon_record.review_note,      
         'is_from_unity_info': is_from_unity_info,
-        'source': source_param,                       
+        'source': source_param,                               
     }
-    # Note: 'current_custom_text' removed as per your correction to avoid the FieldError
     
     return render(request, 'unity_internal_app/display_bankline_review.html', context)
 
@@ -1219,6 +1216,7 @@ def display_bankline_review(request, recon_id):
 @transaction.atomic
 def update_bankline_details(request, recon_id):
     """Updates ReconnedBank using separate columns for category and detailed notes."""
+    from .models import ReconnedBank
     recon_record = get_object_or_404(ReconnedBank.objects.select_related('bank_line'), pk=recon_id)
     
     if request.method == 'POST':
@@ -1235,13 +1233,13 @@ def update_bankline_details(request, recon_id):
         # --- SAVE TO INDIVIDUAL COLUMNS ---
         recon_record.company_code = new_company_code if new_company_code else None
         recon_record.fiscal_date = new_fiscal_date if new_fiscal_date else None
-        recon_record.review_note = category         # Category dropdown
-        recon_record.review_note_text = custom_text # Detailed textarea
+        recon_record.review_note = category            # Category dropdown
+        recon_record.review_note_text = custom_text    # Detailed textarea (Saves to the new TEXT column)
         
         # Status Logic
         new_status = recon_record.recon_status
         if allocation_cleared:
-            new_status = ''
+            new_status = 'Unassigned'
         elif recon_record.company_code:
             new_status = 'Unreconciled - Allocated' if recon_record.fiscal_date else 'Unreconciled - Assigned'
         
@@ -1251,7 +1249,7 @@ def update_bankline_details(request, recon_id):
         recon_record.recon_status = new_status
         recon_record.save()
 
-        # Sync to bank line comments
+        # Sync to bank line comments for audit history
         bank_line = recon_record.bank_line
         bank_line.comments = f"Reviewed: {category} - {custom_text} (Code: {recon_record.company_code or 'N/A'})"
         bank_line.save()
@@ -1300,9 +1298,6 @@ def update_bankline_details(request, recon_id):
         return redirect('bank_list')
     
     return redirect('display_bankline_review', recon_id=recon_id)
-# --- BILLING HELPER FUNCTION (NOW OBSOLETE/OVERWRITTEN) ---
-# KEPT FOR CONTEXT, BUT WILL BE OVERWRITTEN BY NEW LOGIC
-# def calculate_bill_debt(...)
 
 # --- NEW HELPER FUNCTION FOR FLEXIBLE ALLOCATION (Replaces old calculate_bill_debt logic) ---
 def get_available_bank_lines(company_code):
@@ -5447,35 +5442,38 @@ def process_bulk_allocation(request):
 
     return redirect('bulk_billing_dashboard')
 
-from django.shortcuts import render
+from django.shortcuts import render, HttpResponse, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse
+from django.db import transaction
 from django.utils import timezone
+from django.db.models import Q, Sum
 from datetime import timedelta
 from collections import defaultdict
-from .models import EmailDelegation, DelegationTransactionLog
+from django.contrib import messages
+from django.conf import settings
+
+# Ensure these models are imported correctly based on your app structure
+# from .models import EmailDelegation, ReconnedBank, InternalFunds, BillSettlement
 
 @login_required
 def sla_report_view(request):
     """
-    SLA Report: Tracks First Response and Resolution using 'transactions' relation.
+    SLA Report: Tracks Email Delegation stats AND Bank Line Review Notes.
     """
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
 
-    # Base Query - prefetches 'transactions' (related_name in your model)
+    # --- 1. EMAIL DELEGATION LOGIC ---
     delegations = EmailDelegation.objects.all().select_related('assigned_user').prefetch_related('transactions')
 
-    if start_date and end_date and start_date != "None" and end_date != "None" and start_date != "" and end_date != "":
+    if start_date and end_date and start_date not in ["None", ""] and end_date not in ["None", ""]:
         delegations = delegations.filter(received_at__range=[start_date, end_date])
 
     report_data = []
     agent_stats = defaultdict(lambda: {'count': 0, 'total_res_time': timedelta(), 'resolved_count': 0})
 
     for d in delegations:
-        # Pull history from 'transactions' related_name
         history_logs = d.transactions.all().order_by('timestamp')
-        
         response_time = d.delegated_at - d.received_at if d.delegated_at and d.received_at else None
         resolution_time = None
         
@@ -5511,9 +5509,20 @@ def sla_report_view(request):
             'avg_resolution': str(avg_res).split('.')[0] if avg_res else "N/A"
         })
 
+    # --- 2. BANK LINE NOTES LOGIC (Integrated) ---
+    # Fetch bank segments that have either a category or internal text notes
+    bank_notes_qs = ReconnedBank.objects.filter(
+        Q(review_note__isnull=False) & ~Q(review_note='') | 
+        Q(review_note_text__isnull=False) & ~Q(review_note_text='')
+    ).select_related('bank_line')
+
+    if start_date and end_date and start_date not in ["None", ""] and end_date not in ["None", ""]:
+        bank_notes_qs = bank_notes_qs.filter(transaction_date__range=[start_date, end_date])
+
     return render(request, 'unity_internal_app/sla_report.html', {
         'report_data': report_data,
         'agent_stats': final_agent_stats,
+        'bank_notes': bank_notes_qs, 
         'start_date': start_date if start_date != "None" else "",
         'end_date': end_date if end_date != "None" else "",
     })
@@ -5526,47 +5535,39 @@ def export_sla_report_excel(request):
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
     
-    qs = EmailDelegation.objects.all().select_related('assigned_user').prefetch_related('transactions')
-    
-    if start_date and end_date and start_date != "None" and end_date != "None" and start_date != "":
-        qs = qs.filter(received_at__range=[start_date, end_date])
-
     wb = openpyxl.Workbook()
-    ws = wb.active
-    ws.title = "Detailed SLA Report"
-
+    
+    # --- SHEET 1: EMAIL DELEGATION ---
+    ws1 = wb.active
+    ws1.title = "Email SLA Report"
+    
     header_fill = PatternFill(start_color="065F46", end_color="065F46", fill_type="solid")
     white_font = Font(color="FFFFFF", bold=True)
 
-    # Removed 'Subject' from columns because it doesn't exist on EmailDelegation
-    headers = [
+    headers_email = [
         "Work Related", "Company Code", "Category", "Agent", 
         "Status", "Received At", "Delegated At", "Response Time", 
-        "Resolution Time", "Action History (Log with Subjects)"
+        "Resolution Time", "Action History"
     ]
-    ws.append(headers)
-
-    for cell in ws[1]:
+    ws1.append(headers_email)
+    for cell in ws1[1]:
         cell.fill = header_fill
         cell.font = white_font
         cell.alignment = Alignment(horizontal="center")
 
-    for d in qs:
-        # Build history string using action_type, recipient, and the SUBJECT from the transaction log
-        notes_list = [
-            f"[{t.timestamp.strftime('%H:%M')}] {t.action_type} | Subj: {t.subject} | To: {t.recipient_email}" 
-            for t in d.transactions.all()
-        ]
-        full_notes_history = " | ".join(notes_list)
+    qs_emails = EmailDelegation.objects.all().select_related('assigned_user').prefetch_related('transactions')
+    if start_date and end_date and start_date not in ["None", ""]:
+        qs_emails = qs_emails.filter(received_at__range=[start_date, end_date])
 
+    for d in qs_emails:
+        notes_list = [f"[{t.timestamp.strftime('%H:%M')}] {t.action_type}" for t in d.transactions.all()]
         resp_str = str(d.delegated_at - d.received_at).split('.')[0] if d.delegated_at else "Pending"
         res_str = "Open"
         if d.status == 'COM':
             last_act = d.transactions.last()
-            if last_act:
-                res_str = str(last_act.timestamp - d.received_at).split('.')[0]
+            if last_act: res_str = str(last_act.timestamp - d.received_at).split('.')[0]
 
-        ws.append([
+        ws1.append([
             "YES" if d.work_related else "NO",
             d.company_code or "N/A",
             d.email_category or "General",
@@ -5574,20 +5575,49 @@ def export_sla_report_excel(request):
             d.get_status_display(),
             d.received_at.strftime('%Y-%m-%d %H:%M') if d.received_at else "",
             d.delegated_at.strftime('%Y-%m-%d %H:%M') if d.delegated_at else "",
-            resp_str,
-            res_str,
-            full_notes_history
+            resp_str, res_str, " | ".join(notes_list)
         ])
 
-    for col in ws.columns:
-        max_length = 0
-        column = col[0].column_letter
-        for cell in col:
-            try:
-                if len(str(cell.value)) > max_length:
-                    max_length = len(str(cell.value))
-            except: pass
-        ws.column_dimensions[column].width = min(max_length + 2, 60)
+    # --- SHEET 2: BANK LINE REVIEW NOTES ---
+    ws2 = wb.create_sheet(title="Bank Review Notes")
+    headers_bank = [
+        "Date", "Company", "Amount", "Status", "Category", "Detailed Note", "Bank Reference"
+    ]
+    ws2.append(headers_bank)
+    bank_header_fill = PatternFill(start_color="1B5E20", end_color="1B5E20", fill_type="solid")
+    for cell in ws2[1]:
+        cell.fill = bank_header_fill
+        cell.font = white_font
+
+    qs_banks = ReconnedBank.objects.filter(
+        Q(review_note__isnull=False) & ~Q(review_note='') | 
+        Q(review_note_text__isnull=False) & ~Q(review_note_text='')
+    ).select_related('bank_line')
+
+    if start_date and end_date and start_date not in ["None", ""]:
+        qs_banks = qs_banks.filter(transaction_date__range=[start_date, end_date])
+
+    for b in qs_banks:
+        ws2.append([
+            b.transaction_date.strftime('%Y-%m-%d') if b.transaction_date else "",
+            b.company_code or "N/A",
+            b.transaction_amount,
+            b.recon_status,
+            b.review_note or "",
+            b.review_note_text or "",
+            b.bank_line.statement_reference if b.bank_line else "N/A"
+        ])
+
+    # Final Formatting
+    for sheet in wb.worksheets:
+        for col in sheet.columns:
+            max_length = 0
+            column = col[0].column_letter
+            for cell in col:
+                try:
+                    if len(str(cell.value)) > max_length: max_length = len(str(cell.value))
+                except: pass
+            sheet.column_dimensions[column].width = min(max_length + 2, 60)
 
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = f'attachment; filename="SLA_Log_{timezone.now().strftime("%Y%m%d")}.xlsx"'
