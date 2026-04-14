@@ -246,12 +246,12 @@ class ReconciliationRecord(models.Model):
     closed_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        managed = False  # Set to False as per your requirement
+        managed = False  
         db_table = 'reconciliation_record'
 
     def __str__(self):
         return f"{self.mip_name} - {self.fiscal_month.strftime('%B %Y')}"
-    
+
 class ReconciliationWorksheet(models.Model):
     fiscal_month = models.DateField()
     mg_name = models.CharField(max_length=255)
@@ -263,22 +263,31 @@ class ReconciliationWorksheet(models.Model):
     member_count_reconciled = models.IntegerField(default=0)
     contribution_amount_reconciled = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
     
-    # --- NEW FIELDS ---
     lpi_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
     lpi_reason = models.CharField(max_length=100, null=True, blank=True)
     debit_order_success = models.CharField(max_length=10, null=True, blank=True)
-    # ------------------
 
     reconciled_status = models.CharField(max_length=50, default='Unreconciled')
     date_schedule_received = models.DateField(null=True, blank=True)
     date_confirmed_on_step = models.DateField(null=True, blank=True)
     debit_order_date = models.DateField(null=True, blank=True)
+    
     is_closed = models.BooleanField(default=False)
     closed_at = models.DateTimeField(null=True, blank=True)
 
+    # --- SLA & AUDIT FIELDS ---
+    # Tracks when the row was last touched
+    updated_at = models.DateTimeField(auto_now=True) 
+    # Tracks which user (Jesica, Timothy, etc.) last saved the row
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    # --------------------------
+
     class Meta:
-        managed = False
+        managed = False # Remember to update your SQL table manually if managed=False
         db_table = 'reconciliation_worksheet'
+
+    def __str__(self):
+        return f"{self.mg_code} - {self.fiscal_month}"
         
 class BranchDocument(models.Model):
     branch_name = models.CharField(max_length=255)

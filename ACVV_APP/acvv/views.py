@@ -1962,3 +1962,140 @@ def download_outlook_attachment(request, delegation_id, attachment_id):
     response = HttpResponse(file_content, content_type=content_type)
     response['Content-Disposition'] = f'attachment; filename="{file_name}"'
     return response
+
+from django.db.models import Count, Sum
+from django.utils.dateparse import parse_date
+
+@login_required
+def acvv_sla_report_view(request):
+    # Rights Check
+    if not request.user.is_superuser:
+        messages.error(request, "Access Denied: Superuser rights required for SLA Reports.")
+        return redirect('dashboard')
+
+    start_str = request.GET.get('start_date')
+    end_str = request.GET.get('end_date')
+    
+    def get_valid_date(date_val):
+        if date_val and date_val != "None" and date_val != "":
+            return parse_date(date_val)
+        return None
+
+    # 1. Setup Filters
+    recon_q = Q()
+    email_q = Q() # Added for Emails
+    start_dt = get_valid_date(start_str)
+    end_dt = get_valid_date(end_str)
+
+    if start_dt:
+        recon_q &= Q(updated_at__date__gte=start_dt)
+        email_q &= Q(delegated_at__date__gte=start_dt) # Added for Emails
+    if end_dt:
+        recon_q &= Q(updated_at__date__lte=end_dt)
+        email_q &= Q(delegated_at__date__lte=end_dt) # Added for Emails
+
+    # 2. Handle Excel Export
+    if request.GET.get('export') == 'excel':
+        # Updated to pass both Q objects
+        return export_acvv_sla_excel(recon_q, email_q)
+
+    # 3. Aggregate Totals (Reconciliations)
+    status_breakdown = ReconciliationWorksheet.objects.filter(recon_q).values(
+        'reconciled_status'
+    ).annotate(total=Count('id'))
+
+    user_breakdown = ReconciliationWorksheet.objects.filter(recon_q).values(
+        'updated_by__username'
+    ).annotate(total=Count('id')).order_by('-total')
+
+    # 4. Aggregate Totals (Email Delegations) - NEW ADDITION
+    email_status_breakdown = EmailDelegation.objects.filter(email_q).values(
+        'status'
+    ).annotate(total=Count('id'))
+
+    email_user_breakdown = EmailDelegation.objects.filter(email_q).values(
+        'assigned_user__username'
+    ).annotate(total=Count('id')).order_by('-total')
+
+    # Calculate Totals
+    total_recon = sum(item['total'] for item in status_breakdown)
+    total_emails = sum(item['total'] for item in email_status_breakdown)
+
+    context = {
+        'status_breakdown': status_breakdown,
+        'user_breakdown': user_breakdown,
+        'email_status_breakdown': email_status_breakdown, # Added
+        'email_user_breakdown': email_user_breakdown,     # Added
+        'total_actions': total_recon + total_emails,     # Grand Total
+        'total_recon': total_recon,
+        'total_emails': total_emails,
+        'start_date': start_str,
+        'end_date': end_str,
+    }
+    
+    return render(request, 'acvv_app/acvv_sla_report.html', context)
+
+def export_acvv_sla_excel(recon_q, email_q):
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    
+    wb = openpyxl.Workbook()
+    
+    # --- Styles ---
+    header_font = Font(bold=True, color="FFFFFF")
+    recon_fill = PatternFill(start_color="2E7D32", end_color="2E7D32", fill_type="solid")
+    email_fill = PatternFill(start_color="1565C0", end_color="1565C0", fill_type="solid")
+    center_align = Alignment(horizontal="center")
+
+    # ==========================================
+    # SHEET 1: RECONCILIATIONS (Original)
+    # ==========================================
+    ws1 = wb.active
+    ws1.title = "ACVV Reconciliation Audit"
+    headers1 = ['MG Code', 'MG Name', 'Fiscal Month', 'Status', 'Agent', 'Last Updated', 'Contribution Amount']
+    ws1.append(headers1)
+    
+    for cell in ws1[1]:
+        cell.font, cell.fill, cell.alignment = header_font, recon_fill, center_align
+
+    queryset_recon = ReconciliationWorksheet.objects.filter(recon_q).select_related('updated_by').order_by('-updated_at')
+    for r in queryset_recon:
+        ws1.append([
+            r.mg_code, r.mg_name,
+            r.fiscal_month.strftime('%B %Y') if r.fiscal_month else '',
+            r.reconciled_status,
+            r.updated_by.username if r.updated_by else "System",
+            r.updated_at.strftime('%Y-%m-%d %H:%M') if r.updated_at else '',
+            r.contribution_amount_reconciled
+        ])
+
+    # ==========================================
+    # SHEET 2: EMAIL DELEGATIONS (New Addition)
+    # ==========================================
+    ws2 = wb.create_sheet(title="Email Audit Trail")
+    headers2 = ['Subject', 'Sender', 'Assigned To', 'Status', 'Category', 'Delegated At']
+    ws2.append(headers2)
+
+    for cell in ws2[1]:
+        cell.font, cell.fill, cell.alignment = header_font, email_fill, center_align
+
+    queryset_email = EmailDelegation.objects.filter(email_q).select_related('assigned_user').order_by('-delegated_at')
+    for e in queryset_email:
+        ws2.append([
+            e.subject,
+            e.sender_address,
+            e.assigned_user.username if e.assigned_user else "Unassigned",
+            e.get_status_display(),
+            e.email_category,
+            e.delegated_at.strftime('%Y-%m-%d %H:%M') if e.delegated_at else ''
+        ])
+
+    # Auto-adjust column widths for both sheets
+    for sheet in [ws1, ws2]:
+        for col in sheet.columns:
+            sheet.column_dimensions[col[0].column_letter].width = 25
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename="ACVV_Full_SLA_Report_{timezone.now().strftime("%Y%m%d")}.xlsx"'
+    wb.save(response)
+    return response
