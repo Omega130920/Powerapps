@@ -30,7 +30,7 @@ ALLOWED_HOSTS = ['*', 'acvv.futura.co.za', 'acvv.futurasa.co.za']
 # ------------------------------------------------------------------------------
 # Default is 1000. Reconciliation worksheets with many rows often exceed this.
 # ==============================================================================
-DATA_UPLOAD_MAX_NUMBER_FIELDS = 3000
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 12000
 
 # 1. Trust the secure domain for form submissions
 CSRF_TRUSTED_ORIGINS = [
