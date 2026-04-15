@@ -352,17 +352,17 @@ def export_acvv_list_excel(request):
     if search_query:
         records = records.filter(
             Q(mip_names__icontains=search_query) |
-            Q(branch_code__icontains=search_query)
+            Q(branch_code__icontains=search_query) |
+            Q(tel__icontains=search_query) |
+            Q(tel_2__icontains=search_query)
         )
     
     records = records.order_by('mip_names')
 
-    # Create Workbook
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "ACVV Records Export"
 
-    # Specific Headers requested
     headers = [
         'Member Group Name', 'MG Code', 'Company Status', 
         'Last Recon - Status', 'Member Count', 'Last Recon - Date', 
@@ -370,29 +370,26 @@ def export_acvv_list_excel(request):
     ]
     ws.append(headers)
 
-    # Style Header
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill(start_color="43a047", end_color="43a047", fill_type="solid")
     for cell in ws[1]:
         cell.font = header_font
         cell.fill = header_fill
 
-    # Map database records to the Excel columns
     for record in records:
         ws.append([
             record.mip_names,                      # Member Group Name
             record.branch_code or "-",             # MG Code
             record.status or "-",                  # Company Status
-            "",                                    # Last Recon - Status (Blank per request)
+            "",                                    # Last Recon - Status
             record.member or "-",                  # Member Count
-            "",                                    # Last Recon - Date (Blank per request)
+            "",                                    # Last Recon - Date
             record.contribution_amount or "-",     # Bill Amount
             record.mg_email_address or "-",        # MG Contact Email
             record.tel or "-",                     # MG Contact Tel. 1
-            ""                                     # MG Contact Tel. 2 (Blank per request)
+            record.tel_2 or "-"                    # UPDATED: MG Contact Tel. 2
         ])
 
-    # Auto-adjust column width
     for col in ws.columns:
         max_length = 0
         column = col[0].column_letter
@@ -416,11 +413,13 @@ def acvv_list(request):
     acvv_records = Globalacvv.objects.all()
     search_query = request.GET.get('search_query')
 
-    # Apply search filter
+    # Apply search filter (Updated to include Telephone numbers)
     if search_query:
         acvv_records = acvv_records.filter(
             Q(mip_names__icontains=search_query) |
-            Q(branch_code__icontains=search_query)
+            Q(branch_code__icontains=search_query) |
+            Q(tel__icontains=search_query) |
+            Q(tel_2__icontains=search_query)
         )
 
     # Order the results
@@ -438,7 +437,7 @@ from django.db.models import Q # For flexible filtering
 def acvv_information(request, mip_names):
     """
     Detailed view for a specific ACVV record with unified logging.
-    FIXED: No longer pulls redundant 'Email Sent' notes from ClientNotes.
+    Includes support for TEL and TEL 2 from the Globalacvv model.
     """
     acvv_record = get_object_or_404(Globalacvv, mip_names=mip_names)
     
@@ -458,9 +457,12 @@ def acvv_information(request, mip_names):
                     file_url = fs.url(filename)
 
                 ClientNotes.objects.create(
-                    acvv_record=acvv_record, notes=note_content,
-                    user=request.user.username, date=timezone.now(),
-                    communication_type=comm_type, action_note_type=action_note,
+                    acvv_record=acvv_record, 
+                    notes=note_content,
+                    user=request.user.username, 
+                    date=timezone.now(),
+                    communication_type=comm_type, 
+                    action_note_type=action_note,
                     attachment=file_url
                 )
                 messages.success(request, "Internal note added.")
@@ -475,15 +477,24 @@ def acvv_information(request, mip_names):
                 filename = fs.save(path, pdf_file)
                 file_url = fs.url(filename)
                 BranchDocument.objects.create(
-                    branch_name=acvv_record.mip_names, file_name=pdf_file.name,
-                    file_path=file_url, uploaded_by=request.user.username
+                    branch_name=acvv_record.mip_names, 
+                    file_name=pdf_file.name,
+                    file_path=file_url, 
+                    uploaded_by=request.user.username
                 )
                 messages.success(request, "PDF added.")
                 return redirect(f'/acvv-records/{acvv_record.mip_names}/#pdf-upload')
 
+        # 3. Handle Contact Info Update (NEW)
+        elif 'update_contact_info' in request.POST:
+            acvv_record.mg_email_address = request.POST.get('new_email')
+            acvv_record.tel = request.POST.get('new_tel')
+            acvv_record.tel_2 = request.POST.get('new_tel_2')
+            acvv_record.save()
+            messages.success(request, "Contact information updated successfully.")
+            return redirect('acvv_information', mip_names=acvv_record.mip_names)
+
     # --- DATA FETCHING ---
-    # We filter notes to EXCLUDE anything that was tagged as an email, 
-    # so they don't show up in the notes tab as duplicates.
     notes = ClientNotes.objects.filter(acvv_record=acvv_record).exclude(
         Q(notes__icontains="Email Composed") | Q(notes__icontains="Email Sent")
     ).order_by('-date')
@@ -491,14 +502,11 @@ def acvv_information(request, mip_names):
     company_claims = AcvvClaim.objects.filter(company_code=mip_names).order_by('-claim_created_date')
     branch_docs = BranchDocument.objects.filter(branch_name=mip_names).order_by('-uploaded_at')
 
-    # --- EMAIL LOG LOGIC (Unified) ---
-    # We pull ONLY from EmailDelegation. This is the source of truth for the Email Log.
     delegated_logs = EmailDelegation.objects.filter(
         Q(mip_names__icontains=acvv_record.mip_names) | Q(mip_names__icontains=acvv_record.branch_code)
     ).select_related('assigned_user')
 
     combined_email_log = []
-
     for log in delegated_logs:
         is_sent = (log.status == 'SENT')
         combined_email_log.append({
@@ -510,14 +518,11 @@ def acvv_information(request, mip_names):
             'assigned_to': log.assigned_user.username if log.assigned_user else "Unassigned",
             'display_type': 'SENT' if is_sent else log.get_status_display(),
             'email_id': log.email_id,
-            # If your EmailDelegation model doesn't have an attachment field, 
-            # we'll need to add it there to make the "Download" work perfectly.
             'file_url': log.attachment.url if hasattr(log, 'attachment') and log.attachment else None,
             'sort_date': log.received_at or log.delegated_at
         })
 
-    # Sort the unified log by date
-    combined_email_log.sort(key=lambda x: x['sort_date'] if x['sort_date'] else datetime.min, reverse=True)
+    combined_email_log.sort(key=lambda x: x['sort_date'] if x['sort_date'] else timezone.datetime.min.replace(tzinfo=timezone.utc), reverse=True)
 
     context = {
         'acvv_record': acvv_record,

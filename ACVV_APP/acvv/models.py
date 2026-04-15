@@ -2,9 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 
 class Globalacvv(models.Model):
-    """
-    Model representing the 'global acvv' table.
-    """
+    # Existing fields
     mip_names = models.CharField(db_column='MIP Names', max_length=255, primary_key=True)
     branch_code = models.CharField(db_column='Branch Code', max_length=255, null=True, blank=True)
     member = models.CharField(db_column='MEMBER', max_length=255, null=True, blank=True)
@@ -12,14 +10,22 @@ class Globalacvv(models.Model):
     contribution_amount = models.CharField(db_column='CONTRIBUTION AMOUNT', max_length=255, null=True, blank=True)
     notes = models.CharField(db_column='NOTES', max_length=255, null=True, blank=True)
     schedule_date_received = models.CharField(db_column='SCHEDULE DATE RECEIVED', max_length=255, null=True, blank=True)
-    deb_order_date_confirm = models.CharField(db_column='DEB ORDER DATE CONFIRM BY EMPOLYER(FUND)', max_length=255, null=True, blank=True)
+    deb_order_confirm = models.CharField(db_column='DEB ORDER DATE CONFIRM BY EMPOLYER(FUND)', max_length=255, null=True, blank=True)
     bank_info_upload = models.CharField(db_column='Bank info Upload', max_length=225, null=True, blank=True)
     mg_email_address = models.CharField(db_column='MG EMAIL ADDRESS', max_length=225, null=True, blank=True)
-    tel = models.CharField(db_column='TEL', max_length=20, null=True, blank=True)
+    
+    # Primary Telephone
+    tel = models.CharField(db_column='TEL', max_length=50, null=True, blank=True)
+    
+    # --- NEW FIELD: Secondary Telephone ---
+    tel_2 = models.CharField(db_column='TEL 2', max_length=50, null=True, blank=True)
 
     class Meta:
-        managed = False
-        db_table = 'global acvv'
+        managed = False  # Set to False because you manage the schema manually in MySQL
+        db_table = 'global acvv' # Explicitly using the name with the space
+
+    def __str__(self):
+        return self.mip_names
 
 class ClientNotes(models.Model):
     id = models.AutoField(db_column='ID', primary_key=True)

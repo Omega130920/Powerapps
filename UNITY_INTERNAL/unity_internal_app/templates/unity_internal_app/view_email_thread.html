@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Email Thread | {% if email.subject %}{{ email.subject }}{% elif task.subject %}{{ task.subject }}{% else %}No Subject{% endif %}</title>
+    <title>Email Thread | {% if email.subject %}{{ email.subject }}{% elif task and task.subject %}{{ task.subject }}{% else %}No Subject{% endif %}</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         /* --- General Page Styling --- */
@@ -30,6 +30,11 @@
             border-bottom: 1px solid #ddd;
         }
 
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
         .return-button {
             padding: 10px 18px;
             background-color: #43a047;
@@ -38,10 +43,30 @@
             border-radius: 6px;
             font-weight: 500;
             transition: background 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .return-button:hover {
             background-color: #2e7d32;
+        }
+
+        .download-eml-button {
+            padding: 10px 18px;
+            background-color: #1976d2;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: background 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .download-eml-button:hover {
+            background-color: #1565c0;
         }
 
         /* --- Original Email Card --- */
@@ -240,18 +265,23 @@
         <div>
             <h1 style="margin:0; color: #2e7d32;">Communication History</h1>
             <p style="margin:0; color: #666;">
-                Ref: {% if task %}{{ task.company_code }}{% elif inbox_item %}{{ inbox_item.company_code }}{% else %}Direct Email{% endif %}
+                Ref: {% if task and task.company_code %}{{ task.company_code }}{% elif inbox_item and inbox_item.company_code %}{{ inbox_item.company_code }}{% else %}Direct Email{% endif %}
             </p>
         </div>
-        <a href="javascript:history.back()" class="return-button">← Back to Email Log</a>
+        <div class="btn-group">
+            <a href="{% url 'download_email_file' email_id=email.id %}" class="download-eml-button">
+                <i class="fas fa-file-download"></i> Download Full Email (.eml)
+            </a>
+            <a href="javascript:history.back()" class="return-button">← Back to Email Log</a>
+        </div>
     </div>
 
     <div class="email-thread-card">
         <div class="card-header-main">
-            <h3>{% if email.subject %}{{ email.subject }}{% elif task %}{{ task.subject }}{% else %}(No Subject){% endif %}</h3>
+            <h3>{% if email.subject %}{{ email.subject }}{% elif task and task.subject %}{{ task.subject }}{% else %}(No Subject){% endif %}</h3>
             <div style="font-size: 14px; color: #4a5568;">
-                <strong>Graph ID:</strong> {% if email.id %}{{ email.id }}{% else %}{{ task.email_id }}{% endif %} <br>
-                <strong>Date:</strong> {% if email.receivedDateTime %}{{ email.receivedDateTime|date:"d M Y, H:i" }}{% else %}{{ task.received_at|date:"d M Y, H:i" }}{% endif %}
+                <strong>Graph ID:</strong> {{ email.id }} <br>
+                <strong>Date:</strong> {% if email.receivedDateTime %}{{ email.receivedDateTime|date:"d M Y, H:i" }}{% elif task %}{{ task.received_at|date:"d M Y, H:i" }}{% endif %}
             </div>
         </div>
         <div class="card-body-content">
@@ -287,7 +317,7 @@
                         {% endif %}
                     </div>
                     <div class="file-name" title="{{ att.name }}">{{ att.name }}</div>
-                    <a href="{% url 'download_attachment' message_id=email.id|default:task.email_id attachment_id=att.id %}" class="btn-download-small">
+                    <a href="{% url 'download_attachment_view' message_id=email.id attachment_id=att.id %}" class="btn-download-small">
                         <i class="fas fa-download"></i> Download
                     </a>
                 </div>
@@ -301,7 +331,7 @@
 
     <div class="timeline-container">
         
-        {# --- Start Loop: The sorting MUST be handled in the view using combined_timeline.sort(key=..., reverse=True) --- #}
+        {# --- Start Loop --- #}
         {% for item in combined_timeline %}
         <div class="timeline-event">
             
@@ -364,7 +394,7 @@
         </div>
         {% endfor %}
 
-        {# --- THE ORIGINAL DELEGATION (This is always the "Oldest" event) --- #}
+        {# --- THE ORIGINAL DELEGATION (Oldest event) --- #}
         {% if task %}
         <div class="timeline-event">
             <div class="timeline-icon" style="background-color: #2b6cb0;"></div>

@@ -50,13 +50,11 @@
         .status-catchup { background: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb; }
         
         .arrears-input { border: 2px solid #d32f2f !important; background-color: #fff5f5 !important; color: #b71c1c; font-weight: bold; text-align: center; }
-        .member-input { border: 1px solid #1976d2 !important; font-weight: bold; text-align: center; color: #0d47a1; background: #e3f2fd; }
+        .member-input { border: 1px solid #0d47a1 !important; font-weight: bold; text-align: center; color: #0d47a1; background: #e3f2fd; }
         .lpi-input { border: 1px solid #fbc02d !important; background-color: #fffde7; font-weight: bold; }
 
         .is-closed-state tr.current-month-row .input-field { background-color: #f8f9fa; color: #6c757d; cursor: not-allowed; border: 1px solid #ddd !important; }
         .overdue-row { background-color: #fff9f9; }
-        
-        /* Modified Catch-up class to handle JS toggle better */
         .catchup-row { background-color: #f0f7ff; border-left: 4px solid #1976d2; }
         
         .overdue-icon { animation: blink 2s infinite; }
@@ -209,6 +207,7 @@
                             <td>
                                 <input type="number" name="member_count_{{ r.id }}" 
                                        value="{{ r.member_count_reconciled|default:r.acvv_member_count|default:'0' }}" 
+                                       min="0"
                                        class="input-field member-input" 
                                        {% if r.is_closed %}disabled{% endif %}>
                             </td>
@@ -216,12 +215,14 @@
                             <td>
                                 <input type="number" step="0.01" name="amount_{{ r.id }}" 
                                        value="{{ r.contribution_amount_reconciled|default:'0.00' }}" 
+                                       min="0"
                                        class="input-field" {% if r.is_closed %}disabled{% endif %}>
                             </td>
 
                             <td>
                                 <input type="number" step="0.01" name="lpi_amount_{{ r.id }}" 
                                        value="{{ r.lpi_amount|default:'0.00' }}" 
+                                       min="0"
                                        class="input-field lpi-input" {% if r.is_closed %}disabled{% endif %}>
                             </td>
 
@@ -287,6 +288,18 @@
         catchupRows.forEach(row => {
             row.style.display = 'none';
         });
+
+        // PREVENTION LOGIC: Prevent negative values via JS if user types them
+        const numericInputs = document.querySelectorAll('input[type="number"]');
+        numericInputs.forEach(input => {
+            input.addEventListener('change', function() {
+                if (parseFloat(this.value) < 0) {
+                    this.value = 0;
+                    alert("Values cannot be less than zero.");
+                }
+            });
+        });
+
         syncScrollWidth();
     });
 
@@ -320,11 +333,9 @@
                     row.style.display = "";
                 }
 
-                // Re-enable inputs for visible rows
                 if (row.style.display !== "none") {
                     const inputs = row.querySelectorAll('input, select');
                     inputs.forEach(input => {
-                        // Keep disabled if global month is locked, UNLESS it's an open catch-up row
                         let isRowLocked = row.classList.contains('current-month-row') && document.body.classList.contains('is-closed-state');
                         if (!isRowLocked) {
                              input.disabled = false;

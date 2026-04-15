@@ -105,35 +105,43 @@
         table {
             width: 100%;
             border-collapse: collapse;
-            table-layout: auto; 
-            min-width: 1200px;  /* Increased min-width to accommodate new columns */
+            table-layout: fixed; /* Changed to fixed to control column widths exactly */
+            min-width: 1200px; 
         }
 
         thead th {
             background-color: #43a047;
             color: white;
-            padding: 15px;
+            padding: 12px 8px;
             text-align: left;
-            font-size: 14px;
-            white-space: nowrap;
+            font-size: 13px;
             position: sticky;
             top: 0;
         }
 
         tbody td {
-            padding: 12px;
+            padding: 10px 8px;
             border-bottom: 1px solid #aed581;
-            font-size: 13px;
+            font-size: 12px;
+            vertical-align: middle;
+            word-wrap: break-word; /* Allow content to wrap */
         }
+
+        /* --- SPECIFIC COLUMN WIDTHS TO FIT ALL --- */
+        .col-name { width: 20%; }
+        .col-code { width: 8%; }
+        .col-mem  { width: 7%; }
+        .col-cont { width: 10%; }
+        .col-email { 
+            width: 25%; 
+            white-space: normal; /* Force wrap */
+            word-break: break-all; /* Break long email strings if needed */
+        }
+        .col-tel { width: 15%; }
 
         tbody tr:nth-child(even) { background-color: #e6ffe6; }
         tbody tr:hover { background-color: #ccffcc; cursor: pointer; }
 
-        /* --- STATUS BADGE STYLES --- */
-        .status-active { color: #2e7d32; font-weight: bold; }
-        .status-no-member { color: #d32f2f; font-weight: bold; }
-
-        /* --- HIDING COLUMNS WITHOUT REMOVING --- */
         .hide-col {
             display: none;
         }
@@ -152,7 +160,7 @@
             </div>
             
             <form method="get" class="search-form">
-                <input type="text" name="search_query" placeholder="Search by Member Group Name or Code" value="{{ search_query|default:'' }}">
+                <input type="text" name="search_query" placeholder="Search Name, Code, or Phone..." value="{{ search_query|default:'' }}">
                 <button type="submit">Search</button>
             </form>
         </div>
@@ -161,42 +169,36 @@
             <table>
                 <thead>
                     <tr>
-                        <th>Member Group Name</th>
-                        <th>Member Group Code</th>
-                        <th>Member</th>
-                        <th class="hide-col">Status</th> {# Hidden column #}
-                        <th>Contribution</th>
-                        <th class="hide-col">Notes</th> {# Hidden column #}
-                        <th>Email Address</th>
-                        <th>MG Contact Tel. 1</th>
-                        <th>MG Contact Tel. 2</th>
+                        <th class="col-name">Member Group Name</th>
+                        <th class="col-code">Code</th>
+                        <th class="col-mem">Member</th>
+                        <th class="hide-col">Status</th>
+                        <th class="col-cont">Contribution</th>
+                        <th class="hide-col">Notes</th>
+                        <th class="col-email">Email Address</th>
+                        <th class="col-tel">Tel. 1</th>
+                        <th class="col-tel">Tel. 2</th>
                     </tr>
                 </thead>
                 <tbody id="acvv-table-body">
                     {% for record in acvv_records %}
                     <tr data-mip-names="{{ record.mip_names }}">
-                        <td><strong>{{ record.mip_names }}</strong></td>
-                        <td>{{ record.branch_code|default:"-" }}</td>
-                        <td>{{ record.member|default:"-" }}</td>
+                        <td class="col-name"><strong>{{ record.mip_names }}</strong></td>
+                        <td class="col-code">{{ record.branch_code|default:"-" }}</td>
+                        <td class="col-mem">{{ record.member|default:"-" }}</td>
                         
-                        {# --- DYNAMIC STATUS LOGIC (Hidden) --- #}
-                        <td class="hide-col">
-                            {% if record.member and record.member != "-" %}
-                                <span class="status-active">Active</span>
-                            {% else %}
-                                <span class="status-no-member">No Member</span>
-                            {% endif %}
-                        </td>
+                        <td class="hide-col"></td>
 
-                        <td>{{ record.contribution_amount|default:"-" }}</td>
-                        <td class="hide-col">{{ record.notes|default:"-"|truncatechars:30 }}</td> {# Hidden column #}
-                        <td>{{ record.mg_email_address|default:"-" }}</td>
-                        <td>{{ record.tel|default:"-" }}</td>
-                        <td>-</td>
+                        <td class="col-cont">{{ record.contribution_amount|default:"-" }}</td>
+                        <td class="hide-col"></td>
+                        
+                        <td class="col-email">{{ record.mg_email_address|default:"-" }}</td>
+                        <td class="col-tel">{{ record.tel|default:"-" }}</td>
+                        <td class="col-tel">{{ record.tel_2|default:"-" }}</td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="9" style="text-align: center; padding: 50px;">No records found matching your search.</td>
+                        <td colspan="9" style="text-align: center; padding: 50px;">No records found.</td>
                     </tr>
                     {% endfor %}
                 </tbody>

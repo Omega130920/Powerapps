@@ -3563,7 +3563,7 @@ def outlook_delegated_box(request):
 def outlook_delegated_action(request, delegation_id):
     """
     Handles Notes, Replies, Metadata Updates, RESTORATION, and COMPLETION.
-    Now supports sending file attachments with replies.
+    Updated to support MULTIPLE file attachments with replies.
     """
     delegation = get_object_or_404(EmailDelegation, pk=delegation_id)
     
@@ -3632,7 +3632,7 @@ def outlook_delegated_action(request, delegation_id):
                 messages.error(request, message)
             return redirect('outlook_delegated_action', delegation_id=delegation_id)
         
-        # --- 5. HANDLE REPLY/SEND EMAIL ---
+        # --- 5. HANDLE REPLY/SEND EMAIL (MULTIPLE ATTACHMENT SUPPORT) ---
         elif 'reply_recipient' in request.POST:
             recipient = request.POST.get('reply_recipient')
             raw_subject = request.POST.get('reply_subject')
@@ -3640,18 +3640,18 @@ def outlook_delegated_action(request, delegation_id):
             body_html = request.POST.get('reply_body')
             action_destination = request.POST.get('action_notes', 'EMAIL_REPLY')
             
-            log_type = request.POST.get('email_log_type', 'DIRECT') 
+            log_type = request.POST.get('email_log_type', 'REPLY') 
             
-            # 🚀 NEW: Grab the file from the request
-            reply_file = request.FILES.get('reply_file')
+            # 🚀 UPDATED: Capture a list of files instead of a single file
+            reply_files = request.FILES.getlist('reply_files')
 
-            # Pass the file to the service
+            # Pass the list of files to the service
             response = OutlookGraphService.send_outlook_email(
                 target_email, 
                 recipient, 
                 subject, 
                 body_html,
-                attachment=reply_file
+                attachments=reply_files  # Pass the full list
             )
             
             if response.get('success'):
@@ -3665,7 +3665,9 @@ def outlook_delegated_action(request, delegation_id):
                     action_type=final_action_type 
                 )
                 
-                messages.success(request, f"Reply sent successfully with attachment (if provided).")
+                # Provide better feedback on the number of files sent
+                file_count = len(reply_files)
+                messages.success(request, f"Reply sent successfully with {file_count} attachment(s).")
             else:
                 messages.error(request, f"Failed to send email: {response.get('error')}")
                 
@@ -3971,7 +3973,9 @@ def view_email_thread(request, email_id):
     # 2. Handle Attachments
     attachments = OutlookGraphService.fetch_attachments(target_email, email_id)
     for att in attachments:
-        if 'image' in att.get('contentType', '').lower():
+        # Check if it's an image to provide a base64 preview
+        content_type = att.get('contentType', '').lower()
+        if 'image' in content_type:
             raw_att = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
             # Safeguard against raw_att not containing contentBytes
             if isinstance(raw_att, dict) and 'contentBytes' in raw_att:
@@ -4880,10 +4884,11 @@ def download_attachment_view(request, message_id, attachment_id):
             return HttpResponse("Could not retrieve nested email content from Microsoft.", status=400)
             
         content_type = 'message/rfc822'
-        # Force .eml extension so Windows handles the file correctly
+        # Force .eml extension so Windows/Outlook handles the file correctly
         if not file_name.lower().endswith('.eml'):
             file_name += ".eml"
     else:
+        # Fallback for reference attachments or other types
         return HttpResponse(f"Unsupported attachment type: {odata_type}", status=400)
 
     # 3. Build and return the final response
@@ -5023,17 +5028,14 @@ def download_email_file(request, email_id):
     Fetches the raw MIME (.eml) content from Microsoft Graph for a specific message.
     """
     try:
-        # Use your existing OutlookGraphService to fetch raw content
-        # The /$value endpoint returns the raw MIME content of the message
+        # Use your existing OutlookGraphService to fetch raw content via /$value
         endpoint = f"messages/{email_id}/$value"
         
-        # Ensure your service has a method to handle raw/binary responses
-        # If not, you can use a direct call or I can help you update the service
         raw_content = OutlookGraphService._make_graph_request(
             endpoint, 
             settings.OUTLOOK_EMAIL_ADDRESS, 
             method='GET', 
-            is_raw=True # This tells the service NOT to parse as JSON
+            is_raw=True 
         )
 
         if not raw_content:

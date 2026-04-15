@@ -127,11 +127,10 @@ class OutlookGraphService:
         return response
 
     @staticmethod
-    def send_outlook_email(target_email, recipient_email, subject, body_content, content_type='HTML', attachment=None):
+    def send_outlook_email(target_email, recipient_email, subject, body_content, content_type='HTML', attachments=None):
         """
         Sends an email via Microsoft Graph and retrieves the newly created ID 
-        from Sent Items to allow for future viewing and downloading.
-        Updated to support optional file attachments from request.FILES.
+        from Sent Items. Now supports MULTIPLE file attachments.
         """
         email_data = {
             "message": {
@@ -152,21 +151,23 @@ class OutlookGraphService:
             "saveToSentItems": "true" 
         }
 
-        # 🚀 ADDED: Process the attachment if it exists
-        if attachment:
-            try:
-                # Read the file and encode to base64
-                file_content = attachment.read()
-                encoded_string = base64.b64encode(file_content).decode('utf-8')
-                
-                email_data["message"]["attachments"].append({
-                    "@odata.type": "#microsoft.graph.fileAttachment",
-                    "name": attachment.name,
-                    "contentType": attachment.content_type,
-                    "contentBytes": encoded_string
-                })
-            except Exception as e:
-                logger.error(f"Failed to package attachment '{attachment.name}': {e}")
+        # 🚀 UPDATED: Process multiple attachments if they exist
+        if attachments:
+            for file in attachments:
+                try:
+                    # Read the file and encode to base64
+                    file.seek(0) # Ensure we read from the start
+                    file_content = file.read()
+                    encoded_string = base64.b64encode(file_content).decode('utf-8')
+                    
+                    email_data["message"]["attachments"].append({
+                        "@odata.type": "#microsoft.graph.fileAttachment",
+                        "name": file.name,
+                        "contentType": getattr(file, 'content_type', 'application/octet-stream'),
+                        "contentBytes": encoded_string
+                    })
+                except Exception as e:
+                    logger.error(f"Failed to package attachment '{getattr(file, 'name', 'Unknown')}': {e}")
         
         endpoint = "sendMail"
         send_res = OutlookGraphService._make_graph_request(endpoint, target_email, method='POST', data=email_data)
