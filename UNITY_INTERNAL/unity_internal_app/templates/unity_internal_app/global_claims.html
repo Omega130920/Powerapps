@@ -239,7 +239,6 @@ tr:hover {background-color: #e8f5e9;}
                     <div>
                         <label style="font-weight:bold;">Claim Status</label>
                         <select name="claim_status" id="claim_status_select" class="form-select">
-                            <option value="NEW">NEW</option>
                             <option value="incomplete">incomplete</option>
                             <option value="Submitted">Submitted</option>
                             <option value="Paid">Paid</option>
@@ -439,9 +438,6 @@ tr:hover {background-color: #e8f5e9;}
         document.getElementById('main_claim_form').reset(); 
         document.getElementById('claim_notes_tbody').innerHTML = '<tr><td colspan="4" style="text-align:center;">New entry.</td></tr>';
         document.getElementById('email-composition-container').style.display = 'none';
-        
-        const sSel = document.getElementById('claim_status_select');
-        if(sSel) sSel.value = "NEW";
 
         togglePotVisibility(); // Reset visibility
         document.getElementById('claimModal').style.display = 'block';

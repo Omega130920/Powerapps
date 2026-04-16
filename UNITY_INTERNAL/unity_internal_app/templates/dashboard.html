@@ -155,7 +155,7 @@
     </div>
 
     <div class="button-container">
-        {% if user.username == 'omega' %}
+        {% if user.username == 'omega' or user.username == 'Merril' or user.username == 'Samantha' or user.username == 'Lorraine' %}
 
             <a href="{% url 'outlook_dashboard' %}" class="button-block">
                 Delegations
@@ -178,9 +178,7 @@
         <a href="{% url 'email_list' %}" class="button-block">Email List</a>
 
         <a href="{% url 'unity_list' %}" class="button-block">Employer Recon</a>
-        <!--<a href="{% url 'add_member' %}" class="button-block">Add Member Group</a>-->
         <a href="{% url 'import_data' %}" class="button-block">Import Bank</a>
-        <!--<a href="{% url 'import_credit' %}" class="button-block">Import Credit Note</a>-->
         
         <a href="{% url 'bank_list' %}" class="button-block">
             Assign Bank Lines
@@ -201,8 +199,6 @@
         <a href="{% url 'bulk_billing_dashboard' %}" class="button-block">Bulk Billing</a>
         <a href="{% url 'sla_report' %}" class="button-block">SLA Report (WIP)</a>
     </div>
-
-    
 
     <script>
         function refreshDashboardStats() {

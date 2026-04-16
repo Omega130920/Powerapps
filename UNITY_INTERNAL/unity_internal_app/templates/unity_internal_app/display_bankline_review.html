@@ -220,7 +220,8 @@ input:checked + .slider:before { transform: translateX(20px); }
     <div class="modal-content">
         <h3>Update Review Details: Line {{ recon_record.pk }}</h3>
         
-        <form id="reviewForm" method="POST" action="{% url 'update_bankline_details' recon_id=recon_record.pk %}">
+        {# --- 🚀 ADDED enctype="multipart/form-data" TO SUPPORT ATTACHMENTS --- #}
+        <form id="reviewForm" method="POST" action="{% url 'update_bankline_details' recon_id=recon_record.pk %}" enctype="multipart/form-data">
             {% csrf_token %}
             
             <input type="hidden" name="source_param" value="{{ source }}">
@@ -274,6 +275,19 @@ input:checked + .slider:before { transform: translateX(20px); }
 
                     <label for="email_subject">Email Subject:</label>
                     <input type="text" id="email_subject" name="email_subject" value="Update regarding Bank Transaction Ref: {{ bank_record.statement_reference }}">
+                    
+                    {# --- 🚀 ADDED EMAIL BODY FIELD --- #}
+                    <label for="email_body_content">Email Body Content:</label>
+                    <textarea id="email_body_content" name="email_body_content" placeholder="Enter the message for the recipient..." style="min-height: 120px;">Dear Sir/Madam,
+
+Please see the following update regarding Member Group {{ recon_record.company_code|default:'' }}.
+
+Kind Regards,
+{{ request.user.username }}</textarea>
+
+                    {# --- 🚀 ADDED FILE ATTACHMENTS FIELD --- #}
+                    <label for="email_attachments">Attach Files (Multiple):</label>
+                    <input type="file" id="email_attachments" name="email_attachments" multiple style="padding: 10px; background: white; border: 1px dashed #ccc; width: 100%;">
                 </div>
             </div>
 

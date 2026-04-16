@@ -310,17 +310,7 @@ from django.db.models import Sum, Max, Q # Ensure Max is imported
 def unity_information(request: HttpRequest, company_code):
     """
     Displays detailed information for a single record.
-    UPDATED: Integrated Bankline Logic to subtract Credit Note allocations from balance.
-    UPDATED: Applied CRM_UNITY mapping pattern for robust email history retrieval.
-    UPDATED: Fixed status filtering to ensure 'DEL' (Delegated) items are visible.
-    UPDATED: Integrated DelegationTransactionLog to show sent replies in the history.
-    UPDATED: Status display logic now matches unity_list behavior.
-    UPDATED: surplus_created now includes "Overs" moved to CreditNote table.
-    UPDATED: Added bank_assigned_total to show the original transaction amount.
-    UPDATED: h_current_status now dynamically calculated to match unity_list priority.
-    UPDATED: Added File Upload handler for PDF attachments in UnityNotes.
-    UPDATED: Dynamic Fiscal Date priority logic (Bill Date -> Listing Table).
-    UPDATED: Added applied_credit_total calculation for recon history.
+    UPDATED: Subject column now shows the actual Email Subject instead of Action Notes.
     """
     from .models import (
         EmailDelegation, DelegationTransactionLog, UnityNotes, 
@@ -363,7 +353,7 @@ def unity_information(request: HttpRequest, company_code):
         is_fallback = True
         messages.warning(request, f"Full detail information is not available for {company_code}.")
 
-    # --- NEW: Dynamic Status & Fiscal Calculation ---
+    # --- Dynamic Status & Fiscal Calculation ---
     latest_bill = UnityBill.objects.filter(C_Company_Code=lookup_code).order_by('-A_CCDatesMonth').first()
     calculated_status = "NO BILLING"
     calculated_fiscal = None
@@ -429,12 +419,12 @@ def unity_information(request: HttpRequest, company_code):
         if delegation_pks:
             delegations_map = EmailDelegation.objects.in_bulk(delegation_pks)
             outlook_string_ids = [d.email_id for d in delegations_map.values()]
-            inbox_map = OutlookInbox.objects.in_bulk(outlook_string_ids)
+            inbox_map_objs = OutlookInbox.objects.in_bulk(outlook_string_ids)
             for claim in company_claims:
                 if claim.linked_email_id:
                     del_obj = delegations_map.get(int(claim.linked_email_id))
                     if del_obj:
-                        inbox_item = inbox_map.get(del_obj.email_id)
+                        inbox_item = inbox_map_objs.get(del_obj.email_id)
                         if inbox_item:
                             claim.email_preview_subject, claim.email_preview_sender, claim.email_preview_body, claim.email_preview_date = inbox_item.subject, inbox_item.sender_address, inbox_item.body_content, inbox_item.received_at
     except Exception:
@@ -451,24 +441,88 @@ def unity_information(request: HttpRequest, company_code):
     all_delegations = EmailDelegation.objects.filter(company_code__iexact=clean_lookup)
     all_del_ids = [item.id for item in all_delegations]
     related_string_ids = [item.email_id for item in all_delegations]
+    
     thread_status_map = {item.id: item.status for item in all_delegations}
     thread_email_id_map = {item.id: item.email_id for item in all_delegations}
+    
+    # Fetch actual subjects from the Inbox records
     inbox_records = OutlookInbox.objects.filter(email_id__in=related_string_ids)
     inbox_map = {email.email_id: email.received_at for email in inbox_records}
+    inbox_subject_map = {email.email_id: email.subject for email in inbox_records} # 🚀 NEW
 
+    # Process Original Delegated Tasks
     for item in all_delegations:
         if item.status in ['DLT', 'DELETED', 'TRASH']: continue
         is_completed = item.status in ['COMP', 'DONE', 'CLS']
-        combined_email_log.append({'timestamp': item.received_at, 'arrival_timestamp': inbox_map.get(item.email_id, item.received_at), 'delegation_timestamp': item.delegated_at, 'type': 'Original', 'display_type': 'Completed' if is_completed else 'Delegated', 'subject': item.email_category or f"Outlook Task: {item.email_id[:12]}...", 'assigned_to': item.assigned_user.username if item.assigned_user else 'UNASSIGNED', 'status': item.status, 'email_id': item.email_id, 'action_user': 'System', 'badge_color': '#3f51b5', 'icon': '📥'})
+        
+        # 🚀 Logic change: Use actual email subject if available, otherwise category
+        actual_subject = inbox_subject_map.get(item.email_id) or item.email_category or f"Task: {item.email_id[:12]}..."
+        
+        combined_email_log.append({
+            'timestamp': item.received_at, 
+            'arrival_timestamp': inbox_map.get(item.email_id, item.received_at), 
+            'delegation_timestamp': item.delegated_at, 
+            'type': 'Original', 
+            'display_type': 'Completed' if is_completed else 'Delegated', 
+            'subject': actual_subject, 
+            'assigned_to': item.assigned_user.username if item.assigned_user else 'UNASSIGNED', 
+            'status': item.status, 
+            'email_id': item.email_id, 
+            'action_user': 'System', 
+            'badge_color': '#3f51b5', 
+            'icon': '📥'
+        })
 
+    # Process Threaded Replies
     threaded_replies = DelegationTransactionLog.objects.filter(delegation_id__in=all_del_ids, action_type='REPLIED').select_related('user')
     for reply in threaded_replies:
-        combined_email_log.append({'timestamp': reply.timestamp, 'arrival_timestamp': None, 'delegation_timestamp': None, 'type': 'Reply', 'display_type': 'Reply Sent', 'subject': reply.subject or "Reply to Task", 'assigned_to': reply.recipient_email, 'status': thread_status_map.get(reply.delegation_id, "SENT"), 'email_id': thread_email_id_map.get(reply.delegation_id), 'action_user': reply.user.username if reply.user else 'System', 'badge_color': '#673ab7', 'icon': '📤'})
+        combined_email_log.append({
+            'timestamp': reply.timestamp, 
+            'arrival_timestamp': None, 
+            'delegation_timestamp': None, 
+            'type': 'Reply', 
+            'display_type': 'Reply Sent', 
+            'subject': reply.subject or "Reply to Task", 
+            'assigned_to': reply.recipient_email, 
+            'status': thread_status_map.get(reply.delegation_id, "SENT"), 
+            'email_id': thread_email_id_map.get(reply.delegation_id), 
+            'action_user': reply.user.username if reply.user else 'System', 
+            'badge_color': '#673ab7', 
+            'icon': '📤'
+        })
 
+    # Process Direct Sent Emails
     direct_emails = UnityNotes.objects.filter(member_group_code__iexact=clean_lookup, communication_type='Sent Email')
     for email in direct_emails:
         outlook_id = email.attached_email_id or (email.action_notes.replace("OUTLOOK_ID:", "").strip() if email.action_notes and "OUTLOOK_ID:" in email.action_notes else None)
-        combined_email_log.append({'timestamp': email.date, 'arrival_timestamp': None, 'delegation_timestamp': None, 'type': 'Direct', 'display_type': 'Email sent', 'subject': email.action_notes or 'Email Sent', 'assigned_to': email.notes.split('\n')[0][:50] if email.notes else 'Recipient', 'status': 'Direct', 'email_id': outlook_id, 'action_user': email.user, 'badge_color': '#4CAF50', 'icon': '📤'})
+        
+        # 🚀 NEW: Attempt to parse actual subject from the notes field
+        email_sent_subject = email.action_notes or 'Email Sent'
+        if email.notes and "Subject:" in email.notes:
+            try:
+                # Extract subject from "To: ...\nSubject: Actual Subject\n..."
+                lines = email.notes.split('\n')
+                for line in lines:
+                    if line.startswith("Subject:"):
+                        email_sent_subject = line.replace("Subject:", "").strip()
+                        break
+            except:
+                pass
+
+        combined_email_log.append({
+            'timestamp': email.date, 
+            'arrival_timestamp': None, 
+            'delegation_timestamp': None, 
+            'type': 'Direct', 
+            'display_type': 'Email sent', 
+            'subject': email_sent_subject, 
+            'assigned_to': email.notes.split('\n')[0][:50] if email.notes else 'Recipient', 
+            'status': 'Direct', 
+            'email_id': outlook_id, 
+            'action_user': email.user, 
+            'badge_color': '#4CAF50', 
+            'icon': '📤'
+        })
 
     combined_email_log.sort(key=lambda x: x['timestamp'], reverse=True)
 
@@ -480,33 +534,13 @@ def unity_information(request: HttpRequest, company_code):
         if bill.is_reconciled:
             bill.display_status = 'RECON COMPLETE'
             bill.bankline_total = BillSettlement.objects.filter(unity_bill_source_id=bill.id, reconned_bank_line_id__isnull=False).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
-            
-            # --- Credit Notes ---
             bill.credit_allocated = BillSettlement.objects.filter(unity_bill_source_id=bill.id, source_credit_note_id__isnull=False).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
-            
-            # --- Journal Surplus Transfers ---
             bill.surplus_allocated_from_journals = JournalEntry.objects.filter(target_bill_id=bill.id).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
-            
-            # 🚀 NEW: Combined Applied Credit (Manual Credits + Surplus Journals)
             bill.applied_credit_total = bill.credit_allocated + bill.surplus_allocated_from_journals
-            
-            used_line_ids = BillSettlement.objects.filter(
-                unity_bill_source_id=bill.id, 
-                reconned_bank_line_id__isnull=False
-            ).values_list('reconned_bank_line_id', flat=True)
-            
-            bill.bank_assigned_total = ReconnedBank.objects.filter(
-                id__in=used_line_ids
-            ).aggregate(total=Sum('transaction_amount'))['total'] or Decimal('0.00')
-            
-            overs_created = CreditNote.objects.filter(
-                source_bank_line_id__in=used_line_ids,
-                note_selection='OVERS',
-                ccdates_month=bill.A_CCDatesMonth
-            ).aggregate(total=Sum('schedule_amount'))['total'] or Decimal('0.00')
-            
+            used_line_ids = BillSettlement.objects.filter(unity_bill_source_id=bill.id, reconned_bank_line_id__isnull=False).values_list('reconned_bank_line_id', flat=True)
+            bill.bank_assigned_total = ReconnedBank.objects.filter(id__in=used_line_ids).aggregate(total=Sum('transaction_amount'))['total'] or Decimal('0.00')
+            overs_created = CreditNote.objects.filter(source_bank_line_id__in=used_line_ids, note_selection='OVERS', ccdates_month=bill.A_CCDatesMonth).aggregate(total=Sum('schedule_amount'))['total'] or Decimal('0.00')
             legacy_surplus = ScheduleSurplus.objects.filter(unity_bill_source_id=bill.id).aggregate(total=Sum('surplus_amount'))['total'] or Decimal('0.00')
-            
             bill.surplus_created = overs_created + legacy_surplus
             settled_bills.append(bill)
         else:
@@ -521,12 +555,21 @@ def unity_information(request: HttpRequest, company_code):
             subject, recipient, email_body_html, action_note_val = request.POST.get('member_email_subject_reply', 'Claim Update'), request.POST.get('member_recipient_email'), request.POST.get('email_body_html_content'), request.POST.get('action_notes', 'Email Composed')
             if recipient and email_body_html:
                 from .services import OutlookGraphService 
-                # Ensure attachment=None is passed or handled if updated previously
                 response = OutlookGraphService.send_outlook_email(settings.OUTLOOK_EMAIL_ADDRESS, recipient, subject, email_body_html, 'HTML')
                 if response.get('success'):
-                    UnityNotes.objects.create(member_group_code=company_code, user=request.user.username, date=timezone.now(), communication_type='Sent Email', action_notes=action_note_val[:90], attached_email_id=response.get('id', ''), notes=f"To: {recipient}\nSubject: {subject}\n{email_body_html}")
+                    # Save Subject in notes so it can be parsed later
+                    UnityNotes.objects.create(
+                        member_group_code=company_code, 
+                        user=request.user.username, 
+                        date=timezone.now(), 
+                        communication_type='Sent Email', 
+                        action_notes=action_note_val[:90], 
+                        attached_email_id=response.get('id', ''), 
+                        notes=f"To: {recipient}\nSubject: {subject}\n{email_body_html}"
+                    )
                     messages.success(request, f"Email sent to {recipient}!")
-                else: messages.error(request, f"Graph API Error: {response.get('error')}")
+                else: 
+                    messages.error(request, f"Graph API Error: {response.get('error')}")
             return redirect(f"{reverse('unity_information', kwargs={'company_code': company_code})}#email-log")
 
         if 'update_general_info' in request.POST and unity_record and not is_fallback:
@@ -537,7 +580,8 @@ def unity_information(request: HttpRequest, company_code):
                 unity_record.fund_status, unity_record.i_last_recon, unity_record.c_agent, unity_record.d_company_status, unity_record.e_payment_method, unity_record.f_billing_method, unity_record.g_current_fiscal, unity_record.h_current_status, unity_record.j_arrears = request.POST.get('fund_status'), request.POST.get('last_recon_note'), request.POST.get('agent'), request.POST.get('company_status'), request.POST.get('payment_method'), request.POST.get('billing_method'), request.POST.get('current_fiscal'), request.POST.get('current_status'), request.POST.get('arrears')
                 unity_record.save()
                 messages.success(request, "General Information updated.")
-            except Exception as e: messages.error(request, f"Error saving: {e}")
+            except Exception as e: 
+                messages.error(request, f"Error saving: {e}")
             return redirect('unity_information', company_code=company_code)
         
         elif request.POST.get('note_content') or request.POST.get('action_notes'):
@@ -554,7 +598,20 @@ def unity_information(request: HttpRequest, company_code):
             messages.success(request, "Note and attachment added.")
             return redirect(f"{reverse('unity_information', kwargs={'company_code': company_code})}#notes-log")
 
-    context = {'unity_record': unity_record, 'notes': notes, 'communication_logs': communication_logs, 'combined_email_log': combined_email_log, 'is_fallback': is_fallback, 'bank_lines': bank_lines, 'credit_notes': credit_notes, 'open_bills': open_bills, 'settled_bills': settled_bills, 'company_claims': company_claims, 'available_surplus': available_surplus_value, 'my_delegated_emails': my_delegated_emails}
+    context = {
+        'unity_record': unity_record, 
+        'notes': notes, 
+        'communication_logs': communication_logs, 
+        'combined_email_log': combined_email_log, 
+        'is_fallback': is_fallback, 
+        'bank_lines': bank_lines, 
+        'credit_notes': credit_notes, 
+        'open_bills': open_bills, 
+        'settled_bills': settled_bills, 
+        'company_claims': company_claims, 
+        'available_surplus': available_surplus_value, 
+        'my_delegated_emails': my_delegated_emails
+    }
     return render(request, 'unity_internal_app/unity_information.html', context)
 
 @login_required
@@ -1215,88 +1272,101 @@ def display_bankline_review(request, recon_id):
 @login_required
 @transaction.atomic
 def update_bankline_details(request, recon_id):
-    """Updates ReconnedBank using separate columns for category and detailed notes."""
-    from .models import ReconnedBank
+    """
+    Updates Bank Line details, sends a custom email body with attachments,
+    and logs the interaction to UnityNotes.
+    """
+    from .models import ReconnedBank, UnityNotes
+    from .services import OutlookGraphService
+    from django.conf import settings
+    
     recon_record = get_object_or_404(ReconnedBank.objects.select_related('bank_line'), pk=recon_id)
     
     if request.method == 'POST':
+        # --- 1. DATA UPDATES ---
         new_company_code = request.POST.get('company_code_select')
         new_fiscal_date = request.POST.get('fiscal_date')
         source_param = request.POST.get('source_param')
-        
-        # Capture separate inputs from the modal
         category = request.POST.get('review_note', '').strip()
-        custom_text = request.POST.get('review_note_text', '').strip()
+        custom_internal_text = request.POST.get('review_note_text', '').strip()
 
-        allocation_cleared = (new_company_code in [None, '', 'None'])
-        
-        # --- SAVE TO INDIVIDUAL COLUMNS ---
         recon_record.company_code = new_company_code if new_company_code else None
         recon_record.fiscal_date = new_fiscal_date if new_fiscal_date else None
-        recon_record.review_note = category            # Category dropdown
-        recon_record.review_note_text = custom_text    # Detailed textarea (Saves to the new TEXT column)
+        recon_record.review_note = category
+        recon_record.review_note_text = custom_internal_text
         
-        # Status Logic
-        new_status = recon_record.recon_status
-        if allocation_cleared:
-            new_status = 'Unassigned'
-        elif recon_record.company_code:
-            new_status = 'Unreconciled - Allocated' if recon_record.fiscal_date else 'Unreconciled - Assigned'
+        # Update Status
+        if not new_company_code:
+            recon_record.recon_status = 'Unassigned'
+        else:
+            recon_record.recon_status = 'Review Pending' if "Query" in category else 'Unreconciled - Assigned'
         
-        if category and "Query required" in category:
-            new_status = 'Review Pending'
-        
-        recon_record.recon_status = new_status
         recon_record.save()
 
-        # Sync to bank line comments for audit history
-        bank_line = recon_record.bank_line
-        bank_line.comments = f"Reviewed: {category} - {custom_text} (Code: {recon_record.company_code or 'N/A'})"
-        bank_line.save()
-
-        # --- EMAIL NOTIFICATION LOGIC ---
+        # --- 2. EMAIL & ATTACHMENT LOGIC ---
         if request.POST.get('send_email_toggle') == 'on':
-            recipient = request.POST.get('recipient_email')
-            cc_email = request.POST.get('cc_email')
+            recipient = request.POST.get('recipient_email', '').strip()
+            cc_email = request.POST.get('cc_email', '').strip()
             subject = request.POST.get('email_subject')
-            full_recipients = f"{recipient},{cc_email}" if cc_email else recipient
+            # Get the custom body from the modal
+            custom_body = request.POST.get('email_body_content', '')
+            # Get the uploaded files
+            attachments = request.FILES.getlist('email_attachments')
 
-            email_body_html = f"""
+            # Build HTML wrapper for the custom body
+            full_html_body = f"""
             <html>
-            <body style="font-family: sans-serif; line-height: 1.6; color: #333;">
+            <body style="font-family: 'Segoe UI', Arial, sans-serif; color: #333;">
                 <div style="background-color: #1b5e20; color: white; padding: 15px; border-radius: 8px 8px 0 0;">
-                    <h2 style="margin:0;">Bank Line Review Update</h2>
+                    <h2 style="margin:0; font-size: 18px;">Unity Finance Department Update</h2>
                 </div>
-                <div style="padding: 20px; border: 1px solid #aed581; border-top: none; border-radius: 0 0 8px 8px;">
-                    <p>Hello,</p>
-                    <p>The following bank line has been updated by <strong>{request.user.username}</strong>:</p>
-                    <table style="width: 100%; border-collapse: collapse;">
-                        <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Company:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">{recon_record.company_code or 'N/A'}</td></tr>
-                        <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Amount:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">R {recon_record.transaction_amount}</td></tr>
-                        <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Category:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">{category}</td></tr>
-                        <tr><td style="padding: 8px; border-bottom: 1px solid #eee;"><strong>Internal Note:</strong></td><td style="padding: 8px; border-bottom: 1px solid #eee;">{custom_text}</td></tr>
-                    </table>
-                    <p style="margin-top: 20px; font-size: 12px; color: #777;">System: Unity_Internal | Ref: {recon_id}</p>
+                <div style="padding: 20px; border: 1px solid #aed581; border-top: none; border-radius: 0 0 8px 8px; background-color: #fcfdfc;">
+                    <div style="white-space: pre-line; margin-bottom: 20px;">
+                        {custom_body}
+                    </div>
+                    <hr style="border: none; border-top: 1px solid #eee;">
+                    <p style="font-size: 12px; color: #777;">
+                        Reference: {recon_record.bank_line.statement_reference if recon_record.bank_line else 'N/A'}<br>
+                        Category: {category}
+                    </p>
                 </div>
             </body>
             </html>
             """
-            
+
+            # Call Graph Service (Passing attachments list)
             result = OutlookGraphService.send_outlook_email(
-                settings.OUTLOOK_EMAIL_ADDRESS, full_recipients, subject, email_body_html, 'HTML'
+                sender_email=settings.OUTLOOK_EMAIL_ADDRESS,
+                recipient_email=recipient,
+                subject=subject,
+                body_content=full_html_body,
+                content_type='HTML',
+                cc_email=cc_email if cc_email else None,
+                attachments=attachments  # 🚀 Added attachments support
             )
 
             if result.get('success'):
-                messages.success(request, f"Details saved and email sent.")
+                # Log to UnityNotes for the Audit Trail
+                UnityNotes.objects.create(
+                    member_group_code=recon_record.company_code or "BULK",
+                    user=request.user.username,
+                    date=timezone.now(),
+                    communication_type='Sent Email',
+                    action_notes=f"Bank Review: {category}",
+                    notes=f"To: {recipient}\nSubject: {subject}\n\n{custom_body}\n(Attachments: {len(attachments)})",
+                    attached_email_id=result.get('id', '')
+                )
+                messages.success(request, f"Review saved and email sent with {len(attachments)} attachment(s).")
             else:
-                messages.error(request, f"Saved, but Email failed: {result.get('error')}")
+                messages.error(request, f"Details saved, but Email failed: {result.get('error')}")
         else:
-            messages.success(request, f"Bank Line {recon_id} details saved.")
+            messages.success(request, "Details updated successfully.")
 
-        if source_param == 'global':
-            return redirect('global_bank')
+        # Redirect Logic
+        if source_param == 'global': return redirect('global_bank')
+        if recon_record.company_code: return redirect('unity_information', company_code=recon_record.company_code)
         return redirect('bank_list')
-    
+
     return redirect('display_bankline_review', recon_id=recon_id)
 
 # --- NEW HELPER FUNCTION FOR FLEXIBLE ALLOCATION (Replaces old calculate_bill_debt logic) ---
