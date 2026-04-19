@@ -9,7 +9,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
-        body { font-family: 'Inter', sans-serif; background: linear-gradient(to bottom, #d1e2c4, #8fcf7f); min-height: 100vh; }
+        body { font-family: 'Inter', sans-serif; background: linear-gradient(to bottom, #f3f4f6, #d1d5db); min-height: 100vh; }
         
         /* Accordion Logic */
         .accordion-content {
@@ -24,75 +24,78 @@
         .rotate-icon { transition: transform 0.3s ease; }
         .accordion-toggle:checked ~ label .rotate-icon { transform: rotate(180deg); }
         
-        /* Hide Checkboxes */
         .accordion-toggle { display: none; }
+
+        /* Custom Scrollbars */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #065F46; border-radius: 10px; }
+        .scrollbar-blue::-webkit-scrollbar-thumb { background: #1e3a8a; }
     </style>
 </head>
 <body class="p-4 sm:p-8">
 
-    <div class="max-w-7xl mx-auto bg-[#f0fff0] rounded-xl shadow-2xl overflow-hidden border border-emerald-200">
-        <div class="p-6 bg-emerald-800 flex justify-between items-center border-b-4 border-emerald-600">
-            <div>
-                <h1 class="text-3xl font-extrabold text-white uppercase tracking-tighter">SLA Audit Trail</h1>
-                <p class="text-emerald-100 mt-1 text-sm font-medium">Performance monitoring and transaction note tracking.</p>
+    <div class="max-w-7xl mx-auto bg-white rounded-2xl shadow-2xl overflow-hidden border border-emerald-200">
+        <div class="p-6 bg-emerald-900 flex flex-wrap justify-between items-center border-b-4 border-emerald-600">
+            <div class="mb-4 md:mb-0">
+                <h1 class="text-3xl font-extrabold text-white uppercase tracking-tighter">Unified Audit Trail</h1>
+                <p class="text-emerald-300 mt-1 text-sm font-medium">SLA Performance & Multi-Department Reconciliation</p>
             </div>
-            <div class="flex gap-3">
+            <div class="flex flex-wrap gap-3">
                 <a href="{% url 'dashboard' %}" 
                    class="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg text-sm font-bold border border-white/20 flex items-center gap-2 transition-all">
-                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    <i class="fas fa-arrow-left"></i> Back
                 </a>
-                
                 <a href="{% url 'export_sla_excel' %}?start_date={{ start_date|default:'' }}&end_date={{ end_date|default:'' }}" 
                    class="bg-emerald-500 hover:bg-emerald-400 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg flex items-center gap-2 transition-all">
-                    <i class="fas fa-file-excel"></i> Export Combined Excel
+                    <i class="fas fa-file-excel"></i> Export Combined Log
                 </a>
             </div>
         </div>
 
-        <div class="p-8">
-            <form method="GET" class="mb-8 bg-white p-6 rounded-xl border border-emerald-200 flex flex-wrap gap-6 items-end shadow-sm">
-                <div class="flex-1 min-w-[150px]">
-                    <label class="block text-xs font-bold text-emerald-700 uppercase tracking-wider mb-2">Start Date</label>
-                    <input type="date" name="start_date" value="{{ start_date|default:'' }}" class="w-full border border-emerald-300 rounded-md px-3 py-1 bg-white">
+        <div class="p-6">
+            <form method="GET" class="mb-8 bg-emerald-50 p-6 rounded-xl border border-emerald-200 flex flex-wrap gap-6 items-end shadow-inner">
+                <div class="flex-1 min-w-[200px]">
+                    <label class="block text-xs font-bold text-emerald-800 uppercase tracking-wider mb-2">Analysis From</label>
+                    <input type="date" name="start_date" value="{{ start_date|default:'' }}" class="w-full border border-emerald-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-emerald-500 outline-none">
                 </div>
-                <div class="flex-1 min-w-[150px]">
-                    <label class="block text-xs font-bold text-emerald-700 uppercase tracking-wider mb-2">End Date</label>
-                    <input type="date" name="end_date" value="{{ end_date|default:'' }}" class="w-full border border-emerald-300 rounded-md px-3 py-1 bg-white">
+                <div class="flex-1 min-w-[200px]">
+                    <label class="block text-xs font-bold text-emerald-800 uppercase tracking-wider mb-2">Analysis To</label>
+                    <input type="date" name="end_date" value="{{ end_date|default:'' }}" class="w-full border border-emerald-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-emerald-500 outline-none">
                 </div>
-                <button type="submit" class="bg-emerald-600 text-white px-6 py-2 rounded-md text-sm font-bold hover:bg-emerald-700 shadow-md transition-colors">
-                    <i class="fas fa-filter mr-2"></i>Filter Results
+                <button type="submit" class="bg-emerald-700 text-white px-8 py-2.5 rounded-lg text-sm font-black hover:bg-emerald-800 shadow-md transition-all active:scale-95 uppercase">
+                    <i class="fas fa-sync-alt mr-2"></i> Update Results
                 </button>
             </form>
 
             <div class="space-y-6">
                 
-                <div class="rounded-lg border-2 border-emerald-800 bg-white overflow-hidden shadow-lg">
+                <div class="rounded-xl border-2 border-emerald-800 bg-white overflow-hidden shadow-lg">
                     <input type="checkbox" id="acc_agents" class="accordion-toggle" checked>
-                    <label for="acc_agents" class="flex justify-between items-center p-4 bg-emerald-900 text-white cursor-pointer select-none">
+                    <label for="acc_agents" class="flex justify-between items-center p-4 bg-emerald-950 text-white cursor-pointer select-none">
                         <span class="font-black uppercase tracking-widest flex items-center gap-3">
-                            <i class="fas fa-user-chart text-emerald-400"></i>
-                            Agent Resolution Summary ({{ agent_stats|length }})
+                            <i class="fas fa-chart-line text-emerald-400"></i> Agent Resolution Metrics
                         </span>
                         <i class="fas fa-chevron-down rotate-icon"></i>
                     </label>
                     <div class="accordion-content">
-                        <div class="p-4 bg-gray-50 border-t border-emerald-800">
+                        <div class="p-0 overflow-x-auto">
                             <table class="w-full text-left text-xs">
-                                <thead class="text-[10px] text-emerald-700 uppercase font-black">
+                                <thead class="text-[10px] bg-emerald-50 text-emerald-900 uppercase font-black border-b border-emerald-200">
                                     <tr>
-                                        <th class="p-3">Agent</th>
+                                        <th class="p-4">Agent Name</th>
                                         <th class="text-center">Total Assigned</th>
                                         <th class="text-center">Total Resolved</th>
-                                        <th class="text-right">Avg Resolution Time</th>
+                                        <th class="text-right p-4">Avg Resolution Time</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {% for stat in agent_stats %}
-                                    <tr class="border-t border-emerald-100 bg-white">
-                                        <td class="p-3 font-bold text-emerald-900">{{ stat.agent }}</td>
-                                        <td class="text-center">{{ stat.total_assigned }}</td>
-                                        <td class="text-center font-bold text-emerald-600">{{ stat.total_resolved }}</td>
-                                        <td class="text-right font-mono text-gray-500">{{ stat.avg_resolution }}</td>
+                                    <tr class="border-b border-gray-100 hover:bg-emerald-50/30 transition-colors">
+                                        <td class="p-4 font-bold text-emerald-900 text-sm">{{ stat.agent }}</td>
+                                        <td class="text-center font-medium">{{ stat.total_assigned }}</td>
+                                        <td class="text-center"><span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full font-bold">{{ stat.total_resolved }}</span></td>
+                                        <td class="text-right p-4 font-mono text-gray-500">{{ stat.avg_resolution }}</td>
                                     </tr>
                                     {% endfor %}
                                 </tbody>
@@ -101,130 +104,167 @@
                     </div>
                 </div>
 
-                <div class="rounded-lg border-2 border-emerald-800 bg-white overflow-hidden shadow-lg">
+                <div class="rounded-xl border-2 border-emerald-800 bg-white overflow-hidden shadow-lg">
                     <input type="checkbox" id="acc_emails" class="accordion-toggle">
-                    <label for="acc_emails" class="flex justify-between items-center p-4 bg-emerald-800 text-white cursor-pointer select-none border-t border-emerald-700">
+                    <label for="acc_emails" class="flex justify-between items-center p-4 bg-emerald-800 text-white cursor-pointer select-none">
                         <span class="font-black uppercase tracking-widest flex items-center gap-3">
-                            <i class="fas fa-envelope-open-text text-emerald-300"></i>
-                            Email Delegation Audit ({{ report_data|length }})
+                            <i class="fas fa-history text-emerald-300"></i> Email SLA Audit ({{ report_data|length }})
                         </span>
                         <i class="fas fa-chevron-down rotate-icon"></i>
                     </label>
                     <div class="accordion-content">
-                        <div class="grid grid-cols-12 bg-emerald-900 text-white p-3 text-[10px] font-bold uppercase tracking-widest">
-                            <div class="col-span-1">Type</div>
-                            <div class="col-span-2">Task Details</div>
-                            <div class="col-span-2">Category</div>
-                            <div class="col-span-1 text-center">Status</div>
-                            <div class="col-span-5 px-4 border-l border-emerald-700">Transaction History</div>
-                            <div class="col-span-1 text-right">SLA</div>
-                        </div>
-                        {% for item in report_data %}
-                        <div class="grid grid-cols-12 p-4 text-xs border-t border-emerald-100 hover:bg-gray-50 items-start">
-                            <div class="col-span-1">
-                                <span class="{% if item.delegation.work_related %}bg-emerald-100 text-emerald-700 border-emerald-200{% else %}bg-gray-100 text-gray-400 border-gray-200{% endif %} px-2 py-1 rounded text-[9px] font-black uppercase border">
-                                    {% if item.delegation.work_related %}Work{% else %}Other{% endif %}
-                                </span>
-                            </div>
-                            <div class="col-span-2">
-                                <div class="font-bold text-emerald-900 text-[11px] uppercase">{{ item.delegation.company_code|default:"No Code" }}</div>
-                                <div class="text-[9px] text-gray-400 italic mt-1 font-medium">Agent: {{ item.delegation.assigned_user.username|default:"Unassigned" }}</div>
-                                <div class="text-[9px] text-gray-300 mt-0.5">{{ item.delegation.received_at|date:"d M Y" }}</div>
-                            </div>
-                            <div class="col-span-2 font-bold text-emerald-700 text-[10px]">
-                                <i class="fas fa-tag text-emerald-400 mr-1"></i> {{ item.delegation.email_category|default:"General" }}
-                            </div>
-                            <div class="col-span-1 text-center">
-                                <span class="px-2 py-1 rounded text-[9px] font-black uppercase
-                                    {% if item.delegation.status == 'COM' %}bg-emerald-600 text-white
-                                    {% elif item.delegation.status == 'PEN' %}bg-amber-400 text-amber-900
-                                    {% else %}bg-gray-200 text-gray-600{% endif %}">
-                                    {{ item.delegation.get_status_display }}
-                                </span>
-                            </div>
-                            <div class="col-span-5 px-4 border-l border-emerald-50 space-y-3">
-                                {% for log in item.history_logs %}
-                                <div class="relative pl-4 border-l-2 border-emerald-100 pb-1">
-                                    <div class="absolute -left-[9px] top-0 w-4 h-4 bg-white border-2 border-emerald-400 rounded-full"></div>
-                                    <div class="flex justify-between items-center text-[9px] uppercase font-black text-emerald-600 mb-1">
-                                        <span>{{ log.action_type }}</span>
-                                        <span class="text-gray-400 font-mono">{{ log.timestamp|date:"d M H:i" }}</span>
-                                    </div>
-                                    <div class="text-gray-700 text-[10px]">
-                                        <div class="font-bold text-emerald-800">Subject: <span class="font-normal text-gray-600">{{ log.subject }}</span></div>
-                                    </div>
+                        <div class="max-h-[600px] overflow-y-auto custom-scrollbar">
+                            {% for item in report_data %}
+                            <div class="grid grid-cols-12 p-4 text-xs border-b border-emerald-50 hover:bg-gray-50 items-start">
+                                <div class="col-span-3">
+                                    <span class="{% if item.delegation.work_related %}bg-emerald-100 text-emerald-700{% else %}bg-gray-100 text-gray-400{% endif %} px-2 py-0.5 rounded text-[9px] font-black uppercase border mb-2 inline-block">
+                                        {% if item.delegation.work_related %}Internal{% else %}External{% endif %}
+                                    </span>
+                                    <div class="font-black text-emerald-900 text-sm leading-tight">{{ item.delegation.company_code|default:"Uncoded" }}</div>
+                                    <div class="text-[9px] text-gray-400 mt-1 uppercase">Agent: {{ item.delegation.assigned_user.username|default:"N/A" }}</div>
                                 </div>
-                                {% empty %}
-                                <p class="text-gray-300 italic text-[10px]">No history logs found.</p>
-                                {% endfor %}
+                                <div class="col-span-2 font-bold text-emerald-700 pt-2">{{ item.delegation.email_category|default:"General" }}</div>
+                                <div class="col-span-1 text-center pt-2">
+                                    <span class="px-2 py-1 rounded text-[9px] font-black uppercase {% if item.delegation.status == 'COM' %}bg-emerald-600 text-white{% else %}bg-amber-400 text-amber-900{% endif %}">
+                                        {{ item.delegation.get_status_display }}
+                                    </span>
+                                </div>
+                                <div class="col-span-5 px-4 border-l border-emerald-50 space-y-4">
+                                    {% for log in item.history_logs %}
+                                    <div class="relative pl-5 border-l-2 border-emerald-100">
+                                        <div class="absolute -left-[9px] top-0 w-4 h-4 bg-white border-2 border-emerald-400 rounded-full"></div>
+                                        <div class="text-[9px] uppercase font-black text-emerald-600">{{ log.action_type }} <span class="text-gray-400 ml-2">{{ log.timestamp|date:"d M H:i" }}</span></div>
+                                        <p class="text-gray-600 text-[10px]">{{ log.subject|truncatechars:100 }}</p>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                <div class="col-span-1 text-right pt-2">
+                                    {% if item.is_overdue %}<span class="text-red-500 font-black text-[10px] uppercase">Breach</span>
+                                    {% elif item.resolution_time %}<span class="text-emerald-500 font-black text-[10px] uppercase">Pass</span>
+                                    {% else %}<span class="text-gray-300 font-black text-[10px] uppercase">Pending</span>{% endif %}
+                                </div>
                             </div>
-                            <div class="col-span-1 text-right">
-                                {% if item.is_overdue %}<span class="text-red-600 font-black text-[10px] uppercase flex flex-col items-end"><i class="fas fa-times-circle text-sm mb-1"></i> Fail</span>
-                                {% elif item.resolution_time %}<span class="text-emerald-500 font-black text-[10px] uppercase flex flex-col items-end"><i class="fas fa-check-circle text-sm mb-1"></i> Pass</span>
-                                {% else %}<span class="text-gray-300 font-black text-[10px] uppercase">Open</span>{% endif %}
-                            </div>
+                            {% endfor %}
                         </div>
-                        {% endfor %}
                     </div>
                 </div>
 
-                <div class="rounded-lg border-2 border-emerald-800 bg-white overflow-hidden shadow-lg">
+                <div class="rounded-xl border-2 border-emerald-800 bg-white overflow-hidden shadow-lg">
                     <input type="checkbox" id="acc_banks" class="accordion-toggle">
-                    <label for="acc_banks" class="flex justify-between items-center p-4 bg-emerald-700 text-white cursor-pointer select-none border-t border-emerald-600">
+                    <label for="acc_banks" class="flex justify-between items-center p-4 bg-emerald-700 text-white cursor-pointer select-none">
                         <span class="font-black uppercase tracking-widest flex items-center gap-3">
-                            <i class="fas fa-file-invoice-dollar text-emerald-200"></i>
-                            Bank Line Review Audit ({{ bank_notes|length }})
+                            <i class="fas fa-file-invoice-dollar text-emerald-200"></i> Bank Line Review Audit ({{ bank_notes|length }})
                         </span>
                         <i class="fas fa-chevron-down rotate-icon"></i>
                     </label>
                     <div class="accordion-content">
-                        <div class="grid grid-cols-12 bg-emerald-900 text-white p-3 text-[10px] font-bold uppercase tracking-widest">
-                            <div class="col-span-1">Date</div>
-                            <div class="col-span-2">Company</div>
-                            <div class="col-span-1">Amount</div>
-                            <div class="col-span-2">Category / Note Label</div>
-                            <div class="col-span-5 px-4 border-l border-emerald-700">Detailed Internal Comment</div>
-                            <div class="col-span-1 text-center">Status</div>
-                        </div>
                         {% for note in bank_notes %}
-                        <div class="grid grid-cols-12 p-4 text-xs border-t border-emerald-100 hover:bg-emerald-50 items-start">
-                            <div class="col-span-1 font-mono text-gray-500 text-[10px]">{{ note.transaction_date|date:"Y-m-d" }}</div>
+                        <div class="grid grid-cols-12 p-4 text-xs border-b border-emerald-50 hover:bg-emerald-50/30 items-start">
+                            <div class="col-span-1 font-mono text-gray-500">{{ note.transaction_date|date:"Y-m-d" }}</div>
                             <div class="col-span-2 font-black text-emerald-900 uppercase">{{ note.company_code|default:"UNASSIGNED" }}</div>
-                            <div class="col-span-1 font-bold text-emerald-600">R {{ note.transaction_amount|floatformat:2 }}</div>
-                            <div class="col-span-2">
-                                <span class="bg-emerald-50 text-emerald-700 px-2 py-1 rounded text-[9px] font-black uppercase border border-emerald-100">
-                                    {{ note.review_note|default:"No Category" }}
-                                </span>
-                            </div>
-                            <div class="col-span-5 px-4 border-l border-emerald-50">
-                                <div class="text-gray-700 italic leading-relaxed">{{ note.review_note_text|default:"(No detailed note provided)" }}</div>
-                                <div class="text-[9px] text-gray-400 mt-2 font-mono">Ref: {{ note.bank_line.statement_reference }}</div>
-                            </div>
-                            <div class="col-span-1 text-center">
-                                <span class="px-2 py-1 rounded text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-200">
+                            <div class="col-span-2"><span class="bg-emerald-50 text-emerald-700 px-2 py-1 rounded text-[9px] font-black uppercase border">{{ note.review_note|default:"General" }}</span></div>
+                            <div class="col-span-5 px-4 border-l border-emerald-100 text-gray-800 italic">{{ note.review_note_text|default:"(No note)" }}</div>
+                            <div class="col-span-2 text-center">
+                                <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase border {% if note.recon_status == 'Reconciled' %}bg-emerald-600 text-white{% else %}bg-amber-100 text-amber-800{% endif %}">
                                     {{ note.recon_status }}
                                 </span>
                             </div>
                         </div>
-                        {% empty %}
-                        <div class="p-8 text-center text-gray-400 italic">No bank line review notes found.</div>
                         {% endfor %}
                     </div>
                 </div>
 
-            </div> <div class="mt-8 bg-emerald-600 text-white p-6 rounded-xl flex justify-between items-center shadow-xl">
-                <div>
-                    <span class="text-xl font-black uppercase tracking-widest">Combined Audit Count</span>
-                    <p class="text-emerald-100 text-xs">Total records across all departments analysed.</p>
+                <div class="rounded-xl border-2 border-blue-900 bg-white overflow-hidden shadow-lg">
+                    <input type="checkbox" id="acc_billing" class="accordion-toggle" checked>
+                    <label for="acc_billing" class="flex justify-between items-center p-4 bg-blue-900 text-white cursor-pointer select-none">
+                        <span class="font-black uppercase tracking-widest flex items-center gap-3">
+                            <i class="fas fa-file-invoice text-blue-300"></i> Billing Reconciliation Audit ({{ billing_sla|length }})
+                        </span>
+                        <i class="fas fa-chevron-down rotate-icon"></i>
+                    </label>
+                    <div class="accordion-content">
+                        <div class="grid grid-cols-12 bg-blue-950 text-white p-3 text-[10px] font-bold uppercase tracking-widest sticky top-0 z-10">
+                            <div class="col-span-2">Created Info</div>
+                            <div class="col-span-2">Reconciled Info</div>
+                            <div class="col-span-2 text-center">Current Status</div>
+                            <div class="col-span-4 px-4 border-l border-blue-800">Bill Details / Group Code</div>
+                            <div class="col-span-2 text-right">Amount</div>
+                        </div>
+                        <div class="max-h-[600px] overflow-y-auto custom-scrollbar scrollbar-blue">
+                            {% for item in billing_sla %}
+                            <div class="grid grid-cols-12 p-4 text-xs border-b border-blue-50 hover:bg-blue-50/50 items-start transition-colors">
+                                <div class="col-span-2">
+                                    <div class="font-black text-blue-900 text-[10px] uppercase">{{ item.created_by|default:"System" }}</div>
+                                    <div class="text-[9px] text-gray-400 mt-1"><i class="fas fa-calendar-plus mr-1"></i>{{ item.created_at|date:"d M Y" }}</div>
+                                </div>
+                                <div class="col-span-2 border-l border-blue-50 pl-4">
+                                    {% if item.bill.is_reconciled %}
+                                        <div class="font-black text-emerald-700 text-[10px] uppercase">{{ item.reconciled_by }}</div>
+                                        <div class="text-[9px] text-gray-400 mt-1"><i class="fas fa-check-circle mr-1"></i>{{ item.reconciled_at|date:"d M Y" }}</div>
+                                    {% else %}
+                                        <div class="text-amber-500 font-black text-[10px] uppercase">PENDING</div>
+                                        <div class="text-[9px] text-gray-300 mt-1 italic">Waiting for settlement</div>
+                                    {% endif %}
+                                </div>
+                                <div class="col-span-2 text-center">
+                                    <span class="px-2 py-1 rounded text-[9px] font-black uppercase border
+                                        {% if item.bill.is_reconciled %} bg-emerald-100 text-emerald-800 border-emerald-200
+                                        {% else %} bg-amber-100 text-amber-800 border-amber-200 {% endif %}">
+                                        {{ item.status }}
+                                    </span>
+                                </div>
+                                <div class="col-span-4 px-4 border-l border-blue-50">
+                                    <div class="mb-1">
+                                        <span class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-[9px] font-black border border-blue-200 uppercase">
+                                            Code: {{ item.member_group_code }}
+                                        </span>
+                                    </div>
+                                    <div class="font-black text-blue-900 text-[11px] uppercase">{{ item.bill.D_Company_Name|default:item.bill }}</div>
+                                    <div class="text-[9px] text-gray-400 mt-1 uppercase font-bold tracking-tighter">Ref: {{ item.bill.id }}</div>
+                                </div>
+                                <div class="col-span-2 text-right">
+                                    <div class="font-black text-blue-700 text-sm">R {{ item.total_amount|floatformat:2 }}</div>
+                                </div>
+                            </div>
+                            {% empty %}
+                            <div class="p-12 text-center text-gray-400 italic">No billing records found in this date range.</div>
+                            {% endfor %}
+                        </div>
+                    </div>
                 </div>
-                <span class="text-5xl font-black tracking-tighter">
-                    {% with total_emails=report_data|length total_banks=bank_notes|length %}
-                        {{ total_emails|add:total_banks }}
-                    {% endwith %}
-                </span>
+
+            </div>
+
+            <div class="mt-10 bg-gradient-to-r from-emerald-800 to-emerald-600 text-white p-8 rounded-2xl flex flex-wrap justify-between items-center shadow-2xl border-b-8 border-emerald-900">
+                <div class="mb-4 md:mb-0">
+                    <span class="text-xs font-black uppercase tracking-[0.3em] opacity-75">Unified Audit Summary</span>
+                    <h2 class="text-3xl font-black uppercase tracking-tighter">Total Volume Analysis</h2>
+                    <p class="text-emerald-100 text-sm mt-1">Cross-departmental audit across Emails, Banks, and Billing.</p>
+                </div>
+                <div class="flex items-center gap-6">
+                    <div class="text-center px-6 border-r border-white/20">
+                        <div class="text-3xl font-black">{{ report_data|length }}</div>
+                        <div class="text-[10px] uppercase font-bold opacity-70">Emails</div>
+                    </div>
+                    <div class="text-center px-6 border-r border-white/20">
+                        <div class="text-3xl font-black">{{ bank_notes|length }}</div>
+                        <div class="text-[10px] uppercase font-bold opacity-70">Banks</div>
+                    </div>
+                    <div class="text-center px-6 border-r border-white/20">
+                        <div class="text-3xl font-black">{{ billing_sla|length }}</div>
+                        <div class="text-[10px] uppercase font-bold opacity-70">Bills</div>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-6xl font-black tracking-tighter">
+                            {% with e=report_data|length b=bank_notes|length bl=billing_sla|length %}
+                                {{ e|add:b|add:bl }}
+                            {% endwith %}
+                        </span>
+                        <div class="text-[10px] uppercase font-black opacity-70 tracking-widest">Total Audited</div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
-
 </body>
 </html>

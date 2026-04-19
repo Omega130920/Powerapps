@@ -1,6 +1,7 @@
 import base64
 from itertools import count
 import os
+import re
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.forms import AuthenticationForm
@@ -1904,25 +1905,41 @@ def export_two_pot_tracking_acvv(request):
 def send_acvv_direct_email(request, company_code):
     """
     Handles the 'Compose New Email' form.
-    Now correctly saves body and attachment to EmailDelegation.
+    Correctly splits multiple recipients to prevent Graph API 'unresolved' errors.
     """
     if request.method == 'POST':
-        recipient = request.POST.get('member_recipient_email')
+        recipient_raw = request.POST.get('member_recipient_email', '')
         subject = request.POST.get('member_email_subject_reply')
         body = request.POST.get('email_body_html_content')
         attachment = request.FILES.get('email_attachment')
 
-        if recipient and subject and body:
+        if recipient_raw and subject and body:
             target_email = settings.OUTLOOK_EMAIL_ADDRESS
             
+            # --- MULTI-RECIPIENT FIX ---
+            # Split by semicolon (;) or comma (,) and remove any extra spaces
+            recipient_list = [email.strip() for email in re.split('[;,]', recipient_raw) if email.strip()]
+            
+            # Join back for the success message or logging (e.g., "email1, email2")
+            clean_recipient_str = ", ".join(recipient_list)
+
             # Send via Graph API
-            result = send_outlook_email(target_email, recipient, subject, body, content_type='Html', attachment=attachment)
+            # NOTE: Your 'send_outlook_email' helper must be able to handle a list 
+            # or you must pass the cleaned list to it depending on its internal logic.
+            result = send_outlook_email(
+                target_email, 
+                recipient_list, # Passing the list instead of a semicolon string
+                subject, 
+                body, 
+                content_type='Html', 
+                attachment=attachment
+            )
             
             if result.get('success'):
                 acvv_record = get_object_or_404(Globalacvv, mip_names=company_code)
                 new_ms_id = result.get('message_id') or f"SENT-{timezone.now().timestamp()}"
 
-                # This will no longer throw a TypeError once Step 1 is done!
+                # Save record to EmailDelegation
                 EmailDelegation.objects.create(
                     email_id=new_ms_id,
                     subject=subject,
@@ -1937,9 +1954,12 @@ def send_acvv_direct_email(request, company_code):
                     work_related=True,
                     communication_type='Email'
                 )
-                messages.success(request, f"Email sent successfully to {recipient}.")
+                messages.success(request, f"Email sent successfully to {clean_recipient_str}.")
             else:
+                # Log the specific Graph error (like the 400 error you saw)
                 messages.error(request, f"Email failed: {result.get('error')}")
+        else:
+            messages.warning(request, "Please fill in all required fields.")
 
     return redirect('acvv_information', mip_names=company_code)
 

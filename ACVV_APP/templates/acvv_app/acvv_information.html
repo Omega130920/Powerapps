@@ -223,8 +223,8 @@
                             <input type="hidden" name="email_body_html_content" id="standalone_email_html_content">
                             
                             <div class="form-group" style="margin-bottom: 10px;">
-                                <label style="font-weight: bold; display: block; margin-bottom: 5px;">To:</label>
-                                <input type="text" name="member_recipient_email" value="{{ acvv_record.mg_email_address }}" class="form-input" required>
+                                <label style="font-weight: bold; display: block; margin-bottom: 5px;">To (use ; for multiple):</label>
+                                <input type="text" name="member_recipient_email" id="standalone_recipient_input" value="{{ acvv_record.mg_email_address }}" class="form-input" required placeholder="example@mail.com; example2@mail.com">
                             </div>
                             
                             <div class="form-group" style="margin-bottom: 15px;">
@@ -551,6 +551,14 @@
         }
         function syncStandaloneEditor() {
             const editor = document.getElementById('standalone_email_body_editor');
+            const recipientInput = document.getElementById('standalone_recipient_input');
+            
+            // Front-end cleanup of multiple email string
+            // Replaces multiple commas/spaces with a clean semicolon separator
+            if(recipientInput.value) {
+                recipientInput.value = recipientInput.value.replace(/[, ]+/g, ';').replace(/;+/g, ';');
+            }
+            
             document.getElementById('standalone_email_html_content').value = editor.innerHTML;
         }
         function toggleEmailForm() {

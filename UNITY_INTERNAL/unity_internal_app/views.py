@@ -1308,12 +1308,10 @@ def update_bankline_details(request, recon_id):
             recipient = request.POST.get('recipient_email', '').strip()
             cc_email = request.POST.get('cc_email', '').strip()
             subject = request.POST.get('email_subject')
-            # Get the custom body from the modal
             custom_body = request.POST.get('email_body_content', '')
-            # Get the uploaded files
             attachments = request.FILES.getlist('email_attachments')
 
-            # Build HTML wrapper for the custom body
+            # Build HTML wrapper
             full_html_body = f"""
             <html>
             <body style="font-family: 'Segoe UI', Arial, sans-serif; color: #333;">
@@ -1334,31 +1332,37 @@ def update_bankline_details(request, recon_id):
             </html>
             """
 
-            # Call Graph Service (Passing attachments list)
-            result = OutlookGraphService.send_outlook_email(
-                sender_email=settings.OUTLOOK_EMAIL_ADDRESS,
-                recipient_email=recipient,
-                subject=subject,
-                body_content=full_html_body,
-                content_type='HTML',
-                cc_email=cc_email if cc_email else None,
-                attachments=attachments  # 🚀 Added attachments support
-            )
-
-            if result.get('success'):
-                # Log to UnityNotes for the Audit Trail
-                UnityNotes.objects.create(
-                    member_group_code=recon_record.company_code or "BULK",
-                    user=request.user.username,
-                    date=timezone.now(),
-                    communication_type='Sent Email',
-                    action_notes=f"Bank Review: {category}",
-                    notes=f"To: {recipient}\nSubject: {subject}\n\n{custom_body}\n(Attachments: {len(attachments)})",
-                    attached_email_id=result.get('id', '')
+            # Call Graph Service
+            try:
+                # 🚀 FIX: Added 'target_email' to match the service method signature
+                result = OutlookGraphService.send_outlook_email(
+                    target_email=settings.OUTLOOK_EMAIL_ADDRESS, 
+                    recipient_email=recipient,
+                    subject=subject,
+                    body_content=full_html_body,
+                    content_type='HTML',
+                    cc_email=cc_email if cc_email else None,
+                    attachments=attachments
                 )
-                messages.success(request, f"Review saved and email sent with {len(attachments)} attachment(s).")
-            else:
-                messages.error(request, f"Details saved, but Email failed: {result.get('error')}")
+
+                if result.get('success'):
+                    # Log to UnityNotes for the Audit Trail
+                    UnityNotes.objects.create(
+                        member_group_code=recon_record.company_code or "BULK",
+                        user=request.user.username,
+                        date=timezone.now(),
+                        communication_type='Sent Email',
+                        action_notes=f"Bank Review: {category}",
+                        notes=f"To: {recipient}\nSubject: {subject}\n\n{custom_body}\n(Attachments: {len(attachments)})",
+                        attached_email_id=result.get('id', '')
+                    )
+                    messages.success(request, f"Review saved and email sent with {len(attachments)} attachment(s).")
+                else:
+                    messages.error(request, f"Details saved, but Email failed: {result.get('error')}")
+            
+            except TypeError as e:
+                messages.error(request, f"Code Error: The Email Service signature mismatch. {str(e)}")
+
         else:
             messages.success(request, "Details updated successfully.")
 
@@ -5530,14 +5534,13 @@ from django.conf import settings
 @login_required
 def sla_report_view(request):
     """
-    SLA Report: Tracks Email Delegation stats AND Bank Line Review Notes.
+    SLA Report: Tracks Email Delegation, Bank Review Notes, and Billing Reconciliation.
     """
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
 
     # --- 1. EMAIL DELEGATION LOGIC ---
     delegations = EmailDelegation.objects.all().select_related('assigned_user').prefetch_related('transactions')
-
     if start_date and end_date and start_date not in ["None", ""] and end_date not in ["None", ""]:
         delegations = delegations.filter(received_at__range=[start_date, end_date])
 
@@ -5581,8 +5584,7 @@ def sla_report_view(request):
             'avg_resolution': str(avg_res).split('.')[0] if avg_res else "N/A"
         })
 
-    # --- 2. BANK LINE NOTES LOGIC (Integrated) ---
-    # Fetch bank segments that have either a category or internal text notes
+    # --- 2. BANK LINE NOTES LOGIC ---
     bank_notes_qs = ReconnedBank.objects.filter(
         Q(review_note__isnull=False) & ~Q(review_note='') | 
         Q(review_note_text__isnull=False) & ~Q(review_note_text='')
@@ -5591,31 +5593,59 @@ def sla_report_view(request):
     if start_date and end_date and start_date not in ["None", ""] and end_date not in ["None", ""]:
         bank_notes_qs = bank_notes_qs.filter(transaction_date__range=[start_date, end_date])
 
+    # --- 3. BILLING RECONCILIATION SLA ---
+    bills_qs = UnityBill.objects.all().order_by('-A_CCDatesMonth')
+    
+    if start_date and end_date and start_date not in ["None", ""] and end_date not in ["None", ""]:
+        bills_qs = bills_qs.filter(
+            Q(F_Pre_Bill_Date__range=[start_date, end_date]) | 
+            Q(J_Final_Date__range=[start_date, end_date])
+        )
+
+    billing_sla_data = []
+    for bill in bills_qs:
+        final_settlement = BillSettlement.objects.filter(unity_bill_source=bill).select_related('confirmed_by').order_by('-settlement_date').first()
+        reconciled_by = final_settlement.confirmed_by.username if final_settlement and final_settlement.confirmed_by else "System"
+        
+        # MAPPED TO UnityBill: C_Company_Code and H_Schedule_Amount
+        billing_sla_data.append({
+            'bill': bill,
+            'member_group_code': getattr(bill, 'C_Company_Code', 'N/A'),
+            'total_amount': getattr(bill, 'H_Schedule_Amount', 0.00),
+            'created_at': bill.F_Pre_Bill_Date,
+            'reconciled_at': bill.J_Final_Date if bill.is_reconciled else "Pending",
+            'status': "RECONCILED" if bill.is_reconciled else "OPEN / UNRECONCILED",
+            'reconciled_by': reconciled_by if bill.is_reconciled else "N/A",
+            'created_by': getattr(bill, 'created_by', 'System') 
+        })
+
     return render(request, 'unity_internal_app/sla_report.html', {
         'report_data': report_data,
         'agent_stats': final_agent_stats,
         'bank_notes': bank_notes_qs, 
+        'billing_sla': billing_sla_data,
         'start_date': start_date if start_date != "None" else "",
         'end_date': end_date if end_date != "None" else "",
     })
 
 @login_required
 def export_sla_report_excel(request):
-    import openpyxl
-    from openpyxl.styles import Font, PatternFill, Alignment
-    
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
     
     wb = openpyxl.Workbook()
     
+    # --- STYLING DEFAULTS ---
+    header_fill_email = PatternFill(start_color="065F46", end_color="065F46", fill_type="solid")
+    header_fill_bank = PatternFill(start_color="1B5E20", end_color="1B5E20", fill_type="solid")
+    header_fill_bill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid") 
+    white_font = Font(color="FFFFFF", bold=True)
+    center_alignment = Alignment(horizontal="center")
+
     # --- SHEET 1: EMAIL DELEGATION ---
     ws1 = wb.active
     ws1.title = "Email SLA Report"
     
-    header_fill = PatternFill(start_color="065F46", end_color="065F46", fill_type="solid")
-    white_font = Font(color="FFFFFF", bold=True)
-
     headers_email = [
         "Work Related", "Company Code", "Category", "Agent", 
         "Status", "Received At", "Delegated At", "Response Time", 
@@ -5623,21 +5653,22 @@ def export_sla_report_excel(request):
     ]
     ws1.append(headers_email)
     for cell in ws1[1]:
-        cell.fill = header_fill
+        cell.fill = header_fill_email
         cell.font = white_font
-        cell.alignment = Alignment(horizontal="center")
+        cell.alignment = center_alignment
 
     qs_emails = EmailDelegation.objects.all().select_related('assigned_user').prefetch_related('transactions')
     if start_date and end_date and start_date not in ["None", ""]:
         qs_emails = qs_emails.filter(received_at__range=[start_date, end_date])
 
     for d in qs_emails:
-        notes_list = [f"[{t.timestamp.strftime('%H:%M')}] {t.action_type}" for t in d.transactions.all()]
+        all_transactions = list(d.transactions.all())
+        notes_list = [f"[{t.timestamp.strftime('%H:%M')}] {t.action_type}" for t in all_transactions]
         resp_str = str(d.delegated_at - d.received_at).split('.')[0] if d.delegated_at else "Pending"
         res_str = "Open"
-        if d.status == 'COM':
-            last_act = d.transactions.last()
-            if last_act: res_str = str(last_act.timestamp - d.received_at).split('.')[0]
+        if d.status == 'COM' and all_transactions:
+            last_act = all_transactions[-1]
+            res_str = str(last_act.timestamp - d.received_at).split('.')[0]
 
         ws1.append([
             "YES" if d.work_related else "NO",
@@ -5656,10 +5687,10 @@ def export_sla_report_excel(request):
         "Date", "Company", "Amount", "Status", "Category", "Detailed Note", "Bank Reference"
     ]
     ws2.append(headers_bank)
-    bank_header_fill = PatternFill(start_color="1B5E20", end_color="1B5E20", fill_type="solid")
     for cell in ws2[1]:
-        cell.fill = bank_header_fill
+        cell.fill = header_fill_bank
         cell.font = white_font
+        cell.alignment = center_alignment
 
     qs_banks = ReconnedBank.objects.filter(
         Q(review_note__isnull=False) & ~Q(review_note='') | 
@@ -5672,26 +5703,63 @@ def export_sla_report_excel(request):
     for b in qs_banks:
         ws2.append([
             b.transaction_date.strftime('%Y-%m-%d') if b.transaction_date else "",
-            b.company_code or "N/A",
-            b.transaction_amount,
-            b.recon_status,
-            b.review_note or "",
-            b.review_note_text or "",
+            b.company_code or "N/A", b.transaction_amount, b.recon_status,
+            b.review_note or "", b.review_note_text or "",
             b.bank_line.statement_reference if b.bank_line else "N/A"
         ])
 
-    # Final Formatting
+    # --- SHEET 3: BILLING RECONCILIATION ---
+    ws3 = wb.create_sheet(title="Billing SLA Report")
+    headers_bill = [
+        "Status", "Member Group Code", "Created At", "Reconciled At", 
+        "Created By", "Reconciled By", "Vendor/Reference", "Total Amount"
+    ]
+    ws3.append(headers_bill)
+    for cell in ws3[1]:
+        cell.fill = header_fill_bill
+        cell.font = white_font
+        cell.alignment = center_alignment
+
+    bills_qs = UnityBill.objects.all().order_by('-A_CCDatesMonth')
+    if start_date and end_date and start_date not in ["None", ""] and end_date not in ["None", ""]:
+        bills_qs = bills_qs.filter(
+            Q(F_Pre_Bill_Date__range=[start_date, end_date]) | 
+            Q(J_Final_Date__range=[start_date, end_date])
+        )
+
+    for bill in bills_qs:
+        final_settlement = BillSettlement.objects.filter(unity_bill_source=bill).select_related('confirmed_by').order_by('-settlement_date').first()
+        reconciled_by = final_settlement.confirmed_by.username if final_settlement and final_settlement.confirmed_by else "System"
+        
+        # MAPPED TO UnityBill: C_Company_Code and H_Schedule_Amount
+        m_group_code = getattr(bill, 'C_Company_Code', 'N/A')
+        total_amt = getattr(bill, 'H_Schedule_Amount', 0.00)
+
+        ws3.append([
+            "RECONCILED" if bill.is_reconciled else "OPEN",
+            m_group_code,
+            bill.F_Pre_Bill_Date.strftime('%Y-%m-%d') if bill.F_Pre_Bill_Date else "N/A",
+            bill.J_Final_Date.strftime('%Y-%m-%d') if (bill.is_reconciled and bill.J_Final_Date) else "Pending",
+            getattr(bill, 'created_by', 'System'),
+            reconciled_by if bill.is_reconciled else "N/A",
+            str(bill),
+            total_amt
+        ])
+
+    # --- FINAL FORMATTING ---
     for sheet in wb.worksheets:
         for col in sheet.columns:
             max_length = 0
             column = col[0].column_letter
             for cell in col:
                 try:
-                    if len(str(cell.value)) > max_length: max_length = len(str(cell.value))
+                    if cell.value and len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
                 except: pass
             sheet.column_dimensions[column].width = min(max_length + 2, 60)
 
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = f'attachment; filename="SLA_Log_{timezone.now().strftime("%Y%m%d")}.xlsx"'
+    filename = f"SLA_Log_{timezone.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
     wb.save(response)
     return response

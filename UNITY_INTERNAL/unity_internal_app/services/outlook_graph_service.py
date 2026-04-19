@@ -127,10 +127,10 @@ class OutlookGraphService:
         return response
 
     @staticmethod
-    def send_outlook_email(target_email, recipient_email, subject, body_content, content_type='HTML', attachments=None):
+    def send_outlook_email(target_email, recipient_email, subject, body_content, content_type='HTML', attachments=None, cc_email=None):
         """
         Sends an email via Microsoft Graph and retrieves the newly created ID 
-        from Sent Items. Now supports MULTIPLE file attachments.
+        from Sent Items. Now supports MULTIPLE file attachments and optional CC.
         """
         email_data = {
             "message": {
@@ -146,12 +146,21 @@ class OutlookGraphService:
                         }
                     }
                 ],
-                "attachments": []  # Initialize empty attachments list
+                "ccRecipients": [], # Initialize empty CC list
+                "attachments": [] 
             },
             "saveToSentItems": "true" 
         }
 
-        # 🚀 UPDATED: Process multiple attachments if they exist
+        # 🚀 ADDED: Logic to handle CC recipient if provided
+        if cc_email:
+            email_data["message"]["ccRecipients"].append({
+                "emailAddress": {
+                    "address": cc_email
+                }
+            })
+
+        # Process multiple attachments if they exist
         if attachments:
             for file in attachments:
                 try:
