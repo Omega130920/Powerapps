@@ -37,14 +37,6 @@ input[type="submit"]:hover { background-color: #388e3c; }
 <div class="container">
 <h1>Assign Bank Line #{{ current_recon.id }}</h1>
 
-{% if messages %}
-    {% for message in messages %}
-    <div class="message {{ message.tags }}">
-        {{ message }}
-    </div>
-    {% endfor %}
-{% endif %}
-
 <div class="bank-details">
     <h2>Transaction Details</h2>
     <p><strong>Deposit Date:</strong> {{ current_recon.transaction_date }}</p>

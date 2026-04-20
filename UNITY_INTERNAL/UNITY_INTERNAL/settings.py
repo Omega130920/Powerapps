@@ -41,7 +41,7 @@ if os.getenv('DJANGO_ENV', 'development') == 'development':
 SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
 ALLOWED_HOSTS = ['*','internalunity.futura.co.za','internalunity.futurasa.co.za']
 

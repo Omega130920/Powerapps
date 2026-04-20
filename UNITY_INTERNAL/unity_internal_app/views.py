@@ -5535,6 +5535,7 @@ from django.conf import settings
 def sla_report_view(request):
     """
     SLA Report: Tracks Email Delegation, Bank Review Notes, and Billing Reconciliation.
+    MAPPED TO RECON HISTORY LOGIC FROM UNITY_INFORMATION.
     """
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
@@ -5593,7 +5594,7 @@ def sla_report_view(request):
     if start_date and end_date and start_date not in ["None", ""] and end_date not in ["None", ""]:
         bank_notes_qs = bank_notes_qs.filter(transaction_date__range=[start_date, end_date])
 
-    # --- 3. BILLING RECONCILIATION SLA ---
+    # --- 3. BILLING RECONCILIATION SLA (MATCHED TO RECON HISTORY) ---
     bills_qs = UnityBill.objects.all().order_by('-A_CCDatesMonth')
     
     if start_date and end_date and start_date not in ["None", ""] and end_date not in ["None", ""]:
@@ -5604,17 +5605,43 @@ def sla_report_view(request):
 
     billing_sla_data = []
     for bill in bills_qs:
-        final_settlement = BillSettlement.objects.filter(unity_bill_source=bill).select_related('confirmed_by').order_by('-settlement_date').first()
+        # Fetching calculations using the logic from unity_information
+        settlements = BillSettlement.objects.filter(unity_bill_source_id=bill.id)
+        
+        # A. Schedule Amount
+        schedule_amt = getattr(bill, 'H_Schedule_Amount', Decimal('0.00')) or Decimal('0.00')
+
+        # B. Bank Settled (Consumed)
+        bank_settled_consumed = settlements.filter(reconned_bank_line_id__isnull=False).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
+
+        # C. Applied Credit (Credits + Journal Entries)
+        credit_allocated = settlements.filter(source_credit_note_id__isnull=False).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
+        journal_allocated = JournalEntry.objects.filter(target_bill_id=bill.id).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        applied_credit_total = credit_allocated + journal_allocated
+
+        # D. Bank Assigned (Original)
+        used_line_ids = settlements.filter(reconned_bank_line_id__isnull=False).values_list('reconned_bank_line_id', flat=True)
+        bank_assigned_total = ReconnedBank.objects.filter(id__in=used_line_ids).aggregate(total=Sum('transaction_amount'))['total'] or Decimal('0.00')
+
+        # E. Surplus Created (Overs + ScheduleSurplus)
+        overs_created = CreditNote.objects.filter(source_bank_line_id__in=used_line_ids, note_selection='OVERS', ccdates_month=bill.A_CCDatesMonth).aggregate(total=Sum('schedule_amount'))['total'] or Decimal('0.00')
+        legacy_surplus = ScheduleSurplus.objects.filter(unity_bill_source_id=bill.id).aggregate(total=Sum('surplus_amount'))['total'] or Decimal('0.00')
+        surplus_created = overs_created + legacy_surplus
+
+        final_settlement = settlements.select_related('confirmed_by').order_by('-settlement_date').first()
         reconciled_by = final_settlement.confirmed_by.username if final_settlement and final_settlement.confirmed_by else "System"
         
-        # MAPPED TO UnityBill: C_Company_Code and H_Schedule_Amount
         billing_sla_data.append({
             'bill': bill,
             'member_group_code': getattr(bill, 'C_Company_Code', 'N/A'),
-            'total_amount': getattr(bill, 'H_Schedule_Amount', 0.00),
+            'schedule_amt': schedule_amt,
+            'bank_assigned_original': bank_assigned_total,
+            'bank_settled_consumed': bank_settled_consumed,
+            'applied_credit': applied_credit_total,
+            'surplus_created': surplus_created,
             'created_at': bill.F_Pre_Bill_Date,
             'reconciled_at': bill.J_Final_Date if bill.is_reconciled else "Pending",
-            'status': "RECONCILED" if bill.is_reconciled else "OPEN / UNRECONCILED",
+            'status': "RECON COMPLETE" if bill.is_reconciled else "OPEN",
             'reconciled_by': reconciled_by if bill.is_reconciled else "N/A",
             'created_by': getattr(bill, 'created_by', 'System') 
         })
@@ -5634,8 +5661,6 @@ def export_sla_report_excel(request):
     end_date = request.GET.get('end_date')
     
     wb = openpyxl.Workbook()
-    
-    # --- STYLING DEFAULTS ---
     header_fill_email = PatternFill(start_color="065F46", end_color="065F46", fill_type="solid")
     header_fill_bank = PatternFill(start_color="1B5E20", end_color="1B5E20", fill_type="solid")
     header_fill_bill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid") 
@@ -5645,17 +5670,10 @@ def export_sla_report_excel(request):
     # --- SHEET 1: EMAIL DELEGATION ---
     ws1 = wb.active
     ws1.title = "Email SLA Report"
-    
-    headers_email = [
-        "Work Related", "Company Code", "Category", "Agent", 
-        "Status", "Received At", "Delegated At", "Response Time", 
-        "Resolution Time", "Action History"
-    ]
+    headers_email = ["Work Related", "Company Code", "Category", "Agent", "Status", "Received At", "Delegated At", "Response Time", "Resolution Time", "Action History"]
     ws1.append(headers_email)
     for cell in ws1[1]:
-        cell.fill = header_fill_email
-        cell.font = white_font
-        cell.alignment = center_alignment
+        cell.fill, cell.font, cell.alignment = header_fill_email, white_font, center_alignment
 
     qs_emails = EmailDelegation.objects.all().select_related('assigned_user').prefetch_related('transactions')
     if start_date and end_date and start_date not in ["None", ""]:
@@ -5667,83 +5685,71 @@ def export_sla_report_excel(request):
         resp_str = str(d.delegated_at - d.received_at).split('.')[0] if d.delegated_at else "Pending"
         res_str = "Open"
         if d.status == 'COM' and all_transactions:
-            last_act = all_transactions[-1]
-            res_str = str(last_act.timestamp - d.received_at).split('.')[0]
-
-        ws1.append([
-            "YES" if d.work_related else "NO",
-            d.company_code or "N/A",
-            d.email_category or "General",
-            d.assigned_user.username if d.assigned_user else "Unassigned",
-            d.get_status_display(),
-            d.received_at.strftime('%Y-%m-%d %H:%M') if d.received_at else "",
-            d.delegated_at.strftime('%Y-%m-%d %H:%M') if d.delegated_at else "",
-            resp_str, res_str, " | ".join(notes_list)
-        ])
+            res_str = str(all_transactions[-1].timestamp - d.received_at).split('.')[0]
+        ws1.append(["YES" if d.work_related else "NO", d.company_code or "N/A", d.email_category or "General", d.assigned_user.username if d.assigned_user else "Unassigned", d.get_status_display(), d.received_at.strftime('%Y-%m-%d %H:%M') if d.received_at else "", d.delegated_at.strftime('%Y-%m-%d %H:%M') if d.delegated_at else "", resp_str, res_str, " | ".join(notes_list)])
 
     # --- SHEET 2: BANK LINE REVIEW NOTES ---
     ws2 = wb.create_sheet(title="Bank Review Notes")
-    headers_bank = [
-        "Date", "Company", "Amount", "Status", "Category", "Detailed Note", "Bank Reference"
-    ]
+    headers_bank = ["Date", "Company", "Amount", "Status", "Category", "Detailed Note", "Bank Reference"]
     ws2.append(headers_bank)
     for cell in ws2[1]:
-        cell.fill = header_fill_bank
-        cell.font = white_font
-        cell.alignment = center_alignment
+        cell.fill, cell.font, cell.alignment = header_fill_bank, white_font, center_alignment
 
-    qs_banks = ReconnedBank.objects.filter(
-        Q(review_note__isnull=False) & ~Q(review_note='') | 
-        Q(review_note_text__isnull=False) & ~Q(review_note_text='')
-    ).select_related('bank_line')
-
+    qs_banks = ReconnedBank.objects.filter(Q(review_note__isnull=False) & ~Q(review_note='') | Q(review_note_text__isnull=False) & ~Q(review_note_text='')).select_related('bank_line')
     if start_date and end_date and start_date not in ["None", ""]:
         qs_banks = qs_banks.filter(transaction_date__range=[start_date, end_date])
 
     for b in qs_banks:
-        ws2.append([
-            b.transaction_date.strftime('%Y-%m-%d') if b.transaction_date else "",
-            b.company_code or "N/A", b.transaction_amount, b.recon_status,
-            b.review_note or "", b.review_note_text or "",
-            b.bank_line.statement_reference if b.bank_line else "N/A"
-        ])
+        ws2.append([b.transaction_date.strftime('%Y-%m-%d') if b.transaction_date else "", b.company_code or "N/A", b.transaction_amount, b.recon_status, b.review_note or "", b.review_note_text or "", b.bank_line.statement_reference if b.bank_line else "N/A"])
 
     # --- SHEET 3: BILLING RECONCILIATION ---
     ws3 = wb.create_sheet(title="Billing SLA Report")
     headers_bill = [
         "Status", "Member Group Code", "Created At", "Reconciled At", 
-        "Created By", "Reconciled By", "Vendor/Reference", "Total Amount"
+        "Created By", "Reconciled By", "Vendor/Reference", 
+        "Schedule Amount", "Bank Assigned (Original)", "Bank Settled (Consumed)", 
+        "Applied Credit", "Surplus Created (Overs)"
     ]
     ws3.append(headers_bill)
     for cell in ws3[1]:
-        cell.fill = header_fill_bill
-        cell.font = white_font
-        cell.alignment = center_alignment
+        cell.fill, cell.font, cell.alignment = header_fill_bill, white_font, center_alignment
 
     bills_qs = UnityBill.objects.all().order_by('-A_CCDatesMonth')
     if start_date and end_date and start_date not in ["None", ""] and end_date not in ["None", ""]:
-        bills_qs = bills_qs.filter(
-            Q(F_Pre_Bill_Date__range=[start_date, end_date]) | 
-            Q(J_Final_Date__range=[start_date, end_date])
-        )
+        bills_qs = bills_qs.filter(Q(F_Pre_Bill_Date__range=[start_date, end_date]) | Q(J_Final_Date__range=[start_date, end_date]))
 
     for bill in bills_qs:
-        final_settlement = BillSettlement.objects.filter(unity_bill_source=bill).select_related('confirmed_by').order_by('-settlement_date').first()
-        reconciled_by = final_settlement.confirmed_by.username if final_settlement and final_settlement.confirmed_by else "System"
+        settlements = BillSettlement.objects.filter(unity_bill_source_id=bill.id)
         
-        # MAPPED TO UnityBill: C_Company_Code and H_Schedule_Amount
-        m_group_code = getattr(bill, 'C_Company_Code', 'N/A')
-        total_amt = getattr(bill, 'H_Schedule_Amount', 0.00)
+        # Finance logic for Excel
+        bank_settled = settlements.filter(reconned_bank_line_id__isnull=False).aggregate(total=Sum('settled_amount'))['total'] or 0
+        cred_allocated = settlements.filter(source_credit_note_id__isnull=False).aggregate(total=Sum('settled_amount'))['total'] or 0
+        journ_allocated = JournalEntry.objects.filter(target_bill_id=bill.id).aggregate(total=Sum('amount'))['total'] or 0
+        applied_cred = cred_allocated + journ_allocated
+
+        used_ids = settlements.filter(reconned_bank_line_id__isnull=False).values_list('reconned_bank_line_id', flat=True)
+        bank_original = ReconnedBank.objects.filter(id__in=used_ids).aggregate(total=Sum('transaction_amount'))['total'] or 0
+        
+        overs = CreditNote.objects.filter(source_bank_line_id__in=used_ids, note_selection='OVERS', ccdates_month=bill.A_CCDatesMonth).aggregate(total=Sum('schedule_amount'))['total'] or 0
+        legacy_surp = ScheduleSurplus.objects.filter(unity_bill_source_id=bill.id).aggregate(total=Sum('surplus_amount'))['total'] or 0
+        surplus_total = overs + legacy_surp
+        
+        final_settlement = settlements.select_related('confirmed_by').order_by('-settlement_date').first()
+        recon_by = final_settlement.confirmed_by.username if final_settlement and final_settlement.confirmed_by else "System"
 
         ws3.append([
-            "RECONCILED" if bill.is_reconciled else "OPEN",
-            m_group_code,
+            "RECON COMPLETE" if bill.is_reconciled else "OPEN",
+            getattr(bill, 'C_Company_Code', 'N/A'),
             bill.F_Pre_Bill_Date.strftime('%Y-%m-%d') if bill.F_Pre_Bill_Date else "N/A",
             bill.J_Final_Date.strftime('%Y-%m-%d') if (bill.is_reconciled and bill.J_Final_Date) else "Pending",
             getattr(bill, 'created_by', 'System'),
-            reconciled_by if bill.is_reconciled else "N/A",
+            recon_by if bill.is_reconciled else "N/A",
             str(bill),
-            total_amt
+            getattr(bill, 'H_Schedule_Amount', 0),
+            bank_original,
+            bank_settled,
+            applied_cred,
+            surplus_total
         ])
 
     # --- FINAL FORMATTING ---

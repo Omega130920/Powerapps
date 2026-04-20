@@ -73,16 +73,6 @@ tr:hover {background-color: #e8f5e9;}
             <a href="{% url 'global_claims' %}" class="dashboard-button" style="background-color: #757575; border-color: #757575;">Clear</a>
         {% endif %}
     </form>
-    
-    {% if messages %}
-    <div style="margin-bottom: 15px;">
-        {% for message in messages %}
-            <div style="padding: 10px; border-radius: 4px; margin-bottom: 5px; {% if message.tags == 'success' %}background-color: #d4edda; color: #155724;{% else %}background-color: #f8d7da; color: #721c24;{% endif %}">
-                {{ message }}
-            </div>
-        {% endfor %}
-    </div>
-    {% endif %}
 
     <div style="overflow-y: auto; flex: 1;">
         {% if claims %}
