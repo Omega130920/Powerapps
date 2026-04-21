@@ -310,7 +310,8 @@ from django.db.models import Sum, Max, Q # Ensure Max is imported
 def unity_information(request: HttpRequest, company_code):
     """
     Displays detailed information for a single record.
-    UPDATED: Subject column now shows the actual Email Subject instead of Action Notes.
+    UPDATED: Now handles multiple email attachments and manual credit creation/flagging.
+    ENHANCED: Added financial summaries for Manual Credits and Claims.
     """
     from .models import (
         EmailDelegation, DelegationTransactionLog, UnityNotes, 
@@ -411,10 +412,24 @@ def unity_information(request: HttpRequest, company_code):
         line.original_assigned_amount = line.transaction_amount 
     
     bank_lines = bank_lines_assigned
+    
+    # 🚀 NEW: Flag Manual Credits for the template
     credit_notes = CreditNote.objects.filter(member_group_code=company_code).order_by('-ccdates_month')
+    for note in credit_notes:
+        # A credit is manual if it's not linked to a bank line or explicitly marked as manual
+        note.is_manual_credit = (note.source_bank_line is None or note.note_selection == 'MANUAL')
+
+    # 🚀 NEW ADDITION: Calculate Total Manual Credits Value
+    manual_credits_total = credit_notes.filter(
+        Q(source_bank_line__isnull=True) | Q(note_selection='MANUAL')
+    ).aggregate(total=Sum('schedule_amount'))['total'] or Decimal('0.00')
 
     try:
         company_claims = UnityClaim.objects.filter(company_code=company_code).prefetch_related('notes').order_by('-claim_created_date', 'member_surname')
+        
+        # 🚀 NEW ADDITION: Calculate Total Claims Value
+        total_claims_value = company_claims.aggregate(total=Sum('claim_amount'))['total'] or Decimal('0.00')
+
         delegation_pks = [c.linked_email_id for c in company_claims if c.linked_email_id]
         if delegation_pks:
             delegations_map = EmailDelegation.objects.in_bulk(delegation_pks)
@@ -429,6 +444,7 @@ def unity_information(request: HttpRequest, company_code):
                             claim.email_preview_subject, claim.email_preview_sender, claim.email_preview_body, claim.email_preview_date = inbox_item.subject, inbox_item.sender_address, inbox_item.body_content, inbox_item.received_at
     except Exception:
         company_claims = []
+        total_claims_value = Decimal('0.00')
     
     try:
         communication_logs = UnityNotes.objects.filter(member_group_code=lookup_code).filter(~Q(communication_type='Sent Email')).order_by('-date')
@@ -448,14 +464,13 @@ def unity_information(request: HttpRequest, company_code):
     # Fetch actual subjects from the Inbox records
     inbox_records = OutlookInbox.objects.filter(email_id__in=related_string_ids)
     inbox_map = {email.email_id: email.received_at for email in inbox_records}
-    inbox_subject_map = {email.email_id: email.subject for email in inbox_records} # 🚀 NEW
+    inbox_subject_map = {email.email_id: email.subject for email in inbox_records}
 
     # Process Original Delegated Tasks
     for item in all_delegations:
         if item.status in ['DLT', 'DELETED', 'TRASH']: continue
         is_completed = item.status in ['COMP', 'DONE', 'CLS']
         
-        # 🚀 Logic change: Use actual email subject if available, otherwise category
         actual_subject = inbox_subject_map.get(item.email_id) or item.email_category or f"Task: {item.email_id[:12]}..."
         
         combined_email_log.append({
@@ -496,11 +511,9 @@ def unity_information(request: HttpRequest, company_code):
     for email in direct_emails:
         outlook_id = email.attached_email_id or (email.action_notes.replace("OUTLOOK_ID:", "").strip() if email.action_notes and "OUTLOOK_ID:" in email.action_notes else None)
         
-        # 🚀 NEW: Attempt to parse actual subject from the notes field
         email_sent_subject = email.action_notes or 'Email Sent'
         if email.notes and "Subject:" in email.notes:
             try:
-                # Extract subject from "To: ...\nSubject: Actual Subject\n..."
                 lines = email.notes.split('\n')
                 for line in lines:
                     if line.startswith("Subject:"):
@@ -551,13 +564,25 @@ def unity_information(request: HttpRequest, company_code):
 
     # --- 6. HANDLE POST REQUESTS ---
     if request.method == 'POST':
+        # Action: Send Email
         if request.POST.get('email_submission_action') == 'send_email_and_log' or request.POST.get('action') == 'send_outgoing_member_note':
-            subject, recipient, email_body_html, action_note_val = request.POST.get('member_email_subject_reply', 'Claim Update'), request.POST.get('member_recipient_email'), request.POST.get('email_body_html_content'), request.POST.get('action_notes', 'Email Composed')
+            subject = request.POST.get('member_email_subject_reply', 'Claim Update')
+            recipient = request.POST.get('member_recipient_email')
+            email_body_html = request.POST.get('email_body_html_content')
+            action_note_val = request.POST.get('action_notes', 'Email Composed')
+            
+            attachments = request.FILES.getlist('attachments')
+
             if recipient and email_body_html:
                 from .services import OutlookGraphService 
-                response = OutlookGraphService.send_outlook_email(settings.OUTLOOK_EMAIL_ADDRESS, recipient, subject, email_body_html, 'HTML')
+                response = OutlookGraphService.send_outlook_email(
+                    settings.OUTLOOK_EMAIL_ADDRESS, recipient, subject, email_body_html, 'HTML', attachments=attachments
+                )
                 if response.get('success'):
-                    # Save Subject in notes so it can be parsed later
+                    # 🚀 ENHANCED: Prettier note entry for email logs
+                    attachment_count = len(attachments)
+                    attach_string = f" ({attachment_count} files)" if attachment_count > 0 else ""
+                    
                     UnityNotes.objects.create(
                         member_group_code=company_code, 
                         user=request.user.username, 
@@ -565,13 +590,33 @@ def unity_information(request: HttpRequest, company_code):
                         communication_type='Sent Email', 
                         action_notes=action_note_val[:90], 
                         attached_email_id=response.get('id', ''), 
-                        notes=f"To: {recipient}\nSubject: {subject}\n{email_body_html}"
+                        notes=f"To: {recipient}\nSubject: {subject}\nAttachments: {attach_string}\n{email_body_html}"
                     )
-                    messages.success(request, f"Email sent to {recipient}!")
+                    messages.success(request, f"Email sent with {attachment_count} attachment(s)!")
                 else: 
                     messages.error(request, f"Graph API Error: {response.get('error')}")
             return redirect(f"{reverse('unity_information', kwargs={'company_code': company_code})}#email-log")
 
+        # 🚀 Action: Create Manual Credit
+        elif request.POST.get('action') == 'create_manual_credit':
+            try:
+                amount = request.POST.get('amount', '0.00')
+                month = request.POST.get('ccdates_month')
+                desc = request.POST.get('description', 'Manual Adjustment')
+                
+                CreditNote.objects.create(
+                    member_group_code=company_code,
+                    ccdates_month=month,
+                    schedule_amount=Decimal(amount),
+                    note_selection='MANUAL',
+                    description=desc,
+                )
+                messages.success(request, f"Manual credit of R{amount} created for {month}.")
+            except Exception as e:
+                messages.error(request, f"Error creating manual credit: {e}")
+            return redirect(f"{reverse('unity_information', kwargs={'company_code': company_code})}#bank-lines")
+
+        # Action: Update General Info
         if 'update_general_info' in request.POST and unity_record and not is_fallback:
             try:
                 unity_record.recon_contact_1_name, unity_record.recon_contact_1_email, unity_record.recon_contact_2_name, unity_record.recon_contact_2_email = request.POST.get('recon_contact_1_name'), request.POST.get('recon_contact_1_email'), request.POST.get('recon_contact_2_name'), request.POST.get('recon_contact_2_email')
@@ -584,6 +629,7 @@ def unity_information(request: HttpRequest, company_code):
                 messages.error(request, f"Error saving: {e}")
             return redirect('unity_information', company_code=company_code)
         
+        # Action: Add Note
         elif request.POST.get('note_content') or request.POST.get('action_notes'):
             pdf_file = request.FILES.get('note_pdf_attachment')
             UnityNotes.objects.create(
@@ -610,7 +656,10 @@ def unity_information(request: HttpRequest, company_code):
         'settled_bills': settled_bills, 
         'company_claims': company_claims, 
         'available_surplus': available_surplus_value, 
-        'my_delegated_emails': my_delegated_emails
+        'my_delegated_emails': my_delegated_emails,
+        # 🚀 NEW: Context summaries
+        'manual_credits_total': manual_credits_total,
+        'total_claims_value': total_claims_value,
     }
     return render(request, 'unity_internal_app/unity_information.html', context)
 
