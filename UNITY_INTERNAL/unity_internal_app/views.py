@@ -1288,7 +1288,7 @@ def generate_recon_statement(request, recon_id):
 @login_required
 def display_bankline_review(request, recon_id):
     """Displays a single reconciled bank line for review and includes bulk allocation breakdown."""
-    from .models import ReconnedBank, InternalFunds, BillSettlement, CreditNote
+    from .models import ReconnedBank, InternalFunds, BillSettlement, CreditNote, BankLineNote
     
     # --- CAPTURE NAVIGATION SOURCE ---
     source_param = request.GET.get('from')
@@ -1298,17 +1298,18 @@ def display_bankline_review(request, recon_id):
     recon_record = get_object_or_404(ReconnedBank.objects.select_related('bank_line'), pk=recon_id)
     company_code = recon_record.company_code
 
-    # 🚀 NEW: FINANCIAL SUMMARY CALCULATIONS FOR HEADER 🚀
-    # Surplus represents unallocated funds in physical bank lines
+    # 🚀 FETCH SEPARATE NOTES FROM AUDIT TABLE 🚀
+    bank_notes = BankLineNote.objects.filter(recon_record=recon_record).order_by('-created_at')
+
+    # --- FINANCIAL SUMMARY CALCULATIONS FOR HEADER ---
     total_bank_surplus = ReconnedBank.objects.filter(company_code=company_code).aggregate(
         total=Sum(F('transaction_amount') - F('amount_settled'))
     )['total'] or ZERO_DECIMAL
 
-    # Manual credits represents adjustments created without a physical bank line
     manual_credits_total = CreditNote.objects.filter(
         member_group_code=company_code,
         source_bank_line__isnull=True
-    ).aggregate(total=Sum('schedule_amount'))['total'] or ZERO_DECIMAL
+    ).aggregate(total=Sum('bank_deposit_amount'))['total'] or ZERO_DECIMAL
     
     # --- FETCH BULK SETTLEMENTS ---
     settlements = BillSettlement.objects.filter(
@@ -1324,7 +1325,8 @@ def display_bankline_review(request, recon_id):
         'settlements': settlements,
         'company_codes': company_codes,
         'review_notes': REVIEW_NOTES_OPTIONS,
-        'current_category': recon_record.review_note,      
+        'current_category': recon_record.review_note,
+        'bank_notes': bank_notes, # Individual notes are passed here
         'is_from_unity_info': is_from_unity_info,
         'source': source_param,
         'available_surplus': total_bank_surplus,
@@ -1337,12 +1339,13 @@ def display_bankline_review(request, recon_id):
 @transaction.atomic
 def update_bankline_details(request, recon_id):
     """
-    Updates Bank Line details, sends a custom email body with attachments,
-    and logs the interaction to UnityNotes.
+    Updates Bank Line details, saves individual comments to the separate bank_line_notes table,
+    sends a custom email, and logs the interaction to UnityNotes.
     """
-    from .models import ReconnedBank, UnityNotes
+    from .models import ReconnedBank, UnityNotes, BankLineNote
     from .services import OutlookGraphService
     from django.conf import settings
+    from django.utils import timezone 
     
     recon_record = get_object_or_404(ReconnedBank.objects.select_related('bank_line'), pk=recon_id)
     
@@ -1352,13 +1355,25 @@ def update_bankline_details(request, recon_id):
         new_fiscal_date = request.POST.get('fiscal_date')
         source_param = request.POST.get('source_param')
         category = request.POST.get('review_note', '').strip()
-        custom_internal_text = request.POST.get('review_note_text', '').strip()
+        
+        # Capture the new comment from the form
+        new_comment_text = request.POST.get('review_note_text', '').strip()
 
         recon_record.company_code = new_company_code if new_company_code else None
         recon_record.fiscal_date = new_fiscal_date if new_fiscal_date else None
         recon_record.review_note = category
-        recon_record.review_note_text = custom_internal_text
         
+        # 🚀 LOGIC: SAVE NEW NOTE AS A SEPARATE ROW 🚀
+        # We no longer append to recon_record.review_note_text to keep columns separate
+        if new_comment_text:
+            BankLineNote.objects.create(
+                recon_record=recon_record,
+                note_text=new_comment_text,
+                category=category,
+                created_by=request.user.username
+                # created_at is handled by auto_now_add in the model
+            )
+
         # Update Status
         if not new_company_code:
             recon_record.recon_status = 'Unassigned'
@@ -5170,6 +5185,7 @@ def download_email_file(request, email_id):
     except Exception as e:
         messages.error(request, f"Error downloading email: {str(e)}")
         return redirect(request.META.get('HTTP_REFERER', 'unity_list'))
+    
     
 @login_required
 @transaction.atomic

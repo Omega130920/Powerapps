@@ -854,3 +854,21 @@ class OutlookInbox(models.Model):
 
     def __str__(self):
         return f"{self.subject} (From: {self.sender_address})"
+    
+class BankLineNote(models.Model):
+    # Ensure the db_column matches the one we just created in SQL
+    recon_record = models.ForeignKey(
+        'ReconnedBank', 
+        on_delete=models.CASCADE, 
+        related_name='notes', 
+        db_column='recon_record_id'
+    )
+    note_text = models.TextField()
+    category = models.CharField(max_length=100, blank=True, null=True)
+    created_by = models.CharField(max_length=150)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False  # Critical for your setup
+        db_table = 'bank_line_notes'
+        ordering = ['-created_at']

@@ -66,27 +66,27 @@ urlpatterns = [
     path('confirmations/', views.confirmations_view, name='confirmations'),
 
     # --- UPDATED EXCEL EXPORTS ---
-    # Targets the Yellow Billing Theme (Only Two-Pot)
-    # Targets the Green Audit Theme (Excludes Two-Pot)
     path('export_global_claims_excel/', views.export_global_claims_excel, name='export_global_claims_excel'),
     
-    # --- Outlook DELEGATOR Paths ---
+    # --- Outlook DELEGATOR Paths (Updated with <path:> for Graph IDs) ---
     path('outlook/', views.outlook_dashboard_view, name='outlook_dashboard'), 
     path('outlook/send/', views.send_email_view, name='send_email'), 
-    path('outlook/delegate/<str:email_id>/', views.outlook_delegate_to, name='outlook_delegate_to'),
+    path('outlook/delegate/<path:email_id>/', views.outlook_delegate_to, name='outlook_delegate_to'),
     path('outlook/recycle-bin/', views.outlook_recycle_bin_view, name='outlook_recycle_bin'),
     path('outlook/delete-permanent/', views.outlook_delete_permanent, name='outlook_delete_permanent'),
-    path('view-email-thread/<str:email_id>/', views.view_email_thread, name='view_email_thread'),
-    path('outlook/download/<str:message_id>/<str:attachment_id>/', views.download_attachment_view, name='download_attachment'),
+    path('view-email-thread/<path:email_id>/', views.view_email_thread, name='view_email_thread'),
+    
+    # Updated name to match template 'download_attachment_view' and variable names to email_id
+    path('outlook/download/<path:email_id>/<path:attachment_id>/', views.download_attachment_view, name='download_attachment_view'),
 
     # --- Outlook DELEGATED Paths ---
     path('outlook/delegated/', views.outlook_delegated_box, name='outlook_delegated_box'),
     path('outlook/action/<int:delegation_id>/', views.outlook_delegated_action, name='outlook_delegated_action'),
     
-    # Email Archive & Exports
+    # Email Archive & Exports (Updated with <path:>)
     path('emails/archive/', views.email_list_view, name='email_list'),
     path('emails/export/', views.export_email_list, name='export_email_list'),
-    path('download-email/<str:email_id>/', views.download_email_file, name='download_email_file'),
+    path('download-email/<path:email_id>/', views.download_email_file, name='download_email_file'),
     path('export_two_pot_invoice/', views.export_two_pot_invoice, name='export_two_pot_invoice'),
     path('export_two_pot_tracking/', views.export_two_pot_tracking, name='export_two_pot_tracking'),
     
@@ -94,6 +94,6 @@ urlpatterns = [
     path('bank/bulk-billing/', views.bulk_billing_dashboard, name='bulk_billing_dashboard'),
     path('sla-report/', views.sla_report_view, name='sla_report'),
 
-    # Excel Export View (Matches the name used in your HTML template)
+    # Excel Export View
     path('sla-report/export/', views.export_sla_report_excel, name='export_sla_excel'),
 ]

@@ -269,6 +269,7 @@
             </p>
         </div>
         <div class="btn-group">
+            {# 🚀 Corrected logic uses email.id consistently 🚀 #}
             <a href="{% url 'download_email_file' email_id=email.id %}" class="download-eml-button">
                 <i class="fas fa-file-download"></i> Download Full Email (.eml)
             </a>
@@ -298,7 +299,7 @@
                 {% for att in attachments %}
                 <div class="attachment-card">
                     <div class="preview-container">
-                        {% if att.contentBytes %}
+                        {% if att.contentBytes and "image" in att.contentType %}
                             <img src="data:{{ att.contentType }};base64,{{ att.contentBytes }}" 
                                  onclick="window.open(this.src)" 
                                  title="Click to expand"
@@ -309,7 +310,7 @@
                                 <i class="fas fa-file-excel file-icon" style="color: #1D6F42;"></i>
                             {% elif "word" in att.contentType or "docx" in att.name|lower %}
                                 <i class="fas fa-file-word file-icon" style="color: #2B579A;"></i>
-                            {% elif "pdf" in att.contentType %}
+                            {% elif "pdf" in att.contentType or "pdf" in att.name|lower %}
                                 <i class="fas fa-file-pdf file-icon" style="color: #E02316;"></i>
                             {% else %}
                                 <i class="fas fa-file-alt file-icon" style="color: #607d8b;"></i>
@@ -317,7 +318,9 @@
                         {% endif %}
                     </div>
                     <div class="file-name" title="{{ att.name }}">{{ att.name }}</div>
-                    <a href="{% url 'download_attachment_view' message_id=email.id attachment_id=att.id %}" class="btn-download-small">
+                    
+                    {# 🚀 FIXED: Changed message_id= to email_id= to match urls.py 🚀 #}
+                    <a href="{% url 'download_attachment_view' email_id=email.id attachment_id=att.id %}" target="_blank" class="btn-download-small">
                         <i class="fas fa-download"></i> Download
                     </a>
                 </div>

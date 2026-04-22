@@ -1380,7 +1380,6 @@
                 {% for email in combined_email_log %}
                 <tr style="border-bottom: 1px solid #eee; transition: background-color 0.2s; {% if email.status == 'COMP' or email.status == 'DONE' or email.status == 'CLS' %}background-color: #f9f9f9; color: #888;{% endif %}">
                     
-                    {# COLUMN 1: TYPE BADGES #}
                     <td style="padding: 10px;">
                         {% if email.type == 'Original' %}
                             <span style="font-weight: bold; color: #1976d2;">📥 ORIGINAL</span>
@@ -1391,7 +1390,6 @@
                         {% endif %}
                     </td>
 
-                    {# COLUMN 2: SUBJECT + THREAD LINK #}
                     <td style="padding: 10px;">
                         {% if email.status == 'COMP' or email.status == 'DONE' or email.status == 'CLS' %}
                             <span style="color: #666; font-weight: 500; cursor: not-allowed;" title="Thread is completed and locked">
@@ -1406,16 +1404,10 @@
                         {% endif %}
                     </td>
 
-                    {# COLUMN 3: RECEIVED DATE #}
                     <td style="padding: 10px;">{{ email.arrival_timestamp|date:"Y-m-d H:i"|default:"-" }}</td>
-
-                    {# COLUMN 4: DELEGATED DATE #}
                     <td style="padding: 10px;">{{ email.delegation_timestamp|date:"Y-m-d H:i"|default:"-" }}</td>
-
-                    {# COLUMN 5: ASSIGNED TO / RECIPIENT #}
                     <td style="padding: 10px;">{{ email.assigned_to|default:"-" }}</td>
 
-                    {# COLUMN 6: STATUS BADGE #}
                     <td style="padding: 10px;">
                         {% if email.type == 'Direct' %}
                             <span style="color: #e91e63; font-weight: bold;">SENT</span>
@@ -1428,7 +1420,6 @@
                         {% endif %}
                     </td>
 
-                    {# COLUMN 7: ACTIONED DATE #}
                     <td style="padding: 10px;">
                         {% if email.type == 'Reply' or email.type == 'Direct' %}
                             {{ email.timestamp|date:"Y-m-d H:i" }}
@@ -1439,7 +1430,6 @@
                         {% endif %}
                     </td>
 
-                    {# COLUMN 8: ACTIONS #}
                     <td style="padding: 10px; text-align: center;">
                         <div class="email-log-actions" style="display: flex; gap: 5px; justify-content: center;">
                             {% if email.email_id and email.email_id != "MANUAL_SEND_SUCCESS" %}
@@ -1449,7 +1439,9 @@
                                    style="background-color: #43a047; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 0.85em;">
                                      <i class="fas fa-eye"></i> View
                                 </a>
-                                <a href="?download_email_id={{ email.email_id }}" 
+                                
+                                {# 🚀 FIX: Updated to match name='download_email_file' in urls.py 🚀 #}
+                                <a href="{% url 'download_email_file' email_id=email.email_id %}" 
                                    class="action-btn" 
                                    title="Download Sent .eml"
                                    style="background-color: #0277bd; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 0.85em;">

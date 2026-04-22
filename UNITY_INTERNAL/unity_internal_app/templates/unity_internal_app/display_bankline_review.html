@@ -45,6 +45,26 @@ h3{color:#1b5e20;margin-top:30px}
 
 .modal-content textarea { resize: vertical; min-height: 80px; }
 
+/* 🚀 NEW: VIEW NOTES BUTTON STYLE 🚀 */
+.view-notes-link {
+    background: #e3f2fd;
+    color: #1976d2;
+    border: 1px solid #bbdefb;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-weight: bold;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+.view-notes-link:hover {
+    background: #1976d2;
+    color: white;
+}
+
 /* SEARCH SEARCH STYLES */
 .search-wrapper { position: relative; margin-top: 5px; }
 .search-input-field { 
@@ -75,7 +95,7 @@ h3{color:#1b5e20;margin-top:30px}
 .search-item:hover { background-color: #e3f2fd; }
 .search-item.selected { background-color: #3f51b5; color: white; }
 
-/* --- NEW EMAIL TOGGLE STYLES --- */
+/* --- EMAIL TOGGLE STYLES --- */
 .email-section { 
     margin-top: 15px; 
     padding-top: 15px; 
@@ -111,10 +131,17 @@ input:checked + .slider:before { transform: translateX(20px); }
             <th>Current Review Category</th>
             <td>{{ current_category|default:"Not Categorized" }}</td>
         </tr>
+        
+        {# 🚀 UPDATED: Cleaned up the row to only show the "View Notes" button 🚀 #}
         <tr>
-            <th>Detailed Internal Note</th>
-            <td>{{ recon_record.review_note_text|default:"No details provided" }}</td>
+            <th>Internal Note History</th>
+            <td>
+                <button id="openNotesBtn" class="view-notes-link">
+                    <i class="fas fa-history"></i> View Audit Trail ({{ bank_notes|length }})
+                </button>
+            </td>
         </tr>
+
         <tr>
             <th>Current Recon Status</th>
             <td>
@@ -216,11 +243,39 @@ input:checked + .slider:before { transform: translateX(20px); }
     </div>
 </div>
 
+{# 🚀 NEW: AUDIT TRAIL MODAL 🚀 #}
+<div id="notesModal" class="modal">
+    <div class="modal-content" style="max-width: 650px;">
+        <h3><i class="fas fa-history"></i> Internal Note History: Line {{ recon_record.pk }}</h3>
+        <div style="max-height: 400px; overflow-y: auto; padding: 10px; border: 1px solid #eee; background: white;">
+            {% for note in bank_notes %}
+                <div style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #f1f1f1;">
+                    <div style="font-size: 0.8em; color: #555; margin-bottom: 4px;">
+                        <i class="fas fa-user-circle"></i> <strong>{{ note.created_by }}</strong> 
+                        <span style="margin: 0 5px; color: #ccc;">|</span>
+                        <i class="far fa-clock"></i> {{ note.created_at|date:"Y-m-d H:i" }}
+                        {% if note.category %}
+                            <span style="float: right; font-size: 0.85em; background: #e8f5e9; color: #2e7d32; padding: 1px 6px; border-radius: 10px;">{{ note.category }}</span>
+                        {% endif %}
+                    </div>
+                    <div style="font-size: 0.95em; color: #333; line-height: 1.5; white-space: pre-line;">
+                        {{ note.note_text }}
+                    </div>
+                </div>
+            {% empty %}
+                <p style="text-align: center; color: #888; font-style: italic;">No history recorded for this line.</p>
+            {% endfor %}
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="modal-cancel-button" id="closeNotesBtn" style="background-color: #607d8b;">Close Audit Trail</button>
+        </div>
+    </div>
+</div>
+
 <div id="reviewModal" class="modal">
     <div class="modal-content">
         <h3>Update Review Details: Line {{ recon_record.pk }}</h3>
         
-        {# --- 🚀 ADDED enctype="multipart/form-data" TO SUPPORT ATTACHMENTS --- #}
         <form id="reviewForm" method="POST" action="{% url 'update_bankline_details' recon_id=recon_record.pk %}" enctype="multipart/form-data">
             {% csrf_token %}
             
@@ -254,8 +309,8 @@ input:checked + .slider:before { transform: translateX(20px); }
                 {% endfor %}
             </select>
 
-            <label for="review_note_text">Internal Comments / Details:</label>
-            <textarea id="review_note_text" name="review_note_text" placeholder="Add specific details...">{{ recon_record.review_note_text }}</textarea>
+            <label for="review_note_text">Add New Internal Comment:</label>
+            <textarea id="review_note_text" name="review_note_text" placeholder="Type a new update here... (History is preserved automatically)"></textarea>
 
             <div class="email-section">
                 <div class="toggle-wrapper">
@@ -276,7 +331,6 @@ input:checked + .slider:before { transform: translateX(20px); }
                     <label for="email_subject">Email Subject:</label>
                     <input type="text" id="email_subject" name="email_subject" value="Update regarding Bank Transaction Ref: {{ bank_record.statement_reference }}">
                     
-                    {# --- 🚀 ADDED EMAIL BODY FIELD --- #}
                     <label for="email_body_content">Email Body Content:</label>
                     <textarea id="email_body_content" name="email_body_content" placeholder="Enter the message for the recipient..." style="min-height: 120px;">Dear Sir/Madam,
 
@@ -285,7 +339,6 @@ Please see the following update regarding Member Group {{ recon_record.company_c
 Kind Regards,
 {{ request.user.username }}</textarea>
 
-                    {# --- 🚀 ADDED FILE ATTACHMENTS FIELD --- #}
                     <label for="email_attachments">Attach Files (Multiple):</label>
                     <input type="file" id="email_attachments" name="email_attachments" multiple style="padding: 10px; background: white; border: 1px dashed #ccc; width: 100%;">
                 </div>
@@ -301,9 +354,16 @@ Kind Regards,
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    const modal = document.getElementById('reviewModal');
-    const btn = document.getElementById('editBtn');
+    // --- Modals ---
+    const reviewModal = document.getElementById('reviewModal');
+    const notesModal = document.getElementById('notesModal');
+    
+    // --- Buttons ---
+    const editBtn = document.getElementById('editBtn');
     const closeBtn = document.getElementById('closeBtn');
+    const openNotesBtn = document.getElementById('openNotesBtn');
+    const closeNotesBtn = document.getElementById('closeNotesBtn');
+    
     const form = document.getElementById('reviewForm');
     
     // Search elements
@@ -316,14 +376,16 @@ document.addEventListener('DOMContentLoaded', function() {
     const emailToggle = document.getElementById('send_email_toggle');
     const emailFields = document.getElementById('email_fields');
 
-    if (btn) btn.onclick = () => modal.style.display = "block";
-    closeBtn.onclick = () => modal.style.display = "none";
+    // --- Modal Logic ---
+    if (editBtn) editBtn.onclick = () => reviewModal.style.display = "block";
+    closeBtn.onclick = () => reviewModal.style.display = "none";
+    
+    if (openNotesBtn) openNotesBtn.onclick = () => notesModal.style.display = "block";
+    if (closeNotesBtn) closeNotesBtn.onclick = () => notesModal.style.display = "none";
     
     window.onclick = (event) => {
-        if (event.target == modal) {
-            modal.style.display = "none";
-            resultsContainer.style.display = "none";
-        }
+        if (event.target == reviewModal) reviewModal.style.display = "none";
+        if (event.target == notesModal) notesModal.style.display = "none";
     }
 
     // Toggle email fields visibility
@@ -362,7 +424,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!hasResults) resultsContainer.style.display = "none";
     });
 
-    // --- NEW: KEYBOARD NAVIGATION FOR SEARCH ---
     searchInput.addEventListener('keydown', function(e) {
         let items = resultsContainer.querySelectorAll('.search-item:not([style*="display: none"])');
         if (e.keyCode == 40) { // Down
@@ -401,7 +462,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
-    // Close results when clicking outside the search wrapper
     document.addEventListener('click', (e) => {
         if (!e.target.closest('.search-wrapper')) {
             resultsContainer.style.display = "none";
