@@ -68,24 +68,26 @@ urlpatterns = [
     # --- UPDATED EXCEL EXPORTS ---
     path('export_global_claims_excel/', views.export_global_claims_excel, name='export_global_claims_excel'),
     
-    # --- Outlook DELEGATOR Paths (Updated with <path:> for Graph IDs) ---
+    # --- Outlook DELEGATOR Paths ---
     path('outlook/', views.outlook_dashboard_view, name='outlook_dashboard'), 
     path('outlook/send/', views.send_email_view, name='send_email'), 
-    path('outlook/delegate/<path:email_id>/', views.outlook_delegate_to, name='outlook_delegate_to'),
+    # 🚀 Changed to <path:> to handle Microsoft Graph ID slashes
+    path('outlook/delegate/<path:email_id>//', views.outlook_delegate_to, name='outlook_delegate_to'),
     path('outlook/recycle-bin/', views.outlook_recycle_bin_view, name='outlook_recycle_bin'),
     path('outlook/delete-permanent/', views.outlook_delete_permanent, name='outlook_delete_permanent'),
+    # 🚀 Changed to <path:> to handle Microsoft Graph ID slashes
     path('view-email-thread/<path:email_id>/', views.view_email_thread, name='view_email_thread'),
-    
-    # Updated name to match template 'download_attachment_view' and variable names to email_id
-    path('outlook/download/<path:email_id>/<path:attachment_id>/', views.download_attachment_view, name='download_attachment_view'),
+    # 🚀 Changed to <path:> for both ID segments
+    path('outlook/download/<path:message_id>/<path:attachment_id>/', views.download_attachment_view, name='download_attachment'),
 
     # --- Outlook DELEGATED Paths ---
     path('outlook/delegated/', views.outlook_delegated_box, name='outlook_delegated_box'),
     path('outlook/action/<int:delegation_id>/', views.outlook_delegated_action, name='outlook_delegated_action'),
     
-    # Email Archive & Exports (Updated with <path:>)
+    # Email Archive & Exports
     path('emails/archive/', views.email_list_view, name='email_list'),
     path('emails/export/', views.export_email_list, name='export_email_list'),
+    # 🚀 Changed to <path:>
     path('download-email/<path:email_id>/', views.download_email_file, name='download_email_file'),
     path('export_two_pot_invoice/', views.export_two_pot_invoice, name='export_two_pot_invoice'),
     path('export_two_pot_tracking/', views.export_two_pot_tracking, name='export_two_pot_tracking'),

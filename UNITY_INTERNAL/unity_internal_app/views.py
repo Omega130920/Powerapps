@@ -3863,12 +3863,14 @@ def outlook_delegate_to(request, email_id):
     """
     Handles delegation and re-delegation of Outlook tasks.
     UPDATED: All successful POST actions now redirect back to 'outlook_dashboard'.
+    FIX: Removed user exclusion so superuser 'Omega' is visible when logged in.
     """
     from .models import EmailDelegation, DelegationTransactionLog
     
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
-    # Available users for assignment (excluding the current user performing the action)
-    available_users = User.objects.filter(is_active=True).exclude(pk=request.user.pk)
+    
+    # 🚀 UPDATED: Removed .exclude(pk=request.user.pk) so the current user (Omega) is an option
+    available_users = User.objects.filter(is_active=True)
     
     # 1. Fetch current delegation status if it exists
     current_delegation = EmailDelegation.objects.filter(email_id=email_id).first()
@@ -3996,48 +3998,6 @@ def outlook_delegate_to(request, email_id):
         'current_delegation': current_delegation,
     }
     return render(request, 'unity_internal_app/outlook_delegate_to.html', context)
-
-def outlook_email_content(request, email_id):
-    """
-    Fetches the raw HTML content of an email and returns it as a response 
-    to be loaded by an iframe's 'src' attribute.
-    """
-    target_email = settings.OUTLOOK_EMAIL_ADDRESS
-    endpoint = f"messages/{email_id}" 
-    
-    # 🛑 FIX 11: Define 'method' and 'email_data' for this GET request 🛑
-    method = 'GET'
-    email_data = None
-    
-    email_data = OutlookGraphService._make_graph_request(endpoint, target_email, method=method, data=email_data)
-
-    if 'error' in email_data:
-        return HttpResponse("<h1>Error fetching email content.</h1>", status=500)
-
-    body_data = email_data.get('body', {})
-    
-    if body_data.get('contentType', '').lower() == 'html':
-        content = body_data.get('content', 'No HTML body found.')
-    else:
-        # If plain text, wrap in <pre> tags
-        content = body_data.get('content', 'No email body found.')
-        content = f'<pre style="white-space: pre-wrap; word-wrap: break-word; font-family: sans-serif;">{content}</pre>'
-
-    # Wrap in a full HTML document (essential for iframe rendering)
-    wrapped_content = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <style>body {{ font-family: sans-serif; margin: 15px; }}</style>
-    </head>
-    <body>
-        {content}
-    </body>
-    </html>
-    """
-    
-    # Return as plain HTML response (not marked safe, but the browser loads it securely)
-    return HttpResponse(wrapped_content, content_type='text/html')
 
 @login_required
 def outlook_recycle_bin_view(request):

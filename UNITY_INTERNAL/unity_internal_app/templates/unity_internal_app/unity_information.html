@@ -1398,6 +1398,7 @@
                         {% elif not email.email_id or email.email_id == "MANUAL_SEND_SUCCESS" %}
                              <span style="color: #666;">{{ email.subject|truncatechars:45 }}</span>
                         {% else %}
+                            {# 🚀 Matches: path('view-email-thread/<str:email_id>/', ...) #}
                             <a href="{% url 'view_email_thread' email_id=email.email_id %}" style="color: #2e7d32; text-decoration: none; font-weight: 500;">
                                 {{ email.subject|truncatechars:45 }}
                             </a>
@@ -1440,7 +1441,7 @@
                                      <i class="fas fa-eye"></i> View
                                 </a>
                                 
-                                {# 🚀 FIX: Updated to match name='download_email_file' in urls.py 🚀 #}
+                                {# 🚀 Matches: path('download-email/<str:email_id>/', ...) #}
                                 <a href="{% url 'download_email_file' email_id=email.email_id %}" 
                                    class="action-btn" 
                                    title="Download Sent .eml"
