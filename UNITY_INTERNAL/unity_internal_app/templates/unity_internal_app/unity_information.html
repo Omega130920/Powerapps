@@ -644,21 +644,6 @@
 </div>
 
 <div id="bank-lines" class="tab-pane">
-    {# --- FINANCIAL SUMMARY HEADER --- #}
-    <div style="display: flex; gap: 20px; margin-bottom: 20px;">
-        <div style="flex: 1; background-color: #e8f5e9; border-left: 5px solid #388e3c; padding: 15px; border-radius: 4px;">
-            <h3 style="margin: 0; color: #2e7d32; font-size: 0.9em; text-transform: uppercase;">💰 Available Surplus</h3>
-            <p style="margin: 5px 0 0 0; font-size: 1.5em; font-weight: bold;">R {{ available_surplus|default:"0.00"|floatformat:2 }}</p>
-        </div>
-        <div style="flex: 1; background-color: #e3f2fd; border-left: 5px solid #1976d2; padding: 15px; border-radius: 4px;">
-            <h3 style="margin: 0; color: #1565c0; font-size: 0.9em; text-transform: uppercase;">📝 Manual Credits Total</h3>
-            <p style="margin: 5px 0 0 0; font-size: 1.5em; font-weight: bold;">R {{ manual_credits_total|default:"0.00"|floatformat:2 }}</p>
-        </div>
-    </div>
-
-    <div style="margin-bottom: 20px; font-size: 0.9em; color: #555; font-style: italic;">
-        Surplus represents unallocated funds from settled bills, while manual credits are adjustments created outside of bank deposits.
-    </div>
     
     {# --- BANK LINES SECTION --- #}
     <h2 style="color: #388e3c; border-bottom: 2px solid #aed581; padding-bottom: 5px;">Associated Bank Lines (Cash Segments)</h2>
@@ -727,15 +712,17 @@
                     
                     <td style="padding: 10px;">
                         #{{ note.id }}
-                        {% if note.is_manual_credit %}
+                        {% if note.note_selection == 'MANUAL' %}
                             <span style="background-color: #1976d2; color: white; padding: 2px 6px; border-radius: 10px; font-size: 10px; font-weight: bold; margin-left: 5px; vertical-align: middle;">MANUAL</span>
+                        {% elif note.note_selection == 'OVERS' %}
+                            <span style="background-color: #fbc02d; color: black; padding: 2px 6px; border-radius: 10px; font-size: 10px; font-weight: bold; margin-left: 5px; vertical-align: middle;">OVERS</span>
                         {% endif %}
                     </td>
                     <td style="padding: 10px;">{{ note.processed_date|date:"Y-m-d" }}</td>
                     
-                    {# 🚀 FIX: Defensive calculation for Original Amount #}
+                    {# 🚀 UPDATED: Uses bank_deposit_amount instead of addition logic 🚀 #}
                     <td style="padding: 10px;">
-                        R {{ note.schedule_amount|default:0|add:note.requested_amount|default:0|floatformat:2 }}
+                        R {{ note.bank_deposit_amount|default:0|floatformat:2 }}
                     </td>
                     
                     <td style="padding: 10px; color: #d32f2f; font-weight: bold;">

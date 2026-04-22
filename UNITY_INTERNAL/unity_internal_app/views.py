@@ -422,7 +422,7 @@ def unity_information(request: HttpRequest, company_code):
     # 🚀 NEW ADDITION: Calculate Total Manual Credits Value
     manual_credits_total = credit_notes.filter(
         Q(source_bank_line__isnull=True) | Q(note_selection='MANUAL')
-    ).aggregate(total=Sum('schedule_amount'))['total'] or Decimal('0.00')
+    ).aggregate(total=Sum('bank_deposit_amount'))['total'] or Decimal('0.00')
 
     try:
         company_claims = UnityClaim.objects.filter(company_code=company_code).prefetch_related('notes').order_by('-claim_created_date', 'member_surname')
@@ -1288,7 +1288,7 @@ def generate_recon_statement(request, recon_id):
 @login_required
 def display_bankline_review(request, recon_id):
     """Displays a single reconciled bank line for review and includes bulk allocation breakdown."""
-    from .models import ReconnedBank, InternalFunds, BillSettlement
+    from .models import ReconnedBank, InternalFunds, BillSettlement, CreditNote
     
     # --- CAPTURE NAVIGATION SOURCE ---
     source_param = request.GET.get('from')
@@ -1296,6 +1296,19 @@ def display_bankline_review(request, recon_id):
     
     # Fetch the recon record with the original bank line details
     recon_record = get_object_or_404(ReconnedBank.objects.select_related('bank_line'), pk=recon_id)
+    company_code = recon_record.company_code
+
+    # 🚀 NEW: FINANCIAL SUMMARY CALCULATIONS FOR HEADER 🚀
+    # Surplus represents unallocated funds in physical bank lines
+    total_bank_surplus = ReconnedBank.objects.filter(company_code=company_code).aggregate(
+        total=Sum(F('transaction_amount') - F('amount_settled'))
+    )['total'] or ZERO_DECIMAL
+
+    # Manual credits represents adjustments created without a physical bank line
+    manual_credits_total = CreditNote.objects.filter(
+        member_group_code=company_code,
+        source_bank_line__isnull=True
+    ).aggregate(total=Sum('schedule_amount'))['total'] or ZERO_DECIMAL
     
     # --- FETCH BULK SETTLEMENTS ---
     settlements = BillSettlement.objects.filter(
@@ -1313,7 +1326,9 @@ def display_bankline_review(request, recon_id):
         'review_notes': REVIEW_NOTES_OPTIONS,
         'current_category': recon_record.review_note,      
         'is_from_unity_info': is_from_unity_info,
-        'source': source_param,                               
+        'source': source_param,
+        'available_surplus': total_bank_surplus,
+        'manual_credits_total': manual_credits_total,
     }
     
     return render(request, 'unity_internal_app/display_bankline_review.html', context)
@@ -1383,7 +1398,6 @@ def update_bankline_details(request, recon_id):
 
             # Call Graph Service
             try:
-                # 🚀 FIX: Added 'target_email' to match the service method signature
                 result = OutlookGraphService.send_outlook_email(
                     target_email=settings.OUTLOOK_EMAIL_ADDRESS, 
                     recipient_email=recipient,
@@ -1452,37 +1466,30 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
     available_debt_lines = get_available_bank_lines(company_code)
     total_debt = available_debt_lines.aggregate(total=Sum('remaining_debt'))['total'] or ZERO_DECIMAL
     
-    # --- AGGREGATIONS (Already Applied) ---
-    # 1. Total settled amount from all sources
+    # --- AGGREGATIONS ---
     total_applied = BillSettlement.objects.filter(
         unity_bill_source_id=bill_record.pk
     ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
     
-    # 2. Separate Cash applied
     total_cash_applied = BillSettlement.objects.filter(
         unity_bill_source_id=bill_record.pk,
         reconned_bank_line_id__isnull=False 
     ).aggregate(total_cash=Sum('settled_amount'))['total_cash'] or ZERO_DECIMAL
 
-    # 3. Total Credit Notes already applied
     total_credit_notes_assigned = BillSettlement.objects.filter(
         unity_bill_source_id=bill_record.pk,
         source_credit_note_id__isnull=False
-    ).aggregate(total_credit=Sum('settled_amount'))['total_credit'] or ZERO_DECIMAL
+    ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
 
-    # 4. Total Journals/Surplus applied
     total_surplus_applied_to_bill = JournalEntry.objects.filter(
         target_bill=bill_record
-    ).aggregate(total_footer=Sum('amount'))['total_footer'] or ZERO_DECIMAL
+    ).aggregate(total=Sum('amount'))['total'] or ZERO_DECIMAL
 
     # --- MATH UPDATES ---
     scheduled_amount = bill_record.H_Schedule_Amount or ZERO_DECIMAL
     remaining_scheduled_amount = scheduled_amount - total_credit_notes_assigned - total_surplus_applied_to_bill - total_cash_applied
     current_outstanding = max(ZERO_DECIMAL, remaining_scheduled_amount)
 
-    # --- NEW FAIL-SAFE: FETCH AVAILABLE APPROVED CREDITS ---
-    # These are credits the manager approved (Overs or previous remainders) 
-    # that haven't been applied to a bill yet.
     available_credits = CreditNote.objects.filter(
         member_group_code=company_code,
         credit_link_status='Approved',
@@ -1491,7 +1498,7 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
     
     total_available_credit_value = available_credits.aggregate(t=Sum('schedule_amount'))['t'] or ZERO_DECIMAL
 
-    # --- SURPLUS & JOURNALS (Existing Logic) ---
+    # --- SURPLUS & JOURNALS ---
     company_bill_ids = UnityBill.objects.filter(C_Company_Code=company_code).values_list('id', flat=True)
     potential_surpluses = ScheduleSurplus.objects.filter(
         unity_bill_source_id__in=company_bill_ids
@@ -1509,15 +1516,24 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
 
     applied_journals = JournalEntry.objects.filter(target_bill=bill_record).select_related('surplus_source')
 
-    # --- FETCH ASSIGNED CREDIT NOTES (For audit trail display) ---
+    # --- FETCH ASSIGNED CREDIT NOTES ---
     assigned_note_ids = BillSettlement.objects.filter(
         unity_bill_source_id=bill_record.pk,
         source_credit_note_id__isnull=False
     ).values_list('source_credit_note_id', flat=True)
     credit_notes_history = CreditNote.objects.filter(id__in=assigned_note_ids)
+
+    # 🚀 NEW: FINANCIAL SUMMARY HEADER CALCULATIONS 🚀
+    total_bank_surplus = ReconnedBank.objects.filter(company_code=company_code).aggregate(
+        total=Sum(F('transaction_amount') - F('amount_settled'))
+    )['total'] or ZERO_DECIMAL
+
+    manual_credits_total = CreditNote.objects.filter(
+        member_group_code=company_code,
+        source_bank_line__isnull=True
+    ).aggregate(total=Sum('schedule_amount'))['total'] or ZERO_DECIMAL
     
     # --- UPDATED ACTION MESSAGE LOGIC ---
-    # Include available credits in the "coverage" calculation
     total_coverage_available = total_debt + total_available_credit_value + total_available_surplus_value
     is_bill_fully_covered = total_applied >= (scheduled_amount - SAFETY_TOLERANCE)
     
@@ -1535,23 +1551,24 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
     context = {
         'bill_record': bill_record,
         'company_code': company_code,
-        'total_debt': total_debt, # Cash
-        'total_available_credit': total_available_credit_value, # Approved Credits (Fail-safe)
+        'total_debt': total_debt,
+        'total_available_credit': total_available_credit_value,
         'scheduled_amount': scheduled_amount,
-        'total_credit_notes_assigned': total_credit_notes_assigned, # Already used
+        'total_credit_notes_assigned': total_credit_notes_assigned,
         'total_available_surplus': total_available_surplus_value,
         'total_cash_applied': total_cash_applied,
         'remaining_schedule_amount': remaining_scheduled_amount,
         'current_outstanding': current_outstanding, 
         'all_lines': available_debt_lines.all().order_by('transaction_date'),
-        
-        'available_credits': available_credits, # NEW: For "Apply Credit" buttons in HTML
-        'credit_notes': credit_notes_history, # Already applied list
-        
+        'available_credits': available_credits,
+        'credit_notes': credit_notes_history,
         'available_surpluses': available_surpluses,
         'applied_journals': applied_journals,
         'action_message': action_message,
         'is_proceed_enabled': is_proceed_enabled,
+        # Pass header totals
+        'available_surplus': total_bank_surplus,
+        'manual_credits_total': manual_credits_total,
     }
     
     return render(request, 'unity_internal_app/pre_bill_summary.html', context)
@@ -4673,32 +4690,26 @@ def global_bank_view(request):
     from django.db.models import F, Q, Sum
     from decimal import Decimal
     from django.core.paginator import Paginator
-    # Import the necessary models for calculation
-    from .models import (
-        ReconnedBank, CreditNote, BillSettlement, UnityMgListing
-    )
+    from .models import ReconnedBank, CreditNote, BillSettlement, UnityMgListing
 
     query = request.GET.get('q')
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
     
-    # --- 1. Fetch Physical Bank Lines ---
     bank_qs = ReconnedBank.objects.select_related('bank_line').order_by('-transaction_date', '-id')
     
     if start_date and end_date:
         bank_qs = bank_qs.filter(transaction_date__range=[start_date, end_date])
     
     if query:
-        # FIXED: Changed to lowercase fields to prevent "Unsupported lookup" FieldError
         bank_qs = bank_qs.filter(
             Q(company_code__icontains=query) |
             Q(bank_line__transaction_description__icontains=query) | 
             Q(bank_line__statement_reference__icontains=query)
         )
 
-    # --- 2. Fetch Approved Virtual Credits (The Overs) ---
     credit_qs = CreditNote.objects.filter(
-        Q(note_selection='OVERS') | Q(link_request_reason='Overs credit line'),
+        Q(note_selection='OVERS') | Q(note_selection='MANUAL'), # 🚀 Added MANUAL check
         credit_link_status='Approved',
         schedule_amount__gt=Decimal('0.00')
     )
@@ -4707,10 +4718,8 @@ def global_bank_view(request):
     if query:
         credit_qs = credit_qs.filter(Q(member_group_code__icontains=query))
 
-    # --- 3. Pre-Calculate Bill Settlements for Bank Lines ---
     bank_line_ids = list(bank_qs.values_list('id', flat=True))
     
-    # Map of actual bill usage (consumption) per bank line
     bill_usage_map = {
         item['reconned_bank_line_id']: item['total']
         for item in BillSettlement.objects.filter(reconned_bank_line_id__in=bank_line_ids)
@@ -4718,7 +4727,6 @@ def global_bank_view(request):
         .annotate(total=Sum('settled_amount'))
     }
 
-    # Map of overs/credits created from these bank lines
     overs_usage_map = {
         item['source_bank_line_id']: item['total']
         for item in CreditNote.objects.filter(source_bank_line_id__in=bank_line_ids, note_selection='OVERS')
@@ -4726,7 +4734,6 @@ def global_bank_view(request):
         .annotate(total=Sum('schedule_amount'))
     }
 
-    # --- 4. Build MG Map for Names and Agents ---
     all_codes = list(bank_qs.values_list('company_code', flat=True).distinct()) + \
                 list(credit_qs.values_list('member_group_code', flat=True).distinct())
     
@@ -4735,20 +4742,15 @@ def global_bank_view(request):
         for item in UnityMgListing.objects.filter(a_company_code__in=all_codes).values('a_company_code', 'b_company_name', 'c_agent')
     }
 
-    # --- 5. Unify the Data into the combined_list ---
     combined_list = []
 
-    # Map Bank Lines
     for r in bank_qs:
         mg_info = mg_map.get(r.company_code, {})
-        
-        # Get actual bill-only usage (e.g., R 1200)
         bill_usage = bill_usage_map.get(r.id, Decimal('0.00'))
         credit_overs = overs_usage_map.get(r.id, Decimal('0.00'))
 
         raw_description = "No description found"
         if r.bank_line:
-            # Handle potential casing variations in the object attributes
             raw_description = getattr(r.bank_line, 'transaction_description', 
                                      getattr(r.bank_line, 'Transaction_description', "No description found"))
 
@@ -4757,10 +4759,8 @@ def global_bank_view(request):
             'source': 'BANK',
             'transaction_date': r.transaction_date,
             'amount': r.transaction_amount,
-            # FIXED: "Used Amount" now shows only the bill consumption
             'settled_amount': bill_usage, 
             'credit_amount': credit_overs,
-            # FIXED: "Remaining" now shows the surplus (amount - consumption)
             'remaining': r.transaction_amount - bill_usage,
             'status': r.recon_status or "Unidentified",
             'company_code': r.company_code or "—",
@@ -4770,28 +4770,25 @@ def global_bank_view(request):
             'transaction_description': raw_description,
         })
 
-    # Map Approved Credits
     for c in credit_qs:
         combined_list.append({
             'id': c.id,
             'source': 'CREDIT',
             'transaction_date': c.authorized_at.date() if c.authorized_at else c.processed_date,
-            'amount': c.schedule_amount,
-            'settled_amount': Decimal('0.00'), 
+            'amount': c.bank_deposit_amount or c.schedule_amount, # 🚀 Uses Original ref
+            'settled_amount': c.requested_amount or Decimal('0.00'), # 🚀 Shows Used portion
             'credit_amount': Decimal('0.00'),
             'remaining': c.schedule_amount,
             'status': "APPROVED VIRTUAL",
             'company_code': c.member_group_code,
             'company_name': c.member_group_name or mg_map.get(c.member_group_code, {}).get('name', "Verified Credit"),
-            'review_note': "APPROVED OVERS",
+            'review_note': c.note_selection or "APPROVED OVERS",
             'agent': c.authorized_by or "Manager",
             'transaction_description': f"Virtual Credit - {c.note_selection}",
         })
 
-    # Sort combined list by date
     combined_list.sort(key=lambda x: x['transaction_date'], reverse=True)
 
-    # Pagination
     paginator = Paginator(combined_list, 50)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
@@ -5179,37 +5176,42 @@ def download_email_file(request, email_id):
 def create_manual_credit(request):
     """
     Handles manual 'Overs' credit creation from the modal.
-    Sets status to 'Pending' for Manager Approval.
+    🚀 FIX: Stores 'bank_deposit_amount' as the permanent original reference.
+    🚀 FIX: Sets 'note_selection' to 'MANUAL' for proper badge display.
     """
     if request.method == 'POST':
-        # Capture form data from the modal
         company_code = request.POST.get('company_code')
-        amount = request.POST.get('deposit_amount')
+        amount_input = request.POST.get('deposit_amount', '0')
         deposit_date = request.POST.get('deposit_date')
         bank_fiscal = request.POST.get('bank_fiscal')
         date_identified = request.POST.get('date_identified')
         agent_input = request.POST.get('agent_name')
 
-        if not all([company_code, amount, deposit_date]):
-            messages.error(request, "Please provide Company Code, Amount, and Deposit Date.")
+        try:
+            amount = Decimal(amount_input)
+        except (ValueError, TypeError):
+            amount = Decimal('0.00')
+
+        if amount <= 0 or not company_code:
+            messages.error(request, "Please provide Company Code and a valid Amount.")
             return redirect('credit_note_list')
 
         # Create the record in credit_note table
         new_credit = CreditNote.objects.create(
             member_group_code=company_code,
-            schedule_amount=Decimal(amount),          # Using schedule_amount as the balance
-            bank_stmt_date=parse_date(deposit_date),  # Maps to 'Deposit Date'
-            fiscal_date=parse_date(bank_fiscal),      # Maps to 'Bank Fiscal'
+            schedule_amount=amount,           # Current Balance
+            bank_deposit_amount=amount,       # 🚀 PERMANENT ORIGINAL REFERENCE 🚀
+            requested_amount=Decimal('0.00'), # Initial used amount is zero
+            bank_stmt_date=parse_date(deposit_date),
+            fiscal_date=parse_date(bank_fiscal),
             date_identified=parse_date(date_identified),
             processed_by=agent_input or request.user.username,
             processed_date=timezone.now(),
-            note_selection='OVERS',                   # Triggers yellow badge styling
-            link_request_reason='Overs credit line',  # Specific flag for your fail-safe logic
-            credit_link_status='Pending'              # Sends it to Manager Dashboard
+            note_selection='MANUAL',          # 🚀 Sets to MANUAL for blue badge 🚀
+            link_request_reason='Overs credit line',
+            credit_link_status='Pending'
         )
 
-        # Manager Notification Logic
-        # (This triggers the auto-notify flow for manager approval)
         try:
             subject = f"APPROVAL REQUIRED: Manual Overs Credit - {company_code}"
             body = f"A manual overs credit of R{amount} has been created for {company_code}."
@@ -5217,7 +5219,7 @@ def create_manual_credit(request):
         except Exception:
             pass 
 
-        messages.success(request, f"Manual credit for {company_code} created. Awaiting manager approval.")
+        messages.success(request, f"Manual credit for {company_code} created. Awaiting approval.")
         return redirect('credit_note_list')
 
     return redirect('credit_note_list')
