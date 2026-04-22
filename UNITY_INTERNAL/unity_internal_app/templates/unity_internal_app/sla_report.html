@@ -69,6 +69,45 @@
             </form>
 
             <div class="space-y-6">
+
+                {# --- NEW: COMPANY STATUS OVERVIEW --- #}
+                <div class="rounded-xl border-2 border-emerald-600 bg-white overflow-hidden shadow-lg">
+                    <input type="checkbox" id="acc_status_summary" class="accordion-toggle" checked>
+                    <label for="acc_status_summary" class="flex justify-between items-center p-4 bg-emerald-600 text-white cursor-pointer select-none">
+                        <span class="font-black uppercase tracking-widest flex items-center gap-3">
+                            <i class="fas fa-building text-emerald-100"></i> 1. Company Status Summary (Overview)
+                        </span>
+                        <i class="fas fa-chevron-down rotate-icon"></i>
+                    </label>
+                    <div class="accordion-content">
+                        <div class="p-6 flex justify-start">
+                            <div class="w-full max-w-md border-2 border-emerald-600 rounded-lg overflow-hidden shadow-sm">
+                                <table class="w-full text-left text-xs">
+                                    <thead class="bg-emerald-600 text-white uppercase font-black tracking-widest">
+                                        <tr>
+                                            <th class="p-3">Row Labels</th>
+                                            <th class="p-3 text-right">Company Status Count</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="text-emerald-900 font-bold">
+                                        {% for item in company_status_summary %}
+                                        <tr class="border-b border-emerald-100 hover:bg-emerald-50 transition-colors">
+                                            <td class="p-3">{{ item.label }}</td>
+                                            <td class="p-3 text-right bg-emerald-50/50">{{ item.count }}</td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                    <tfoot class="bg-emerald-700 text-white font-black uppercase">
+                                        <tr>
+                                            <td class="p-3">Grand Total</td>
+                                            <td class="p-3 text-right">{{ total_companies }}</td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
                 
                 <div class="rounded-xl border-2 border-emerald-800 bg-white overflow-hidden shadow-lg">
                     <input type="checkbox" id="acc_agents" class="accordion-toggle" checked>
@@ -289,9 +328,14 @@
                 <div class="mb-4 md:mb-0">
                     <span class="text-xs font-black uppercase tracking-[0.3em] opacity-75">Unified Audit Summary</span>
                     <h2 class="text-3xl font-black uppercase tracking-tighter">Total Volume Analysis</h2>
-                    <p class="text-emerald-100 text-sm mt-1">Cross-departmental audit across Emails, Banks, and Billing.</p>
+                    <p class="text-emerald-100 text-sm mt-1">Cross-departmental audit across Entities, Emails, Banks, and Billing.</p>
                 </div>
                 <div class="flex items-center gap-6">
+                    {# --- NEW: TOTAL COMPANIES COUNTER --- #}
+                    <div class="text-center px-6 border-r border-white/20">
+                        <div class="text-3xl font-black text-emerald-300">{{ total_companies }}</div>
+                        <div class="text-[10px] uppercase font-bold opacity-70">Entities</div>
+                    </div>
                     <div class="text-center px-6 border-r border-white/20">
                         <div class="text-3xl font-black">{{ report_data|length }}</div>
                         <div class="text-[10px] uppercase font-bold opacity-70">Emails</div>

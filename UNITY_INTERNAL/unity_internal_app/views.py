@@ -5713,11 +5713,36 @@ def sla_report_view(request):
             'created_by': getattr(bill, 'created_by', 'System') 
         })
 
+    # --- 4. NEW: COMPANY STATUS OVERVIEW (MATCHED TO UNITY_LIST LOGIC) ---
+    status_counts = defaultdict(int)
+    internal_codes = set()
+    
+    # Process InternalFunds Records
+    for code, status in InternalFunds.objects.values_list('A_Company_Code', 'D_Company_Status'):
+        internal_codes.add(code)
+        label = status if status else "N/A"
+        status_counts[label] += 1
+        
+    # Process remaining UnityMgListing (System Only)
+    system_only_qs = UnityMgListing.objects.exclude(a_company_code__in=internal_codes).values_list('d_company_status', flat=True)
+    for status in system_only_qs:
+        label = status if status else "System Only"
+        status_counts[label] += 1
+        
+    # Format for Template
+    company_status_summary = []
+    total_companies = 0
+    for label, count in sorted(status_counts.items()):
+        company_status_summary.append({'label': label, 'count': count})
+        total_companies += count
+
     return render(request, 'unity_internal_app/sla_report.html', {
         'report_data': report_data,
         'agent_stats': final_agent_stats,
         'bank_notes': bank_notes_qs, 
         'billing_sla': billing_sla_data,
+        'company_status_summary': company_status_summary, # Added for Overview
+        'total_companies': total_companies,               # Added for Grand Total
         'start_date': start_date if start_date != "None" else "",
         'end_date': end_date if end_date != "None" else "",
     })
@@ -5731,6 +5756,7 @@ def export_sla_report_excel(request):
     header_fill_email = PatternFill(start_color="065F46", end_color="065F46", fill_type="solid")
     header_fill_bank = PatternFill(start_color="1B5E20", end_color="1B5E20", fill_type="solid")
     header_fill_bill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid") 
+    header_fill_summary = PatternFill(start_color="059669", end_color="059669", fill_type="solid") # Emerald for Summary
     white_font = Font(color="FFFFFF", bold=True)
     center_alignment = Alignment(horizontal="center")
 
@@ -5788,7 +5814,6 @@ def export_sla_report_excel(request):
     for bill in bills_qs:
         settlements = BillSettlement.objects.filter(unity_bill_source_id=bill.id)
         
-        # Finance logic for Excel
         bank_settled = settlements.filter(reconned_bank_line_id__isnull=False).aggregate(total=Sum('settled_amount'))['total'] or 0
         cred_allocated = settlements.filter(source_credit_note_id__isnull=False).aggregate(total=Sum('settled_amount'))['total'] or 0
         journ_allocated = JournalEntry.objects.filter(target_bill_id=bill.id).aggregate(total=Sum('amount'))['total'] or 0
@@ -5818,6 +5843,35 @@ def export_sla_report_excel(request):
             applied_cred,
             surplus_total
         ])
+
+    # --- SHEET 4: NEW: COMPANY STATUS OVERVIEW ---
+    ws4 = wb.create_sheet(title="Company Status Summary")
+    ws4.append(["Row Labels", "Company Status Count"])
+    for cell in ws4[1]:
+        cell.fill, cell.font, cell.alignment = header_fill_summary, white_font, center_alignment
+        
+    status_counts = defaultdict(int)
+    internal_codes = set()
+    for code, status in InternalFunds.objects.values_list('A_Company_Code', 'D_Company_Status'):
+        internal_codes.add(code)
+        status_counts[status if status else "N/A"] += 1
+    
+    system_only = UnityMgListing.objects.exclude(a_company_code__in=internal_codes).values_list('d_company_status', flat=True)
+    for status in system_only:
+        status_counts[status if status else "System Only"] += 1
+        
+    grand_total = 0
+    for label in sorted(status_counts.keys()):
+        count = status_counts[label]
+        ws4.append([label, count])
+        grand_total += count
+        
+    # Grand Total Row
+    total_row_idx = ws4.max_row + 1
+    ws4.append(["Grand Total", grand_total])
+    for cell in ws4[total_row_idx]:
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="065F46", end_color="065F46", fill_type="solid")
 
     # --- FINAL FORMATTING ---
     for sheet in wb.worksheets:
