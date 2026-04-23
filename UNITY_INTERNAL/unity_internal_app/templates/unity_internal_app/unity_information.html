@@ -1361,9 +1361,36 @@
         </form>
     </div>
 
+    {# --- 🚀 NEW: FILTER & SEARCH SECTION --- #}
+    <div style="background-color: #e8f5e9; padding: 15px; border-radius: 8px; border: 1px solid #c8e6c9; margin-bottom: 15px; display: flex; gap: 15px; align-items: center;">
+        <div style="flex: 2; position: relative;">
+            <label style="font-size: 11px; font-weight: bold; color: #2e7d32; display: block; margin-bottom: 4px; text-transform: uppercase;">Search Logs</label>
+            <input type="text" id="emailSearchInput" onkeyup="filterEmailLog()" placeholder="Search Subject, Recipient, or Status..." class="form-input" style="padding: 10px 12px; width: 100%;">
+        </div>
+        <div style="flex: 1;">
+            <label style="font-size: 11px; font-weight: bold; color: #2e7d32; display: block; margin-bottom: 4px; text-transform: uppercase;">Type Filter</label>
+            <select id="emailTypeFilter" onchange="filterEmailLog()" class="form-select" style="padding: 9px;">
+                <option value="">-- All Types --</option>
+                <option value="ORIGINAL">Original (Inbox)</option>
+                <option value="REPLY">Reply (Sent)</option>
+                <option value="DIRECT">Direct (Sent)</option>
+            </select>
+        </div>
+        <div style="flex: 1;">
+            <label style="font-size: 11px; font-weight: bold; color: #2e7d32; display: block; margin-bottom: 4px; text-transform: uppercase;">Status Filter</label>
+            <select id="emailStatusFilter" onchange="filterEmailLog()" class="form-select" style="padding: 9px;">
+                <option value="">-- All Statuses --</option>
+                <option value="SENT">Sent</option>
+                <option value="REPLIED">Replied</option>
+                <option value="Actioned">Actioned</option>
+                <option value="DEL">Delegated</option>
+            </select>
+        </div>
+    </div>
+
     {# --- TABLE SECTION --- #}
     <div style="overflow-x: auto;">
-        <table style="width: 100%; border-collapse: collapse; background-color: white; font-size: 0.9em;">
+        <table id="emailLogTable" style="width: 100%; border-collapse: collapse; background-color: white; font-size: 0.9em;">
             <thead>
                 <tr style="background-color: #f0fff0; color: #38761d; text-align: left;">
                     <th style="padding: 12px; border-bottom: 2px solid #aed581;">Email Type</th>
@@ -1376,7 +1403,7 @@
                     <th style="padding: 12px; border-bottom: 2px solid #aed581; text-align: center;">Actions</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="emailLogTableBody">
                 {% for email in combined_email_log %}
                 <tr style="border-bottom: 1px solid #eee; transition: background-color 0.2s; {% if email.status == 'COMP' or email.status == 'DONE' or email.status == 'CLS' %}background-color: #f9f9f9; color: #888;{% endif %}">
                     
@@ -1398,7 +1425,6 @@
                         {% elif not email.email_id or email.email_id == "MANUAL_SEND_SUCCESS" %}
                              <span style="color: #666;">{{ email.subject|truncatechars:45 }}</span>
                         {% else %}
-                            {# 🚀 Matches: path('view-email-thread/<str:email_id>/', ...) #}
                             <a href="{% url 'view_email_thread' email_id=email.email_id %}" style="color: #2e7d32; text-decoration: none; font-weight: 500;">
                                 {{ email.subject|truncatechars:45 }}
                             </a>
@@ -1440,8 +1466,6 @@
                                    style="background-color: #43a047; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 0.85em;">
                                      <i class="fas fa-eye"></i> View
                                 </a>
-                                
-                                {# 🚀 Matches: path('download-email/<str:email_id>/', ...) #}
                                 <a href="{% url 'download_email_file' email_id=email.email_id %}" 
                                    class="action-btn" 
                                    title="Download Sent .eml"
@@ -1465,7 +1489,54 @@
         </table>
     </div>
 </div>
-        </div> </div> </div> <script>
+        </div> </div> </div> 
+
+<script>
+    // --- 🚀 NEW: Email Log Filtering Logic ---
+    function filterEmailLog() {
+        const input = document.getElementById("emailSearchInput");
+        const typeFilter = document.getElementById("emailTypeFilter");
+        const statusFilter = document.getElementById("emailStatusFilter");
+        
+        const filterText = input.value.toUpperCase();
+        const filterType = typeFilter.value.toUpperCase();
+        const filterStatus = statusFilter.value.toUpperCase();
+        
+        const table = document.getElementById("emailLogTable");
+        const tr = table.getElementsByTagName("tr");
+
+        for (let i = 1; i < tr.length; i++) { // Skip header
+            const tdType = tr[i].getElementsByTagName("td")[0];
+            const tdSubject = tr[i].getElementsByTagName("td")[1];
+            const tdRecipient = tr[i].getElementsByTagName("td")[4];
+            const tdStatus = tr[i].getElementsByTagName("td")[5];
+            
+            if (tdType && tdSubject && tdRecipient && tdStatus) {
+                const typeText = tdType.textContent || tdType.innerText;
+                const subjectText = tdSubject.textContent || tdSubject.innerText;
+                const recipientText = tdRecipient.textContent || tdRecipient.innerText;
+                const statusText = tdStatus.textContent || tdStatus.innerText;
+
+                // Match Search Input (Subject, Recipient, or Status)
+                const matchesSearch = (subjectText.toUpperCase().indexOf(filterText) > -1 || 
+                                     recipientText.toUpperCase().indexOf(filterText) > -1 ||
+                                     statusText.toUpperCase().indexOf(filterText) > -1);
+                
+                // Match Type Filter
+                const matchesType = filterType === "" || typeText.toUpperCase().indexOf(filterType) > -1;
+                
+                // Match Status Filter
+                const matchesStatus = filterStatus === "" || statusText.toUpperCase().indexOf(filterStatus) > -1;
+
+                if (matchesSearch && matchesType && matchesStatus) {
+                    tr[i].style.display = "";
+                } else {
+                    tr[i].style.display = "none";
+                }
+            }
+        }
+    }
+
     // ==========================================
     // --- 1. CONFIGURATION & GLOBALS ---
     // ==========================================
@@ -1524,7 +1595,6 @@
         }
     }
 
-    // 🚀 NEW: Update File Preview for Multi-Attachment
     function updateFileLabel() {
         const input = document.getElementById('standalone_attachments');
         const preview = document.getElementById('file-list-preview');
@@ -1640,7 +1710,6 @@
         const paymentSel = document.getElementById('payment_option_select');
         if(paymentSel) originalPaymentOptions = Array.from(paymentSel.options).map(opt => opt.cloneNode(true));
 
-        // Submit listener for CLAIMS Modal form
         const mainClaimForm = document.getElementById('main_claim_form');
         if (mainClaimForm) {
             mainClaimForm.addEventListener('submit', function() {
@@ -1652,7 +1721,6 @@
             });
         }
 
-        // FIXED: Submit listener for EMAILS Tab form (standalone)
         const standaloneEmailForm = document.getElementById('standalone_email_master_form');
         if (standaloneEmailForm) {
             standaloneEmailForm.addEventListener('submit', function() {
@@ -1666,7 +1734,6 @@
             });
         }
 
-        // Tab Navigation
         const tabs = document.querySelectorAll('.tab-nav li');
         const panes = document.querySelectorAll('.tab-pane');
         const urlHash = window.location.hash;
@@ -1690,7 +1757,6 @@
         tabs.forEach(tab => tab.addEventListener('click', () => switchTab(tab.dataset.tabTarget)));
         switchTab(initialTab);
 
-        // Notes/Interaction Form Logic
         const notesMasterForm = document.getElementById('notes_master_form');
         if (notesMasterForm) {
             const actionSelect = document.getElementById('id_action_notes');
@@ -1738,10 +1804,6 @@
         }
     });
 
-    // ==========================================
-    // --- 4. CONDITIONAL WITHDRAWAL LOGIC ---
-    // ==========================================
-
     function toggleWithdrawalSubFields() {
         const status = document.getElementById('claim_status_select').value;
         const helperDiv = document.getElementById('div_two_pot_withdrawal_details');
@@ -1782,10 +1844,6 @@
         }
     }
 
-    // ==========================================
-    // --- 5. TWO POT UI LOGIC ---
-    // ==========================================
-    
     function toggleTwoPotLogic() {
         const typeSelect = document.getElementById('claim_type_select');
         const statusSelect = document.getElementById('claim_status_select');
@@ -1838,10 +1896,6 @@
         });
         selectElem.value = currentVal;
     }
-
-    // ==========================================
-    // --- 6. CLAIM MODAL ACTIONS ---
-    // ==========================================
 
     function openClaimModal() {
         const modal = document.getElementById('claimModal');
@@ -1918,5 +1972,3 @@
         });
     }
 </script>
-</body>
-</html>

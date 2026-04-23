@@ -47,7 +47,7 @@
     .form-select, .form-input { width: 100%; padding: 8px; border: 1.5px solid #dcdde1; border-radius: 6px; background-color: #fff; color: #333; font-size: 13px; box-sizing: border-box; }
     .form-input:focus { border-color: #4CAF50; outline: none; }
     .cancel-btn { background-color: #757575; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
-    .save-info-btn { background-color: #1565c0; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-left: 10px; }
+    .save-info-btn { background-color: #1565c0; color: white; padding: 8px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-left: 10px; }
 
     /* PAGINATION */
     .pagination-nav { display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 15px; padding: 10px; background: #f1f8e9; border-radius: 8px; }
@@ -220,13 +220,6 @@
                     <label style="font-weight:bold;">Loaded/ Submitted By: </label>
                     <select name="agent" id="agent_input" class="form-select">
                         <option value="">-- Select Agent --</option>
-                        <option value="Samantha">Samantha</option>
-                        <option value="Mymoena">Mymoena</option>
-                        <option value="Chantal">Chantal</option>
-                        <option value="Timothy">Timothy</option>
-                        <option value="Karen">Karen</option>
-                        <option value="Lorraine">Lorraine</option>
-                        <option value="Jessica">Jessica</option>
                         {% for u in available_users %}
                             <option value="{{ u.username }}">{{ u.username }}</option>
                         {% endfor %}
@@ -283,9 +276,40 @@
                 <div><label style="font-weight:bold;">Created Date *</label><input type="date" name="claim_created_date" class="form-input" required></div>
             </div>
 
-            <div style="margin-top: 15px; display: none;">
-                <label style="font-weight:bold;">Claim Amount</label>
-                <input type="number" step="0.01" name="claim_amount" id="claim_amount_input" class="form-input" placeholder="0.00">
+            <div class="row" style="margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 15px; margin-bottom: 15px;">
+                <div class="col-md-12">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 5px;">
+                        <label for="linked_email_id" style="font-weight: bold; color: #1e88e5;">🔗 Attach Delegated Email (Optional)</label>
+                        <button type="button" onclick="toggleEmailForm()" style="background-color: #ff9800; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: bold;">✉️ Compose Email</button>
+                    </div>
+                    
+                    <select id="linked_email_id" name="linked_email_id" class="form-select" style="border: 1px solid #1e88e5; width: 100%;">
+                        <option value="">-- Select an email to link to this claim --</option>
+                        {% for email in my_delegated_emails %}
+                            <option value="{{ email.id }}">📅 {{ email.received_at|date:"Y-m-d" }} | ✉️ {% firstof email.subject email.email_subject "(No Subject)" as subject_text %}{{ subject_text|slice:":40" }}... (From: {% firstof email.sender email.sender_email "Unknown" %})</option>
+                        {% endfor %}
+                    </select>
+
+                    <div id="email-composition-container" style="display: none; margin-top: 15px; background-color: #fffaf5; border: 2px dashed #ff9800; border-radius: 8px; padding: 20px;">
+                        <h3 style="color: #ff9800; margin-top: 0; font-size: 16px;">Compose Outgoing Email</h3>
+                        <div class="form-group" style="margin-bottom: 10px;">
+                            <label style="font-weight: bold; display: block; margin-bottom: 5px;">To:</label>
+                            <input type="text" id="member_recipient_email" name="member_recipient_email" placeholder="Enter email addresses..." style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 15px;">
+                            <label style="font-weight: bold; display: block; margin-bottom: 5px;">Subject:</label>
+                            <input type="text" id="member_email_subject_reply" name="member_email_subject_reply" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 15px;">
+                            <label style="font-weight: bold; display: block; margin-bottom: 5px;">Email Body:</label>
+                            <textarea id="member_email_body_editor" name="member_email_body_editor" class="form-input" rows="6" style="width: 100%;">Dear Sir/Madam,&#10;&#10;Kind regards,&#10;{{ request.user.username }}</textarea>
+                        </div>
+                        <div style="text-align: right;">
+                            <button type="button" class="cancel-btn" onclick="toggleEmailForm()" style="font-size: 12px; margin-right: 10px;">Hide Email Form</button>
+                            <button type="submit" name="email_submission_action" value="send_email_and_log" style="padding: 8px 15px; background-color: #f7931e; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Send Email & Save Claim</button>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <div id="div_two_pot_withdrawal_details" style="display:none; margin-top: 15px; padding: 15px; background: #fffde7; border: 1px solid #fbc02d; border-radius: 8px;">
@@ -351,6 +375,7 @@
         document.getElementById('modal_claim_id').value = '';
         document.getElementById('modalTitle').innerText = "New Two-Pot Entry";
         document.getElementById('claim_notes_tbody').innerHTML = '<tr><td colspan="4" style="text-align:center;">New record.</td></tr>';
+        document.getElementById('email-composition-container').style.display = 'none'; // 🚀 Added
         modal.style.display = 'block';
     }
 
@@ -359,10 +384,7 @@
         document.getElementById('modalTitle').innerText = "Edit Two-Pot Claim";
         document.getElementById('modal_claim_id').value = d.id;
         document.getElementById('company_code_input').value = d.company_code;
-        
-        // 🚀 This now sets the dropdown value 🚀
         document.getElementById('agent_input').value = d.agent;
-        
         document.querySelector('input[name="id_number"]').value = d.id_number;
         document.querySelector('input[name="member_name"]').value = d.member_name;
         document.querySelector('input[name="member_surname"]').value = d.member_surname;
@@ -372,12 +394,15 @@
         document.querySelector('input[name="claim_created_date"]').value = d.claim_created_date;
 
         /* --- POPULATE POT FIELDS --- */
-        document.getElementById('claim_amount_input').value = d.claim_amount;
         document.getElementById('vested_check').checked = (d.vested_pot_available === 'True');
         document.getElementById('savings_check').checked = (d.savings_pot_available === 'True');
         document.getElementById('vested_date').value = d.vested_pot_paid_date || '';
         document.getElementById('savings_date').value = d.savings_pot_paid_date || '';
         document.getElementById('infund_date').value = d.infund_cert_date || '';
+
+        // 🚀 Set Linked Email Select 🚀
+        const emailSelect = document.getElementById('linked_email_id');
+        if(emailSelect) emailSelect.value = d.linked_email_id || "";
 
         const notesSrc = document.getElementById('notes-data-' + d.id);
         if (notesSrc) {
@@ -385,6 +410,12 @@
         }
         toggleWithdrawalSubFields();
         document.getElementById('claimModal').style.display = 'block';
+    }
+
+    // 🚀 Added: Toggle Email Composition Container 🚀
+    function toggleEmailForm() {
+        const container = document.getElementById('email-composition-container');
+        container.style.display = container.style.display === 'none' ? 'block' : 'none';
     }
 
     // --- EXPORT LOGIC ---
@@ -410,7 +441,6 @@
         document.getElementById('emailPreviewModal').style.display = 'block';
     }
 
-    // 🚀 Updated Listener: Selects the agent in the dropdown when Company is picked 🚀
     document.getElementById('company_code_input').addEventListener('input', function() {
         const val = this.value;
         const opts = document.getElementById('company_list').querySelectorAll('option');

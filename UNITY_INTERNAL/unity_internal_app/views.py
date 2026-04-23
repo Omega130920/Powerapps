@@ -2867,161 +2867,169 @@ def unallocate_surplus(request, bill_id):
 def confirmations_view(request):
     """
     Displays bills ready for daily confirmation review.
-    
-    UPDATED: 
-    1. Only shows reconciled bills (is_reconciled=True).
-    2. Filters out empty/placeholder bills (0 members or 0 amount).
     """
     from decimal import Decimal
-    
-    # 1. Date Filtering
-    filter_start_date_str = request.GET.get('start_date')
-    filter_end_date_str = request.GET.get('end_date')
+    from datetime import datetime, date
+    from django.db.models import Q 
+    from django.contrib import messages
+    import traceback 
 
-    # Base Query: Order by 'Final Date' (Ascending), then 'Company Code'
-    bills_queryset = UnityBill.objects.all().order_by('J_Final_Date', 'C_Company_Code')
-    
-    # --- NEW FILTERS ---
-    # Only include bills that are fully reconciled/closed
-    # AND exclude bills with 0 members or 0 schedule amount to hide "N/A" or empty data
-    bills_queryset = bills_queryset.filter(
-        is_reconciled=True
-    ).exclude(
-        E_Active_Members=0
-    ).exclude(
-        H_Schedule_Amount=0
-    )
+    try:
+        # 1. Date Filtering inputs
+        filter_start_date_str = request.GET.get('start_date')
+        filter_end_date_str = request.GET.get('end_date')
 
-    if filter_start_date_str:
-        try:
-            start_dt = datetime.strptime(filter_start_date_str, '%Y-%m-%d').date()
-            bills_queryset = bills_queryset.filter(J_Final_Date__gte=start_dt)
-        except ValueError:
-            pass
-
-    if filter_end_date_str:
-        try:
-            end_dt = datetime.strptime(filter_end_date_str, '%Y-%m-%d').date()
-            bills_queryset = bills_queryset.filter(J_Final_Date__lte=end_dt)
-        except ValueError:
-            pass
-            
-    # Limit to top 50 for performance
-    review_bills = bills_queryset[:50]
-
-    # 2. Data Consolidation
-    confirmation_data = []
-    
-    for bill in review_bills:
-        settlements = BillSettlement.objects.filter(unity_bill_source_id=bill.pk).order_by('settlement_date')
-        source_details = []
-        active_members = bill.E_Active_Members or 0 
+        bills_queryset = UnityBill.objects.all().filter(
+            is_reconciled=True
+        ).exclude(
+            E_Active_Members=0
+        ).exclude(
+            H_Schedule_Amount=0
+        )
         
-        for settlement in settlements:
-            source = {}
-            source['amount'] = settlement.settled_amount 
+        # --- DATE FILTERS ---
+        if filter_start_date_str or filter_end_date_str:
+            settlement_q = Q()
+            try:
+                if filter_start_date_str:
+                    start_dt = datetime.strptime(filter_start_date_str, '%Y-%m-%d').date()
+                    settlement_q &= Q(settlement_date__gte=start_dt)
+                
+                if filter_end_date_str:
+                    end_dt = datetime.strptime(filter_end_date_str, '%Y-%m-%d').date()
+                    settlement_q &= Q(settlement_date__lte=end_dt)
+                
+                matching_bill_ids = BillSettlement.objects.filter(
+                    settlement_q
+                ).values_list('unity_bill_source_id', flat=True)
 
-            if settlement.reconned_bank_line:
-                bank_line = settlement.reconned_bank_line
-                source['date'] = bank_line.transaction_date
-                source['type'] = 'Bank Line'
-            elif settlement.source_credit_note_id:
-                try:
-                    credit_note = CreditNote.objects.get(id=settlement.source_credit_note_id)
-                    source['date'] = credit_note.bank_stmt_date or settlement.settlement_date.date()
-                    source['type'] = 'Credit Note'
-                except Exception:
-                    source['date'] = settlement.settlement_date.date()
-                    source['type'] = 'Credit Note (Source Missing)'
-            else:
-                source['date'] = settlement.settlement_date.date()
-                source['type'] = 'Other Source'
+                bills_queryset = bills_queryset.filter(pk__in=list(set(matching_bill_ids)))
+                
+            except ValueError:
+                pass
+                
+        bills_queryset = bills_queryset.order_by('J_Final_Date', 'C_Company_Code').distinct()
+        review_bills = bills_queryset[:50]
 
-            source_details.append(source)
+        # 2. Data Consolidation
+        confirmation_data = []
+        
+        for bill in review_bills:
+            settlements = BillSettlement.objects.filter(unity_bill_source_id=bill.pk).order_by('settlement_date')
+            source_details = []
             
-        source_details.sort(key=lambda x: x['date'] if x['date'] else datetime.date(1900, 1, 1))
+            for settlement in settlements:
+                source = {}
+                source['amount'] = settlement.settled_amount 
 
-        schedule_amount = bill.H_Schedule_Amount if bill.H_Schedule_Amount is not None else 0 
+                if settlement.reconned_bank_line:
+                    bank_line = settlement.reconned_bank_line
+                    source['date'] = bank_line.transaction_date
+                    source['type'] = 'Bank Line'
+                    source['bank_total'] = bank_line.transaction_amount
+                    
+                    # 🚀 FIX: SAFE REFERENCE LOOKUP 🚀
+                    # This tries 'statement_reference', then 'reference', then 'description'
+                    source['bank_ref'] = getattr(bank_line, 'statement_reference', 
+                                         getattr(bank_line, 'reference', 
+                                         getattr(bank_line, 'description', '-')))
+                
+                elif settlement.source_credit_note_id:
+                    try:
+                        credit_note = CreditNote.objects.get(id=settlement.source_credit_note_id)
+                        source['date'] = credit_note.bank_stmt_date or (settlement.settlement_date.date() if settlement.settlement_date else None)
+                        source['type'] = 'Credit Note'
+                        source['bank_total'] = credit_note.credit_amount
+                        source['bank_ref'] = getattr(credit_note, 'credit_note_number', '-')
+                    except:
+                        source['date'] = settlement.settlement_date.date() if settlement.settlement_date else None
+                        source['type'] = 'Credit Note (Source Missing)'
+                        source['bank_total'] = settlement.settled_amount
+                        source['bank_ref'] = "-"
+                else:
+                    source['date'] = settlement.settlement_date.date() if settlement.settlement_date else None
+                    source['type'] = 'Other Source'
+                    source['bank_total'] = settlement.settled_amount
+                    source['bank_ref'] = "-"
 
-        confirmation_data.append({
-            'bill_id': bill.id,
-            'cc_dates_month': bill.A_CCDatesMonth,
-            'company_code': bill.C_Company_Code,
-            'active_members': active_members, 
-            'schedule_date': bill.A_CCDatesMonth, 
-            'final_date': bill.J_Final_Date or None, 
-            'schedule_amount': schedule_amount,
-            'confirmed_date': settlements.first().settlement_date.date() if settlements.exists() else None,
-            'source_details': source_details,
+                source['comment'] = getattr(settlement, 'settlement_comment', '')
+                source_details.append(source)
+                
+            source_details.sort(key=lambda x: x['date'] if x['date'] else date(1900, 1, 1))
+
+            first_settlement = settlements.first()
+            confirmed_date = first_settlement.settlement_date.date() if (first_settlement and first_settlement.settlement_date) else None
+
+            confirmation_data.append({
+                'bill_id': bill.pk,
+                'cc_dates_month': bill.A_CCDatesMonth, 
+                'fund_code': getattr(bill, 'B_Fund_Co', ''), 
+                'company_code': bill.C_Company_Code, 
+                'company_name': getattr(bill, 'D_Company_Name', ''), 
+                'active_members': bill.E_Active_Members or 0, 
+                'schedule_date': getattr(bill, 'F_Schedule_Date', bill.A_CCDatesMonth), 
+                'final_date': bill.J_Final_Date or None, 
+                'schedule_amount': bill.H_Schedule_Amount or 0,
+                'confirmed_date': confirmed_date,
+                'source_details': source_details,
+            })
+
+        # --- EXCEL EXPORT ---
+        if request.GET.get('export_excel'):
+            import openpyxl
+            from openpyxl.styles import Font, Alignment
+            from django.http import HttpResponse
+
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Confirmations"
+
+            headers = [
+                'A_CC_Dates_Month', 'B_Fund_Co', 'C_Company_Code', 'D_Company_Name', 
+                'E_Active_Member', 'F_Schedule_Dat', 'G_Final_Date', 'H_Schedul', 
+                'I_Confirmed_Dat', 'J_Bank_Statement_Date', 'K_Bank_Deposit_Amount', 
+                'L_Allocated_Amoun', 'M_Comment', 'N_Deposit_Reference'
+            ]
+            ws.append(headers)
+
+            for cell in ws[1]:
+                cell.font = Font(bold=True)
+                cell.alignment = Alignment(horizontal='center')
+
+            for item in confirmation_data:
+                bill_common = [
+                    item['cc_dates_month'], item['fund_code'], item['company_code'],
+                    item['company_name'], item['active_members'], item['schedule_date'],
+                    item['final_date'], item['schedule_amount'], item['confirmed_date']
+                ]
+
+                sources = item['source_details']
+                if not sources:
+                    ws.append(bill_common + ['', '', '', '', '']) 
+                else:
+                    for index, s in enumerate(sources):
+                        bank_cols = [s['date'], s['bank_total'], s['amount'], s['comment'], s['bank_ref']]
+                        if index == 0:
+                            ws.append(bill_common + bank_cols)
+                        else:
+                            ws.append([''] * 9 + bank_cols)
+
+            filename = f"Confirmations_{datetime.now().strftime('%Y%m%d')}.xlsx"
+            response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            wb.save(response)
+            return response
+
+        return render(request, 'unity_internal_app/confirmations.html', {
+            'confirmation_records': confirmation_data,
+            'filter_start_date': filter_start_date_str,
+            'filter_end_date': filter_end_date_str,
         })
 
-    # =========================================================
-    # EXPORT TO EXCEL LOGIC (CLEAN GROUPED LAYOUT)
-    # =========================================================
-    if request.GET.get('export_excel'):
-        import openpyxl
-        from openpyxl.styles import Font, Alignment
-        from django.http import HttpResponse
-
-        wb = openpyxl.Workbook()
-        ws = wb.active
-        ws.title = "Confirmations"
-
-        headers = [
-            'CC Dates Month', 'Company Code', 'Active Members', 
-            'Schedule Date', 'Final Date', 'Schedule Amount', 
-            'Confirmed Date', 'Bank Date', 'Bank Amount'
-        ]
-        ws.append(headers)
-
-        for cell in ws[1]:
-            cell.font = Font(bold=True)
-            cell.alignment = Alignment(horizontal='center')
-
-        for item in confirmation_data:
-            bill_common = [
-                item['cc_dates_month'],          
-                item['company_code'],          
-                item['active_members'],          
-                item['schedule_date'],         
-                item['final_date'],            
-                item['schedule_amount'],         
-                item['confirmed_date'],          
-            ]
-
-            empty_common = [''] * len(bill_common)
-            sources = item['source_details']
-
-            if not sources:
-                ws.append(bill_common + ['', '']) 
-            else:
-                for index, source in enumerate(sources):
-                    bank_cols = [
-                        source['date'],
-                        source['amount']
-                    ]
-                    
-                    if index == 0:
-                        ws.append(bill_common + bank_cols)
-                    else:
-                        ws.append(empty_common + bank_cols)
-
-        filename = f"Daily_Confirmations_{datetime.now().strftime('%Y%m%d')}.xlsx"
-        response = HttpResponse(
-            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        )
-        response['Content-Disposition'] = f'attachment; filename="{filename}"'
-        wb.save(response)
-        return response
-    # =========================================================
-
-    context = {
-        'confirmation_records': confirmation_data,
-        'filter_start_date': filter_start_date_str,
-        'filter_end_date': filter_end_date_str,
-    }
-    
-    return render(request, 'unity_internal_app/confirmations.html', context)
+    except Exception as e:
+        print("!!! CONFIRMATIONS VIEW ERROR !!!")
+        print(traceback.format_exc())
+        return HttpResponse(f"Internal Server Error: {str(e)}", status=500)
 
 
 # --- Admin Billing View (Line-by-Line Display) ---
@@ -3329,32 +3337,23 @@ def global_claims_view(request):
             Q(company_code__icontains=query)
         ).order_by('-claim_created_date')
     else:
-        # Note: If using pagination later, apply it here. 
-        # For now, we fetch the last 50 as per your original logic.
         claims = base_claims.order_by('-claim_created_date')[:50] 
 
     # --- 1. PRE-FETCH EMAIL CONTENT FOR TABLE ICONS ---
-    # Collect IDs for any claims that have a linked email
     delegation_pks = [c.linked_email_id for c in claims if c.linked_email_id]
     
     if delegation_pks:
-        # Map Delegation Primary Key -> Outlook String Email ID
-        # Convert list to set to remove duplicates if multiple claims link to the same email
         delegations_map = EmailDelegation.objects.in_bulk(list(set(delegation_pks)))
         outlook_string_ids = [d.email_id for d in delegations_map.values()]
-        
-        # Map Outlook String Email ID -> Full Body/Subject Content
         inbox_map = OutlookInbox.objects.in_bulk(outlook_string_ids)
 
         for claim in claims:
             if claim.linked_email_id:
                 try:
-                    # Match the ID from the database to the pre-fetched map
                     del_obj = delegations_map.get(int(claim.linked_email_id))
                     if del_obj:
                         inbox_item = inbox_map.get(del_obj.email_id)
                         if inbox_item:
-                            # Attach these temporarily to the object for the template <template>
                             claim.email_preview_subject = inbox_item.subject
                             claim.email_preview_sender = inbox_item.sender_address
                             claim.email_preview_body = inbox_item.body_content
@@ -3363,14 +3362,16 @@ def global_claims_view(request):
                     continue
 
     all_companies = UnityMgListing.objects.values('a_company_code', 'b_company_name', 'c_agent')
+    
+    # --- 🚀 ADDED: Fetch users for the Agent Dropdown ---
+    available_users = User.objects.filter(is_active=True).order_by('username')
 
-    # --- 2. FETCH DELEGATIONS FOR MODAL DROPDOWN (Compose/Attach Logic) ---
+    # --- 2. FETCH DELEGATIONS FOR MODAL DROPDOWN ---
     my_delegated_emails = EmailDelegation.objects.filter(
         assigned_user=request.user, 
         status='DEL'
     ).order_by('-received_at')
 
-    # Attach basic info for dropdown display labels
     dropdown_email_ids = [d.email_id for d in my_delegated_emails]
     dropdown_inbox_items = OutlookInbox.objects.in_bulk(dropdown_email_ids)
 
@@ -3387,6 +3388,7 @@ def global_claims_view(request):
         'claims': claims,
         'all_companies': all_companies,
         'my_delegated_emails': my_delegated_emails,
+        'available_users': available_users, # 🚀 Added to context
         'is_two_pot_view': False
     }
     return render(request, 'unity_internal_app/global_claims.html', context)
@@ -3403,7 +3405,6 @@ def global_two_pot_view(request):
 
     base_claims = UnityClaim.objects.filter(claim_type='Two Pot').order_by('-claim_created_date')
 
-    # --- Filtering Logic ---
     if query:
         base_claims = base_claims.filter(
             Q(id_number__icontains=query) | 
@@ -3421,7 +3422,6 @@ def global_two_pot_view(request):
         except ValueError:
             pass
 
-    # --- Pagination ---
     paginator = Paginator(base_claims, 12) 
     page_number = request.GET.get('page')
     try:
@@ -3431,40 +3431,34 @@ def global_two_pot_view(request):
     except EmptyPage:
         page_obj = paginator.page(paginator.num_pages)
 
-    # --- 1. PRE-FETCH EMAIL CONTENT FOR TABLE ICONS (Instant Preview Logic) ---
-    # We collect all delegation IDs from the current page of claims to minimize DB hits
     delegation_pks = [c.linked_email_id for c in page_obj if c.linked_email_id]
     
     if delegation_pks:
-        # Map Delegation Primary Key -> Outlook String Email ID
         delegations_map = EmailDelegation.objects.in_bulk(delegation_pks)
         outlook_string_ids = [d.email_id for d in delegations_map.values()]
-        
-        # Map Outlook String Email ID -> Full Body/Subject Content
         inbox_map = OutlookInbox.objects.in_bulk(outlook_string_ids)
 
         for claim in page_obj:
             if claim.linked_email_id:
-                # Use int conversion to match in_bulk dictionary keys
                 del_obj = delegations_map.get(int(claim.linked_email_id))
                 if del_obj:
                     inbox_item = inbox_map.get(del_obj.email_id)
                     if inbox_item:
-                        # Attach attributes directly to the claim object for the template <template>
                         claim.email_preview_subject = inbox_item.subject
                         claim.email_preview_sender = inbox_item.sender_address
                         claim.email_preview_body = inbox_item.body_content
                         claim.email_preview_date = inbox_item.received_at
 
     all_companies = UnityMgListing.objects.values('a_company_code', 'b_company_name', 'c_agent')
+    
+    # --- 🚀 ADDED: Fetch users for the Agent Dropdown ---
+    available_users = User.objects.filter(is_active=True).order_by('username')
 
-    # --- 2. FETCH DELEGATIONS FOR MODAL DROPDOWN (Compose/Attach Logic) ---
     my_delegated_emails = EmailDelegation.objects.filter(
         assigned_user=request.user, 
         status='DEL'
     ).order_by('-received_at')
 
-    # Attach basic info for dropdown display labels
     dropdown_email_ids = [d.email_id for d in my_delegated_emails]
     dropdown_inbox_items = OutlookInbox.objects.in_bulk(dropdown_email_ids)
 
@@ -3481,6 +3475,7 @@ def global_two_pot_view(request):
         'page_obj': page_obj, 
         'all_companies': all_companies,
         'my_delegated_emails': my_delegated_emails,
+        'available_users': available_users, # 🚀 Added to context
         'is_two_pot_view': True,
         'search_query': query, 
         'start_date': start_date,
@@ -3493,7 +3488,6 @@ def global_two_pot_view(request):
 @login_required
 def save_global_claim(request):
     if request.method == 'POST':
-        # 1. Make a mutable copy of the POST data
         post_data = request.POST.copy()
         
         claim_type_input = post_data.get('claim_type', 'Standard')
@@ -3509,32 +3503,28 @@ def save_global_claim(request):
         else:
             form = UnityClaimForm(post_data, request.FILES)
 
-        # --- THE FIX: Silence the allocation requirement ---
-        # This prevents the "Select a valid choice" error from blocking the save.
         if 'claim_allocation' in form.fields:
             form.fields['claim_allocation'].required = False
 
         if form.is_valid():
             saved_claim = form.save(commit=False)
             
-            # Ensure Company Code is set (Global view doesn't have it in URL)
             if not saved_claim.company_code:
                 saved_claim.company_code = post_data.get('company_code')
 
-            # --- Two Pot Specific Field Override ---
+            # Ensure Agent from dropdown is saved
+            saved_claim.agent = post_data.get('agent')
+
             if claim_type_input == 'Two Pot':
                 saved_claim.claim_type = 'Two Pot'
                 saved_claim.mip_number = post_data.get('mip_number')
                 
-                # We set the allocation here manually if it's missing
                 if not saved_claim.claim_allocation:
                     saved_claim.claim_allocation = "Two Pot"
                 
-                # Checkboxes: 'on' if checked, else False
                 saved_claim.vested_pot_available = post_data.get('vested_pot_available') == 'on'
                 saved_claim.savings_pot_available = post_data.get('savings_pot_available') == 'on'
                 
-                # Dates: Ensure empty strings become None for the DB
                 v_date = post_data.get('vested_pot_paid_date')
                 saved_claim.vested_pot_paid_date = v_date if v_date else None
                 
@@ -3544,14 +3534,12 @@ def save_global_claim(request):
                 p_date = post_data.get('infund_cert_date')
                 saved_claim.infund_preservation_cert_received_date = p_date if p_date else None
 
-                # Handle Amount
                 amount = post_data.get('claim_amount')
                 try:
                     saved_claim.claim_amount = float(amount) if amount and amount.strip() else 0.00
                 except ValueError:
                     saved_claim.claim_amount = 0.00
 
-            # Handle Email Linking
             new_linked_email_id = post_data.get('linked_email_id')
             if new_linked_email_id and new_linked_email_id.strip():
                 saved_claim.linked_email_id = new_linked_email_id
@@ -3561,17 +3549,41 @@ def save_global_claim(request):
 
             saved_claim.save()
 
-            # Logging & Notes
-            # 1. Email Link Note
-            if str(new_linked_email_id or "") != str(old_linked_email_id or ""):
-                UnityClaimNote.objects.create(
-                    claim=saved_claim,
-                    note_selection="SUBMITTED VIA E-MAIL",
-                    note_description=f"System: Attached Email ID #{new_linked_email_id}",
-                    created_by=request.user
-                )
+            # --- 🚀 ADDED: EMAIL SENDING LOGIC 🚀 ---
+            if post_data.get('email_submission_action') == 'send_email_and_log':
+                recipient = post_data.get('member_recipient_email', '').strip()
+                subject = post_data.get('member_email_subject_reply', '').strip()
+                raw_body = post_data.get('member_email_body_editor', '')
 
-            # 2. Manual Note
+                if recipient and subject:
+                    # Convert newlines to HTML breaks for Outlook
+                    formatted_body = raw_body.replace('\n', '<br>')
+                    
+                    try:
+                        # Call your Outlook service
+                        result = OutlookGraphService.send_outlook_email(
+                            target_email=settings.OUTLOOK_EMAIL_ADDRESS,
+                            recipient_email=recipient,
+                            subject=subject,
+                            body_content=formatted_body,
+                            content_type='HTML'
+                        )
+
+                        if result.get('success'):
+                            # Log the sent email as a note
+                            UnityClaimNote.objects.create(
+                                claim=saved_claim,
+                                note_selection="SENT EMAIL",
+                                note_description=f"To: {recipient}\nSubject: {subject}\n\n{raw_body}",
+                                created_by=request.user
+                            )
+                            messages.success(request, f"Claim saved and email sent to {recipient}!")
+                        else:
+                            messages.error(request, f"Claim saved, but email failed: {result.get('error')}")
+                    except Exception as e:
+                        messages.error(request, f"Email system error: {str(e)}")
+
+            # Handle Manual Notes (if provided)
             note_desc = post_data.get('note_description')
             if note_desc and note_desc.strip():
                 UnityClaimNote.objects.create(
@@ -3585,7 +3597,6 @@ def save_global_claim(request):
             return redirect(redirect_url)
             
         else:
-            # If any other errors remain, they will show up in the messages block
             messages.error(request, f"Could not save claim: {form.errors}")
             return redirect(redirect_url)
             
