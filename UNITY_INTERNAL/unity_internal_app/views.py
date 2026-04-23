@@ -21,7 +21,7 @@ from django.db.models import Sum, F
 from django.urls import reverse
 import datetime
 from dateutil.relativedelta import relativedelta
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 import openpyxl
 import pandas as pd
 import numpy as np
@@ -1364,14 +1364,12 @@ def update_bankline_details(request, recon_id):
         recon_record.review_note = category
         
         # 🚀 LOGIC: SAVE NEW NOTE AS A SEPARATE ROW 🚀
-        # We no longer append to recon_record.review_note_text to keep columns separate
         if new_comment_text:
             BankLineNote.objects.create(
                 recon_record=recon_record,
                 note_text=new_comment_text,
                 category=category,
                 created_by=request.user.username
-                # created_at is handled by auto_now_add in the model
             )
 
         # Update Status
@@ -1390,22 +1388,18 @@ def update_bankline_details(request, recon_id):
             custom_body = request.POST.get('email_body_content', '')
             attachments = request.FILES.getlist('email_attachments')
 
-            # Build HTML wrapper
+            # 🚀 FIX: Convert plain text line breaks into HTML <br> tags 🚀
+            # This ensures the email preserves the "Dear Sir/Madam" breaks perfectly.
+            html_formatted_body = custom_body.replace('\n', '<br>')
+
+            # Build HTML wrapper with improved line-height and styling
             full_html_body = f"""
             <html>
-            <body style="font-family: 'Segoe UI', Arial, sans-serif; color: #333;">
-                <div style="background-color: #1b5e20; color: white; padding: 15px; border-radius: 8px 8px 0 0;">
-                    <h2 style="margin:0; font-size: 18px;">Unity Finance Department Update</h2>
-                </div>
-                <div style="padding: 20px; border: 1px solid #aed581; border-top: none; border-radius: 0 0 8px 8px; background-color: #fcfdfc;">
-                    <div style="white-space: pre-line; margin-bottom: 20px;">
-                        {custom_body}
+            <body style="font-family: 'Segoe UI', Arial, sans-serif; color: #333; line-height: 1.6;">
+                <div style="padding: 25px; border: 1px solid #aed581; border-radius: 8px; background-color: #fcfdfc; max-width: 650px;">
+                    <div style="font-size: 11.5pt;">
+                        {html_formatted_body}
                     </div>
-                    <hr style="border: none; border-top: 1px solid #eee;">
-                    <p style="font-size: 12px; color: #777;">
-                        Reference: {recon_record.bank_line.statement_reference if recon_record.bank_line else 'N/A'}<br>
-                        Category: {category}
-                    </p>
                 </div>
             </body>
             </html>
@@ -3120,6 +3114,121 @@ def admin_billing_view(request):
     }
     
     return render(request, 'unity_internal_app/admin_billing.html', context)
+
+@login_required
+def export_admin_billing_excel(request):
+    """
+    Exports the filtered Admin Billing data to Excel.
+    Calculates 0.3% fee and includes a Grand Total.
+    """
+    filter_start_date = request.GET.get('start_date')
+    filter_end_date = request.GET.get('end_date')
+
+    # Replicate Queryset Logic
+    bills_queryset = UnityBill.objects.filter(
+        is_reconciled=True
+    ).exclude(
+        E_Active_Members=0
+    ).exclude(
+        H_Schedule_Amount=0
+    ).order_by('-A_CCDatesMonth', 'C_Company_Code')
+
+    # Apply Date Filters
+    if filter_start_date:
+        try:
+            start_dt = datetime.strptime(filter_start_date, '%Y-%m-%d').date()
+            bills_queryset = bills_queryset.filter(A_CCDatesMonth__gte=start_dt)
+        except ValueError: pass
+
+    if filter_end_date:
+        try:
+            end_dt = datetime.strptime(filter_end_date, '%Y-%m-%d').date()
+            bills_queryset = bills_queryset.filter(A_CCDatesMonth__lte=end_dt)
+        except ValueError: pass
+
+    # --- Excel Setup ---
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Admin Billing"
+
+    # Styling
+    header_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid") # Dark Blue
+    white_font = Font(color="FFFFFF", bold=True)
+    center_align = Alignment(horizontal="center")
+    bold_font = Font(bold=True)
+
+    # Headers
+    headers = [
+        "Fiscal Period", "Company Code", "Company Name", 
+        "Active Members", "Total Schedule Amount", "Admin Fee (0.3%)", 
+        "Posted Date", "Posted User"
+    ]
+    ws.append(headers)
+
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = white_font
+        cell.alignment = center_align
+
+    # Data Rows
+    total_schedule = Decimal('0.00')
+    total_fees = Decimal('0.00')
+
+    for bill in bills_queryset:
+        schedule_amount = bill.H_Schedule_Amount or Decimal('0.00')
+        admin_fee = schedule_amount * Decimal('0.003')
+        
+        # Metadata
+        first_settlement = BillSettlement.objects.filter(
+            unity_bill_source_id=bill.pk
+        ).order_by('settlement_date').first()
+        
+        posted_date = first_settlement.settlement_date.strftime('%Y-%m-%d') if first_settlement else "N/A"
+        posted_user = first_settlement.confirmed_by.username if first_settlement and first_settlement.confirmed_by else "N/A"
+        fiscal_period = bill.A_CCDatesMonth.strftime("%Y-%m") if bill.A_CCDatesMonth else "N/A"
+
+        ws.append([
+            fiscal_period,
+            bill.C_Company_Code or "N/A",
+            bill.D_Company_Name or "N/A",
+            bill.E_Active_Members or 0,
+            float(schedule_amount),
+            float(admin_fee),
+            posted_date,
+            posted_user
+        ])
+
+        total_schedule += schedule_amount
+        total_fees += admin_fee
+
+    # Add Totals Row
+    last_row = ws.max_row + 1
+    ws.append(["", "", "GRAND TOTALS", "", float(total_schedule), float(total_fees), "", ""])
+    
+    # Format Totals Row
+    for col_num in range(1, 9):
+        cell = ws.cell(row=last_row, column=col_num)
+        cell.font = bold_font
+        if col_num in [5, 6]: # Amount Columns
+            cell.number_format = '#,##0.00'
+
+    # Auto-adjust column width
+    for col in ws.columns:
+        max_length = 0
+        column = col[0].column_letter
+        for cell in col:
+            try:
+                if len(str(cell.value)) > max_length:
+                    max_length = len(str(cell.value))
+            except: pass
+        ws.column_dimensions[column].width = max_length + 2
+
+    # Return Response
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    filename = f"Admin_Billing_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    wb.save(response)
+    return response
 
 # ==============================================================================
 # [UPDATED VIEWS] ADD THESE BELOW YOUR unity_information FUNCTION

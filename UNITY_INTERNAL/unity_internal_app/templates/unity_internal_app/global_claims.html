@@ -87,15 +87,16 @@ tr:hover {background-color: #e8f5e9;}
         <table id="claimsTable">
             <thead>
                 <tr>
-                    <th style="width: 7%;">Code</th>
-                    <th style="width: 15%;">Surname, Name</th>
-                    <th style="width: 13%;">ID Number</th>
-                    <th style="width: 10%;" class="sortable" onclick="sortTable(3)">Last Contrib.</th>
+                    <th style="width: 6%;">Code</th>
+                    <th style="width: 14%;">Surname, Name</th>
+                    <th style="width: 11%;">ID Number</th>
+                    <th style="width: 10%;">MIP Number</th>
+                    <th style="width: 10%;" class="sortable" onclick="sortTable(4)">Last Contrib.</th>
                     <th style="width: 10%;">Exit Reason</th>
                     <th style="width: 12%;">Allocation</th>
                     <th style="width: 12%;">Type</th>
                     <th style="width: 7%;">Status</th>
-                    <th style="text-align: right; width: 10%;">Action</th>
+                    <th style="text-align: right; width: 8%;">Action</th>
                 </tr>
             </thead>
             <tbody id="claimsTableBody">
@@ -104,6 +105,7 @@ tr:hover {background-color: #e8f5e9;}
                     <td><strong>{{ claim.company_code }}</strong></td>
                     <td>{{ claim.member_surname }}, {{ claim.member_name }}</td>
                     <td>{{ claim.id_number }}</td>
+                    <td>{{ claim.mip_number|default:"-" }}</td>
                     <td>{{ claim.last_contribution_date|date:"Y-m-d"|default:"-" }}</td>
                     <td>{{ claim.exit_reason|default:"-" }}</td>
                     <td><small>{{ claim.claim_allocation }}</small></td>
@@ -191,11 +193,27 @@ tr:hover {background-color: #e8f5e9;}
                             {% endfor %}
                         </datalist>
                     </div>
-                    <div><label style="font-weight:bold;">Agent</label><input type="text" name="agent" id="agent_input" class="form-input" readonly style="background-color: #eee;"></div>
+                    <div>
+                        <label style="font-weight:bold;">Loaded/ Submitted By: </label>
+                        <select name="agent" id="agent_input" class="form-select">
+                        <option value="">-- Select Agent --</option>
+                        <option value="Samantha">Samantha</option>
+                        <option value="Mymoena">Mymoena</option>
+                        <option value="Chantal">Chantal</option>
+                        <option value="Timothy">Timothy</option>
+                        <option value="Karen">Karen</option>
+                        <option value="Lorraine">Lorraine</option>
+                        <option value="Jessica">Jessica</option>
+                            {% for u in available_users %}
+                                <option value="{{ u.username }}">{{ u.username }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                     <div><label style="font-weight:bold;">ID / Passport *</label><input type="text" name="id_number" class="form-input" required></div>
+                    <div><label style="font-weight:bold;">MIP Number</label><input type="text" name="mip_number" class="form-input"></div>
                     <div><label style="font-weight:bold;">First Name *</label><input type="text" name="member_name" class="form-input" required></div>
                     <div><label style="font-weight:bold;">Surname *</label><input type="text" name="member_surname" class="form-input" required></div>
                 </div>
@@ -229,6 +247,7 @@ tr:hover {background-color: #e8f5e9;}
                             <option value="Claim Query">Claim Query</option>
                             <option value="Claim Paid">Claim Paid</option>
                             <option value="Exit Processed">Exit Processed</option>
+                            <option value="Default paid up">Default paid up</option>
                         </select>
                     </div>
                 </div>
@@ -238,6 +257,7 @@ tr:hover {background-color: #e8f5e9;}
                         <label style="font-weight:bold;">Claim Status</label>
                         <select name="claim_status" id="claim_status_select" class="form-select">
                             <option value="Incomplete">Incomplete</option>
+                            <option value="Claim documents requested">Claim documents requested</option>
                             <option value="Submitted">Submitted</option>
                             <option value="Paid">Paid</option>
                         </select>
@@ -336,6 +356,7 @@ tr:hover {background-color: #e8f5e9;}
                         <option value="">-- Select Note Type --</option>
                         <option value="CLAIM DOCUMENTS REQUESTED">CLAIM DOCUMENTS REQUESTED</option>
                         <option value="SUBMITTED VIA E-MAIL">SUBMITTED VIA E-MAIL</option>
+                        <option value="SUBMITTED ONLINE">SUBMITTED ONLINE</option>
                     </select>
                     <textarea name="note_description" id="note_description" rows="3" class="form-input" placeholder="Add specific details..." style="width: 100%; margin-bottom: 10px;"></textarea>
                     <div>
@@ -400,7 +421,7 @@ tr:hover {background-color: #e8f5e9;}
             let valA = a.cells[colIndex].innerText.toLowerCase().trim();
             let valB = b.cells[colIndex].innerText.toLowerCase().trim();
 
-            if (colIndex === 3) {
+            if (colIndex === 4) { // Index 4 is Last Contrib.
                 if (valA === '-') valA = '1900-01-01';
                 if (valB === '-') valB = '1900-01-01';
                 let dateA = new Date(valA);
@@ -446,8 +467,12 @@ tr:hover {background-color: #e8f5e9;}
         document.getElementById('modalTitle').innerText = "Edit Claim Entry";
         document.getElementById('modal_claim_id').value = claimId;
         document.getElementById('company_code_input').value = btn.dataset.company_code;
+        
+        // 🚀 Updated: sets the dropdown value 🚀
         document.getElementById('agent_input').value = btn.dataset.agent;
+        
         document.querySelector('input[name="id_number"]').value = btn.dataset.id_number;
+        document.querySelector('input[name="mip_number"]').value = btn.dataset.mip_number || "";
         document.querySelector('input[name="member_name"]').value = btn.dataset.member_name;
         document.querySelector('input[name="member_surname"]').value = btn.dataset.member_surname;
         
@@ -509,9 +534,10 @@ tr:hover {background-color: #e8f5e9;}
         if (sel) sel.value = finalVal;
     }
 
+    // 🚀 Updated Listener: selects the agent in the dropdown when Company is picked 🚀
     document.getElementById('company_code_input').addEventListener('input', function() {
         const val = this.value;
-        const opts = document.getElementById('company_list').childNodes;
+        const opts = document.getElementById('company_list').querySelectorAll('option');
         for (let i = 0; i < opts.length; i++) {
             if (opts[i].value === val) {
                 document.getElementById('agent_input').value = opts[i].getAttribute('data-agent') || '';

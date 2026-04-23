@@ -72,6 +72,10 @@
         <a href="{% url 'dashboard' %}" class="dashboard-button">← Back to Home Screen</a>
         <h1>💻 Admin Billing Overview</h1>
     </div>
+    <a href="{% url 'export_admin_billing_excel' %}?start_date={{ filter_start_date|default:'' }}&end_date={{ filter_end_date|default:'' }}" 
+   class="bg-blue-700 hover:bg-blue-800 text-white px-6 py-2 rounded-lg text-sm font-bold shadow-md flex items-center gap-2 transition-all">
+    <i class="fas fa-file-excel"></i> Export Admin Billing
+</a>
 
     <div class="summary-box">
         <strong>Recon Percentage:</strong> 0.3% (0.003) based on monthly salary per bill. 
