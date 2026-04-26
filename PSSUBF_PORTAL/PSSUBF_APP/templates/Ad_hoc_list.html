@@ -78,7 +78,7 @@
         <div class="bg-gray-50 w-full max-w-6xl rounded-2xl shadow-2xl overflow-hidden border border-white/50">
             
             <div class="p-5 border-b bg-white flex flex-col items-center relative">
-                <button onclick="closeAdHocModal()" class="absolute right-5 top-5 text-gray-400 hover:text-red-600 transition text-3xl">&times;</button>
+                <button type="button" onclick="closeAdHocModal()" class="absolute right-5 top-5 text-gray-400 hover:text-red-600 transition text-3xl">&times;</button>
                 <p class="text-sm font-semibold text-gray-500" id="header_id_passport">ID/Passport: -</p>
                 <h2 class="text-3xl font-light tracking-tight text-gray-800" id="header_beneficiary_display">Create New Ad Hoc Claim</h2>
             </div>
@@ -86,13 +86,12 @@
             <form id="adhocForm" method="POST" action="{% url 'adhoc_list' %}" enctype="multipart/form-data" class="p-8 grid grid-cols-1 md:grid-cols-4 gap-4 overflow-y-auto max-h-[85vh] relative">
                 {% csrf_token %}
                 
-                <button type="submit" class="absolute right-8 top-0 text-gray-400 hover:text-green-700 text-3xl transition-colors">
-                    <i class="fas fa-save"></i>
-                </button>
-
                 <input type="hidden" name="action" id="formAction" value="add_adhoc_entry">
                 <input type="hidden" name="record_id" id="record_id">
                 <input type="hidden" name="remove_attachment" id="remove_attachment" value="false">
+
+                <input type="hidden" id="calc_stipend" value="0">
+                <input type="hidden" id="calc_cessation" value="">
 
                 <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Claim Type</label>
@@ -130,7 +129,7 @@
 
                 <div>
                     <label class="block text-xs font-bold text-green-700 uppercase mb-1">* Original Claim Form Date</label>
-                    <input type="date" name="claim_form_date" id="claim_form_date" onchange="calculateAge(); calculateMaturity();" required class="w-full p-2 border-2 border-green-600 rounded text-sm clean-input">
+                    <input type="date" name="claim_form_date" id="claim_form_date" onchange="calculateAge(); calculateMaturity(); calculateAffordability();" required class="w-full p-2 border-2 border-green-600 rounded text-sm clean-input">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Portfolio Value</label>
@@ -149,9 +148,9 @@
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Years to Maturity</label>
                     <input type="text" name="years_to_maturity" id="years_to_maturity" readonly class="w-full p-2 border bg-green-50 rounded text-sm font-bold text-green-700">
                 </div>
-                <div>
-                    <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Affordability Calculation</label>
-                    <input type="text" name="affordability_calculation" id="affordability_calculation" readonly class="w-full p-2 border bg-green-50 rounded text-sm font-bold text-green-700">
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-bold text-emerald-700 uppercase mb-1">Affordability Result (P - (Months * S + R))</label>
+                    <input type="text" name="affordability_calculation" id="affordability_calculation" readonly class="w-full p-2 border highlight-field rounded text-sm" placeholder="Awaiting data...">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Reason</label>
@@ -244,7 +243,7 @@
                         document.getElementById('b_name').value = data.beneficiary_name;
                         document.getElementById('g_name').value = data.guardian_name;
                         document.getElementById('b_dob').value = data.dob;
-                        document.getElementById('term_date').value = data.term_date;
+                        document.getElementById('term_date').value = data.termination_date || data.term_date;
                         document.getElementById('title_reason').value = data.title;
                         document.getElementById('claim_form_date').value = data.claim_form_date;
                         document.getElementById('status').value = data.status;
@@ -253,14 +252,17 @@
                         document.getElementById('portfolio_date').value = data.portfolio_date;
                         document.getElementById('amount_requested').value = data.amount_requested;
                         document.getElementById('years_to_maturity').value = data.years_to_maturity;
-                        document.getElementById('affordability_calculation').value = data.affordability_calculation;
                         document.getElementById('supporting_docs_attached').value = data.docs_attached;
                         document.getElementById('comments').value = data.comments;
                         document.getElementById('footer_tracking').innerText = data.tracking_info || '';
                         
-                        // Run calculations after populating existing record
+                        // Populate calculation data
+                        document.getElementById('calc_stipend').value = data.stipened || 0;
+                        document.getElementById('calc_cessation').value = data.termination_date || data.term_date;
+                        
                         calculateAge();
                         calculateMaturity();
+                        calculateAffordability();
                     });
             } else {
                 form.reset();
@@ -268,6 +270,7 @@
                 document.getElementById('header_beneficiary_display').innerText = "Create New Ad Hoc Claim";
                 document.getElementById('formAction').value = "add_adhoc_entry";
                 document.getElementById('record_id').value = "";
+                document.getElementById('affordability_calculation').value = "Awaiting data...";
             }
         }
 
@@ -307,15 +310,31 @@
         function calculateAffordability() {
             const portfolio = parseFloat(document.getElementById('portfolio_value').value) || 0;
             const requested = parseFloat(document.getElementById('amount_requested').value) || 0;
-            if (portfolio > 0) {
-                let result = (requested / portfolio) * 100;
-                document.getElementById('affordability_calculation').value = result.toFixed(2) + '%';
-            }
-        }
+            const stipend = parseFloat(document.getElementById('calc_stipend').value) || 0;
+            const cessationStr = document.getElementById('calc_cessation').value;
+            const target = document.getElementById('affordability_calculation');
 
-        function handleFileRemoval() {
-            document.getElementById('file_status_bar').classList.add('hidden');
-            document.getElementById('remove_attachment').value = "true";
+            if (!cessationStr) {
+                target.value = "Awaiting member data...";
+                return;
+            }
+
+            const now = new Date();
+            const cessationDate = new Date(cessationStr);
+            if (isNaN(cessationDate)) return;
+            
+            let monthsRemaining = (cessationDate.getFullYear() - now.getFullYear()) * 12;
+            monthsRemaining += cessationDate.getMonth() - now.getMonth();
+            if (now.getDate() < cessationDate.getDate()) monthsRemaining--;
+            if (monthsRemaining < 0) monthsRemaining = 0;
+
+            // REVERSED FORMULA: Portfolio - (Months * Stipend + Requested Amount)
+            const totalLiability = (stipend * monthsRemaining);
+            const result = portfolio - (totalLiability + requested);
+            
+            const label = result >= 0 ? "(Surplus)" : "(Deficit)";
+            target.value = 'R ' + result.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ' + label;
+            target.style.color = (result >= 0) ? '#059669' : '#dc2626';
         }
 
         function closeAdHocModal() { document.getElementById('adhocModal').classList.add('hidden'); }
@@ -325,14 +344,22 @@
             fetch(`/get-beneficiary-data/${mNum}/`)
                 .then(res => res.json())
                 .then(data => {
-                    document.getElementById('b_name').value = data.beneficiary_name;
-                    document.getElementById('g_name').value = data.guardian_name;
-                    document.getElementById('b_dob').value = data.dob;
-                    document.getElementById('term_date').value = data.termination_date;
-                    document.getElementById('monthly_income').value = data.stipened;
-                    
-                    // Trigger age calculation after fetching data
-                    calculateAge();
+                    if(data.success) {
+                        document.getElementById('b_name').value = data.beneficiary_name;
+                        document.getElementById('g_name').value = data.guardian_name;
+                        document.getElementById('b_dob').value = data.dob;
+                        document.getElementById('term_date').value = data.term_date;
+                        document.getElementById('monthly_income').value = data.stipened;
+                        
+                        // Populate calculation data
+                        document.getElementById('calc_stipend').value = data.stipened;
+                        document.getElementById('calc_cessation').value = data.term_date;
+                        document.getElementById('portfolio_value').value = data.total_fund_value;
+
+                        calculateAge();
+                        calculateMaturity();
+                        calculateAffordability();
+                    }
                 });
         }
     </script>

@@ -56,7 +56,7 @@
         /* TABLE STYLES */
         .table-wrapper { overflow-y: auto; flex: 1; border: 1px solid #aed581; border-radius: 4px; background: white; }
         table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
-        th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #aed581; font-size: 13px; word-wrap: break-word; }
+        th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #aed581; font-size: 12px; word-wrap: break-word; }
         
         /* Fixed Header */
         th { background-color: #e6ffe6; color: #1b5e20; font-weight: 700; position: sticky; top: 0; z-index: 10; border-bottom: 2px solid #aed581; }
@@ -65,7 +65,8 @@
 
         /* Specific Column Alignments */
         .text-center { text-align: center; }
-        .amount-col { text-align: right; font-weight: 600; }
+        .amount-col { text-align: right; font-weight: 600; color: #2e7d32; }
+        .bank-col { background-color: #f9fff9; } /* Subtle highlight for bank data */
 
         /* Row Separator Logic */
         .bill-group-end td { border-bottom: 2px solid #81c784 !important; }
@@ -116,15 +117,20 @@
             <table>
                 <thead>
                     <tr>
-                        <th style="width: 10%;">CC Dates Month</th>
-                        <th style="width: 8%;">Company Code</th>
-                        <th style="width: 8%;" class="text-center">Active Members</th>
-                        <th style="width: 10%;">Schedule Date</th>
-                        <th style="width: 10%;">Final Date</th>
-                        <th style="width: 12%;" class="amount-col">Schedule Amount</th>
-                        <th style="width: 12%;">Confirmed Date</th>
-                        <th style="width: 10%;">Bank Date</th>
-                        <th style="width: 12%;" class="amount-col">Bank Amount</th>
+                        <th style="width: 70px;">Month</th>
+                        <th style="width: 50px;">Fund</th>
+                        <th style="width: 70px;">Co. Code</th>
+                        <th style="width: 150px;">Company Name</th>
+                        <th style="width: 60px;" class="text-center">Members</th>
+                        <th style="width: 80px;">Sched. Date</th>
+                        <th style="width: 80px;">Final Date</th>
+                        <th style="width: 100px;" class="amount-col">Sched. Amount</th>
+                        <th style="width: 85px;">Conf. Date</th>
+                        <th style="width: 85px;" class="bank-col">Bank Date</th>
+                        <th style="width: 100px;" class="amount-col bank-col">Bank Deposit</th>
+                        <th style="width: 100px;" class="amount-col bank-col">Allocated</th>
+                        <th style="width: 180px;" class="bank-col">Recon Note</th>
+                        <th style="width: 120px;" class="bank-col">Bank Ref</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -135,21 +141,28 @@
                                 {% if source_count == 0 %}
                                     <tr class="bill-group-end">
                                         <td>{{ record.cc_dates_month|date:"Y-m-d" }}</td>
+                                        <td>{{ record.fund_code }}</td>
                                         <td>{{ record.company_code }}</td>
+                                        <td>{{ record.company_name }}</td>
                                         <td class="text-center">{{ record.active_members }}</td>
                                         <td>{{ record.schedule_date|date:"Y-m-d" }}</td>
                                         <td>{{ record.final_date|date:"Y-m-d"|default:"-" }}</td>
                                         <td class="amount-col">R {{ record.schedule_amount }}</td>
-                                        <td>-</td>
-                                        <td>-</td> 
-                                        <td class="amount-col">-</td> 
+                                        <td>{{ record.confirmed_date|date:"Y-m-d"|default:"-" }}</td>
+                                        <td class="bank-col">-</td> 
+                                        <td class="amount-col bank-col">-</td> 
+                                        <td class="amount-col bank-col">-</td> 
+                                        <td class="bank-col">-</td> 
+                                        <td class="bank-col">-</td> 
                                     </tr>
                                 {% else %}
                                     {% for source in record.source_details %}
                                         <tr class="{% if forloop.last %}bill-group-end{% endif %}">
                                             {% if forloop.first %}
                                                 <td rowspan="{{ row_span }}">{{ record.cc_dates_month|date:"Y-m-d" }}</td>
+                                                <td rowspan="{{ row_span }}">{{ record.fund_code }}</td>
                                                 <td rowspan="{{ row_span }}">{{ record.company_code }}</td>
+                                                <td rowspan="{{ row_span }}">{{ record.company_name }}</td>
                                                 <td rowspan="{{ row_span }}" class="text-center">{{ record.active_members }}</td>
                                                 <td rowspan="{{ row_span }}">{{ record.schedule_date|date:"Y-m-d" }}</td>
                                                 <td rowspan="{{ row_span }}">{{ record.final_date|date:"Y-m-d"|default:"-" }}</td>
@@ -158,8 +171,11 @@
                                                     {{ record.confirmed_date|date:"Y-m-d"|default:"-" }}
                                                 </td>
                                             {% endif %}
-                                            <td>{{ source.date|date:"Y-m-d" }}</td>
-                                            <td class="amount-col">R {{ source.amount }}</td>
+                                            <td class="bank-col">{{ source.date|date:"Y-m-d" }}</td>
+                                            <td class="amount-col bank-col">R {{ source.bank_total }}</td>
+                                            <td class="amount-col bank-col">R {{ source.amount }}</td>
+                                            <td class="bank-col" style="font-style: italic; color: #555;">{{ source.comment|default:"-" }}</td>
+                                            <td class="bank-col">{{ source.bank_ref|default:"-" }}</td>
                                         </tr>
                                     {% endfor %}
                                 {% endif %}
@@ -168,7 +184,7 @@
                         {% endwith %}
                     {% empty %}
                         <tr>
-                            <td colspan="9" class="text-center" style="padding: 40px; color: #757575;">No records found matching the criteria.</td>
+                            <td colspan="14" class="text-center" style="padding: 40px; color: #757575;">No records found matching the criteria.</td>
                         </tr>
                     {% endfor %}
                 </tbody>

@@ -1465,10 +1465,9 @@ from decimal import Decimal
 
 @login_required
 def pre_bill_reconciliation_summary(request, company_code, bill_id):
-    # Define a small tolerance for Decimal comparisons
-    SAFETY_TOLERANCE = Decimal('0.0001') 
-    ZERO_DECIMAL = Decimal('0.00')
-    
+    """
+    Summarizes the current state of a bill's debt reconciliation.
+    """
     bill_record = get_object_or_404(UnityBill, id=bill_id, C_Company_Code=company_code)
     
     # --- CALCULATE AVAILABLE DEBT (Cash) ---
@@ -1532,7 +1531,7 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
     ).values_list('source_credit_note_id', flat=True)
     credit_notes_history = CreditNote.objects.filter(id__in=assigned_note_ids)
 
-    # 🚀 NEW: FINANCIAL SUMMARY HEADER CALCULATIONS 🚀
+    # 🚀 FINANCIAL SUMMARY HEADER CALCULATIONS 🚀
     total_bank_surplus = ReconnedBank.objects.filter(company_code=company_code).aggregate(
         total=Sum(F('transaction_amount') - F('amount_settled'))
     )['total'] or ZERO_DECIMAL
@@ -1575,7 +1574,6 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
         'applied_journals': applied_journals,
         'action_message': action_message,
         'is_proceed_enabled': is_proceed_enabled,
-        # Pass header totals
         'available_surplus': total_bank_surplus,
         'manual_credits_total': manual_credits_total,
     }
@@ -1727,19 +1725,28 @@ def process_cash_allocation(request, company_code, bill_id):
     except Exception as e:
         messages.error(request, f"Allocation Error: {str(e)}")
         return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
+
+
+# Constants for precision math
+ZERO_DECIMAL = Decimal('0.00')
+SAFETY_TOLERANCE = Decimal('0.0001')
+
     
 @login_required
 @transaction.atomic
 def finalize_reconciliation(request, company_code, bill_id):
     """
-    Processes all selected bank line allocations in bulk, then
-    finalizes the bill if the balance requirements are met.
+    Processes bulk allocations, then finalizes the bill and ensures the 
+    recon_note is applied to ALL settlement records tied to this bill.
     """
     try:
         bill_record = UnityBill.objects.select_for_update().get(pk=bill_id, C_Company_Code=company_code)
         aware_dt = timezone.now()
+        
+        # 🚀 1. Capture the Recon Note from the Modal POST
+        recon_note = request.POST.get('recon_note', '').strip()
 
-        # 1. PROCESS BULK ALLOCATIONS (If any checkboxes were checked)
+        # 🚀 2. PROCESS BULK ALLOCATIONS (If any checkboxes were checked)
         if request.method == 'POST':
             selected_ids = request.POST.getlist('selected_recon_ids')
             
@@ -1757,7 +1764,7 @@ def finalize_reconciliation(request, company_code, bill_id):
                 line_unsettled = recon_line.transaction_amount - recon_line.amount_settled
                 applied_amount = min(amount_to_apply, line_unsettled)
 
-                # Create Audit Trail
+                # Create Audit Trail (New entries get the note immediately)
                 BillSettlement.objects.create(
                     reconned_bank_line=recon_line,
                     unity_bill_source=bill_record,
@@ -1765,32 +1772,52 @@ def finalize_reconciliation(request, company_code, bill_id):
                     settlement_date=aware_dt,
                     confirmed_by=request.user,
                     original_import_bank_id=recon_line.bank_line_id,
+                    settlement_note=recon_note, # ✨ Stamping note on new allocations
                 )
 
                 # Update Bank Line
                 recon_line.amount_settled += applied_amount
-                if recon_line.amount_settled >= (recon_line.transaction_amount - Decimal('0.0001')):
+                if recon_line.amount_settled >= (recon_line.transaction_amount - SAFETY_TOLERANCE):
                     recon_line.recon_status = 'Reconciled'
                 else:
                     recon_line.recon_status = 'Partially Reconciled'
                 recon_line.save()
 
-        # 2. FINALIZATION CHECK (Verify if bill is now balanced)
-        bill_settled_agg = BillSettlement.objects.filter(unity_bill_source_id=bill_record.pk).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
+        # 🚀 3. THE FIX: SWEEP NOTE TO ALL EXISTING SETTLEMENTS
+        # This updates rows that were created earlier via individual "Apply Cash" buttons.
+        if recon_note:
+            BillSettlement.objects.filter(
+                unity_bill_source_id=bill_record.pk
+            ).update(settlement_note=recon_note)
+
+        # 🚀 4. FINALIZATION CHECK (Verify if bill is now balanced)
+        bill_settled_agg = BillSettlement.objects.filter(
+            unity_bill_source_id=bill_record.pk
+        ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
         
-        if bill_settled_agg >= (bill_record.H_Schedule_Amount - Decimal('0.0001')):
+        if bill_settled_agg >= (bill_record.H_Schedule_Amount - SAFETY_TOLERANCE):
             if not bill_record.is_reconciled:
                 bill_record.is_reconciled = True
+                bill_record.J_Final_Date = aware_dt.date()
                 bill_record.save()
-                messages.success(request, f"Bill #{bill_id} successfully processed and marked as **RECONCILED**.")
+
+                # Save the Closing Note to the General Audit Trail
+                UnityClaimNote.objects.create(
+                    company_code=company_code,
+                    note_description=f"RECON FINALIZED: {recon_note}" if recon_note else "Bill Reconciled and Closed.",
+                    note_selection="RECON CLOSURE",
+                    created_by=request.user
+                )
+
+                messages.success(request, f"Bill #{bill_id} successfully reconciled. Note applied to all ledger entries.")
                 
-                # FIX: Redirect to the success view name used in urls.py
+                # Redirect to success view
                 return redirect('reconciliation_success_view', company_code=company_code, bill_id=bill_id)
             else:
                 messages.info(request, "Bill is already reconciled.")
         else:
             remaining_liability = bill_record.H_Schedule_Amount - bill_settled_agg
-            messages.error(request, f"Processed selected lines, but R{remaining_liability:.2f} still remains. Bill cannot be closed yet.")
+            messages.error(request, f"Liability of R{remaining_liability:.2f} remains. Bill cannot be closed yet.")
 
         return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
 
@@ -2867,6 +2894,7 @@ def unallocate_surplus(request, bill_id):
 def confirmations_view(request):
     """
     Displays bills ready for daily confirmation review.
+    Now pulls the 'settlement_note' captured during finalization.
     """
     from decimal import Decimal
     from datetime import datetime, date
@@ -2899,6 +2927,7 @@ def confirmations_view(request):
                     end_dt = datetime.strptime(filter_end_date_str, '%Y-%m-%d').date()
                     settlement_q &= Q(settlement_date__lte=end_dt)
                 
+                # Fetching matching bill IDs
                 matching_bill_ids = BillSettlement.objects.filter(
                     settlement_q
                 ).values_list('unity_bill_source_id', flat=True)
@@ -2928,8 +2957,7 @@ def confirmations_view(request):
                     source['type'] = 'Bank Line'
                     source['bank_total'] = bank_line.transaction_amount
                     
-                    # 🚀 FIX: SAFE REFERENCE LOOKUP 🚀
-                    # This tries 'statement_reference', then 'reference', then 'description'
+                    # 🚀 SAFE REFERENCE LOOKUP 🚀
                     source['bank_ref'] = getattr(bank_line, 'statement_reference', 
                                          getattr(bank_line, 'reference', 
                                          getattr(bank_line, 'description', '-')))
@@ -2952,7 +2980,8 @@ def confirmations_view(request):
                     source['bank_total'] = settlement.settled_amount
                     source['bank_ref'] = "-"
 
-                source['comment'] = getattr(settlement, 'settlement_comment', '')
+                # 🚀 UPDATE: Pull from 'settlement_note' instead of comment 🚀
+                source['comment'] = getattr(settlement, 'settlement_note', '')
                 source_details.append(source)
                 
             source_details.sort(key=lambda x: x['date'] if x['date'] else date(1900, 1, 1))
@@ -2997,6 +3026,7 @@ def confirmations_view(request):
                 cell.alignment = Alignment(horizontal='center')
 
             for item in confirmation_data:
+                # Column A to I
                 bill_common = [
                     item['cc_dates_month'], item['fund_code'], item['company_code'],
                     item['company_name'], item['active_members'], item['schedule_date'],
@@ -3008,6 +3038,8 @@ def confirmations_view(request):
                     ws.append(bill_common + ['', '', '', '', '']) 
                 else:
                     for index, s in enumerate(sources):
+                        # Column J to N
+                        # s['comment'] here is pulling from 'settlement_note'
                         bank_cols = [s['date'], s['bank_total'], s['amount'], s['comment'], s['bank_ref']]
                         if index == 0:
                             ws.append(bill_common + bank_cols)

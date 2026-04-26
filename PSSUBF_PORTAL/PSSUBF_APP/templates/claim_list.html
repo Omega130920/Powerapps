@@ -15,6 +15,7 @@
         .overflow-x-auto::-webkit-scrollbar { height: 8px; }
         .overflow-x-auto::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 4px; }
         .history-row { background-color: rgba(254, 249, 195, 0.4); } 
+        .highlight-field { background-color: #fef08a !important; font-weight: 700; color: #1f2937; border-color: #eab308 !important; }
     </style>
 </head>
 <body class="p-4 sm:p-8 text-gray-800">
@@ -153,26 +154,30 @@
                 <input type="hidden" name="claim_id" id="claim_id">
                 <input type="hidden" name="remove_attachment" id="remove_attachment" value="false">
 
+                <input type="hidden" id="calc_stipend" value="0">
+                <input type="hidden" id="calc_portfolio" value="0">
+                <input type="hidden" id="calc_cessation" value="">
+
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Member Number</label>
                     <input type="text" name="membership_number" id="membership_number" onchange="fetchMemberData(this.value)" class="w-full p-2.5 border rounded-md clean-input">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Guardian Name</label>
-                    <input type="text" id="guardian_name" name="guardian_name" class="w-full p-2.5 border rounded-md clean-input">
+                    <input type="text" id="guardian_name" name="guardian_name" readonly class="w-full p-2.5 border bg-gray-50 rounded-md">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Beneficiary Name</label>
-                    <input type="text" id="beneficiary_name" name="beneficiary_name" class="w-full p-2.5 border rounded-md clean-input">
+                    <input type="text" id="beneficiary_name" name="beneficiary_name" readonly class="w-full p-2.5 border bg-gray-50 rounded-md">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Beneficiary DOB</label>
-                    <input type="date" id="beneficiary_dob" name="beneficiary_dob" onchange="calculateAge()" class="w-full p-2.5 border rounded-md clean-input">
+                    <input type="date" id="beneficiary_dob" name="beneficiary_dob" readonly class="w-full p-2.5 border bg-gray-50 rounded-md">
                 </div>
 
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Claim Type</label>
-                    <select name="claim_type" id="claim_type" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input">
+                    <select name="claim_type" id="claim_type" onchange="calcAffordability()" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input">
                         <option>Monthly Income</option>
                         <option>Terminations</option>
                         <option>Death Terminations</option>
@@ -184,20 +189,20 @@
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Term. Date</label>
-                    <input type="date" id="termination_date" name="termination_date" class="w-full p-2.5 border rounded-md clean-input">
+                    <input type="date" id="termination_date" name="termination_date" readonly class="w-full p-2.5 border bg-gray-50 rounded-md">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Monthly Income</label>
-                    <input type="text" id="monthly_income" name="monthly_income" class="w-full p-2.5 border rounded-md clean-input">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Monthly Income (Locked)</label>
+                    <input type="text" id="monthly_income" name="monthly_income" readonly placeholder="Type Member No..." class="w-full p-2.5 border bg-gray-100 rounded-md font-bold">
                 </div>
 
                 <div>
                     <label class="block text-xs font-bold text-green-700 uppercase mb-1">* Form Date</label>
-                    <input type="date" id="claim_form_date" name="date_logged" onchange="calculateAge()" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input">
+                    <input type="date" id="claim_form_date" name="date_logged" onchange="calculateAge(); calcAffordability();" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input">
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Portfolio Value</label>
-                    <input type="number" step="0.01" id="portfolio_value" name="portfolio_value" class="w-full p-2.5 border rounded-md clean-input">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Portfolio Value (Locked)</label>
+                    <input type="number" step="0.01" id="portfolio_value" name="portfolio_value" readonly placeholder="Type Member No..." class="w-full p-2.5 border bg-gray-100 rounded-md font-bold">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Value Date</label>
@@ -205,9 +210,13 @@
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Amt Requested</label>
-                    <input type="number" step="0.01" id="amount_requested" name="amount_requested" class="w-full p-2.5 border rounded-md clean-input">
+                    <input type="number" step="0.01" id="amount_requested" name="amount_requested" onchange="calcAffordability()" class="w-full p-2.5 border rounded-md clean-input">
                 </div>
 
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-bold text-emerald-700 uppercase mb-1">Affordability Result (P - (Months * S + R))</label>
+                    <input type="text" id="affordability_result" readonly class="w-full p-2.5 border highlight-field rounded-md" placeholder="Awaiting member data...">
+                </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Status</label>
                     <select name="status" id="status" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input">
@@ -221,13 +230,6 @@
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Date Paid</label>
                     <input type="date" id="date_paid" name="date_paid" class="w-full p-2.5 border rounded-md clean-input">
-                </div>
-                <div class="md:col-span-2">
-                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Docs Attached?</label>
-                    <select name="supporting_docs_attached" id="supporting_docs_attached" class="w-full p-2.5 border rounded-md clean-input">
-                        <option value="No">No</option>
-                        <option value="Yes">Yes</option>
-                    </select>
                 </div>
 
                 <div class="md:col-span-4 mt-2">
@@ -248,11 +250,7 @@
             const showHistory = document.getElementById('historyToggle').checked;
             const rows = document.querySelectorAll('.is-history');
             rows.forEach(row => {
-                if (showHistory) {
-                    row.classList.remove('hidden');
-                } else {
-                    row.classList.add('hidden');
-                }
+                row.classList.toggle('hidden', !showHistory);
             });
         }
 
@@ -270,10 +268,10 @@
                     .then(res => res.json())
                     .then(data => {
                         document.getElementById('membership_number').value = data.membership_number;
-                        document.getElementById('guardian_name').value = data.guardian_name;
+                        document.getElementById('guardian_name').value = data.guardian_name || "";
                         document.getElementById('beneficiary_name').value = data.beneficiary_name;
-                        document.getElementById('beneficiary_dob').value = data.beneficiary_dob;
-                        document.getElementById('termination_date').value = data.termination_date;
+                        document.getElementById('beneficiary_dob').value = data.dob || data.beneficiary_dob;
+                        document.getElementById('termination_date').value = data.term_date || data.termination_date;
                         document.getElementById('claim_type').value = data.claim_type;
                         document.getElementById('age_at_claim').value = data.age_at_claim;
                         document.getElementById('monthly_income').value = data.monthly_income;
@@ -284,13 +282,19 @@
                         document.getElementById('status').value = data.status;
                         document.getElementById('date_paid').value = data.date_paid;
                         document.getElementById('description').value = data.description;
-                        document.getElementById('supporting_docs_attached').value = data.supporting_docs_attached;
+                        
+                        document.getElementById('calc_stipend').value = data.monthly_income;
+                        document.getElementById('calc_portfolio').value = data.portfolio_value;
+                        document.getElementById('calc_cessation').value = data.term_date || data.termination_date;
+                        
+                        calcAffordability();
                     });
             } else {
                 document.getElementById('modalTitle').innerText = "Create New Claim";
                 document.getElementById('formAction').value = "add_claim_entry";
                 document.getElementById('claim_id').value = "";
                 form.reset();
+                document.getElementById('affordability_result').value = "Awaiting member data...";
             }
         }
 
@@ -298,8 +302,11 @@
             const dobStr = document.getElementById('beneficiary_dob').value;
             const claimDateStr = document.getElementById('claim_form_date').value;
             if(!dobStr || !claimDateStr) return;
+            
             const birth = new Date(dobStr);
             const claim = new Date(claimDateStr);
+            if (isNaN(birth) || isNaN(claim)) return;
+
             let age = claim.getFullYear() - birth.getFullYear();
             const m = claim.getMonth() - birth.getMonth();
             if (m < 0 || (m === 0 && claim.getDate() < birth.getDate())) { age--; }
@@ -307,22 +314,88 @@
             document.getElementById('age_at_claim').value = `${age}.${months}`;
         }
 
+        function calcAffordability() {
+            const stipendVal = document.getElementById('calc_stipend').value;
+            const portfolioVal = document.getElementById('calc_portfolio').value;
+            const requested = parseFloat(document.getElementById('amount_requested').value) || 0;
+            const claimType = document.getElementById('claim_type').value;
+            const cessationStr = document.getElementById('calc_cessation').value;
+            const target = document.getElementById('affordability_result');
+            
+            const stipend = (!stipendVal || stipendVal === 'undefined') ? 0 : parseFloat(stipendVal);
+            const portfolio = (!portfolioVal || portfolioVal === 'undefined') ? 0 : parseFloat(portfolioVal);
+
+            if (!cessationStr || cessationStr === 'undefined' || cessationStr === '') {
+                target.value = "Awaiting member data...";
+                return;
+            }
+
+            const now = new Date();
+            const cessationDate = new Date(cessationStr);
+            if (isNaN(cessationDate)) return;
+            
+            // Calculate Months Remaining
+            let monthsRemaining = (cessationDate.getFullYear() - now.getFullYear()) * 12;
+            monthsRemaining += cessationDate.getMonth() - now.getMonth();
+            
+            // Adjust if the day of month hasn't passed yet
+            if (now.getDate() < cessationDate.getDate()) {
+                monthsRemaining--;
+            }
+            if (monthsRemaining < 0) monthsRemaining = 0;
+
+            // REVERSED FORMULA: Fund - (Liability + This Request)
+            // Positive = Surplus (Safe), Negative = Deficit (Alert)
+            let result;
+            const totalLiability = (stipend * monthsRemaining);
+
+            if (claimType === "Monthly Income") {
+                result = portfolio - totalLiability;
+            } else {
+                result = portfolio - (totalLiability + requested);
+            }
+            
+            const label = result >= 0 ? "(Surplus)" : "(Deficit)";
+            target.value = 'R ' + result.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ' + label;
+            
+            // Green if Surplus (>=0), Red if Deficit (<0)
+            target.style.color = (result >= 0) ? '#059669' : '#dc2626';
+        }
+
         function closeClaimModal() { document.getElementById('claimModal').classList.add('hidden'); }
 
         function fetchMemberData(mNum) {
-            if(!mNum) return;
+            if(!mNum || mNum.length < 3) return;
+            
+            document.getElementById('beneficiary_name').placeholder = "Fetching...";
+            
             fetch(`/get-beneficiary-data/${mNum}/`)
                 .then(res => res.json())
                 .then(data => {
-                    if(data.beneficiary_name) {
-                        document.getElementById('guardian_name').value = data.guardian_name;
+                    if(data.success && data.beneficiary_name) {
+                        document.getElementById('guardian_name').value = data.guardian_name || "";
                         document.getElementById('beneficiary_name').value = data.beneficiary_name;
-                        document.getElementById('beneficiary_dob').value = data.dob;
-                        document.getElementById('termination_date').value = data.term_date;
-                        document.getElementById('monthly_income').value = data.stipened;
+                        document.getElementById('beneficiary_dob').value = data.dob || "";
+                        document.getElementById('termination_date').value = data.term_date || "";
+                        
+                        const s = data.stipened || 0;
+                        const p = data.total_fund_value || 0;
+
+                        document.getElementById('monthly_income').value = s;
+                        document.getElementById('portfolio_value').value = p;
+                        
+                        document.getElementById('calc_stipend').value = s;
+                        document.getElementById('calc_portfolio').value = p;
+                        document.getElementById('calc_cessation').value = data.term_date || "";
+                        
                         calculateAge();
+                        calcAffordability();
+                    } else {
+                        document.getElementById('beneficiary_name').value = "";
+                        document.getElementById('beneficiary_name').placeholder = "Member not found";
                     }
-                });
+                })
+                .catch(err => console.error("Fetch error:", err));
         }
     </script>
 </body>

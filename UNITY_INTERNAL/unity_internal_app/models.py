@@ -224,7 +224,6 @@ class BillSettlement(models.Model):
     """
     id = models.AutoField(primary_key=True) 
     
-    # 1. FK now targets the new 'id' PK of ReconnedBank.
     reconned_bank_line = models.ForeignKey(
         'ReconnedBank',
         on_delete=models.CASCADE,
@@ -234,14 +233,12 @@ class BillSettlement(models.Model):
         null=True,
     )
     
-    # --- NEW FIELD FOR DIRECT AUDIT TRACEABILITY ---
     original_import_bank_id = models.IntegerField(
         db_column='original_import_bank_id',
         blank=True, 
         null=True,
         verbose_name='Original ImportBank ID'
     )
-    # -----------------------------------------------
     
     unity_bill_source = models.ForeignKey(
         'UnityBill',
@@ -253,7 +250,14 @@ class BillSettlement(models.Model):
     settlement_date = models.DateTimeField() 
     settled_amount = models.DecimalField(max_digits=15, decimal_places=2) 
 
-    # --- CRITICAL FIX: NEW AUDIT FIELDS (Confirmed by your schema) ---
+    # --- 🚀 NEW AUDIT NOTE FIELD ---
+    settlement_note = models.TextField(
+        db_column='settlement_note', 
+        blank=True, 
+        null=True,
+        verbose_name='Settlement/Closure Note'
+    )
+
     source_credit_note_id = models.IntegerField(
         db_column='source_credit_note_id', 
         blank=True, 
@@ -266,11 +270,10 @@ class BillSettlement(models.Model):
         null=True,
     )
     
-    # 2. Confirmed by FK linkage in your bill_settlement table schema
     confirmed_by = models.ForeignKey(
-        'auth.User', # Use 'auth.User' to refer to Django's built-in User model
+        'auth.User',
         on_delete=models.SET_NULL,
-        db_column='confirmed_by_id', # Explicitly match the column name from your schema
+        db_column='confirmed_by_id',
         null=True,
         blank=True,
         related_name='settled_bills',
