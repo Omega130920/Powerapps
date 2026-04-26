@@ -113,8 +113,9 @@ class PssubfBeneficiary(models.Model):
     # Financials
     stipened_frequency = models.CharField(max_length=50, blank=True, null=True)
     stipened = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
-    # NEW: Added to resolve the AttributeError
     total_fund_value = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
+    # NEW: Added to store the Date of Value for the fund
+    portfolio_date = models.DateField(blank=True, null=True)
     
     # Contact Info
     mobile_1 = models.CharField(max_length=20, blank=True, null=True)

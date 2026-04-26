@@ -835,7 +835,6 @@ def beneficiary_details_view(request, membership_number):
         # --- 3. HANDLE CORE PROFILE UPDATES ---
         else:
             try:
-                # ... (Profile update logic remains the same as your previous version)
                 member.old_membership_number = request.POST.get('old_membership_number')
                 member.title = request.POST.get('title')
                 member.initials = request.POST.get('initials')
@@ -853,9 +852,21 @@ def beneficiary_details_view(request, membership_number):
                 member.employee_number = request.POST.get('employee_number')
                 member.stipened_frequency = request.POST.get('stipened_frequency')
                 
+                # Update Stipend
                 stipend_raw = str(request.POST.get('stipened', '0')).replace('R', '').replace(',', '').strip()
                 member.stipened = float(stipend_raw) if stipend_raw else 0.00
                 
+                # --- NEW FINANCIAL UPDATES ---
+                # Update Total Fund Value
+                fund_val_raw = str(request.POST.get('total_fund_value', '0')).replace('R', '').replace(',', '').strip()
+                member.total_fund_value = float(fund_val_raw) if fund_val_raw else 0.00
+                
+                # Update Portfolio Date (Date of Value)
+                port_date_str = request.POST.get('portfolio_date')
+                if port_date_str:
+                    member.portfolio_date = datetime.strptime(port_date_str, '%Y-%m-%d').date()
+                # ------------------------------
+
                 join_date_str = request.POST.get('fund_join_date')
                 if join_date_str:
                     member.fund_join_date = datetime.strptime(join_date_str, '%Y-%m-%d').date()
@@ -878,7 +889,7 @@ def beneficiary_details_view(request, membership_number):
                     task_email_id=f"PROFILE_MOD_{membership_number}",
                     action_type="Profile Update",
                     action_user=request.user.username,
-                    note_content="Modified beneficiary personal/financial details.",
+                    note_content="Modified beneficiary personal/financial details and fund values.",
                     action_timestamp=timezone.now()
                 )
                 messages.success(request, f"Changes saved for Member {member.membership_number}.")
@@ -906,7 +917,6 @@ def beneficiary_details_view(request, membership_number):
 
     for e in outgoing_emails:
         combined_emails.append({
-            # We prefix local IDs to differentiate them from Graph API IDs in the URL
             'email_id': f"DIRECT_{e.id}", 
             'agent': e.agent_name,
             'subject': e.subject,
