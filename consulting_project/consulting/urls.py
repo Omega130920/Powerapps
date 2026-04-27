@@ -46,4 +46,5 @@ urlpatterns = [
     # 4. The action to complete a single reminder (from the table view)
     path('reminders/complete/<int:reminder_id>/', views.dismiss_single_reminder, name='dismiss_single_reminder'),
     path('reminders/delete/<int:reminder_id>/', views.delete_reminder, name='delete_reminder'),
+    path('clients/export/comprehensive/', views.export_clients_comprehensive, name='export_clients_full'),
 ]

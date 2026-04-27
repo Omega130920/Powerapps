@@ -1,6 +1,8 @@
+from importlib.resources import files
 import json
 import datetime as dt
 from datetime import date, datetime
+import traceback
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse, Http404, JsonResponse
 from django.urls import reverse
@@ -21,6 +23,7 @@ from .models import (
     FicaResponsiblePerson, 
     FicaDirector, 
     FicaBeneficialOwner,
+    ClientRiskRating,  # Added Risk Rating Model
     Lead,
     Reminders,
     Claims,
@@ -131,22 +134,23 @@ def client_list_view(request):
     return render(request, 'consulting/client_list.html', {'clients': clients})
 
 def client_info_view(request, client_code):
-    """Detail view fetching ALL related FICA data."""
+    """Detail view fetching ALL related FICA data including Risk Ratings."""
     client = get_object_or_404(
         ClientClient.objects.prefetch_related(
             'clientcontact_set', 'ficaaddress_set', 'ficadirector_set', 
-            'ficabeneficialowner_set', 'ficaresponsibleperson_set'
+            'ficabeneficialowner_set', 'ficaresponsibleperson_set',
+            'clientriskrating_set' # Added risk rating prefetch
         ), 
         future_client_number=client_code
     )
     
     client_notes = ClientInteractionNote.objects.filter(client=client).order_by('-created_at')
-
     client_contacts = client.clientcontact_set.all().order_by('id')
     fica_addresses = client.ficaaddress_set.all().order_by('id')
     fica_resp_person = client.ficaresponsibleperson_set.all().order_by('id')
     fica_directors = client.ficadirector_set.all().order_by('id')
     fica_owners = client.ficabeneficialowner_set.all().order_by('id')
+    risk_data = client.clientriskrating_set.all().order_by('id') # Fetch risk data
     
     physical_addr = fica_addresses.filter(address_type='physical').first()
     postal_addr = fica_addresses.filter(address_type='postal').first()
@@ -160,6 +164,7 @@ def client_info_view(request, client_code):
         'fica_resp_person': fica_resp_person, 
         'fica_directors': fica_directors,
         'fica_owners': fica_owners,
+        'risk_data': risk_data, # Added to context
         'date_added_formatted': client.date_added.strftime('%d/%m/%Y') if client.date_added else '',
         'declaration_date_formatted': client.declaration_date.strftime('%d/%m/%Y') if client.declaration_date else '',
     }
@@ -167,7 +172,6 @@ def client_info_view(request, client_code):
 
 @require_http_methods(["GET", "POST"])
 def edit_client_view(request, client_code):
-    # --- FIXED: Function name changed from edit_client to edit_client_view ---
     client = get_object_or_404(ClientClient, future_client_number=client_code)
 
     if request.method == 'POST':
@@ -205,8 +209,12 @@ def edit_client_view(request, client_code):
                 client.company_type = data.get('company_type')
                 client.company_registration_number = data.get('reg_number')
                 client.contact_number1 = data.get('contact1')
+                client.contact_number2 = data.get('contact2')
                 client.contact_email1 = data.get('email1')
                 client.benefit_note = data.get('benefit_note')
+                
+                # Risk Rating Global Value
+                client.risk_rating = data.get('final_risk_rating', 'Low')
                 
                 # FICA Step 6 (Nature of Relationship)
                 client.nature_of_relationship = data.get('nat_rel')
@@ -322,7 +330,7 @@ def edit_client_view(request, client_code):
                         new_resp.save()
 
                 # ============================================
-                # 5. DIRECTORS
+                # 5. DIRECTORS & RISK RATINGS
                 # ============================================
                 FicaDirector.objects.filter(client=client).delete()
                 
@@ -382,7 +390,6 @@ def edit_client_view(request, client_code):
                             name=o['name'],
                             surname=o['surname'],
                             contact_number=o['contact'],
-                            cell_number=o.get('cell'), 
                             email_address=o['email'],
                             id_number=o['id'],
                             designation=o['designation'],
@@ -405,6 +412,27 @@ def edit_client_view(request, client_code):
                         if 'id_copy' in o: new_owner.id_copy_file = o['id_copy']
                         new_owner.save()
 
+                # ============================================
+                # 7. SAVE INDIVIDUAL RISK RATING SCORES
+                # ============================================
+                ClientRiskRating.objects.filter(client=client).delete()
+                
+                risk_indices = request.POST.getlist('risk_person_index')
+                for idx in risk_indices:
+                    ClientRiskRating.objects.create(
+                        client=client,
+                        full_name=data.get(f'risk_name_{idx}'),
+                        role=data.get(f'risk_role_{idx}'),
+                        score=int(data.get(f'risk_score_{idx}', 0)),
+                        rating=data.get(f'risk_rating_{idx}', 'Low'),
+                        is_non_facing=(data.get(f'q_non_facing_{idx}') == 'true'),
+                        is_representative=(data.get(f'q_rep_{idx}') == 'true'),
+                        is_dipp=(data.get(f'q_dipp_{idx}') == 'true'),
+                        is_fppo=(data.get(f'q_fppo_{idx}') == 'true'),
+                        is_sanctioned=(data.get(f'q_sanction_{idx}') == 'true'),
+                        is_complex_structure=(data.get(f'q_complex_{idx}') == 'true')
+                    )
+
             messages.success(request, f"Client {client.client_name} updated successfully!")
             return redirect('client_info', client_code=client_code)
 
@@ -412,9 +440,7 @@ def edit_client_view(request, client_code):
             messages.error(request, f"Error updating client: {e}")
             print(f"DEBUG ERROR: {e}") 
 
-    # ============================================
-    # GET REQUEST - Render Form
-    # ============================================
+    # GET REQUEST
     contacts = ClientContact.objects.filter(client=client)
     addresses = FicaAddress.objects.filter(client=client)
     fica_resp = FicaResponsiblePerson.objects.filter(client=client)
@@ -435,28 +461,118 @@ def edit_client_view(request, client_code):
     
     return render(request, 'consulting/edit_client.html', context)
 
+from django.core.files.storage import default_storage
+
+def handle_file_upload(file_key):
+    if file_key in files:
+        uploaded_file = files[file_key]
+        # Clean the filename: replace spaces with underscores
+        clean_name = uploaded_file.name.replace(" ", "_")
+        return default_storage.save(clean_name, uploaded_file)
+    return None
+
 @require_http_methods(["GET", "POST"])
 def add_client_view(request):
     if request.method == 'POST':
+        print("--- DEBUG: POST Request Received ---")
         data = request.POST
+        files = request.FILES
         client_code = data.get('client_number', get_next_client_number())
+        
         try:
+            # 1. Manually trigger file saves and store the resulting names
+            # We do this outside the transaction to ensure files are written to disk
+            def upload_file(key):
+                if key in files:
+                    uploaded_file = files[key]
+                    # This physically writes the file to C:\...\media\
+                    # and returns the name (it handles duplicates like file_1.csv automatically)
+                    saved_name = default_storage.save(uploaded_file.name, uploaded_file)
+                    print(f"DEBUG: Physically saved {saved_name} to media folder.")
+                    return saved_name
+                return None
+
+            # Pre-save the files
+            saved_letter = upload_file('consulting_letter_file')
+            saved_sla = upload_file('sla_file')
+            saved_third_party = upload_file('third_party_doc_file')
+
             with transaction.atomic():
+                # 2. Create the Client using the names we got from default_storage
                 client = ClientClient.objects.create(
                     future_client_number=client_code, 
-                    client_name=data.get('client_name', 'N/A'),
+                    client_name=data.get('client_name'),
                     consultant=data.get('consultant', 'N/A'),
+                    industry=data.get('industry'),
+                    status=data.get('status', 'Active'),
                     date_added=safe_parse_date(data.get('date')),
-                    status=data.get('status', 'New')
+                    years_active=int(data.get('years')) if data.get('years') else 0,
+                    employees=int(data.get('employees')) if data.get('employees') else 0,
+                    
+                    # Product & Agreement Details
+                    product=data.get('product'),
+                    third_party_contract=(data.get('third_party_contract') == 'yes'),
+                    third_party_contact=data.get('third_party_contact'),
+                    administrator=data.get('administrator'),
+                    umbrella_fund=data.get('umbrella_fund'),
+                    insurer=data.get('insurer'),
+                    assets=data.get('assets'),
+
+                    # Use the names of the files we just physically saved
+                    consulting_letter_file=saved_letter,
+                    consulting_letter_status=(data.get('consulting_letter') == 'yes'),
+                    
+                    sla_file=saved_sla,
+                    sla_status=(data.get('sla') == 'yes'),
+                    
+                    third_party_doc_file=saved_third_party,
+                    third_party_doc_status=(data.get('third_party_doc') == 'yes'),
+
+                    # FICA Compliance Fields
+                    risk_rating=data.get('final_risk_rating', 'Low'),
+                    nature_of_relationship=data.get('nat_rel', 'Employer / Pension Fund'),
+                    purpose_of_relationship=data.get('purp_rel', 'Employee Pension Fund'),
+                    source_of_funds=data.get('source_funds', 'Payroll')
                 )
-                FicaAddress.objects.create(client=client, address_type='physical', line1=data.get('physical_line1'))
-            messages.success(request, f"New Client {client_code} added!")
+
+                # 3. Create Physical Address
+                FicaAddress.objects.create(
+                    client=client, 
+                    address_type='physical', 
+                    line1=data.get('physical_line1'),
+                    line2=data.get('physical_line2'),
+                    city=data.get('physical_city'),
+                    province=data.get('physical_province'),
+                    postal_code=data.get('physical_code')
+                )
+
+                # 4. Save Risk Ratings
+                risk_indices = request.POST.getlist('risk_person_index')
+                for idx in risk_indices:
+                    ClientRiskRating.objects.create(
+                        client=client,
+                        full_name=data.get(f'risk_name_{idx}'),
+                        role=data.get(f'risk_role_{idx}', 'Director/Owner'),
+                        score=int(data.get(f'risk_score_{idx}', 0)),
+                        rating=data.get(f'risk_rating_{idx}', 'Low'),
+                        is_non_facing=(data.get(f'q_non_facing_{idx}') == 'true'),
+                        is_representative=(data.get(f'q_rep_{idx}') == 'true'),
+                        is_dipp=(data.get(f'q_dipp_{idx}') == 'true'),
+                        is_fppo=(data.get(f'q_fppo_{idx}') == 'true'),
+                        is_sanctioned=(data.get(f'q_sanction_{idx}') == 'true'),
+                        is_complex_structure=(data.get(f'q_complex_{idx}') == 'true')
+                    )
+
+            print(f"DEBUG: Transaction complete for {client_code}.")
+            messages.success(request, f"Successfully added {client_code}")
             return redirect('client_info', client_code=client_code) 
+
         except Exception as e:
-            messages.error(request, f"Error adding client: {e}")
+            print(f"--- ERROR: {e} ---")
+            traceback.print_exc()
+            messages.error(request, f"Database/File Error: {e}")
             
     return render(request, 'consulting/add_new_client.html', {'client_number': get_next_client_number()})
-
 # ------------------------------------------------------
 # Lead Section
 # ------------------------------------------------------
@@ -493,19 +609,48 @@ def log_lead_note_view(request, lead_id):
 
 @csrf_exempt 
 def add_new_lead_view(request):
+    # Define the specific consultant list as requested
+    consultants = [
+        'Awie de Swardt', 
+        'Marida Botha', 
+        'Stephan de Waal', 
+        'Merril Fennesy'
+    ]
+
     if request.method == 'POST':
         try:
+            # Safety measure for unmanaged MySQL tables without AUTO_INCREMENT
+            last_lead = Lead.objects.all().order_by('id').last()
+            next_id = (last_lead.id + 1) if last_lead else 1
+
             Lead.objects.create(
-                company_name=request.POST['company_name'],
-                contact_person=request.POST['contact_person'],
+                id=next_id,
+                lead_received_from=request.POST.get('lead_received_from'),
+                company_name=request.POST.get('company_name'),
+                contact_person=request.POST.get('contact_person'),
+                contact_number=request.POST.get('contact_number'),
+                contact_email=request.POST.get('contact_email'),
+                product_required=request.POST.get('product_required'),
+                internal_notes=request.POST.get('internal_notes', ''),
                 date_received=dt.datetime.strptime(request.POST['date_received'], '%Y-%m-%d').date(),
                 status='New',
                 assigned_to=request.POST.get('assigned_to', 'Unassigned')
             )
+            messages.success(request, "Lead created successfully!")
             return redirect('lead_list')
         except Exception as e:
-            messages.error(request, f"Error: {e}")
-    return render(request, 'consulting/add_new_lead.html', {'current_date': dt.date.today().strftime('%Y-%m-%d')})
+            return render(request, 'consulting/add_new_lead.html', {
+                'error_message': f"Database Error: {e}",
+                'current_date': request.POST.get('date_received'),
+                'consultant_options': consultants
+            })
+            
+    # GET request context
+    context = {
+        'current_date': dt.date.today().strftime('%Y-%m-%d'),
+        'consultant_options': consultants, 
+    }
+    return render(request, 'consulting/add_new_lead.html', context)
 
 @require_http_methods(["GET", "POST"])
 def lead_edit_view(request, lead_id):
@@ -764,3 +909,93 @@ def post_client_note(request):
     except Exception as e:
         print(f"Error saving note: {e}")
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+    
+import csv
+from django.http import StreamingHttpResponse
+
+class Echo:
+    """An object that implements just the write method of the file-like interface."""
+    def write(self, value):
+        return value
+
+@login_required
+def export_clients_comprehensive(request):
+    """Exports a highly detailed CSV of all clients including primary contacts and FICA info."""
+    
+    # 1. Setup Headers
+    headers = [
+        'Client Number', 'Ref No 2', 'Client Name', 'Consultant', 'RISK RATING', 
+        'INDUSTRY', 'STATUS', 'START DATE', 'DATE ADDED', 'YEARS ACTIVE', 
+        'TOTAL EMPLOYEES', 'PRODUCT TYPE', 'THIRD PARTY CONTRACT', 
+        'THIRD PARTY CONTACT', 'Administrator', 'Umbrella Option', 'INSURER', 
+        'ASSETS UNDER MANAGEMENT', '3RD PARTY DOCUMENT STATUS', 'CONTACT PERSON NAME', 
+        'CONTACT PERSON SURNAME', 'JOB TITLE', 'EMAIL', 'CELL', 'LANDLINE', 
+        'BIRTHDAY', 'INTERESTS', 'PHYSICAL ADDRESS LINE 1', 'PHYSICAL ADDRESS LINE 2', 
+        'CITY/TOWN', 'PROVINCE', 'POSTAL CODE', 'POSTAL ADDRESS LINE 1', 
+        'POSTAL ADDRESS LINE 2', 'CITY/TOWN', 'PROVINCE', 'POSTAL CODE'
+    ]
+
+    # 2. Query Data (Optimized with prefetch)
+    clients = ClientClient.objects.prefetch_related('clientcontact_set', 'ficaaddress_set').all()
+
+    def rows():
+        yield headers
+        for c in clients:
+            # Get Primary Contact (first one)
+            contact = c.clientcontact_set.first()
+            # Get Addresses
+            phys = c.ficaaddress_set.filter(address_type='physical').first()
+            post = c.ficaaddress_set.filter(address_type='postal').first()
+
+            yield [
+                c.future_client_number,
+                c.id,
+                c.client_name,
+                c.consultant,
+                f"{c.fica_dd_completed}%", # Risk/FICA Rating
+                c.industry,
+                c.status,
+                c.date_added, # Start Date
+                c.date_added, # Date Added
+                c.years_active,
+                c.employees,
+                c.product,
+                "Yes" if c.third_party_contract else "No",
+                c.third_party_contact,
+                c.administrator,
+                c.umbrella_fund,
+                c.insurer,
+                c.assets,
+                "Yes" if c.third_party_doc_status else "No",
+                # Contact Details
+                contact.name if contact else "",
+                contact.surname if contact else "",
+                contact.job_title if contact else "",
+                contact.email if contact else "",
+                contact.cell_no if contact else "",
+                contact.landline if contact else "",
+                contact.birthday if contact else "",
+                contact.interests if contact else "",
+                # Physical Address
+                phys.line1 if phys else "",
+                phys.line2 if phys else "",
+                phys.city if phys else "",
+                phys.province if phys else "",
+                phys.postal_code if phys else "",
+                # Postal Address
+                post.line1 if post else "",
+                post.line2 if post else "",
+                post.city if post else "",
+                post.province if post else "",
+                post.postal_code if post else "",
+            ]
+
+    # 3. Stream the Response
+    pseudo_buffer = Echo()
+    writer = csv.writer(pseudo_buffer)
+    response = StreamingHttpResponse(
+        (writer.writerow(row) for row in rows()),
+        content_type="text/csv",
+    )
+    response['Content-Disposition'] = f'attachment; filename="Comprehensive_Client_Export_{date.today()}.csv"'
+    return response

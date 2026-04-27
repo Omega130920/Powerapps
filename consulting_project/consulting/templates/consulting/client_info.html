@@ -18,6 +18,8 @@
             --action-blue: #0070c0;
             --white: #ffffff;
             --card-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            --header-border: 1px solid #c8e6c9;
+            --danger-red: #d63031;
         }
 
         /* --- Global Reset & Background --- */
@@ -110,6 +112,38 @@
         }
         .edit-button:hover { background-color: #005a9c; transform: translateY(-1px); }
 
+        /* --- NEW: View Link Styling --- */
+        .view-link {
+            display: inline-block;
+            margin-left: 10px;
+            color: var(--action-blue);
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 0.8rem;
+            border: 1px solid var(--action-blue);
+            padding: 2px 8px;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        .view-link:hover {
+            background-color: var(--action-blue);
+            color: white;
+        }
+
+        /* --- Risk Rating Badges --- */
+        .risk-badge {
+            padding: 4px 12px;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: white;
+            margin-left: 10px;
+        }
+        .risk-low { background-color: #2ecc71; }
+        .risk-medium { background-color: #f39c12; }
+        .risk-high { background-color: #e74c3c; }
+
         /* --- Modern Tab Navigation --- */
         .tab-nav {
             display: flex;
@@ -185,7 +219,7 @@
         .file-status.missing { background: #ffe5e5; color: #a31515; }
 
         /* --- Data Tables --- */
-        .contacts-table, .director-table, .owner-table {
+        .contacts-table, .director-table, .owner-table, .risk-table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
@@ -194,7 +228,7 @@
             border-radius: 12px;
             overflow: hidden;
         }
-        .contacts-table th {
+        .contacts-table th, .risk-table th {
             text-align: left;
             padding: 15px;
             background-color: var(--table-header-bg);
@@ -203,7 +237,7 @@
             font-size: 0.85rem;
             text-transform: uppercase;
         }
-        .contacts-table td {
+        .contacts-table td, .risk-table td {
             padding: 15px;
             border-bottom: 1px solid #f1f5f9;
             font-size: 0.9rem;
@@ -247,6 +281,10 @@
              border-color: var(--primary-green);
         }
 
+        /* Custom Scrollbar */
+        #activityLogContainer::-webkit-scrollbar { width: 6px; }
+        #activityLogContainer::-webkit-scrollbar-thumb { background-color: var(--bg-light-green); border-radius: 10px; }
+
         /* --- Folder List --- */
         .folder-list-container {
             border: 1px solid #edf2f7;
@@ -274,10 +312,7 @@
             transition: all 0.2s;
         }
         .folder-list li:hover { background-color: var(--bg-light-green); transform: scale(1.02); }
-        .folder-list li:before {
-            content: "\1F4C1";
-            margin-right: 12px;
-        }
+        .folder-list li:before { content: "\1F4C1"; margin-right: 12px; }
 
     </style>
 </head>
@@ -290,7 +325,13 @@
         </a>
 
         <h1>
-            <span>{{ client.client_name }} <small style="font-weight: 300; font-size: 0.6em; color: #777;">#{{ client.future_client_number }}</small></span>
+            <span>
+                {{ client.client_name }} 
+                <small style="font-weight: 300; font-size: 0.6em; color: #777;">#{{ client.future_client_number }}</small>
+                {% if client.risk_rating %}
+                <span class="risk-badge risk-{{ client.risk_rating|lower }}">{{ client.risk_rating }} Risk</span>
+                {% endif %}
+            </span>
             {% if client.future_client_number %}
                 <a href="{% url 'edit_client' client_code=client.future_client_number %}" class="edit-button">Edit Client Profile</a>
             {% else %}
@@ -309,7 +350,7 @@
         <div id="tab1" class="tab-content active">
             <h2>General Business Information</h2>
             <div class="data-grid">
-                <div class="data-item"><label>Scheme Code</label><p>{{ client.future_client_number }}</p></div>
+                <div class="data-item"><label>Client Number</label><p>{{ client.future_client_number }}</p></div>
                 <div class="data-item"><label>Client Name</label><p>{{ client.client_name }}</p></div>
                 <div class="data-item"><label>Consultant</label><p>{{ client.consultant }}</p></div>
                 <div class="data-item"><label>Industry</label><p>{{ client.industry }}</p></div>
@@ -356,14 +397,44 @@
                 <div class="data-item"><label>Umbrella Fund</label><p>{{ client.umbrella_fund }}</p></div>
                 <div class="data-item"><label>Insurer</label><p>{{ client.insurer }}</p></div>
                 <div class="data-item"><label>Assets Under Management</label><p>{{ client.assets }}</p></div>
-                <div class="data-item"><label>Consulting Appointment Letter</label><p>{{ client.consulting_letter_status|yesno:"Yes,No" }}</p>
-                    <span class="file-status {% if client.consulting_letter_file %}uploaded{% else %}missing{% endif %}">{% if client.consulting_letter_file %}File: {{ client.consulting_letter_file }}{% else %}Not Uploaded{% endif %}</span>
+
+                <div class="data-item">
+                    <label>Consulting Appointment Letter</label>
+                    <p>{{ client.consulting_letter_status|yesno:"Yes,No" }}</p>
+                    <div class="file-status {% if client.consulting_letter_file %}uploaded{% else %}missing{% endif %}">
+                        {% if client.consulting_letter_file %}
+                            <span>File: {{ client.consulting_letter_file }}</span>
+                            <a href="/media/{{ client.consulting_letter_file }}" target="_blank" class="view-link">View File</a>
+                        {% else %}
+                            <span>Not Uploaded</span>
+                        {% endif %}
+                    </div>
                 </div>
-                <div class="data-item"><label>SLA Status</label><p>{{ client.sla_status|yesno:"Yes,No" }}</p>
-                    <span class="file-status {% if client.sla_file %}uploaded{% else %}missing{% endif %}">{% if client.sla_file %}File: {{ client.sla_file }}{% else %}Not Uploaded{% endif %}</span>
+
+                <div class="data-item">
+                    <label>SLA Status</label>
+                    <p>{{ client.sla_status|yesno:"Yes,No" }}</p>
+                    <div class="file-status {% if client.sla_file %}uploaded{% else %}missing{% endif %}">
+                        {% if client.sla_file %}
+                            <span>File: {{ client.sla_file }}</span>
+                            <a href="/media/{{ client.sla_file }}" target="_blank" class="view-link">View File</a>
+                        {% else %}
+                            <span>Not Uploaded</span>
+                        {% endif %}
+                    </div>
                 </div>
-                <div class="data-item"><label>3rd Party Document Status</label><p>{{ client.third_party_doc_status|yesno:"Yes,No" }}</p>
-                    <span class="file-status {% if client.third_party_doc_file %}uploaded{% else %}missing{% endif %}">{% if client.third_party_doc_file %}File: {{ client.third_party_doc_file }}{% else %}Not Uploaded{% endif %}</span>
+
+                <div class="data-item">
+                    <label>3rd Party Document Status</label>
+                    <p>{{ client.third_party_doc_status|yesno:"Yes,No" }}</p>
+                    <div class="file-status {% if client.third_party_doc_file %}uploaded{% else %}missing{% endif %}">
+                        {% if client.third_party_doc_file %}
+                            <span>File: {{ client.third_party_doc_file }}</span>
+                            <a href="/media/{{ client.third_party_doc_file }}" target="_blank" class="view-link">View File</a>
+                        {% else %}
+                            <span>Not Uploaded</span>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div> 
@@ -414,15 +485,15 @@
             {% else %}
             <p style="padding: 20px; color: #777;">No authorized contact persons registered for this client profile.</p>
             {% endif %}
-        </div>
+        </div> 
         
         <div id="tab3" class="tab-content">
-            <h2>Log Communication Activity</h2>
-            <div class="note-section-container" id="noteForm">
-                <h3>Record New Interaction</h3>
-                <p style="color: #888; font-size: 0.9em; margin-bottom: 20px;">Use this section to log calls, emails, and general notes regarding client interactions.</p>
+            <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 30px; align-items: start;">
                 
-                <div class="data-grid" style="gap: 15px; margin-bottom: 10px;">
+                <div class="note-section-container" id="noteForm" style="position: sticky; top: 20px;">
+                    <h3>Record New Interaction</h3>
+                    <p style="color: #888; font-size: 0.9em; margin-bottom: 20px;">Log calls, emails, and notes regarding client interactions.</p>
+                    
                     <div class="data-item">
                         <label for="comm_type">Communication Type</label>
                         <select id="comm_type" name="comm_type">
@@ -432,49 +503,51 @@
                             <option value="Outbound Call">Outbound Call</option>
                         </select>
                     </div>
-                    <div class="data-item">
+
+                    <div class="data-item" style="margin-top: 15px;">
                         <label for="note_type">Activity Classification</label>
                         <select id="note_type" name="note_type">
+                            <option value="General Enquiry">General Enquiry</option>
                             <option value="Schedule">Schedule</option>
                             <option value="Claims">Claims</option>
                             <option value="Two-Pot Claims">Two-Pot Claims</option>
-                            <option value="General Enquiry">General Enquiry</option>
                             <option value="Leads">Leads</option>
                         </select>
                     </div>
-                </div>
-                
-                <div class="data-item full-width" style="margin-top: 10px;">
-                    <label for="note_text">Interaction Details</label>
-                    <textarea id="note_text" name="note_text" placeholder="Summarize the discussion or record specific details..."></textarea>
-                </div>
-                
-                <div class="data-item full-width" style="margin-top: 10px;">
-                    <label>Attachments & Documentation</label>
-                    <div style="border: 2px dashed #edf2f7; padding: 15px; border-radius: 8px; background: white; display: flex; align-items: center; justify-content: space-between;">
-                        <span style="color: #aaa;">Drag files here or click to browse.</span>
-                        <input type="file" id="note_files" multiple>
+                    
+                    <div class="data-item" style="margin-top: 15px;">
+                        <label for="note_text">Interaction Details</label>
+                        <textarea id="note_text" name="note_text" placeholder="Summarize the discussion..." style="height: 120px;"></textarea>
                     </div>
+                    
+                    <div class="data-item" style="margin-top: 15px;">
+                        <label>Attachments</label>
+                        <div style="border: 2px dashed #edf2f7; padding: 10px; border-radius: 8px; background: white; font-size: 0.8rem;">
+                            <input type="file" id="note_files" multiple>
+                        </div>
+                    </div>
+                    
+                    <button type="button" id="submitNoteBtn" class="edit-button" style="margin-top: 20px; background-color: var(--primary-green); width: 100%;">💾 Post Activity</button>
                 </div>
-                
-                <button type="button" id="submitNoteBtn" class="edit-button" style="margin-top: 20px; background-color: var(--primary-green); width: 100%;">💾 Post Activity to History</button>
-            </div>
 
-            <h2 style="margin-top: 50px;">Note History</h2>
-            <div id="activityLogContainer">
-                {% for note in client_notes %}
-                <div class="note-history-item">
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <strong style="color: var(--accent-green);">{{ note.comm_type }} ({{ note.note_type }})</strong>
-                        <small style="color: #999;">{{ note.created_at|date:"Y-m-d H:i" }}</small>
+                <div>
+                    <h2 style="margin-top: 0; padding-top: 0;">Interaction History</h2>
+                    <div id="activityLogContainer" style="max-height: 700px; overflow-y: auto; padding-right: 10px;">
+                        {% for note in client_notes %}
+                        <div class="note-history-item">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <strong style="color: var(--accent-green);">{{ note.comm_type }} ({{ note.note_type }})</strong>
+                                <small style="color: #999;">{{ note.created_at|date:"Y-m-d H:i" }}</small>
+                            </div>
+                            <p style="margin-top: 10px; color: var(--text-dark);">{{ note.note_text }}</p>
+                        </div>
+                        {% empty %}
+                        <p id="noNotesMsg" style="color: #777; font-style: italic;">No interaction history available.</p>
+                        {% endfor %}
                     </div>
-                    <p style="margin-top: 10px; color: var(--text-dark);">{{ note.note_text }}</p>
                 </div>
-                {% empty %}
-                <p id="noNotesMsg" style="color: #777; font-style: italic;">No interaction history available.</p>
-                {% endfor %}
             </div>
-        </div>
+        </div> 
         
         <div id="tab4" class="tab-content">
             <h2>Standard Directory Structure</h2>
@@ -489,14 +562,64 @@
         <div id="tab5" class="tab-content">
             <h1>FICA & DUE DILIGENCE DATA</h1>
 
+            <div class="note-section-container" style="background-color: #fcfcfc; border: 2px solid #edf2f7;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2 style="border:none; background:none; margin:0; padding:0;">System Risk Rating Report</h2>
+                    {% if client.risk_rating %}
+                    <span class="risk-badge risk-{{ client.risk_rating|lower }}" style="padding: 10px 25px; font-size: 1rem;">{{ client.risk_rating }} Risk</span>
+                    {% else %}
+                    <span class="risk-badge" style="background:#ccc; color:#fff;">Not Rated</span>
+                    {% endif %}
+                </div>
+                
+                {% if risk_data %}
+                <table class="risk-table">
+                    <thead>
+                        <tr>
+                            <th>Individual Name</th>
+                            <th>Identity No</th>
+                            <th>Role</th>
+                            <th>Risk Score</th>
+                            <th>Rating</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for person in risk_data %}
+                        <tr>
+                            <td style="font-weight:700;">{{ person.full_name }}</td>
+                            <td>{{ person.id_number }}</td>
+                            <td>{{ person.role }}</td>
+                            <td>{{ person.score }}</td>
+                            <td><span class="risk-badge risk-{{ person.rating|lower }}">{{ person.rating }}</span></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <p style="margin-top:15px; color:#888;">Individual risk scoring records are not yet generated for this profile.</p>
+                {% endif %}
+            </div>
+
             <h2>Entity Identification & Registration</h2>
             <div class="data-grid">
                 <div class="data-item"><label>Company Legal Type</label><p>{{ client.company_type|default:'N/A' }}</p></div>
                 <div class="data-item"><label>Registration Number</label><p>{{ client.company_registration_number|default:'N/A' }}</p></div>
-                <div class="data-item"><label>Registration File</label><p>{{ client.reg_docs_file|default:'N/A' }}</p></div>
+                <div class="data-item">
+                    <label>Registration File</label>
+                    <p>{{ client.reg_docs_file|default:'N/A' }}</p>
+                    {% if client.reg_docs_file %}
+                        <a href="/media/{{ client.reg_docs_file }}" target="_blank" class="view-link">View Document</a>
+                    {% endif %}
+                </div>
                 <div class="data-item"><label>Primary Contact Phone</label><p>{{ client.contact_number1|default:'N/A' }}</p></div>
                 <div class="data-item"><label>Primary Contact Email</label><p>{{ client.contact_email1|default:'N/A' }}</p></div>
-                <div class="data-item"><label>Address Verification File</label><p>{{ client.proof_address_file|default:'N/A' }}</p></div>
+                <div class="data-item">
+                    <label>Address Verification File</label>
+                    <p>{{ client.proof_address_file|default:'N/A' }}</p>
+                    {% if client.proof_address_file %}
+                         <a href="/media/{{ client.proof_address_file }}" target="_blank" class="view-link">View Document</a>
+                    {% endif %}
+                </div>
             </div>
 
             <div class="data-grid full-width" style="grid-template-columns: 1fr 1fr; border-top: 1px solid #eee; padding-top: 30px;">
@@ -531,8 +654,12 @@
                     <div class="data-item"><label>Contact Details</label><p>{{ person.contact_number }} / {{ person.email_address }}</p></div>
                     <div class="data-item"><label>Residential Address</label><p>{{ person.resp_line1 }}, {{ person.resp_city }}, {{ person.resp_province }}</p></div>
                     <div class="data-item full-width"><label>Compliance Documentation</label>
-                        <p>• Circular: {{ person.circular_upload_file|default:'N/A' }}</p>
-                        <p>• Signed Form: {{ person.doc_signed_upload_file|default:'N/A' }}</p>
+                        <p>• Circular: {{ person.circular_upload_file|default:'N/A' }} 
+                            {% if person.circular_upload_file %} <a href="/media/{{ person.circular_upload_file }}" target="_blank" class="view-link">View</a> {% endif %}
+                        </p>
+                        <p>• Signed Form: {{ person.doc_signed_upload_file|default:'N/A' }} 
+                            {% if person.doc_signed_upload_file %} <a href="/media/{{ person.doc_signed_upload_file }}" target="_blank" class="view-link">View</a> {% endif %}
+                        </p>
                     </div>
                 </div>
             </div>
@@ -548,8 +675,16 @@
                     <div class="data-item"><label>ID & Contact</label><p>{{ director.id_number|default:'N/A' }} | {{ director.contact_number|default:'N/A' }}</p></div>
                     <div class="data-item"><label>Official Email</label><p>{{ director.email_address|default:'N/A' }}</p></div>
                     <div class="data-item"><label>Verified Physical Address</label><p>{{ director.phys_line1|default:'N/A' }}</p></div>
-                    <div class="data-item"><label>Proof of Address File</label><p>{{ director.proof_addr_file|default:'N/A' }}</p></div>
-                    <div class="data-item"><label>Identity Copy File</label><p>{{ director.id_copy_file|default:'N/A' }}</p></div>
+                    <div class="data-item">
+                        <label>Proof of Address File</label>
+                        <p>{{ director.proof_addr_file|default:'N/A' }}</p>
+                        {% if director.proof_addr_file %} <a href="/media/{{ director.proof_addr_file }}" target="_blank" class="view-link">View File</a> {% endif %}
+                    </div>
+                    <div class="data-item">
+                        <label>Identity Copy File</label>
+                        <p>{{ director.id_copy_file|default:'N/A' }}</p>
+                        {% if director.id_copy_file %} <a href="/media/{{ director.id_copy_file }}" target="_blank" class="view-link">View File</a> {% endif %}
+                    </div>
                 </div>
                 <h4 style="margin-top: 20px; font-size: 0.9rem; color: var(--danger-red);">Regulatory Risk Status (PEP/PIP)</h4>
                 <div style="background: white; padding: 15px; border-radius: 8px; font-size: 0.9rem;">
@@ -570,7 +705,12 @@
                 <div class="data-grid">
                     <div class="data-item"><label>ID & Contact</label><p>{{ owner.id_number|default:'N/A' }} | {{ owner.contact_number|default:'N/A' }}</p></div>
                     <div class="data-item"><label>Verified Email</label><p>{{ owner.email_address|default:'N/A' }}</p></div>
-                    <div class="data-item"><label>Verification Files</label><p>ID: {{ owner.id_copy_file|default:'N/A' }}<br>Address: {{ owner.proof_addr_file|default:'N/A' }}</p></div>
+                    <div class="data-item">
+                        <label>Verification Files</label>
+                        <p>ID: {{ owner.id_copy_file|default:'N/A' }} {% if owner.id_copy_file %} <a href="/media/{{ owner.id_copy_file }}" target="_blank" class="view-link">View</a> {% endif %}<br>
+                           Address: {{ owner.proof_addr_file|default:'N/A' }} {% if owner.proof_addr_file %} <a href="/media/{{ owner.proof_addr_file }}" target="_blank" class="view-link">View</a> {% endif %}
+                        </p>
+                    </div>
                 </div>
                 <h4 style="margin-top: 20px; font-size: 0.9rem; color: var(--danger-red);">Screening Profiles</h4>
                 <p style="font-size: 0.9rem;">
@@ -607,6 +747,7 @@
 
         // AJAX Note Posting Logic
         document.getElementById('submitNoteBtn').addEventListener('click', function() {
+            const btn = this;
             const clientCode = "{{ client.future_client_number }}";
             const commType = document.getElementById('comm_type').value;
             const noteType = document.getElementById('note_type').value;
@@ -617,7 +758,9 @@
                 return;
             }
 
-            // AJAX call to Django view
+            btn.disabled = true;
+            btn.innerText = "Saving Activity...";
+
             fetch("{% url 'post_client_note' %}", {
                 method: "POST",
                 headers: {
@@ -633,8 +776,10 @@
             })
             .then(response => response.json())
             .then(data => {
+                btn.disabled = false;
+                btn.innerText = "💾 Post Activity to History";
+
                 if (data.status === 'success') {
-                    // Prepend new note to the list
                     const container = document.getElementById('activityLogContainer');
                     const noNotesMsg = document.getElementById('noNotesMsg');
                     if (noNotesMsg) noNotesMsg.remove();
@@ -649,20 +794,19 @@
                         </div>
                     `;
                     container.insertAdjacentHTML('afterbegin', newNote);
-                    
-                    // Clear field
                     document.getElementById('note_text').value = '';
                 } else {
                     alert("Error posting note: " + data.message);
                 }
             })
             .catch(error => {
+                btn.disabled = false;
+                btn.innerText = "💾 Post Activity to History";
                 console.error('Error:', error);
                 alert("An error occurred while posting the note.");
             });
         });
 
-        // Initialize active tab
         document.addEventListener('DOMContentLoaded', function() {
             const defaultTabButton = document.querySelector('.tab-button.active');
             if (defaultTabButton) {

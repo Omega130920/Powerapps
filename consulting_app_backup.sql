@@ -125,7 +125,7 @@ CREATE TABLE `auth_user` (
 
 LOCK TABLES `auth_user` WRITE;
 /*!40000 ALTER TABLE `auth_user` DISABLE KEYS */;
-INSERT INTO `auth_user` VALUES (1,'pbkdf2_sha256$1000000$jAUAN9GxmDLqK3EwdHo7Yg$DkNOr4kaYcwmI12Or3wviVMjPgP81v//f6GNqY7OAUk=','2026-04-13 18:50:42.811046',1,'omega','','','',1,1,'2026-01-05 13:30:36.359172'),(2,'pbkdf2_sha256$1000000$yWp03Q7pwTgvbLhQJhsVGi$lh0x23zT++RBclGDhKKQv9PQJXVWHlZaN+8UzgtomwE=',NULL,0,'Awie','','','awie@futurasa.co.za',0,1,'2026-04-14 20:12:29.587990'),(3,'pbkdf2_sha256$1000000$7gV2KvNfcd2o8OwT9OXD5N$oRt9I0jcnLLdMfEqc5JrcpksnmAp7I2xvexD+cxu31I=',NULL,0,'Marida','','','marida@futurasa.co.za',0,1,'2026-04-14 20:12:29.940486'),(4,'pbkdf2_sha256$1000000$KqCggs1w5JCGIHg6W3eVji$qfD/O3TtfhpIMjeC2GiPSzcMx9NGtUz9gn9WdxKUvAA=',NULL,0,'Stephan','','','stephan@futurasa.co.za',0,1,'2026-04-14 20:12:30.294585'),(5,'pbkdf2_sha256$1000000$tCbLGwfBEtjMqTqTjYgtE3$LX70/Z2HAMEz4pROAbttY4no5Rl/iD9nQpi9WscZtvw=',NULL,0,'Theuns','','','theuns@futurasa.co.za',0,1,'2026-04-14 20:12:30.643551'),(6,'pbkdf2_sha256$1000000$TOy81MKbRXhPGtQ6mx386y$RDC52Y2v2XYxeImZVqTZoAluyPmAfGVRuDmur+gCn3g=',NULL,0,'Thumeka','','','thumeka@futurasa.co.za',0,1,'2026-04-14 20:12:31.101214'),(7,'pbkdf2_sha256$1000000$BDBUbcjd3qohaAvpNNQEAb$bjo1swhaL7lT0jrjpsEc7XmgUQglnvmxeQPPcV89uGU=',NULL,1,'Samantha','','','samantha@futurasa.co.za',1,1,'2026-04-14 20:12:31.485047'),(8,'pbkdf2_sha256$1000000$aQzmeF1UcHN6IMBvW7gx13$MiPMidUzVT6UMs40IUOwsmegecbwGIY6vmipubBSQig=',NULL,1,'Lorraine','','','lorraine@futurasa.co.za',1,1,'2026-04-14 20:12:31.838857');
+INSERT INTO `auth_user` VALUES (1,'pbkdf2_sha256$1000000$jAUAN9GxmDLqK3EwdHo7Yg$DkNOr4kaYcwmI12Or3wviVMjPgP81v//f6GNqY7OAUk=','2026-04-27 18:43:03.639535',1,'omega','','','',1,1,'2026-01-05 13:30:36.359172'),(2,'pbkdf2_sha256$1000000$yWp03Q7pwTgvbLhQJhsVGi$lh0x23zT++RBclGDhKKQv9PQJXVWHlZaN+8UzgtomwE=',NULL,0,'Awie','','','awie@futurasa.co.za',0,1,'2026-04-14 20:12:29.587990'),(3,'pbkdf2_sha256$1000000$7gV2KvNfcd2o8OwT9OXD5N$oRt9I0jcnLLdMfEqc5JrcpksnmAp7I2xvexD+cxu31I=',NULL,0,'Marida','','','marida@futurasa.co.za',0,1,'2026-04-14 20:12:29.940486'),(4,'pbkdf2_sha256$1000000$KqCggs1w5JCGIHg6W3eVji$qfD/O3TtfhpIMjeC2GiPSzcMx9NGtUz9gn9WdxKUvAA=',NULL,0,'Stephan','','','stephan@futurasa.co.za',0,1,'2026-04-14 20:12:30.294585'),(5,'pbkdf2_sha256$1000000$tCbLGwfBEtjMqTqTjYgtE3$LX70/Z2HAMEz4pROAbttY4no5Rl/iD9nQpi9WscZtvw=',NULL,0,'Theuns','','','theuns@futurasa.co.za',0,1,'2026-04-14 20:12:30.643551'),(6,'pbkdf2_sha256$1000000$TOy81MKbRXhPGtQ6mx386y$RDC52Y2v2XYxeImZVqTZoAluyPmAfGVRuDmur+gCn3g=',NULL,0,'Thumeka','','','thumeka@futurasa.co.za',0,1,'2026-04-14 20:12:31.101214'),(7,'pbkdf2_sha256$1000000$BDBUbcjd3qohaAvpNNQEAb$bjo1swhaL7lT0jrjpsEc7XmgUQglnvmxeQPPcV89uGU=',NULL,1,'Samantha','','','samantha@futurasa.co.za',1,1,'2026-04-14 20:12:31.485047'),(8,'pbkdf2_sha256$1000000$aQzmeF1UcHN6IMBvW7gx13$MiPMidUzVT6UMs40IUOwsmegecbwGIY6vmipubBSQig=',NULL,1,'Lorraine','','','lorraine@futurasa.co.za',1,1,'2026-04-14 20:12:31.838857');
 /*!40000 ALTER TABLE `auth_user` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -208,7 +208,7 @@ CREATE TABLE `claims_claims` (
   `created_date` date NOT NULL,
   `initial_notes` text,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -217,7 +217,7 @@ CREATE TABLE `claims_claims` (
 
 LOCK TABLES `claims_claims` WRITE;
 /*!40000 ALTER TABLE `claims_claims` DISABLE KEYS */;
-INSERT INTO `claims_claims` VALUES (1,'dsgs','sdgsdgs','sdgsdgs','sgdgsd','sdgsdgs','sgsgsd','Alan Gray','Funeral - main member','Stephan de Waal','Initial Submission','Pending','2025-12-08',''),(2,'Apple','Apple','Apple','','','','','','','Initial Submission','Pending','2026-02-12',NULL),(3,'Apple','Apple','Apple','Apple','Apple','Apple','Sanlam','Funeral - main member','Stephan de Waal','Initial Submission','Pending','2026-02-12','Apple');
+INSERT INTO `claims_claims` VALUES (1,'dsgs','sdgsdgs','sdgsdgs','sgdgsd','sdgsdgs','sgsgsd','Alan Gray','Funeral - main member','Stephan de Waal','Initial Submission','Pending','2025-12-08',''),(2,'Apple','Apple','Apple','','','','','','','Initial Submission','Pending','2026-02-12',NULL),(3,'Apple','Apple','Apple','Apple','Apple','Apple','Sanlam','Funeral - main member','Stephan de Waal','Initial Submission','Pending','2026-02-12','Apple'),(4,'Testing','Test','ing','123456789','Testing (1)','Test','Momentum','Normal Withdrawal','Awie de Swardt','Initial Submission','Pending','2026-04-27','');
 /*!40000 ALTER TABLE `claims_claims` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -238,7 +238,7 @@ CREATE TABLE `claimsnotes` (
   `created_by` varchar(100) NOT NULL,
   PRIMARY KEY (`id`),
   KEY `myapp_claimsnotes_claim_id_idx` (`claim_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -247,7 +247,7 @@ CREATE TABLE `claimsnotes` (
 
 LOCK TABLES `claimsnotes` WRITE;
 /*!40000 ALTER TABLE `claimsnotes` DISABLE KEYS */;
-INSERT INTO `claimsnotes` VALUES (1,1,'Inbound Call','Employer Follow-up','sf','2025-12-08 09:22:45.822203','System User');
+INSERT INTO `claimsnotes` VALUES (1,1,'Inbound Call','Employer Follow-up','sf','2025-12-08 09:22:45.822203','System User'),(2,4,'','','Testing (1)','2026-04-27 20:12:56.516099','omega');
 /*!40000 ALTER TABLE `claimsnotes` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -281,6 +281,7 @@ CREATE TABLE `client_client` (
   `third_party_doc_status` tinyint(1) DEFAULT '0',
   `third_party_doc_file` varchar(255) DEFAULT NULL,
   `fica_dd_completed` decimal(5,2) DEFAULT '0.00',
+  `risk_rating` varchar(20) DEFAULT 'Low',
   `bulk_email_status` tinyint(1) DEFAULT '0',
   `client_name` varchar(255) DEFAULT NULL,
   `nature_of_relationship` varchar(100) DEFAULT 'Employer / Pension Fund',
@@ -293,7 +294,7 @@ CREATE TABLE `client_client` (
   `signed_form_upload` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `future_client_number` (`future_client_number`)
-) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -302,7 +303,7 @@ CREATE TABLE `client_client` (
 
 LOCK TABLES `client_client` WRITE;
 /*!40000 ALTER TABLE `client_client` DISABLE KEYS */;
-INSERT INTO `client_client` VALUES (1,'FUT00001','','','','2025-11-10',2,1,'Individual Client',0,'Services','Sanlam','SUF Standard','Sanlam','N/A',0,NULL,0,NULL,0,NULL,0.00,0,'NEWNEW','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL),(6,'FUT00002','Marida Botha','Logistics','Active','2025-11-10',10,200,'Individual Client',0,'PMG','Sanlam','SUF Standard','Sanlam','',0,NULL,0,NULL,0,NULL,0.00,0,'Re-Find Market','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL),(7,'FUT00003','Awie de Swardt','Agricultural','Active','2025-11-10',10,200,'',0,'PMG','Sanlam','SUF Standard','Sanlam','',0,NULL,0,NULL,0,NULL,0.00,0,'Re-Find Market','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL),(8,'FUT00004','','','','2025-11-10',10,1,'',0,'','','','','',1,NULL,0,NULL,0,NULL,0.00,0,'ajkl','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL),(9,'FUT00005','','Retail','Active','2025-11-10',1,1,'',0,'','','','','',0,NULL,0,NULL,0,NULL,0.00,0,'qwertyuiop','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL),(10,'FUT00006','','Agricultural','Active','2025-11-10',1,1,'Individual Client',0,'Services','Sanlam','SUF Standard','Sanlam','',0,NULL,1,NULL,0,NULL,0.00,0,'Phase 3 ','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL),(11,'FUT00007','','Logistics','Active','2025-11-10',1,1,'',0,'','','','','',0,NULL,0,NULL,0,NULL,0.00,0,'ZeroSpark','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL);
+INSERT INTO `client_client` VALUES (1,'FUT00001','','','','2025-11-10',2,1,'Individual Client',0,'Services','Sanlam','SUF Standard','Sanlam','N/A',0,NULL,0,NULL,0,NULL,0.00,'Low',0,'NEWNEW','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL),(6,'FUT00002','Marida Botha','Logistics','Active','2025-11-10',10,200,'Individual Client',0,'PMG','Sanlam','SUF Standard','Sanlam','',0,NULL,0,NULL,0,NULL,0.00,'Low',0,'Re-Find Market','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL),(7,'FUT00003','Awie de Swardt','Agricultural','Active','2025-11-10',10,200,'',0,'PMG','Sanlam','SUF Standard','Sanlam','',0,NULL,0,NULL,0,NULL,0.00,'Low',0,'Re-Find Market','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL),(8,'FUT00004','','','','2025-11-10',10,1,'',0,'','','','','',1,NULL,0,NULL,0,NULL,0.00,'Low',0,'ajkl','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL),(9,'FUT00005','','Retail','Active','2025-11-10',1,1,'',0,'','','','','',0,NULL,0,NULL,0,NULL,0.00,'Low',0,'qwertyuiop','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL),(10,'FUT00006','','Agricultural','Active','2025-11-10',1,1,'Individual Client',0,'Services','Sanlam','SUF Standard','Sanlam','',0,NULL,1,NULL,0,NULL,0.00,'Low',0,'Phase 3 ','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL),(11,'FUT00007','','Logistics','Active','2025-11-10',1,1,'',0,'','','','','',0,NULL,0,NULL,0,NULL,0.00,'Low',0,'ZeroSpark','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL),(12,'FUT00008','MARIDA BOTHA','Agricultural','Section 14','2025-11-10',1,2,'Fund',0,'Octofin','Momentum','SUF Comprehensive','Momentum','',1,'bank_line(1) (1).csv',0,'Old app views.py.txt',0,NULL,0.00,'Low',0,'testing','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL);
 /*!40000 ALTER TABLE `client_client` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -332,7 +333,7 @@ CREATE TABLE `client_contact` (
   PRIMARY KEY (`id`),
   KEY `client_id` (`client_id`),
   CONSTRAINT `client_contact_ibfk_1` FOREIGN KEY (`client_id`) REFERENCES `client_client` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=16 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=19 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -341,7 +342,7 @@ CREATE TABLE `client_contact` (
 
 LOCK TABLES `client_contact` WRITE;
 /*!40000 ALTER TABLE `client_contact` DISABLE KEYS */;
-INSERT INTO `client_contact` VALUES (13,10,'luano','','','','','luanoveck@gmail.com','','','','','','',''),(15,9,'luano','','','','','luanoveck@gmail.com','Omegaville','','','','','','');
+INSERT INTO `client_contact` VALUES (15,9,'luano','','','','','luanoveck@gmail.com','Omegaville','','','','','',''),(18,10,'luano','luano','','','','luanoveck@gmail.com','Omegaville','44 Minuet Ridge','Cape Town','','24/10/1995','who???','');
 /*!40000 ALTER TABLE `client_contact` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -363,7 +364,7 @@ CREATE TABLE `client_interaction_notes` (
   PRIMARY KEY (`id`),
   KEY `fk_client_interaction` (`client_id`),
   CONSTRAINT `fk_client_interaction` FOREIGN KEY (`client_id`) REFERENCES `client_client` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -372,7 +373,7 @@ CREATE TABLE `client_interaction_notes` (
 
 LOCK TABLES `client_interaction_notes` WRITE;
 /*!40000 ALTER TABLE `client_interaction_notes` DISABLE KEYS */;
-INSERT INTO `client_interaction_notes` VALUES (1,8,'Inbound Email','Schedule','hello','2026-02-12 10:44:35.516065','omega');
+INSERT INTO `client_interaction_notes` VALUES (1,8,'Inbound Email','Schedule','hello','2026-02-12 10:44:35.516065','omega'),(2,8,'Inbound Email','Schedule','Hello','2026-04-27 18:44:54.891293','omega');
 /*!40000 ALTER TABLE `client_interaction_notes` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -425,7 +426,7 @@ CREATE TABLE `client_reminders` (
   KEY `fk_reminders_user` (`created_by_id`),
   CONSTRAINT `fk_reminders_client` FOREIGN KEY (`client_id`) REFERENCES `client_client` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_reminders_user` FOREIGN KEY (`created_by_id`) REFERENCES `auth_user` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -434,8 +435,45 @@ CREATE TABLE `client_reminders` (
 
 LOCK TABLES `client_reminders` WRITE;
 /*!40000 ALTER TABLE `client_reminders` DISABLE KEYS */;
-INSERT INTO `client_reminders` VALUES (1,1,'sdg','adsf','2026-01-05',NULL,1,1,'2026-01-05 13:32:51'),(2,1,'asf','sdf','2026-01-05',NULL,1,1,'2026-01-05 13:33:05'),(3,1,'Birthday','Birtday','2026-01-06',NULL,1,0,'2026-01-05 13:36:20'),(4,1,'Bath day','Taking the bath','2026-01-05',NULL,1,1,'2026-01-05 13:44:38'),(5,8,'Meeting','Client meeting','2026-01-29','09:00:00',1,1,'2026-01-29 09:45:31');
+INSERT INTO `client_reminders` VALUES (1,1,'sdg','adsf','2026-01-05',NULL,1,1,'2026-01-05 13:32:51'),(2,1,'asf','sdf','2026-01-05',NULL,1,1,'2026-01-05 13:33:05'),(3,1,'Birthday','Birtday','2026-01-06',NULL,1,0,'2026-01-05 13:36:20'),(4,1,'Bath day','Taking the bath','2026-01-05',NULL,1,1,'2026-01-05 13:44:38'),(5,8,'Meeting','Client meeting','2026-01-29','09:00:00',1,1,'2026-01-29 09:45:31'),(6,1,'testing','testing (1)','2026-04-27','12:00:00',1,1,'2026-04-27 20:19:47');
 /*!40000 ALTER TABLE `client_reminders` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
+-- Table structure for table `client_risk_rating`
+--
+
+DROP TABLE IF EXISTS `client_risk_rating`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `client_risk_rating` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `client_id` int NOT NULL,
+  `full_name` varchar(255) NOT NULL,
+  `id_number` varchar(50) DEFAULT NULL,
+  `role` varchar(50) NOT NULL,
+  `score` int DEFAULT '0',
+  `rating` varchar(20) NOT NULL,
+  `is_non_facing` tinyint(1) DEFAULT '0',
+  `is_representative` tinyint(1) DEFAULT '0',
+  `is_dipp` tinyint(1) DEFAULT '0',
+  `is_fppo` tinyint(1) DEFAULT '0',
+  `is_sanctioned` tinyint(1) DEFAULT '0',
+  `is_complex_structure` tinyint(1) DEFAULT '0',
+  `created_at` datetime DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `fk_risk_client` (`client_id`),
+  CONSTRAINT `fk_risk_client` FOREIGN KEY (`client_id`) REFERENCES `client_client` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `client_risk_rating`
+--
+
+LOCK TABLES `client_risk_rating` WRITE;
+/*!40000 ALTER TABLE `client_risk_rating` DISABLE KEYS */;
+/*!40000 ALTER TABLE `client_risk_rating` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -463,7 +501,7 @@ CREATE TABLE `consulting_lead` (
   `communication_type` varchar(50) DEFAULT NULL,
   `note_type` varchar(50) DEFAULT NULL,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -472,7 +510,7 @@ CREATE TABLE `consulting_lead` (
 
 LOCK TABLES `consulting_lead` WRITE;
 /*!40000 ALTER TABLE `consulting_lead` DISABLE KEYS */;
-INSERT INTO `consulting_lead` VALUES (2,'golf day','2025-12-08','Luano','Omega Omega','0833803942','luanoveck@gmail.com','Health Care','New','MARIDA BOTHA',NULL,NULL,'2025-12-08','\n\n--- LOGGED: 2025-12-08 10:04 ---\nCOMM TYPE: Email\nNOTE TYPE: Proposal\nSELECTION: N/A\nPOSTED BY: MARIDA BOTHA\nNOTES:\nfg','email','proposal'),(3,'golf day','2025-12-08','Omega','Omega Omega','0833803942','luanoveck@gmail.com','Individual Client','New','MERRIL FENNESSY',NULL,NULL,'2025-12-08','',NULL,NULL);
+INSERT INTO `consulting_lead` VALUES (2,'golf day','2025-12-08','Luano','Omega Omega','0833803942','luanoveck@gmail.com','Health Care','New','MARIDA BOTHA',NULL,NULL,'2025-12-08','\n\n--- LOGGED: 2025-12-08 10:04 ---\nCOMM TYPE: Email\nNOTE TYPE: Proposal\nSELECTION: N/A\nPOSTED BY: MARIDA BOTHA\nNOTES:\nfg','email','proposal'),(3,'golf day','2025-12-08','Omega','Omega Omega','0833803942','luanoveck@gmail.com','Individual Client','New','MERRIL FENNESSY',NULL,NULL,'2025-12-08','',NULL,NULL),(4,'TEsting','2026-04-27','Test company','TEsting','','','Financial Solution','New','Unassigned',NULL,NULL,NULL,'',NULL,NULL);
 /*!40000 ALTER TABLE `consulting_lead` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -584,7 +622,7 @@ CREATE TABLE `django_session` (
 
 LOCK TABLES `django_session` WRITE;
 /*!40000 ALTER TABLE `django_session` DISABLE KEYS */;
-INSERT INTO `django_session` VALUES ('1h9axng1gf4psva8r45h961zvbor89xu','.eJxVjEEOwiAQRe_C2hCGUigu3XsGMjCDVA0kpV0Z765NutDtf-_9lwi4rSVsnZcwkzgLEKffLWJ6cN0B3bHemkytrssc5a7Ig3Z5bcTPy-H-HRTs5VtrYsoeDWrOGDV452gwahytY0gxG7aUlWM2NgJZpGECQx4BJwOKSLw_Cx44uQ:1vcktY:D4KpuCr-d-k-SHuT7zPUzavxuCiNVYic_AEY5eBT9B8','2026-01-19 13:45:16.700519'),('3mmd965evfrb44pamxeippz5bffq4xqp','.eJxVjEEOwiAQRe_C2hCGUigu3XsGMjCDVA0kpV0Z765NutDtf-_9lwi4rSVsnZcwkzgLEKffLWJ6cN0B3bHemkytrssc5a7Ig3Z5bcTPy-H-HRTs5VtrYsoeDWrOGDV452gwahytY0gxG7aUlWM2NgJZpGECQx4BJwOKSLw_Cx44uQ:1vlOqi:0QPgZncwobm7bmxp4dr22VuvmAAHNQGFtWZS4E3EkVM','2026-02-12 10:02:04.002008'),('5q0yvrmanazbds0m1of2hvpch9iy1u3k','.eJxVjEEOwiAQRe_C2hCGUigu3XsGMjCDVA0kpV0Z765NutDtf-_9lwi4rSVsnZcwkzgLEKffLWJ6cN0B3bHemkytrssc5a7Ig3Z5bcTPy-H-HRTs5VtrYsoeDWrOGDV452gwahytY0gxG7aUlWM2NgJZpGECQx4BJwOKSLw_Cx44uQ:1voFaI:Xq6zoeiCnn_8Bdg6pWn6IUTQZxJbvO20zlq93ZdfQgw','2026-02-20 06:44:54.195700'),('fl7ch0dz1lfmjao42juovxm1fnlb6v36','.eJxVjEEOwiAQRe_C2hCGUigu3XsGMjCDVA0kpV0Z765NutDtf-_9lwi4rSVsnZcwkzgLEKffLWJ6cN0B3bHemkytrssc5a7Ig3Z5bcTPy-H-HRTs5VtrYsoeDWrOGDV452gwahytY0gxG7aUlWM2NgJZpGECQx4BJwOKSLw_Cx44uQ:1vqRkg:dOGmr3mCyPMy_-qTX8O8VmL2BXj7jD6OyzE-XM6YVT4','2026-02-26 08:08:42.182832'),('kz5jor3krehwhj8rhlwfa0g6mxgx00wu','.eJxVjEEOwiAQRe_C2hCGUigu3XsGMjCDVA0kpV0Z765NutDtf-_9lwi4rSVsnZcwkzgLEKffLWJ6cN0B3bHemkytrssc5a7Ig3Z5bcTPy-H-HRTs5VtrYsoeDWrOGDV452gwahytY0gxG7aUlWM2NgJZpGECQx4BJwOKSLw_Cx44uQ:1voFJe:uK-ksk3gHBe24buBQo75RTW3RKfmXKWMyC8fl4XOYLI','2026-02-20 06:27:42.518487'),('ya1o03giws4mnavnczeddpy2o21y9wpg','.eJxVjEEOwiAQRe_C2hCGUigu3XsGMjCDVA0kpV0Z765NutDtf-_9lwi4rSVsnZcwkzgLEKffLWJ6cN0B3bHemkytrssc5a7Ig3Z5bcTPy-H-HRTs5VtrYsoeDWrOGDV452gwahytY0gxG7aUlWM2NgJZpGECQx4BJwOKSLw_Cx44uQ:1wCMMs:c773eLs6aaOyxeGeGAfzhBHaAXMCVRZ4oGQL2ts4Qok','2026-04-27 18:50:42.840200');
+INSERT INTO `django_session` VALUES ('1h9axng1gf4psva8r45h961zvbor89xu','.eJxVjEEOwiAQRe_C2hCGUigu3XsGMjCDVA0kpV0Z765NutDtf-_9lwi4rSVsnZcwkzgLEKffLWJ6cN0B3bHemkytrssc5a7Ig3Z5bcTPy-H-HRTs5VtrYsoeDWrOGDV452gwahytY0gxG7aUlWM2NgJZpGECQx4BJwOKSLw_Cx44uQ:1vcktY:D4KpuCr-d-k-SHuT7zPUzavxuCiNVYic_AEY5eBT9B8','2026-01-19 13:45:16.700519'),('3mmd965evfrb44pamxeippz5bffq4xqp','.eJxVjEEOwiAQRe_C2hCGUigu3XsGMjCDVA0kpV0Z765NutDtf-_9lwi4rSVsnZcwkzgLEKffLWJ6cN0B3bHemkytrssc5a7Ig3Z5bcTPy-H-HRTs5VtrYsoeDWrOGDV452gwahytY0gxG7aUlWM2NgJZpGECQx4BJwOKSLw_Cx44uQ:1vlOqi:0QPgZncwobm7bmxp4dr22VuvmAAHNQGFtWZS4E3EkVM','2026-02-12 10:02:04.002008'),('5q0yvrmanazbds0m1of2hvpch9iy1u3k','.eJxVjEEOwiAQRe_C2hCGUigu3XsGMjCDVA0kpV0Z765NutDtf-_9lwi4rSVsnZcwkzgLEKffLWJ6cN0B3bHemkytrssc5a7Ig3Z5bcTPy-H-HRTs5VtrYsoeDWrOGDV452gwahytY0gxG7aUlWM2NgJZpGECQx4BJwOKSLw_Cx44uQ:1voFaI:Xq6zoeiCnn_8Bdg6pWn6IUTQZxJbvO20zlq93ZdfQgw','2026-02-20 06:44:54.195700'),('ax0m53letyd975n1vsgaam0kbro6hhyf','.eJxVjEEOwiAQRe_C2hCGUigu3XsGMjCDVA0kpV0Z765NutDtf-_9lwi4rSVsnZcwkzgLEKffLWJ6cN0B3bHemkytrssc5a7Ig3Z5bcTPy-H-HRTs5VtrYsoeDWrOGDV452gwahytY0gxG7aUlWM2NgJZpGECQx4BJwOKSLw_Cx44uQ:1wEtJx:M_wPsUJZJ2ghsSvOzE6QDxy3v5Ag9Xq0R2crUme_9zk','2026-05-04 18:26:09.119538'),('fl7ch0dz1lfmjao42juovxm1fnlb6v36','.eJxVjEEOwiAQRe_C2hCGUigu3XsGMjCDVA0kpV0Z765NutDtf-_9lwi4rSVsnZcwkzgLEKffLWJ6cN0B3bHemkytrssc5a7Ig3Z5bcTPy-H-HRTs5VtrYsoeDWrOGDV452gwahytY0gxG7aUlWM2NgJZpGECQx4BJwOKSLw_Cx44uQ:1vqRkg:dOGmr3mCyPMy_-qTX8O8VmL2BXj7jD6OyzE-XM6YVT4','2026-02-26 08:08:42.182832'),('fr2fktd2wmwyzpjx8tb67fwn5b9f6ev3','.eJxVjEEOwiAQRe_C2hCGUigu3XsGMjCDVA0kpV0Z765NutDtf-_9lwi4rSVsnZcwkzgLEKffLWJ6cN0B3bHemkytrssc5a7Ig3Z5bcTPy-H-HRTs5VtrYsoeDWrOGDV452gwahytY0gxG7aUlWM2NgJZpGECQx4BJwOKSLw_Cx44uQ:1wHQv9:n9FuPNGkuUvqkTOgt7NEGzwPuDh2omGUTUhZf7QcH48','2026-05-11 18:43:03.650329'),('kz5jor3krehwhj8rhlwfa0g6mxgx00wu','.eJxVjEEOwiAQRe_C2hCGUigu3XsGMjCDVA0kpV0Z765NutDtf-_9lwi4rSVsnZcwkzgLEKffLWJ6cN0B3bHemkytrssc5a7Ig3Z5bcTPy-H-HRTs5VtrYsoeDWrOGDV452gwahytY0gxG7aUlWM2NgJZpGECQx4BJwOKSLw_Cx44uQ:1voFJe:uK-ksk3gHBe24buBQo75RTW3RKfmXKWMyC8fl4XOYLI','2026-02-20 06:27:42.518487'),('ya1o03giws4mnavnczeddpy2o21y9wpg','.eJxVjEEOwiAQRe_C2hCGUigu3XsGMjCDVA0kpV0Z765NutDtf-_9lwi4rSVsnZcwkzgLEKffLWJ6cN0B3bHemkytrssc5a7Ig3Z5bcTPy-H-HRTs5VtrYsoeDWrOGDV452gwahytY0gxG7aUlWM2NgJZpGECQx4BJwOKSLw_Cx44uQ:1wCMMs:c773eLs6aaOyxeGeGAfzhBHaAXMCVRZ4oGQL2ts4Qok','2026-04-27 18:50:42.840200');
 /*!40000 ALTER TABLE `django_session` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -608,7 +646,7 @@ CREATE TABLE `fica_address` (
   PRIMARY KEY (`id`),
   KEY `client_id` (`client_id`),
   CONSTRAINT `fica_address_ibfk_1` FOREIGN KEY (`client_id`) REFERENCES `client_client` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=13 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=20 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -617,7 +655,7 @@ CREATE TABLE `fica_address` (
 
 LOCK TABLES `fica_address` WRITE;
 /*!40000 ALTER TABLE `fica_address` DISABLE KEYS */;
-INSERT INTO `fica_address` VALUES (1,1,'physical','','','','','',''),(5,6,'physical','44 Minuet Ridge','','Western Cape','Cape Town','Durbanville','7440'),(6,7,'physical','','','','','',''),(7,8,'physical','','','','','',''),(9,10,'physical','44 Minuet Ridge','','Western Cape','Cape Town','Durbanville','7440'),(10,11,'physical','','','','','',''),(12,9,'physical','','','','','','');
+INSERT INTO `fica_address` VALUES (1,1,'physical','','','','','',''),(5,6,'physical','44 Minuet Ridge','','Western Cape','Cape Town','Durbanville','7440'),(6,7,'physical','','','','','',''),(7,8,'physical','','','','','',''),(10,11,'physical','','','','','',''),(12,9,'physical','','','','','',''),(15,10,'physical','44 Minuet Ridge','','Western Cape','Cape Town','Durbanville','7440'),(19,12,'physical','','','','','','');
 /*!40000 ALTER TABLE `fica_address` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -783,7 +821,7 @@ CREATE TABLE `reminders` (
   PRIMARY KEY (`id`),
   KEY `reminders_claim_id_idx` (`claim_id`),
   KEY `reminders_member_no_idx` (`member_no`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -792,7 +830,7 @@ CREATE TABLE `reminders` (
 
 LOCK TABLES `reminders` WRITE;
 /*!40000 ALTER TABLE `reminders` DISABLE KEYS */;
-INSERT INTO `reminders` VALUES (1,1,'dsgs','2025-12-08','consultant.email@example.com','dfgsda','2025-12-08 10:02:24.769517','Consultant (Placeholder)'),(2,1,'dsgs','2025-12-09','consultant.email@example.com','Hello','2025-12-08 11:46:13.843143','Consultant (Placeholder)');
+INSERT INTO `reminders` VALUES (1,1,'dsgs','2025-12-08','consultant.email@example.com','dfgsda','2025-12-08 10:02:24.769517','Consultant (Placeholder)'),(2,1,'dsgs','2025-12-09','consultant.email@example.com','Hello','2025-12-08 11:46:13.843143','Consultant (Placeholder)'),(3,4,'Testing','2026-04-27','','call him','2026-04-27 20:14:42.032912','');
 /*!40000 ALTER TABLE `reminders` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -805,4 +843,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-04-14 22:22:15
+-- Dump completed on 2026-04-28  0:38:56

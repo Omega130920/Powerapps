@@ -7,7 +7,6 @@ from django.db import models
 class ClientClient(models.Model):
     # Tab 1: General Information
     future_client_number = models.CharField(max_length=10, unique=True)
-    # NOTE: Re-added client_name field, as it is mandatory for the form submission logic in views.py
     client_name = models.CharField(max_length=255, null=True, blank=True)
     consultant = models.CharField(max_length=50)
     industry = models.CharField(max_length=50, null=True, blank=True)
@@ -36,6 +35,9 @@ class ClientClient(models.Model):
     # FICA Status (for dashboard/reporting)
     fica_dd_completed = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
     bulk_email_status = models.BooleanField(default=False)
+    
+    # NEW: FICA Risk Rating (System-wide highest score)
+    risk_rating = models.CharField(max_length=20, default='Low')
 
     # FICA Step 7: Transaction Information (Embedded in ClientClient for simplicity)
     nature_of_relationship = models.CharField(max_length=100, default='Employer / Pension Fund')
@@ -393,3 +395,42 @@ class ClientInteractionNote(models.Model):
 
     def __str__(self):
         return f"{self.comm_type} - {self.client.future_client_number}"
+
+# ====================================================================
+# 8. RISK RATING ASSESSMENT (New Table - Step 7)
+# ====================================================================
+
+class ClientRiskRating(models.Model):
+    """
+    Unmanaged model to store individual risk assessment scores for
+    Directors and Beneficial Owners as per FICA Step 7.
+    """
+    client = models.ForeignKey(ClientClient, on_delete=models.DO_NOTHING, db_column='client_id')
+    
+    # Identity of the person being rated
+    full_name = models.CharField(max_length=255)
+    id_number = models.CharField(max_length=50, null=True, blank=True)
+    role = models.CharField(max_length=50) # e.g., 'Director', 'Beneficial Owner'
+    
+    # Calculated values
+    score = models.IntegerField(default=0)
+    rating = models.CharField(max_length=20) # 'Low', 'Medium', 'High'
+    
+    # Detailed answers for audit trail (1 for Yes, 0 for No)
+    is_non_facing = models.BooleanField(default=False)
+    is_representative = models.BooleanField(default=False)
+    is_dipp = models.BooleanField(default=False)
+    is_fppo = models.BooleanField(default=False)
+    is_sanctioned = models.BooleanField(default=False)
+    is_complex_structure = models.BooleanField(default=False)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = 'client_risk_rating'
+        verbose_name = 'Risk Rating'
+        verbose_name_plural = 'Risk Ratings'
+
+    def __str__(self):
+        return f"{self.full_name} - {self.rating} ({self.client.client_name})"

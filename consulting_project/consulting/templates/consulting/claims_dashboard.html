@@ -21,22 +21,26 @@
             --card-shadow: 0 4px 15px rgba(0,0,0,0.08);
         }
 
-        /* --- Global Styles --- */
+        /* --- Global Styles Updated for 95% Layout --- */
         body { 
             font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background: linear-gradient(135deg, #e8f5e9 0%, #ffffff 100%);
             color: var(--text-default);
             margin: 0;
-            padding: 10px;
+            padding: 5px 0; /* Padding top/bottom, 0 sides to let container control width */
+            display: flex;
+            justify-content: center;
         }
         .container {
-            max-width: 98%; 
-            margin: 5px auto; 
-            padding: 20px;
+            width: 95%; /* Force 95% width */
+            max-width: 95%; 
+            margin: 0 auto; 
+            padding: 15px;
             background-color: #ffffff;
             border-radius: 16px;
             box-shadow: var(--card-shadow);
-            min-height: 95vh;
+            min-height: 100vh;
+            width: 95%;
         }
         .section-header {
             color: var(--accent-green);
@@ -73,7 +77,7 @@
             width: 100%;
         }
         .claims-table th, .claims-table td {
-            padding: 12px 8px; /* Increased padding slightly */
+            padding: 14px 10px;
             text-align: left;
             border-bottom: 1px solid var(--border-light);
         }
@@ -85,6 +89,18 @@
             text-transform: uppercase;
             letter-spacing: 0.5px;
         }
+
+        /* Note Column Truncation */
+        .note-col {
+            max-width: 250px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            font-style: italic;
+        }
+
         .claims-table tr { cursor: pointer; transition: background 0.2s ease; }
         .claims-table tr:hover { background-color: #f1f8e9; }
         
@@ -150,7 +166,7 @@
         /* Detail Modal Specific Styles */
         .detail-item {
             display: grid;
-            grid-template-columns: 140px 1fr; /* Fixed width for labels */
+            grid-template-columns: 140px 1fr;
             align-items: center;
             padding: 12px 0;
             border-bottom: 1px solid #f1f2f6;
@@ -217,11 +233,10 @@
                         <th>Member No</th>
                         <th>First Name</th>
                         <th>Surname</th>
-                        <th>ID/Passport No</th>
                         <th>Employer Name</th>
                         <th>Insurer</th>
-                        <th>Last Action</th>
                         <th>Claim Type</th>
+                        <th>Latest Note / Last Action</th>
                         <th>Consultant</th>
                         <th>Status</th>
                         <th>Created Date</th>
@@ -234,18 +249,22 @@
                             <td><strong>{{ claim.member_no }}</strong></td>
                             <td>{{ claim.first_name }}</td>
                             <td>{{ claim.surname }}</td>
-                            <td>{{ claim.id_passport }}</td>
                             <td>{{ claim.employer_name }}</td>
                             <td>{{ claim.insurer }}</td>
-                            <td>{{ claim.last_action }}</td>
                             <td>{{ claim.claim_type }}</td>
+                            <td class="note-col" title="{{ claim.last_action|default:claim.initial_notes }}">
+                                {% if claim.last_action %}
+                                    <span class="text-blue-600 font-bold">[{{ claim.last_action }}]</span>
+                                {% endif %}
+                                {{ claim.initial_notes|default:"No updates" }}
+                            </td>
                             <td>{{ claim.consultant }}</td>
                             <td><span class="status-badge status-{{ claim.status|slugify }}">{{ claim.status }}</span></td>
                             <td>{{ claim.created_date|date:"Y-m-d" }}</td>
                         </tr>
                     {% empty %}
                         <tr>
-                            <td colspan="12" class="text-center text-gray-500 py-8">No claims found. Load a new one above.</td>
+                            <td colspan="11" class="text-center text-gray-500 py-8">No claims found. Load a new one above.</td>
                         </tr>
                     {% endfor %}
                 </tbody>
@@ -587,18 +606,18 @@
                 idPassport: claim.idPassport, 
                 firstName: claim.firstName, 
                 surname: claim.surname, 
-                employerName: claim.employerName, // New Field
+                employerName: claim.employerName, 
                 claimType: claim.claimType, 
                 insurer: claim.insurer, 
                 consultant: claim.consultant, 
                 status: claim.status,
-                lastAction: claim.lastAction // New Field
+                lastAction: claim.lastAction 
             };
             
             for (const k in map) {
                 // Populate Static Span
                 const s = document.querySelector(`[data-key="${k}"][data-type="static"]`);
-                if (s) s.textContent = map[k] || '-'; // Show dash if empty
+                if (s) s.textContent = map[k] || '-'; 
                 
                 // Populate Edit Input (if exists)
                 const i = document.getElementById(`edit_${k}`);
@@ -643,7 +662,6 @@
         }
 
         function toggleEditModeDisplay(isEdit) {
-            // Toggle visibility of spans vs inputs
             document.querySelectorAll('[data-type="static"]').forEach(el => el.style.display = isEdit ? 'none' : 'block');
             document.querySelectorAll('.edit-input').forEach(el => el.style.display = isEdit ? 'block' : 'none');
         }
@@ -708,9 +726,8 @@
         function hideClaimDetailModal() { document.getElementById('claim-detail-modal').classList.add('hidden'); exitEditMode(false); }
 
         function exportClaims() {
-            let csv = "ID,Member No,First Name,Surname,ID/Passport,Employer,Insurer,Last Action,Type,Consultant,Status,Date\n";
+            let csv = "ID,Member No,First Name,Surname,Employer,Insurer,Type,Consultant,Status,Date\n";
             document.querySelectorAll('#claims-table-body tr').forEach(row => {
-                // Ensure we skip the 'empty' row if table is empty
                 if (row.cells.length > 1) {
                     csv += Array.from(row.cells).map(c => `"${c.innerText.trim()}"`).join(",") + "\n";
                 }
