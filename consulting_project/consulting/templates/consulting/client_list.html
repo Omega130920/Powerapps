@@ -15,6 +15,7 @@
             --text-default: #2d3436;
             --text-muted: #636e72;
             --export-blue: #0984e3;
+            --fica-purple: #6c5ce7;
             --white: #ffffff;
             --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
         }
@@ -73,7 +74,6 @@
             width: 300px;
             transition: all 0.2s;
             outline: none;
-            transition: all 0.2s;
         }
 
         .search-box:focus {
@@ -81,8 +81,7 @@
             box-shadow: 0 0 0 3px rgba(119, 206, 97, 0.2);
         }
 
-        .export-button {
-            background-color: var(--export-blue);
+        .export-button, .fica-button {
             color: white;
             padding: 10px 24px;
             border: none;
@@ -93,13 +92,14 @@
             transition: transform 0.1s, background-color 0.2s;
             display: flex;
             align-items: center;
-            text-decoration: none; /* In case it's styled as an <a> */
+            text-decoration: none;
         }
 
-        .export-button:hover {
-            background-color: #0771c1;
-            transform: translateY(-1px);
-        }
+        .export-button { background-color: var(--export-blue); }
+        .export-button:hover { background-color: #0771c1; transform: translateY(-1px); }
+
+        .fica-button { background-color: var(--fica-purple); }
+        .fica-button:hover { background-color: #5849c4; transform: translateY(-1px); }
 
         /* --- Main Content Area --- */
         .content-area {
@@ -172,20 +172,6 @@
             background-color: #fcfdfb;
         }
 
-        .fica-badge {
-            padding: 4px 10px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            font-weight: 700;
-            display: inline-block;
-            text-align: center;
-            min-width: 45px;
-        }
-
-        .fica-badge.complete { background-color: #e3f9e5; color: #1f7a1f; }
-        .fica-badge.partial { background-color: #fff4e5; color: #b7791f; }
-        .fica-badge.none { background-color: #ffe5e5; color: #a31515; }
-
         .select-tick {
             width: 18px;
             height: 18px;
@@ -203,6 +189,12 @@
         </a>
         <div class="header-controls">
             <input type="text" class="search-box" id="globalSearchInput" placeholder="Quick search Code or Name..."> 
+            
+            <button class="fica-button" onclick="window.location.href='{% url 'fica_checklist' %}'">
+                <svg style="margin-right:8px" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                FICA Checklist
+            </button>
+
             <button class="export-button" id="exportBtn" onclick="window.location.href='{% url 'export_clients_full' %}'">
                 <svg style="margin-right:8px" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                 Export Comprehensive CSV
@@ -215,13 +207,12 @@
             <table class="client-table" id="clientTable">
                 <thead>
                     <tr class="header-row">
-                        <th>Client Number</th>
+                        <th>Scheme Code</th>
                         <th>Ref No 2</th>
                         <th>Client Name</th>
                         <th>Consultant</th>
                         <th>Administrator</th>
                         <th>Umbrella Option</th>
-                        <th>FICA Completed</th>
                         <th style="text-align:center">Bulk Email</th>
                     </tr>
                     <tr class="filter-row" id="filterRow">
@@ -255,18 +246,7 @@
                                 <option value="SUF Exception">SUF Exception</option>
                             </select>
                         </th>
-                        <th>
-                            <select class="filter-input" data-column="6">
-                                <option value="">All %</option>
-                                <option value="100%">100%</option>
-                                <option value="75%">75%</option>
-                                <option value="50%">50%</option>
-                                <option value="25%">25%</option>
-                                <option value="0%">0%</option>
-                            </select>
-                        </th>
-                        <th></th> 
-                    </tr>
+                        <th></th> </tr>
                 </thead>
                 <tbody id="clientTableBody">
                     {% for client in clients %}
@@ -277,24 +257,13 @@
                         <td>{{ client.consultant|upper }}</td>
                         <td style="color: var(--text-muted);">{{ client.administrator|upper|default:"N/A" }}</td>
                         <td>{{ client.umbrella_fund|default:"N/A" }}</td>
-                        <td>
-                            {% with fica_val=client.fica_dd_completed|floatformat:0 %}
-                                {% if fica_val >= 100 %}
-                                    <span class="fica-badge complete">100%</span>
-                                {% elif fica_val > 0 %}
-                                    <span class="fica-badge partial">{{ fica_val }}%</span>
-                                {% else %}
-                                    <span class="fica-badge none">0%</span>
-                                {% endif %}
-                            {% endwith %}
-                        </td>
                         <td style="text-align: center;">
                             <input type="checkbox" class="select-tick" {% if client.bulk_email_status %}checked{% endif %} onclick="event.stopPropagation();">
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="8" style="text-align: center; padding: 60px; color: var(--text-muted);">
+                        <td colspan="7" style="text-align: center; padding: 60px; color: var(--text-muted);">
                             No clients found in the database.
                         </td>
                     </tr>
@@ -324,7 +293,7 @@
             for (let i = 0; i < tableRows.length; i++) {
                 const row = tableRows[i];
                 const cells = row.getElementsByTagName('td');
-                if (cells.length < 8) continue; 
+                if (cells.length < 7) continue; 
                 
                 let rowVisible = true; 
 
@@ -342,12 +311,14 @@
                     for (const filter of columnFilters) {
                         if (filter.value && cells.length > filter.column) {
                             const cellValue = cells[filter.column].textContent.toLowerCase().trim();
-                            if (filter.column <= 2 || filter.column >= 6) { 
+                            
+                            // Text inputs (Scheme, Ref, Name)
+                            if (filter.column <= 2) { 
                                 if (!cellValue.includes(filter.value)) {
                                     rowVisible = false;
                                     break; 
                                 }
-                            } else {
+                            } else if (filter.column < 6) { // Select dropdowns
                                 if (filter.value !== "" && cellValue !== filter.value) {
                                      rowVisible = false;
                                      break;

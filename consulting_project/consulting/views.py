@@ -25,6 +25,7 @@ from .models import (
     FicaBeneficialOwner,
     ClientRiskRating,  # Added Risk Rating Model
     Lead,
+    NoteAttachment,
     Reminders,
     Claims,
     ClaimsNotes
@@ -655,12 +656,31 @@ def add_new_lead_view(request):
 @require_http_methods(["GET", "POST"])
 def lead_edit_view(request, lead_id):
     lead = get_object_or_404(Lead, pk=lead_id)
+    
     if request.method == 'POST':
+        # Existing fields
         lead.company_name = request.POST.get('company_name', lead.company_name)
         lead.status = request.POST.get('status', lead.status)
+        
+        # ADD THESE LINES TO SAVE THE DROPDOWNS:
+        lead.assigned_to = request.POST.get('assigned_to', lead.assigned_to)
+        lead.product_required = request.POST.get('product_required', lead.product_required)
+        
+        # Save other fields if you added them to the HTML
+        lead.lead_received_from = request.POST.get('lead_received_from', lead.lead_received_from)
+        lead.contact_person = request.POST.get('contact_person', lead.contact_person)
+        lead.contact_number = request.POST.get('contact_number', lead.contact_number)
+        lead.contact_email = request.POST.get('contact_email', lead.contact_email)
+        
+        # Handle the dates (only update if they aren't empty strings)
+        date_received = request.POST.get('date_received')
+        if date_received:
+            lead.date_received = date_received
+            
         lead.save()
-        messages.success(request, "Lead updated.")
+        messages.success(request, f"Lead for {lead.company_name} updated successfully.")
         return redirect('lead_info', lead_id=lead.id)
+        
     return render(request, 'consulting/edit_lead_info.html', {'lead': lead})
 
 # ------------------------------------------------------
@@ -889,25 +909,47 @@ def delete_reminder(request, reminder_id):
 @require_POST
 def post_client_note(request):
     try:
-        # 1. Parse JSON data from the fetch request
-        data = json.loads(request.body)
-        client_code = data.get('client_code')
+        # 1. Accessing data via request.POST (Multipart/form-data)
+        client_code = request.POST.get('client_code')
+        comm_type = request.POST.get('comm_type')
+        note_type = request.POST.get('note_type')
+        note_text = request.POST.get('note_text')
         
-        # 2. Find the client using the code (e.g., FUT00004)
         client = get_object_or_404(ClientClient, future_client_number=client_code)
         
-        # 3. Create the note record
-        ClientInteractionNote.objects.create(
-            client=client,
-            comm_type=data.get('comm_type'),
-            note_type=data.get('note_type'),
-            note_text=data.get('note_text'),
-            created_by=request.user.username if request.user.is_authenticated else "System"
-        )
+        with transaction.atomic():
+            # 2. Create the Master Note
+            new_note = ClientInteractionNote.objects.create(
+                client=client,
+                comm_type=comm_type,
+                note_type=note_type,
+                note_text=note_text,
+                created_by=request.user.username if request.user.is_authenticated else "System"
+            )
+
+            # 3. Handle the Multiple Files
+            files = request.FILES.getlist('note_files')
+            saved_attachments = []
+            
+            for f in files:
+                # Create a record in the new unmanaged table for every file
+                att = NoteAttachment.objects.create(
+                    note=new_note,
+                    file=f,
+                    filename=f.name
+                )
+                saved_attachments.append({
+                    'url': att.file.url,
+                    'filename': att.filename
+                })
         
-        return JsonResponse({'status': 'success'})
+        return JsonResponse({
+            'status': 'success', 
+            'attachments': saved_attachments
+        })
     except Exception as e:
         print(f"Error saving note: {e}")
+        traceback.print_exc()
         return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
     
 import csv
@@ -998,4 +1040,95 @@ def export_clients_comprehensive(request):
         content_type="text/csv",
     )
     response['Content-Disposition'] = f'attachment; filename="Comprehensive_Client_Export_{date.today()}.csv"'
+    return response
+
+def fica_checklist_view(request):
+    """Requirement 12.2 & 12.5: FICA Checklist display with automated status logic."""
+    clients = ClientClient.objects.all()
+    return render(request, 'consulting/fica_checklist.html', {'clients': clients})
+
+def export_fica_documents_view(request):
+    """Requirement 12.3: Export Document Control Sheet (YES/NO for attachments)."""
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="FICA_Doc_Control_{timezone.now().date()}.csv"'
+    
+    writer = csv.writer(response)
+    writer.writerow([
+        'Scheme Code', 'Ref No 2', 'Client Name', 'Consultant', 
+        'Consulting appointment letter', 'Service Level Agreement', 'SLA', 
+        'Company Registration Documents', 'Company POA', '3rd Party User', 
+        'Responsible Person', 'Due Diligence_Beneficial owners form',
+        'Director 1 ID', 'Director 1 POA', 'Director 2 ID', 'Director 2 POA',
+        'Director 3 ID', 'Director 3 POA', 'Director 4 ID', 'Director 4 POA',
+        'Beneficial Owner 1 ID', 'Beneficial Owner 1 POA', 'Beneficial Owner 2 ID', 'Beneficial Owner 2 POA',
+        'Beneficial Owner 3 ID', 'Beneficial Owner 3 POA', 'Beneficial Owner 4 ID', 'Beneficial Owner 4 POA'
+    ])
+
+    def check_file(file_field):
+        return "YES" if file_field else "NO"
+
+    for client in ClientClient.objects.all():
+        # Requirement Note on Column J (3rd Party User / 3rd Party User):
+        # "NO" if external selected and no doc. "N/A" if internal selected.
+        if client.third_party_doc_file:
+            third_party_val = "YES"
+        else:
+            # Check if admin is internal (adjust field 'administrator' to your actual toggle if different)
+            if getattr(client, 'administrator', '').upper() == 'INTERNAL':
+                third_party_val = "N/A"
+            else:
+                third_party_val = "NO"
+
+        writer.writerow([
+            client.future_client_number,
+            client.id,
+            client.client_name,
+            client.consultant,
+            check_file(client.consulting_letter_file),
+            check_file(client.sla_file),
+            "YES" if client.sla_status else "NO",
+            "", # Company Reg Docs (Requires model field)
+            "", # Company POA (Requires model field)
+            third_party_val,
+            check_file(client.signed_form_upload),
+            "", # Due Diligence Form (Requires model field)
+            # Placeholder blanks for Directors/Beneficial Owners (1-4)
+            "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""
+        ])
+
+    return response
+
+def export_fica_information_view(request):
+    """Requirement 12.4: Export Actual FICA Information (Names, IDs, Addresses)."""
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="FICA_Information_Export_{timezone.now().date()}.csv"'
+    
+    writer = csv.writer(response)
+    writer.writerow([
+        'Scheme Code', 'Ref No 2', 'Client Name', 'Consultant', 
+        'Company Registration Number', 'Company Physical Address', 
+        'Company Postal Address', 'Company contact numbers', 
+        'Internal user info', 'External user info', 'Responsible Person Info',
+        'Director 1 Info', 'Director 2 Info', 'Director 3 Info', 'Director 4 Info',
+        'Beneficial owner 1 Info', 'Beneficial owner 2 Info', 'Beneficial owner 3 Info', 'Beneficial owner 4 Info'
+    ])
+
+    for client in ClientClient.objects.all():
+        # Using getattr to prevent crashes if fields aren't in model yet
+        writer.writerow([
+            client.future_client_number,
+            client.id,
+            client.client_name,
+            client.consultant,
+            getattr(client, 'reg_number', ''), 
+            getattr(client, 'physical_address', ''),
+            getattr(client, 'postal_address', ''),
+            getattr(client, 'contact_number', ''),
+            "", # Internal user info
+            "", # External user info
+            f"{client.declaration_name} | {client.declaration_date}", # Responsible Person Info
+            "", "", "", "", # Directors 1-4
+            "", "", "", ""  # Beneficial Owners 1-4
+        ])
+
     return response

@@ -156,3 +156,6 @@ MEDIA_URL = '/media/'
 
 # The absolute filesystem path to the directory that will hold user-uploaded files
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+DATA_UPLOAD_MAX_MEMORY_SIZE = 20971520  # 20MB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 20971520  # 20MB

@@ -314,6 +314,27 @@
         .folder-list li:hover { background-color: var(--bg-light-green); transform: scale(1.02); }
         .folder-list li:before { content: "\1F4C1"; margin-right: 12px; }
 
+        /* --- Note Attachments Styling --- */
+        .note-attachments {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #eee;
+        }
+        .attachment-link {
+            display: inline-flex;
+            align-items: center;
+            background: #f1f5f9;
+            padding: 4px 10px;
+            border-radius: 4px;
+            margin-right: 5px;
+            margin-bottom: 5px;
+            font-size: 0.8rem;
+            color: #475569;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+        .attachment-link:hover { background: #e2e8f0; }
+
     </style>
 </head>
 <body>
@@ -356,30 +377,32 @@
                 <div class="data-item"><label>Industry</label><p>{{ client.industry }}</p></div>
                 <div class="data-item"><label>Status</label><p>{{ client.status }}</p></div>
                 
-                {% with main_contact=client_contacts|first %}
-                <div class="data-item">
-                    <label>Primary Contact Birthday</label>
-                    <p>
-                        {% if main_contact and main_contact.birthday %}
-                            <span style="background: #f0f9ff; color: #0070c0; padding: 2px 6px; border-radius: 4px; font-weight: 600;">
-                                🎂 {{ main_contact.birthday }}
-                            </span>
-                        {% else %}
-                            <span style="color: #ccc; font-style: italic;">No Info</span>
-                        {% endif %}
-                    </p>
-                </div>
-                <div class="data-item">
-                    <label>Primary Contact Interests</label>
-                    <p>
-                        {% if main_contact and main_contact.interests %}
-                            {{ main_contact.interests }}
-                        {% else %}
-                            <span style="color: #ccc; font-style: italic;">No Info</span>
-                        {% endif %}
-                    </p>
-                </div>
-                {% endwith %}
+                {% if client_contacts %}
+                    {% with main_contact=client_contacts|first %}
+                    <div class="data-item">
+                        <label>Primary Contact Birthday</label>
+                        <p>
+                            {% if main_contact and main_contact.birthday %}
+                                <span style="background: #f0f9ff; color: #0070c0; padding: 2px 6px; border-radius: 4px; font-weight: 600;">
+                                    🎂 {{ main_contact.birthday }}
+                                </span>
+                            {% else %}
+                                <span style="color: #ccc; font-style: italic;">No Info</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                    <div class="data-item">
+                        <label>Primary Contact Interests</label>
+                        <p>
+                            {% if main_contact and main_contact.interests %}
+                                {{ main_contact.interests }}
+                            {% else %}
+                                <span style="color: #ccc; font-style: italic;">No Info</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                    {% endwith %}
+                {% endif %}
 
                 <div class="data-item"><label>Start Date</label><p>{{ date_added_formatted }}</p></div>
                 <div class="data-item"><label>Date Added</label><p>{{ date_added_formatted }}</p></div>
@@ -494,40 +517,43 @@
                     <h3>Record New Interaction</h3>
                     <p style="color: #888; font-size: 0.9em; margin-bottom: 20px;">Log calls, emails, and notes regarding client interactions.</p>
                     
-                    <div class="data-item">
-                        <label for="comm_type">Communication Type</label>
-                        <select id="comm_type" name="comm_type">
-                            <option value="Inbound Email">Inbound Email</option>
-                            <option value="Outbound Email">Outbound Email</option>
-                            <option value="Inbound Call">Inbound Call</option>
-                            <option value="Outbound Call">Outbound Call</option>
-                        </select>
-                    </div>
-
-                    <div class="data-item" style="margin-top: 15px;">
-                        <label for="note_type">Activity Classification</label>
-                        <select id="note_type" name="note_type">
-                            <option value="General Enquiry">General Enquiry</option>
-                            <option value="Schedule">Schedule</option>
-                            <option value="Claims">Claims</option>
-                            <option value="Two-Pot Claims">Two-Pot Claims</option>
-                            <option value="Leads">Leads</option>
-                        </select>
-                    </div>
-                    
-                    <div class="data-item" style="margin-top: 15px;">
-                        <label for="note_text">Interaction Details</label>
-                        <textarea id="note_text" name="note_text" placeholder="Summarize the discussion..." style="height: 120px;"></textarea>
-                    </div>
-                    
-                    <div class="data-item" style="margin-top: 15px;">
-                        <label>Attachments</label>
-                        <div style="border: 2px dashed #edf2f7; padding: 10px; border-radius: 8px; background: white; font-size: 0.8rem;">
-                            <input type="file" id="note_files" multiple>
+                    <form id="interactionForm" enctype="multipart/form-data">
+                        <div class="data-item">
+                            <label for="comm_type">Communication Type</label>
+                            <select id="comm_type" name="comm_type">
+                                <option value="Inbound Email">Inbound Email</option>
+                                <option value="Outbound Email">Outbound Email</option>
+                                <option value="Inbound Call">Inbound Call</option>
+                                <option value="Outbound Call">Outbound Call</option>
+                            </select>
                         </div>
-                    </div>
-                    
-                    <button type="button" id="submitNoteBtn" class="edit-button" style="margin-top: 20px; background-color: var(--primary-green); width: 100%;">💾 Post Activity</button>
+
+                        <div class="data-item" style="margin-top: 15px;">
+                            <label for="note_type">Activity Classification</label>
+                            <select id="note_type" name="note_type">
+                                <option value="General Enquiry">General Enquiry</option>
+                                <option value="Schedule">Schedule</option>
+                                <option value="Claims">Claims</option>
+                                <option value="Two-Pot Claims">Two-Pot Claims</option>
+                                <option value="Leads">Leads</option>
+                            </select>
+                        </div>
+                        
+                        <div class="data-item" style="margin-top: 15px;">
+                            <label for="note_text">Interaction Details</label>
+                            <textarea id="note_text" name="note_text" placeholder="Summarize the discussion..." style="height: 120px;"></textarea>
+                        </div>
+                        
+                        <div class="data-item" style="margin-top: 15px;">
+                            <label>Attachments (Multiple)</label>
+                            <div style="border: 2px dashed #edf2f7; padding: 10px; border-radius: 8px; background: white; font-size: 0.8rem;">
+                                <input type="file" id="note_files" name="note_files" multiple>
+                                <div id="file_preview_list" style="margin-top: 10px; font-size: 0.75rem; color: #666;"></div>
+                            </div>
+                        </div>
+                        
+                        <button type="button" id="submitNoteBtn" class="edit-button" style="margin-top: 20px; background-color: var(--primary-green); width: 100%;">💾 Post Activity</button>
+                    </form>
                 </div>
 
                 <div>
@@ -540,6 +566,16 @@
                                 <small style="color: #999;">{{ note.created_at|date:"Y-m-d H:i" }}</small>
                             </div>
                             <p style="margin-top: 10px; color: var(--text-dark);">{{ note.note_text }}</p>
+                            
+                            {% if note.attachments.all %}
+                            <div class="note-attachments">
+                                {% for att in note.attachments.all %}
+                                <a href="{{ att.file.url }}" target="_blank" class="attachment-link">
+                                    📎 {{ att.filename|default:"Attachment" }}
+                                </a>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
                         </div>
                         {% empty %}
                         <p id="noNotesMsg" style="color: #777; font-style: italic;">No interaction history available.</p>
@@ -725,7 +761,7 @@
             {% endfor %}
 
             <div class="full-width" style="margin-top: 40px; border-top: 2px dashed #edf2f7; padding-top: 20px; text-align: center;">
-                <a href="#" class="edit-button" style="background-color: var(--primary-green);">⬆️ Upload Signed Compliance Document</a>
+                <a href="#" class="edit-button" style="background-color: var(--primary-green);">⬆️ Upload Signed Compliance Document (WIP)</a>
                 <p style="font-size: 0.85rem; color: #777; margin-top: 10px;">Mandatory for FICA finalization.</p>
             </div>
 
@@ -745,13 +781,23 @@
             evt.currentTarget.classList.add("active");
         }
 
-        // AJAX Note Posting Logic
+        // File Selection Preview
+        document.getElementById('note_files').addEventListener('change', function() {
+            const preview = document.getElementById('file_preview_list');
+            preview.innerHTML = '';
+            for (let i = 0; i < this.files.length; i++) {
+                preview.innerHTML += `<div>📄 ${this.files[i].name}</div>`;
+            }
+        });
+
+        // FormData Note Posting Logic (Handles Multiple Attachments)
         document.getElementById('submitNoteBtn').addEventListener('click', function() {
             const btn = this;
             const clientCode = "{{ client.future_client_number }}";
             const commType = document.getElementById('comm_type').value;
             const noteType = document.getElementById('note_type').value;
             const noteText = document.getElementById('note_text').value;
+            const fileInput = document.getElementById('note_files');
 
             if (!noteText.trim()) {
                 alert("Please enter interaction details.");
@@ -761,18 +807,25 @@
             btn.disabled = true;
             btn.innerText = "Saving Activity...";
 
+            // Use FormData to allow file uploads
+            const formData = new FormData();
+            formData.append('client_code', clientCode);
+            formData.append('comm_type', commType);
+            formData.append('note_type', noteType);
+            formData.append('note_text', noteText);
+            
+            // Append all files
+            for (let i = 0; i < fileInput.files.length; i++) {
+                formData.append('note_files', fileInput.files[i]);
+            }
+
             fetch("{% url 'post_client_note' %}", {
                 method: "POST",
                 headers: {
-                    "Content-Type": "application/json",
                     "X-CSRFToken": "{{ csrf_token }}"
+                    // Content-Type must NOT be set manually when sending FormData
                 },
-                body: JSON.stringify({
-                    client_code: clientCode,
-                    comm_type: commType,
-                    note_type: noteType,
-                    note_text: noteText
-                })
+                body: formData
             })
             .then(response => response.json())
             .then(data => {
@@ -784,6 +837,19 @@
                     const noNotesMsg = document.getElementById('noNotesMsg');
                     if (noNotesMsg) noNotesMsg.remove();
 
+                    // Construct attachment links HTML for the new note
+                    let attachmentHtml = '';
+                    if (data.attachments && data.attachments.length > 0) {
+                        attachmentHtml = '<div class="note-attachments">';
+                        data.attachments.forEach(att => {
+                            attachmentHtml += `
+                                <a href="${att.url}" target="_blank" class="attachment-link">
+                                    📎 ${att.filename}
+                                </a>`;
+                        });
+                        attachmentHtml += '</div>';
+                    }
+
                     const newNote = `
                         <div class="note-history-item" style="border-left-color: var(--primary-green); animation: fadeIn 0.5s ease;">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -791,10 +857,15 @@
                                 <small style="color: #999;">Just now</small>
                             </div>
                             <p style="margin-top: 10px; color: var(--text-dark);">${noteText}</p>
+                            ${attachmentHtml}
                         </div>
                     `;
                     container.insertAdjacentHTML('afterbegin', newNote);
+                    
+                    // Reset form
                     document.getElementById('note_text').value = '';
+                    document.getElementById('note_files').value = '';
+                    document.getElementById('file_preview_list').innerHTML = '';
                 } else {
                     alert("Error posting note: " + data.message);
                 }

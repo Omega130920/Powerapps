@@ -1,3 +1,5 @@
+from datetime import timedelta
+from django.utils import timezone
 from django.db import models
 
 # ====================================================================
@@ -24,22 +26,27 @@ class ClientClient(models.Model):
     insurer = models.CharField(max_length=50, null=True, blank=True)
     assets = models.TextField(null=True, blank=True)
     
-    # Tab 1: Document Status (paths/names)
+    # Updated Document Fields with Upload Timestamps (Requirement 12.6)
     consulting_letter_status = models.BooleanField(default=False)
-    consulting_letter_file = models.CharField(max_length=255, null=True, blank=True)
+    consulting_letter_file = models.FileField(upload_to='docs/consulting/', null=True, blank=True)
+    consulting_letter_upload_date = models.DateTimeField(null=True, blank=True)
+    
     sla_status = models.BooleanField(default=False)
-    sla_file = models.CharField(max_length=255, null=True, blank=True)
+    sla_file = models.FileField(upload_to='docs/sla/', null=True, blank=True)
+    sla_upload_date = models.DateTimeField(null=True, blank=True)
+    
     third_party_doc_status = models.BooleanField(default=False)
-    third_party_doc_file = models.CharField(max_length=255, null=True, blank=True)
+    third_party_doc_file = models.FileField(upload_to='docs/third_party/', null=True, blank=True)
+    third_party_doc_upload_date = models.DateTimeField(null=True, blank=True)
 
-    # FICA Status (for dashboard/reporting)
+    # FICA Tracking & Compliance (Requirement 12.5)
+    fica_verified = models.BooleanField(default=False) # The "Verified" column
+    fica_verification_date = models.DateField(null=True, blank=True) # Used to calculate next follow up
     fica_dd_completed = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
     bulk_email_status = models.BooleanField(default=False)
-    
-    # NEW: FICA Risk Rating (System-wide highest score)
-    risk_rating = models.CharField(max_length=20, default='Low')
+    risk_rating = models.CharField(max_length=20, default='Low') # Low, Medium, High
 
-    # FICA Step 7: Transaction Information (Embedded in ClientClient for simplicity)
+    # FICA Step 7: Transaction Information
     nature_of_relationship = models.CharField(max_length=100, default='Employer / Pension Fund')
     purpose_of_relationship = models.CharField(max_length=100, default='Employee Pension Fund')
     source_of_funds = models.CharField(max_length=100, default='Payroll')
@@ -49,16 +56,51 @@ class ClientClient(models.Model):
     declaration_name = models.CharField(max_length=100, null=True, blank=True)
     declaration_delegation = models.CharField(max_length=100, null=True, blank=True)
     declaration_date = models.DateField(null=True, blank=True)
-    signed_form_upload = models.CharField(max_length=255, null=True, blank=True) # Storing file path
+    signed_form_upload = models.FileField(upload_to='fica/signed/', null=True, blank=True)
+    signed_form_upload_date = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        managed = False  # Tells Django not to manage this table's creation/modification
+        managed = False  
         db_table = 'client_client'
         verbose_name = 'Client'
         verbose_name_plural = 'Clients'
-    
+
     def __str__(self):
         return self.client_name or self.future_client_number
+
+    # Logic for Automated FICA Dates (Requirement 12.5)
+    @property
+    def next_fica_follow_up(self):
+        """Calculates the next due date based on Risk Rating."""
+        if not self.fica_verification_date:
+            return None
+        
+        if self.risk_rating.lower() == 'low':
+            return self.fica_verification_date + timedelta(days=3*365) # 3 Years
+        elif self.risk_rating.lower() == 'medium':
+            return self.fica_verification_date + timedelta(days=1*365) # 1 Year
+        elif self.risk_rating.lower() == 'high':
+            return self.fica_verification_date + timedelta(days=1*365) # 1 Year
+        return None
+
+    @property
+    def automated_fica_status(self):
+        """Calculates FICA status based on follow-up dates and warnings."""
+        follow_up = self.next_fica_follow_up
+        if not self.fica_verified:
+            return "Incomplete"
+        if not follow_up:
+            return "Complete"
+
+        today = timezone.now().date()
+        warning_window = follow_up - timedelta(days=30)
+
+        if today >= follow_up:
+            return "Fica Due"
+        elif today >= warning_window:
+            return "Warning" # Alert consultant 1 month before
+        else:
+            return "Complete"
 
 # ====================================================================
 # 2. CONTACTS (client_contact)
@@ -434,3 +476,16 @@ class ClientRiskRating(models.Model):
 
     def __str__(self):
         return f"{self.full_name} - {self.rating} ({self.client.client_name})"
+    
+class NoteAttachment(models.Model):
+    # Links to the Note ID in the client_interaction_notes table
+    note = models.ForeignKey(ClientInteractionNote, on_delete=models.CASCADE, related_name='attachments', db_column='note_id')
+    
+    file = models.FileField(upload_to='notes/attachments/%Y/%m/')
+    filename = models.CharField(max_length=255)
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = 'note_attachments'
+        verbose_name = 'Note Attachment'

@@ -47,4 +47,8 @@ urlpatterns = [
     path('reminders/complete/<int:reminder_id>/', views.dismiss_single_reminder, name='dismiss_single_reminder'),
     path('reminders/delete/<int:reminder_id>/', views.delete_reminder, name='delete_reminder'),
     path('clients/export/comprehensive/', views.export_clients_comprehensive, name='export_clients_full'),
+    path('fica-checklist/', views.fica_checklist_view, name='fica_checklist'),
+    path('clients/', views.client_list_view, name='consulting_clients'), # Make sure this 'name' matches!
+    path('export-fica-docs/', views.export_fica_documents_view, name='export_fica_docs'),
+    path('export-fica-info/', views.export_fica_information_view, name='export_fica_info'),
 ]

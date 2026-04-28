@@ -44,17 +44,41 @@ from django.db.models import Q
 @login_required
 def pssubf_dashboard(request):
     """
-    Shows all emails that haven't been processed yet.
-    Excludes emails with 'Delegated', 'Completed', or 'Recycled' status.
+    Shows all emails that:
+    1. Haven't been processed (Excludes Delegated, Completed, Recycled).
+    2. Are sent by a sender found in the PssubfBeneficiary table (Case-Insensitive).
     """
-    inbox_items = PssubfInbox.objects.exclude(
+    # 🚀 STEP 1: Get all valid emails and normalize them to lowercase
+    # We use .values_list with flat=True for efficiency
+    b_emails_1 = PssubfBeneficiary.objects.exclude(email_1__isnull=True).values_list('email_1', flat=True)
+    b_emails_2 = PssubfBeneficiary.objects.exclude(email_2__isnull=True).values_list('email_2', flat=True)
+    b_emails_3 = PssubfBeneficiary.objects.exclude(email_3__isnull=True).values_list('email_3', flat=True)
+
+    # Combine into a single set of lowercase emails for safe comparison
+    # This ensures that 'Test@Gmail.com' matches 'test@gmail.com'
+    valid_member_emails = set()
+    for e_list in [b_emails_1, b_emails_2, b_emails_3]:
+        for email in e_list:
+            if email:
+                valid_member_emails.add(email.strip().lower())
+
+    # 🚀 STEP 2: Fetch unprocessed items
+    # We first get all items that aren't finished
+    base_inbox = PssubfInbox.objects.exclude(
         Q(status__iexact='Delegated') | 
         Q(status__iexact='Completed') |
-        Q(status__iexact='Recycled') # <--- Add this line
+        Q(status__iexact='Recycled')
     ).order_by('-received_timestamp')
 
+    # 🚀 STEP 3: Manual Filter to ensure lowercase match
+    # Django's __in filter can sometimes be case-sensitive depending on your Collation
+    final_inbox_items = []
+    for item in base_inbox:
+        if item.sender and item.sender.strip().lower() in valid_member_emails:
+            final_inbox_items.append(item)
+
     return render(request, 'pssubf/inbox_list.html', {
-        'inbox_items': inbox_items
+        'inbox_items': final_inbox_items
     })
 
 @login_required
@@ -81,18 +105,15 @@ def pssubf_delegate_view(request, email_id):
         )
         
         if success:
-            # --- 🚀 FIX: Update the status of the Inbox record so it leaves the Dashboard ---
+            # Update the status so it leaves the Dashboard
             if inbox_item:
                 if is_recycle:
                     inbox_item.status = 'Recycled'
                 else:
-                    # Mark it as Delegated so the exclude() filter in pssubf_dashboard catches it
                     inbox_item.status = 'Delegated'
                 inbox_item.save()
-            # -----------------------------------------------------------------------------
 
             messages.success(request, message)
-            # Redirect to delegations list so you can see the active queue after assignment
             return redirect('pssubf_delegations_list')
         else:
             messages.error(request, f"Error: {message}")
@@ -100,7 +121,6 @@ def pssubf_delegate_view(request, email_id):
     # Fetch live content from Graph API
     email_data = OutlookGraphService._make_graph_request(f"messages/{email_id}", method='GET')
     
-    # Error handling and variable assignment for the template
     if isinstance(email_data, dict) and 'error' in email_data:
         email_subject = inbox_item.subject if inbox_item else "Error Fetching Subject"
         email_content = inbox_item.snippet if inbox_item else "Live content unavailable."
@@ -108,11 +128,8 @@ def pssubf_delegate_view(request, email_id):
     else:
         email_subject = email_data.get('subject', '(No Subject)')
         email_content = email_data.get('body', {}).get('content', '')
-        
-        # Fetch Attachments
         attachments = OutlookGraphService.fetch_attachments(target_email, email_id)
         
-        # Resolve Inline Images
         for att in attachments:
             if att.get('isInline') and att.get('contentId'):
                 cid = att.get('contentId')
@@ -129,7 +146,6 @@ def pssubf_delegate_view(request, email_id):
                 if raw and isinstance(raw, dict) and 'contentBytes' in raw:
                     att['contentBytes'] = raw['contentBytes']
 
-    # We return inbox_item so your "Email Received" date is always available
     return render(request, 'pssubf/delegate.html', {
         'email_id': email_id,
         'email_subject': email_subject,
@@ -775,9 +791,16 @@ from django.utils import timezone # Ensure this is at the top of your views.py
 def beneficiary_details_view(request, membership_number):
     member = get_object_or_404(PssubfBeneficiary, membership_number=membership_number)
     
+    # Helper function to clean currency/numeric strings before saving
+    def clean_decimal(value):
+        if not value or value == '': return 0.00
+        return str(value).replace('R', '').replace(',', '').replace('%', '').strip()
+
     if request.method == 'POST':
+        action = request.POST.get('action')
+
         # --- 1. HANDLE DIRECT EMAIL (COMPOSITION TAB) ---
-        if request.POST.get('action') == 'send_direct_email':
+        if action == 'send_direct_email':
             recipient = request.POST.get('to_email')
             subject = request.POST.get('subject')
             body_html = request.POST.get('email_html_content')
@@ -806,7 +829,7 @@ def beneficiary_details_view(request, membership_number):
             return redirect('beneficiary_details', membership_number=membership_number)
 
         # --- 2. HANDLE GENERAL NOTES (NOTES TAB) ---
-        elif 'save_note' in request.POST:
+        elif action == 'save_note' or 'save_note' in request.POST:
             note_text = request.POST.get('note_text')
             if note_text:
                 current_status = "Expired" if member.is_expired else "Active"
@@ -833,7 +856,7 @@ def beneficiary_details_view(request, membership_number):
             return redirect('beneficiary_details', membership_number=membership_number)
 
         # --- 3. HANDLE CORE PROFILE UPDATES ---
-        else:
+        elif action == 'update_profile':
             try:
                 member.old_membership_number = request.POST.get('old_membership_number')
                 member.title = request.POST.get('title')
@@ -852,20 +875,13 @@ def beneficiary_details_view(request, membership_number):
                 member.employee_number = request.POST.get('employee_number')
                 member.stipened_frequency = request.POST.get('stipened_frequency')
                 
-                # Update Stipend
-                stipend_raw = str(request.POST.get('stipened', '0')).replace('R', '').replace(',', '').strip()
-                member.stipened = float(stipend_raw) if stipend_raw else 0.00
+                # Financials (using clean_decimal for safety)
+                member.stipened = float(clean_decimal(request.POST.get('stipened', '0')))
+                member.total_fund_value = float(clean_decimal(request.POST.get('total_fund_value', '0')))
                 
-                # --- NEW FINANCIAL UPDATES ---
-                # Update Total Fund Value
-                fund_val_raw = str(request.POST.get('total_fund_value', '0')).replace('R', '').replace(',', '').strip()
-                member.total_fund_value = float(fund_val_raw) if fund_val_raw else 0.00
-                
-                # Update Portfolio Date (Date of Value)
                 port_date_str = request.POST.get('portfolio_date')
                 if port_date_str:
                     member.portfolio_date = datetime.strptime(port_date_str, '%Y-%m-%d').date()
-                # ------------------------------
 
                 join_date_str = request.POST.get('fund_join_date')
                 if join_date_str:
@@ -875,6 +891,8 @@ def beneficiary_details_view(request, membership_number):
                 member.email_1 = request.POST.get('email_1')
                 member.mobile_2 = request.POST.get('mobile_2')
                 member.email_2 = request.POST.get('email_2')
+                member.mobile_3 = request.POST.get('mobile_3')
+                member.email_3 = request.POST.get('email_3')
 
                 member.guardian_title = request.POST.get('guardian_title')
                 member.guardian_first_name = request.POST.get('guardian_first_name')

@@ -196,23 +196,45 @@
 
                 <div class="form-group">
                     <label for="product_required">Product Required</label>
-                    <select id="product_required" name="product_required">
+                    <select id="product_required" name="product_required" required>
+                        <option value="" disabled {% if not lead.product_required %}selected{% endif %}>Select a product...</option>
+                        <option value="Medical Aid" {% if lead.product_required == "Medical Aid" %}selected{% endif %}>Medical Aid</option>
+                        <option value="Financial Solution" {% if lead.product_required == "Financial Solution" %}selected{% endif %}>Financial Solution</option>
+                        <option value="Business Advice" {% if lead.product_required == "Business Advice" %}selected{% endif %}>Business Advice</option>
+                        <option value="Death Solution" {% if lead.product_required == "Death Solution" %}selected{% endif %}>Death Solution</option>
+                        <option value="Policy Solutions" {% if lead.product_required == "Policy Solutions" %}selected{% endif %}>Policy Solutions</option>
+
                         {% for product in product_options %}
                             <option value="{{ product }}" {% if product == lead.product_required %}selected{% endif %}>{{ product }}</option>
                         {% endfor %}
                     </select>
                 </div>
+
                 <div class="form-group">
-                    <label for="assigned_to">Assigned To</label>
+                    <label for="assigned_to">Assign Consultant</label>
                     <select id="assigned_to" name="assigned_to">
+                        <option value="Unassigned" {% if lead.assigned_to == "Unassigned" or not lead.assigned_to %}selected{% endif %}>Leave Unassigned</option>
+                        
+                        <option value="Awie de Swardt" {% if lead.assigned_to == "Awie de Swardt" %}selected{% endif %}>Awie de Swardt</option>
+                        <option value="Marika Botha" {% if lead.assigned_to == "Marika Botha" %}selected{% endif %}>Marika Botha</option>
+                        <option value="Stephan de Waal" {% if lead.assigned_to == "Stephan de Waal" %}selected{% endif %}>Stephan de Waal</option>
+                        <option value="Merri Fennesy" {% if lead.assigned_to == "Merri Fennesy" %}selected{% endif %}>Merri Fennesy</option>
+                        
                         {% for consultant in consultant_options %}
-                            <option value="{{ consultant }}" {% if consultant == lead.assigned_to %}selected{% endif %}>{{ consultant }}</option>
+                            {% if consultant not in "Awie de Swardt,Marika Botha,Stephan de Waal,Merri Fennesy" %}
+                                <option value="{{ consultant }}" {% if consultant == lead.assigned_to %}selected{% endif %}>{{ consultant }}</option>
+                            {% endif %}
                         {% endfor %}
                     </select>
                 </div>
+
                 <div class="form-group">
                     <label for="status">Status*</label>
                     <select id="status" name="status" required>
+                        <option value="Strong" {% if lead.status == "Strong" %}selected{% endif %}>Strong</option>
+                        <option value="Medium" {% if lead.status == "Medium" %}selected{% endif %}>Medium</option>
+                        <option value="Low" {% if lead.status == "Low" %}selected{% endif %}>Low</option>
+                        
                         {% for status in status_options %}
                             <option value="{{ status }}" {% if status == lead.status %}selected{% endif %}>{{ status }}</option>
                         {% endfor %}
