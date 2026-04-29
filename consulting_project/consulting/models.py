@@ -1,4 +1,5 @@
 from datetime import timedelta
+import re
 from django.utils import timezone
 from django.db import models
 
@@ -489,3 +490,45 @@ class NoteAttachment(models.Model):
         managed = False
         db_table = 'note_attachments'
         verbose_name = 'Note Attachment'
+        
+class FSCASanctionList(models.Model):
+    individual_id = models.CharField(db_column='IndividualID', max_length=100, unique=True)
+    reference_number = models.CharField(db_column='ReferenceNumber', max_length=100, blank=True, null=True)
+    full_name = models.CharField(db_column='FullName', max_length=255)
+    listed_on = models.CharField(db_column='ListedOn', max_length=100, blank=True, null=True)
+    comments = models.TextField(db_column='Comments', blank=True, null=True)
+    title = models.CharField(db_column='Title', max_length=255, blank=True, null=True) # Increased to 255
+    designation = models.CharField(db_column='Designation', max_length=255, blank=True, null=True)
+    dob = models.CharField(db_column='IndividualDateOfBirth', max_length=100, blank=True, null=True)
+    place_of_birth = models.CharField(db_column='IndividualPlaceOfBirth', max_length=255, blank=True, null=True)
+    alias = models.TextField(db_column='IndividualAlias', blank=True, null=True)
+    nationality = models.CharField(db_column='Nationality', max_length=100, blank=True, null=True)
+    document = models.CharField(db_column='IndividualDocument', max_length=255, blank=True, null=True)
+    address = models.TextField(db_column='IndividualAddress', blank=True, null=True)
+    application_status = models.CharField(db_column='ApplicationStatus', max_length=100, blank=True, null=True)
+    date_imported = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = 'fsca_sanction_list'
+
+    def __str__(self):
+        return f"{self.full_name} - {self.individual_id}"
+    
+    @staticmethod
+    def is_id_sanctioned(client_id_number):
+        """
+        Matches numeric-only input against numeric-only database documents.
+        """
+        if not client_id_number:
+            return False
+
+        # Keep only digits from the user input (e.g., '381420565654120219')
+        clean_id = re.sub(r'\D', '', str(client_id_number))
+
+        # Use MySQL REGEXP_REPLACE to strip 'Passport, ', spaces, and commas 
+        # from the IndividualDocument column during the comparison.
+        return FSCASanctionList.objects.extra(
+            where=["REGEXP_REPLACE(IndividualDocument, '[^0-9]', '') = %s"],
+            params=[clean_id]
+        ).exists()

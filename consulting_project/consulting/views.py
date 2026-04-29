@@ -1,4 +1,5 @@
 from importlib.resources import files
+import io
 import json
 import datetime as dt
 from datetime import date, datetime
@@ -12,6 +13,7 @@ from django.db import IntegrityError, transaction
 from django.contrib import messages
 from django.utils import timezone
 from django.contrib.auth.decorators import login_required
+import pandas as pd
 
 # --- Consolidated Imports ---
 from .models import (
@@ -19,6 +21,7 @@ from .models import (
     ClientContact, 
     ClientInteractionNote, 
     ClientReminder,
+    FSCASanctionList,
     FicaAddress, 
     FicaResponsiblePerson, 
     FicaDirector, 
@@ -482,12 +485,10 @@ def add_client_view(request):
         
         try:
             # 1. Manually trigger file saves and store the resulting names
-            # We do this outside the transaction to ensure files are written to disk
             def upload_file(key):
                 if key in files:
                     uploaded_file = files[key]
-                    # This physically writes the file to C:\...\media\
-                    # and returns the name (it handles duplicates like file_1.csv automatically)
+                    # Physically writes to media folder
                     saved_name = default_storage.save(uploaded_file.name, uploaded_file)
                     print(f"DEBUG: Physically saved {saved_name} to media folder.")
                     return saved_name
@@ -547,20 +548,38 @@ def add_client_view(request):
                     postal_code=data.get('physical_code')
                 )
 
-                # 4. Save Risk Ratings
+                # 4. Save Risk Ratings with Automated Sanction Check
+                # This loop processes Directors and Owners synced into Step 7
                 risk_indices = request.POST.getlist('risk_person_index')
                 for idx in risk_indices:
+                    # Retrieve the ID number provided for this specific person
+                    person_id = data.get(f'risk_id_number_{idx}')
+                    
+                    # Perform the numeric match against the unmanaged FSCA Sanction List
+                    # Logic: Strips non-digits from both input and DB for a clean match
+                    is_on_sanction_list = FSCASanctionList.is_id_sanctioned(person_id)
+                    
+                    # Default values from the form submission
+                    score_to_save = int(data.get(f'risk_score_{idx}', 0))
+                    rating_to_save = data.get(f'risk_rating_{idx}', 'Low')
+                    
+                    # OVERRIDE: If matched on Sanction List, force to High Risk
+                    if is_on_sanction_list:
+                        score_to_save = 100
+                        rating_to_save = 'High'
+
                     ClientRiskRating.objects.create(
                         client=client,
                         full_name=data.get(f'risk_name_{idx}'),
+                        id_number=person_id,
                         role=data.get(f'risk_role_{idx}', 'Director/Owner'),
-                        score=int(data.get(f'risk_score_{idx}', 0)),
-                        rating=data.get(f'risk_rating_{idx}', 'Low'),
+                        score=score_to_save,
+                        rating=rating_to_save,
                         is_non_facing=(data.get(f'q_non_facing_{idx}') == 'true'),
                         is_representative=(data.get(f'q_rep_{idx}') == 'true'),
                         is_dipp=(data.get(f'q_dipp_{idx}') == 'true'),
                         is_fppo=(data.get(f'q_fppo_{idx}') == 'true'),
-                        is_sanctioned=(data.get(f'q_sanction_{idx}') == 'true'),
+                        is_sanctioned=is_on_sanction_list,
                         is_complex_structure=(data.get(f'q_complex_{idx}') == 'true')
                     )
 
@@ -1132,3 +1151,65 @@ def export_fica_information_view(request):
         ])
 
     return response
+
+def import_fsca_list(request):
+    if request.method == "POST":
+        file = request.FILES.get('file')
+        
+        if not file:
+            messages.error(request, 'No file selected.')
+            return redirect('import_fsca_list')
+
+        try:
+            # Check the extension and load via Pandas
+            if file.name.endswith('.csv'):
+                df = pd.read_csv(file)
+            elif file.name.endswith('.xlsx'):
+                df = pd.read_excel(file)
+            else:
+                messages.error(request, 'Please upload a CSV or XLSX file.')
+                return redirect('import_fsca_list')
+
+            # Convert NaN to None for MySQL compatibility
+            df = df.where(pd.notnull(df), None)
+
+            for _, row in df.iterrows():
+                FSCASanctionList.objects.update_or_create(
+                    individual_id=row['IndividualID'],
+                    defaults={
+                        'reference_number': row['ReferenceNumber'],
+                        'full_name': row['FullName'],
+                        'listed_on': row['ListedOn'],
+                        'comments': row['Comments'],
+                        'title': row['Title'],
+                        'designation': row['Designation'],
+                        'dob': row['IndividualDateOfBirth'],
+                        'place_of_birth': row['IndividualPlaceOfBirth'],
+                        'alias': row['IndividualAlias'],
+                        'nationality': row['Nationality'],
+                        'document': row['IndividualDocument'],
+                        'address': row['IndividualAddress'],
+                        'application_status': row['ApplicationStatus'],
+                    }
+                )
+            messages.success(request, 'FSCA Sanction List successfully synchronized.')
+        except Exception as e:
+            messages.error(request, f'Error processing file: {str(e)}')
+        
+        return redirect('fsca_list_view')
+
+    return render(request, 'fsca_import.html')
+
+def fsca_list_view(request):
+    # Fixed typo: order_name -> order_by
+    sanctions = FSCASanctionList.objects.all().order_by('-date_imported')
+    return render(request, 'fsca_list.html', {'sanctions': sanctions})
+
+def check_sanction_status(request):
+    """
+    AJAX endpoint for real-time UI flagging.
+    Returns JSON whether the provided ID is found on the FSCA list.
+    """
+    id_to_check = request.GET.get('id_number', '')
+    is_sanctioned = FSCASanctionList.is_id_sanctioned(id_to_check)
+    return JsonResponse({'is_sanctioned': is_sanctioned})

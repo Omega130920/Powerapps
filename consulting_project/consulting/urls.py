@@ -51,4 +51,6 @@ urlpatterns = [
     path('clients/', views.client_list_view, name='consulting_clients'), # Make sure this 'name' matches!
     path('export-fica-docs/', views.export_fica_documents_view, name='export_fica_docs'),
     path('export-fica-info/', views.export_fica_information_view, name='export_fica_info'),
+    path('compliance/fsca-import/', views.import_fsca_list, name='import_fsca_list'),
+    path('compliance/fsca-list/', views.fsca_list_view, name='fsca_list_view'),
 ]
