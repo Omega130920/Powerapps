@@ -1,5 +1,7 @@
 import base64
 from datetime import date
+from email import parser
+from dateutil import parser as date_parser
 from time import timezone
 from django.shortcuts import render, get_object_or_404, redirect
 from django.conf import settings
@@ -44,53 +46,93 @@ from django.db.models import Q
 @login_required
 def pssubf_dashboard(request):
     """
-    Shows all emails that:
-    1. Haven't been processed (Excludes Delegated, Completed, Recycled).
-    2. Are sent by a sender found in the PssubfBeneficiary table (Case-Insensitive).
+    Direct Live View.
+    Fetches from Graph API and registers new items into pssubf_inbox automatically.
     """
-    # 🚀 STEP 1: Get all valid emails and normalize them to lowercase
-    # We use .values_list with flat=True for efficiency
-    b_emails_1 = PssubfBeneficiary.objects.exclude(email_1__isnull=True).values_list('email_1', flat=True)
-    b_emails_2 = PssubfBeneficiary.objects.exclude(email_2__isnull=True).values_list('email_2', flat=True)
-    b_emails_3 = PssubfBeneficiary.objects.exclude(email_3__isnull=True).values_list('email_3', flat=True)
+    # 1. Authorization Check
+    is_admin = request.user.is_superuser or request.user.username.lower() == 'omega'
+    
+    target_email = settings.OUTLOOK_EMAIL_ADDRESS
+    
+    # 2. Fetch Live Messages from Graph API
+    inbox_data = OutlookGraphService.fetch_inbox_messages(target_email, 100) 
+    
+    display_emails = []
 
-    # Combine into a single set of lowercase emails for safe comparison
-    # This ensures that 'Test@Gmail.com' matches 'test@gmail.com'
-    valid_member_emails = set()
-    for e_list in [b_emails_1, b_emails_2, b_emails_3]:
-        for email in e_list:
-            if email:
-                valid_member_emails.add(email.strip().lower())
+    if 'error' not in inbox_data:
+        emails = inbox_data.get('value', [])
+        email_ids = [email['id'] for email in emails]
+        
+        # 3. Identify what is ALREADY processed
+        # We check the database for existing IDs where the status isn't 'Pending'
+        processed_ids = PssubfInbox.objects.filter(
+            email_id__in=email_ids
+        ).exclude(status='Pending').values_list('email_id', flat=True)
 
-    # 🚀 STEP 2: Fetch unprocessed items
-    # We first get all items that aren't finished
-    base_inbox = PssubfInbox.objects.exclude(
-        Q(status__iexact='Delegated') | 
-        Q(status__iexact='Completed') |
-        Q(status__iexact='Recycled')
-    ).order_by('-received_timestamp')
+        # 4. Get valid Beneficiary emails
+        beneficiary_emails = set()
+        for b in PssubfBeneficiary.objects.all():
+            if b.email_1: beneficiary_emails.add(b.email_1.strip().lower())
+            if b.email_2: beneficiary_emails.add(b.email_2.strip().lower())
+            if b.email_3: beneficiary_emails.add(b.email_3.strip().lower())
 
-    # 🚀 STEP 3: Manual Filter to ensure lowercase match
-    # Django's __in filter can sometimes be case-sensitive depending on your Collation
-    final_inbox_items = []
-    for item in base_inbox:
-        if item.sender and item.sender.strip().lower() in valid_member_emails:
-            final_inbox_items.append(item)
+        # 5. Process the Live Feed
+        for email in emails:
+            email_id = email['id']
+            
+            # Skip if this email is already handled
+            if email_id in processed_ids:
+                continue
+
+            sender_addr = email.get('from', {}).get('emailAddress', {}).get('address', '').lower()
+            
+            # 🛡️ Sync with MySQL: Use get_or_create to register the email
+            # Matches your PssubfInbox fields: subject, sender, received_timestamp, snippet, status
+            inbox_item, created = PssubfInbox.objects.get_or_create(
+                email_id=email_id,
+                defaults={
+                    'subject': email.get('subject', '(No Subject)'),
+                    'sender': sender_addr,
+                    'received_timestamp': date_parser.isoparse(email.get('receivedDateTime')) if email.get('receivedDateTime') else timezone.now(),
+                    'snippet': email.get('bodyPreview', ''),
+                    'status': 'Pending'
+                }
+            )
+
+            # 🛡️ THE GATEKEEPER: Only show if sender is a recognized Beneficiary
+            if sender_addr not in beneficiary_emails:
+                continue
+
+            # Add to list for the HTML template
+            display_emails.append({
+                'email_id': email_id,
+                'status': inbox_item.status.lower(),
+                'received_timestamp': inbox_item.received_timestamp,
+                'subject': inbox_item.subject,
+                'snippet': inbox_item.snippet,
+                'sender': inbox_item.sender,
+            })
+
+        # Sort newest first
+        display_emails.sort(key=lambda x: x['received_timestamp'], reverse=True)
+        
+    else:
+        messages.error(request, f"Graph API Error: {inbox_data['error']}")
 
     return render(request, 'pssubf/inbox_list.html', {
-        'inbox_items': final_inbox_items
+        'inbox_items': display_emails,
+        'is_admin': is_admin
     })
 
 @login_required
 def pssubf_delegate_view(request, email_id):
-    """View to fetch live email details, resolve inline images, and delegate to an agent."""
+    """View to fetch live email details and delegate."""
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
-    
-    # 1. Fetch local record: This is the anchor for your "Email Received" date
-    inbox_item = PssubfInbox.objects.filter(email_id=email_id).first()
-    
-    # Get list of agents for the dropdown
     available_users = User.objects.filter(is_active=True)
+
+    # We still keep a reference to local inbox if you need to update a status 
+    # but the primary view is now live.
+    inbox_item = PssubfInbox.objects.filter(email_id=email_id).first()
 
     if request.method == 'POST':
         agent_name = request.POST.get('assigned_agent')
@@ -105,12 +147,9 @@ def pssubf_delegate_view(request, email_id):
         )
         
         if success:
-            # Update the status so it leaves the Dashboard
+            # Sync the local PssubfInbox status if the record exists
             if inbox_item:
-                if is_recycle:
-                    inbox_item.status = 'Recycled'
-                else:
-                    inbox_item.status = 'Delegated'
+                inbox_item.status = 'Recycled' if is_recycle else 'Delegated'
                 inbox_item.save()
 
             messages.success(request, message)
@@ -118,12 +157,12 @@ def pssubf_delegate_view(request, email_id):
         else:
             messages.error(request, f"Error: {message}")
 
-    # Fetch live content from Graph API
+    # Fetch live content for the detail view
     email_data = OutlookGraphService._make_graph_request(f"messages/{email_id}", method='GET')
     
     if isinstance(email_data, dict) and 'error' in email_data:
-        email_subject = inbox_item.subject if inbox_item else "Error Fetching Subject"
-        email_content = inbox_item.snippet if inbox_item else "Live content unavailable."
+        email_subject = inbox_item.subject if inbox_item else "Error"
+        email_content = inbox_item.snippet if inbox_item else "Content Unavailable"
         attachments = []
     else:
         email_subject = email_data.get('subject', '(No Subject)')
@@ -135,15 +174,8 @@ def pssubf_delegate_view(request, email_id):
                 cid = att.get('contentId')
                 raw = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
                 if raw and isinstance(raw, dict) and 'contentBytes' in raw:
-                    base64_data = raw['contentBytes']
-                    content_type = att.get('contentType', 'image/png')
-                    data_url = f"data:{content_type};base64,{base64_data}"
+                    data_url = f"data:{att.get('contentType', 'image/png')};base64,{raw['contentBytes']}"
                     email_content = email_content.replace(f"cid:{cid}", data_url)
-                    att['contentBytes'] = base64_data
-            
-            elif 'image' in att.get('contentType', '').lower() and not att.get('contentBytes'):
-                raw = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
-                if raw and isinstance(raw, dict) and 'contentBytes' in raw:
                     att['contentBytes'] = raw['contentBytes']
 
     return render(request, 'pssubf/delegate.html', {

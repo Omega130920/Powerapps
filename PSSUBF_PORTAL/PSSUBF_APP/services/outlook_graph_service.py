@@ -69,7 +69,12 @@ class OutlookGraphService:
         return OutlookGraphService._make_graph_request(endpoint, method='POST', data=payload)
 
     @staticmethod
-    def fetch_inbox_messages(top_count=50):
+    def fetch_inbox_messages(target_email, top_count=50):
+        """
+        Fetches messages from the Graph API.
+        Accepts target_email as first argument to fix the 400 Bad Request error
+        caused by passing an email string into the $top parameter.
+        """
         endpoint = f"mailFolders/inbox/messages?$top={top_count}&$select=id,subject,from,receivedDateTime,bodyPreview"
         return OutlookGraphService._make_graph_request(endpoint, method='GET')
 
