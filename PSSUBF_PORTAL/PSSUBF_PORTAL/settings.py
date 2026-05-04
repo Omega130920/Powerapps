@@ -40,7 +40,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    # 'django.middleware.csrf.CsrfViewMiddleware', # Keep disabled if handling legacy PowerApp POSTs
+    'django.middleware.csrf.CsrfViewMiddleware',  # Re-enable this
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -131,8 +131,9 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Login Redirects
-LOGIN_REDIRECT_URL = 'dashboard'
+LOGIN_REDIRECT_URL = 'pssubf_switchboard'
 LOGIN_URL = 'login'
+LOGOUT_REDIRECT_URL = 'login'
 
 MSGRAPH_CLIENT_ID = '9f82e57d-45a4-4b66-ab29-8a9b381a082a'
 MSGRAPH_CLIENT_SECRET = 'PA38Q~14Js~5d7juZm6HjhK8bSOyXDg6ZtdVFdg~'

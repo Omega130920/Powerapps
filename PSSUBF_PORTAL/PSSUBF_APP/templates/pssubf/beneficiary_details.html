@@ -113,7 +113,6 @@
             font-weight: 500; outline: none; transition: all 0.2s;
         }
 
-        /* Styling for editable fields in Fund tab */
         .fund-edit-mode .glass-input.fund-editable {
             background: rgba(255, 255, 255, 0.4);
             border: 1px solid var(--glass-border);
@@ -159,6 +158,7 @@
         </div>
     </div>
 
+    <!-- CLAIM MODAL (UPDATED WITH STIPEND AND SURPLUS LOGIC) -->
     <div id="claimModal" class="modal">
         <div class="modal-content">
             <div class="p-5 border-b flex justify-between items-center bg-white">
@@ -173,18 +173,39 @@
                 <input type="hidden" name="action" value="add_claim_entry">
                 <input type="hidden" name="next" value="{{ request.path }}">
                 <input type="hidden" name="membership_number" value="{{ member.membership_number }}">
+
+                <!-- Calculation Helpers -->
+                <input type="hidden" id="claim_calc_stipend" value="{{ member.stipened }}">
+                <input type="hidden" id="claim_calc_cessation" value="{{ member.cessation_date|date:'Y-m-d' }}">
+
                 <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Member Number</label><input type="text" value="{{ member.membership_number }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md"></div>
                 <div><label class="block text-xs font-bold text-gray-400 uppercase mb-1">Guardian Details</label><input type="text" value="{{ member.guardian_first_name }} {{ member.guardian_last_name }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md italic"></div>
                 <div><label class="block text-xs font-bold text-gray-400 uppercase mb-1">Beneficiary Details</label><input type="text" value="{{ member.first_name }} {{ member.last_name }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md italic"></div>
                 <div><label class="block text-xs font-bold text-gray-400 uppercase mb-1">Beneficiary DOB</label><input type="text" id="claim_pop_dob" value="{{ member.dob|date:'Y-m-d' }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md"></div>
-                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Claim Type</label><select name="claim_type" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input"><option>Monthly Income</option><option>Terminations</option><option>Death Terminations</option></select></div>
+                
+                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Claim Type</label>
+                    <select name="claim_type" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input">
+                        <option>Monthly Income</option>
+                        <option>Terminations</option>
+                        <option>Death Terminations</option>
+                    </select>
+                </div>
                 <div><label class="block text-xs font-bold text-gray-400 uppercase mb-1">Age at Claim Date</label><input type="text" id="pop_claim_age" name="age_at_claim" readonly class="w-full p-2.5 border bg-green-50 font-bold text-green-800 rounded-md"></div>
                 <div><label class="block text-xs font-bold text-gray-400 uppercase mb-1">Termination Date</label><input type="text" value="{{ member.cessation_date|date:'Y-m-d' }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md"></div>
-                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Monthly Income Payment</label><input type="text" name="monthly_income" value="{{ member.stipened }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md"></div>
-                <div><label class="block text-xs font-bold text-green-700 uppercase mb-1">* Original Claim Form Date</label><input type="date" name="date_logged" onchange="calculatePopupAge('claim_pop_dob', this.value, 'pop_claim_age')" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input"></div>
-                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Portfolio Value</label><input type="number" step="0.01" name="portfolio_value" required class="w-full p-2.5 border rounded-md clean-input"></div>
-                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Portfolio Value Date</label><input type="date" name="portfolio_date" required class="w-full p-2.5 border rounded-md clean-input"></div>
-                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Amount Requested</label><input type="number" step="0.01" name="amount_requested" required class="w-full p-2.5 border rounded-md clean-input"></div>
+                
+                <!-- Stipend Display Added -->
+                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Monthly Stipend</label><input type="text" value="R {{ member.stipened }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md"></div>
+                
+                <div><label class="block text-xs font-bold text-green-700 uppercase mb-1">* Original Claim Form Date</label><input type="date" name="date_logged" id="claim_form_date_field" onchange="calculateClaimFullValues(this.value)" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input"></div>
+                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Portfolio Value</label><input type="number" step="0.01" name="portfolio_value" id="claim_portfolio" value="{{ member.total_fund_value }}" readonly class="w-full p-2.5 border rounded-md highlight-field"></div>
+                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Portfolio Value Date</label><input type="date" name="portfolio_date" value="{{ member.portfolio_date|date:'Y-m-d' }}" required class="w-full p-2.5 border rounded-md clean-input"></div>
+                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Amount Requested</label><input type="number" step="0.01" name="amount_requested" id="claim_req" onchange="calcClaimAffordabilityFull()" required class="w-full p-2.5 border rounded-md clean-input"></div>
+                
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-bold text-emerald-700 uppercase mb-1">Affordability Result (P - (Months * S + R))</label>
+                    <input type="text" name="affordability_calculation" id="claim_pop_afford" readonly class="w-full p-2.5 border highlight-field rounded-md" placeholder="Awaiting data...">
+                </div>
+
                 <div class="md:col-span-4 mt-2"><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Claim Notes (Agent Tracking)</label><textarea name="description" class="w-full p-4 border rounded-md h-32 clean-input resize-none" placeholder="Enter notes..."></textarea></div>
                 <div class="md:col-span-4 mt-2"><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Supporting Documentation (Files)</label><div class="relative border-2 border-dashed border-gray-300 bg-white rounded-xl p-8 flex flex-col items-center justify-center hover:border-green-500 transition-all group cursor-pointer"><input type="file" name="supporting_document" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"><div class="flex items-center gap-3"><i class="fas fa-cloud-upload-alt text-3xl text-gray-400 group-hover:text-green-600 transition-colors"></i><div class="text-center"><span class="text-sm font-semibold text-gray-600 group-hover:text-green-700">Click to upload or drag and drop</span><p class="text-xs text-gray-400">PDF, PNG, JPG (Max 10MB)</p></div></div></div></div>
                 <div class="md:col-span-4 flex justify-end gap-3 pt-6 border-t mt-4"><button type="button" onclick="closeModal('claimModal')" class="px-8 py-2.5 bg-gray-400 text-white font-bold rounded-lg hover:bg-gray-500 transition">Cancel</button><button type="submit" class="px-8 py-2.5 bg-green-700 text-white font-bold rounded-lg hover:bg-green-800 shadow-lg transition">Save Claim Data</button></div>
@@ -192,6 +213,7 @@
         </div>
     </div>
 
+    <!-- AD HOC MODAL (UPDATED WITH STIPEND AND SURPLUS LOGIC) -->
     <div id="adhocModal" class="modal">
         <div class="modal-content">
             <div class="p-5 border-b bg-white flex flex-col items-center relative">
@@ -204,20 +226,40 @@
                 <input type="hidden" name="action" value="add_adhoc_entry">
                 <input type="hidden" name="next" value="{{ request.path }}">
                 <input type="hidden" name="membership_number" value="{{ member.membership_number }}">
+                
+                <!-- Calculation Helpers -->
+                <input type="hidden" id="calc_stipend" value="{{ member.stipened }}">
+                <input type="hidden" id="calc_cessation" value="{{ member.cessation_date|date:'Y-m-d' }}">
+
                 <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Member Number</label><input type="text" value="{{ member.membership_number }}" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
                 <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Beneficiary Name & Surname</label><input type="text" value="{{ member.first_name }} {{ member.last_name }}" readonly class="w-full p-2 border highlight-field rounded text-sm italic"></div>
                 <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Beneficiary DOB</label><input type="text" id="adhoc_pop_dob" value="{{ member.dob|date:'Y-m-d' }}" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
-                <div><label class="block text-xs font-bold text-green-700 uppercase mb-1">* Original Claim Form Date</label><input type="date" name="claim_form_date" onchange="calculateAdHocValues(this.value)" required class="w-full p-2 border-2 border-green-600 rounded text-sm clean-input"></div>
+                
+                <div><label class="block text-xs font-bold text-green-700 uppercase mb-1">* Original Claim Form Date</label><input type="date" name="claim_form_date" id="claim_form_date" onchange="calculateAdHocFullValues(this.value)" required class="w-full p-2 border-2 border-green-600 rounded text-sm clean-input"></div>
                 <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Age at Claim Date</label><input type="text" id="pop_adhoc_age" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
-                <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Reason</label><select name="title" required class="w-full p-2 border-r-8 border-green-600 rounded text-sm clean-input"><option value="School Fees">School Fees</option><option value="School Clothing">School Clothing</option><option value="Essentials">Essentials</option><option value="Medical Expenses">Medical Expenses</option><option value="Educational Expenses (other)">Educational Expenses (other)</option></select></div>
+                
+                <!-- Stipend Display Added -->
+                <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Monthly Stipend</label><input type="text" value="R {{ member.stipened }}" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
+                
+                <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Reason</label>
+                    <select name="title" required class="w-full p-2 border-r-8 border-green-600 rounded text-sm clean-input">
+                        <option value="School Fees">School Fees</option>
+                        <option value="School Clothing">School Clothing</option>
+                        <option value="Essentials">Essentials</option>
+                        <option value="Medical Expenses">Medical Expenses</option>
+                        <option value="Educational Expenses (other)">Educational Expenses (other)</option>
+                    </select>
+                </div>
+
                 <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Years to Maturity</label><input type="text" id="pop_maturity" name="years_to_maturity" readonly class="w-full p-2 border bg-green-50 rounded text-sm font-bold text-green-700"></div>
-                
-                <!-- Updated Stipend and Portfolio Fields -->
-                <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Monthly Stipend</label><input type="text" value="{{ member.stipened }}" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
                 <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Portfolio Value</label><input type="number" step="0.01" name="portfolio_value" id="adhoc_portfolio" value="{{ member.total_fund_value }}" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
+                <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Amount Requested</label><input type="number" step="0.01" name="amount_requested" id="adhoc_req" onchange="calcAffordabilityFull()" class="w-full p-2 border rounded text-sm clean-input"></div>
                 
-                <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Amount Requested</label><input type="number" step="0.01" name="amount_requested" id="adhoc_req" onchange="calcAffordability()" class="w-full p-2 border rounded text-sm clean-input"></div>
-                <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Affordability %</label><input type="text" id="pop_afford" name="affordability_calculation" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-bold text-emerald-700 uppercase mb-1">Affordability Result (P - (Months * S + R))</label>
+                    <input type="text" name="affordability_calculation" id="pop_afford" readonly class="w-full p-2 border highlight-field rounded text-sm" placeholder="Awaiting data...">
+                </div>
+
                 <div class="md:col-span-4 mt-2"><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Ad Hoc Comments</label><textarea name="comments" class="w-full p-4 border rounded-md h-32 clean-input resize-none" placeholder="Enter comments..."></textarea></div>
                 <div class="md:col-span-4 mt-2"><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Supporting Documentation (Files)</label><div class="relative border-2 border-dashed border-gray-300 bg-white rounded-xl p-8 flex flex-col items-center justify-center hover:border-green-500 transition-all group cursor-pointer"><input type="file" name="supporting_document" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"><div class="flex items-center gap-3"><i class="fas fa-paperclip text-3xl text-gray-400 group-hover:text-green-600 transition-colors"></i><span class="text-sm font-semibold text-gray-600 group-hover:text-green-700">Attach Supporting File</span></div></div></div>
                 <div class="md:col-span-4 flex justify-end gap-3 pt-4 border-t mt-4"><button type="button" onclick="closeModal('adhocModal')" class="px-8 py-2.5 bg-gray-400 text-white font-bold rounded-lg hover:bg-gray-500 transition">Cancel</button><button type="submit" class="px-8 py-2.5 bg-green-700 text-white font-bold rounded-lg hover:bg-green-800 shadow-lg transition">Save Entry</button></div>
@@ -250,6 +292,7 @@
                 </ul>
 
                 <div class="tab-content">
+                    <!-- PERSONAL TAB -->
                     <div id="personal" class="tab-pane active">
                         <table class="w-full">
                             <tr><th>Membership Number</th><td><input type="text" value="{{ member.membership_number }}" class="glass-input opacity-60" readonly></td></tr>
@@ -264,6 +307,7 @@
                         </table>
                     </div>
 
+                    <!-- FINANCIALS TAB -->
                     <div id="financials" class="tab-pane">
                         <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}" id="fundForm">
                             {% csrf_token %}
@@ -290,6 +334,7 @@
                         </form>
                     </div>
 
+                    <!-- CLAIMS TAB -->
                     <div id="claims_tab" class="tab-pane">
                         <div class="flex justify-between items-center mb-4"><h3 class="text-emerald-900 font-bold uppercase text-sm">Linked Claim Records</h3><button type="button" onclick="openModal('claimModal')" class="text-xs bg-green-700 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-green-800 transition"><i class="fas fa-plus mr-1"></i> New Claim</button></div>
                         <table class="w-full registry-table"><thead><tr class="border-b border-white border-opacity-20"><th>Ref No.</th><th>Type</th><th>Logged Date</th><th>Status</th><th>Amount (R)</th></tr></thead>
@@ -297,6 +342,7 @@
                         </table>
                     </div>
 
+                    <!-- ADHOC TAB -->
                     <div id="adhoc_tab" class="tab-pane">
                         <div class="flex justify-between items-center mb-4"><h3 class="text-emerald-900 font-bold uppercase text-sm">Linked Ad Hoc Records</h3><button type="button" onclick="openModal('adhocModal')" class="text-xs bg-green-700 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-green-800 transition"><i class="fas fa-plus mr-1"></i> New Ad Hoc</button></div>
                         <table class="w-full registry-table"><thead><tr class="border-b border-white border-opacity-20"><th>Reason</th><th>Claim Date</th><th>Status</th><th>Requested (R)</th></tr></thead>
@@ -304,6 +350,7 @@
                         </table>
                     </div>
 
+                    <!-- CONTACT TAB -->
                     <div id="contact" class="tab-pane">
                         <table class="w-full">
                             <tr><th>Mobile 1</th><td><input type="text" value="{{ member.mobile_1 }}" class="glass-input" readonly></td></tr>
@@ -313,6 +360,7 @@
                         </table>
                     </div>
 
+                    <!-- GUARDIAN TAB -->
                     <div id="guardian" class="tab-pane">
                         <table class="w-full">
                             <tr><th>Guardian Title</th><td><input type="text" value="{{ member.guardian_title }}" class="glass-input" readonly></td></tr>
@@ -324,12 +372,14 @@
                         </table>
                     </div>
 
+                    <!-- AUDIT TAB -->
                     <div id="audit" class="tab-pane">
                         <table class="w-full"><thead><tr class="text-left border-b border-white border-opacity-10"><th class="py-2">User</th><th>Action</th><th>Timestamp</th></tr></thead>
                             <tbody>{% for action in pssubf_actions %}<tr><td>{{ action.action_user }}</td><td>{{ action.action_type }}</td><td>{{ action.action_timestamp|date:"Y-m-d H:i" }}</td></tr>{% empty %}<tr><td colspan="3" class="text-center py-4 opacity-50">No action history recorded.</td></tr>{% endfor %}</tbody>
                         </table>
                     </div>
 
+                    <!-- EMAIL LOG TAB -->
                     <div id="email-log" class="tab-pane">
                         <table class="w-full">
                             <thead>
@@ -359,6 +409,7 @@
                         </table>
                     </div>
 
+                    <!-- DIRECT EMAIL TAB -->
                     <div id="direct-email" class="tab-pane">
                         <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}">
                             {% csrf_token %}
@@ -373,6 +424,7 @@
                         </form>
                     </div>
 
+                    <!-- NOTES TAB -->
                     <div id="notes" class="tab-pane">
                         <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}">
                             {% csrf_token %}
@@ -405,7 +457,7 @@
     </div>
 
     <script>
-        // Tab Nav
+        // TAB NAVIGATION
         document.querySelectorAll('.tab-nav li').forEach(tab => {
             tab.addEventListener('click', () => {
                 document.querySelectorAll('.tab-nav li').forEach(t => t.classList.remove('active'));
@@ -416,7 +468,7 @@
             });
         });
 
-        // Toggle Fund Details Edit
+        // FUND EDIT TOGGLE
         function toggleFundEdit(active) {
             const container = document.getElementById('profileBody');
             const inputs = document.querySelectorAll('.fund-editable');
@@ -443,42 +495,104 @@
             btn.style.opacity = '0.7'; btn.style.pointerEvents = 'none';
         }
 
+        // MODAL MANAGEMENT
         function openModal(id) { 
             document.getElementById(id).style.display = 'block'; 
-            // Trigger calculation automatically when Ad Hoc modal opens
             if(id === 'adhocModal') {
-                calcAffordability();
+                calculateAdHocFullValues(document.getElementById('claim_form_date').value);
+            }
+            if(id === 'claimModal') {
+                calculateClaimFullValues(document.getElementById('claim_form_date_field').value);
             }
         }
-
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-        
+
+        // AGE CALCULATION
         function calculatePopupAge(dobId, claimDateVal, targetId) {
             const dobStr = document.getElementById(dobId).value;
             if(!dobStr || !claimDateVal) return;
             const birth = new Date(dobStr); const claim = new Date(claimDateVal);
             let age = claim.getFullYear() - birth.getFullYear();
             let m = claim.getMonth() - birth.getMonth();
-            if (m < 0 || (m === 0 && claim.getDate() < birth.getDate())) { age--; m = (m < 0) ? 12 + m : m; }
-            document.getElementById(targetId).value = `${age}.${m}`;
+            if (m < 0 || (m === 0 && claim.getDate() < birth.getDate())) { age--; }
+            let monthDiff = m < 0 ? 12 + m : m;
+            document.getElementById(targetId).value = `${age}.${monthDiff}`;
         }
 
-        function calculateAdHocValues(claimDate) {
+        // FULL AD HOC CALCULATION (Surplus/Deficit Logic)
+        function calculateAdHocFullValues(claimDate) {
             calculatePopupAge('adhoc_pop_dob', claimDate, 'pop_adhoc_age');
-            const termDateStr = "{{ member.cessation_date|date:'Y-m-d' }}";
+            
+            // Years to Maturity
+            const termDateStr = document.getElementById('calc_cessation').value;
             if(termDateStr && claimDate) {
                 const term = new Date(termDateStr); const claim = new Date(claimDate);
                 let diff = term.getFullYear() - claim.getFullYear();
                 document.getElementById('pop_maturity').value = diff > 0 ? diff : 0;
             }
+            calcAffordabilityFull();
         }
 
-        function calcAffordability() {
+        function calcAffordabilityFull() {
             const portfolio = parseFloat(document.getElementById('adhoc_portfolio').value) || 0;
             const requested = parseFloat(document.getElementById('adhoc_req').value) || 0;
+            const stipend = parseFloat(document.getElementById('calc_stipend').value) || 0;
+            const cessationStr = document.getElementById('calc_cessation').value;
             const target = document.getElementById('pop_afford');
-            if (portfolio > 0) { target.value = ((requested / portfolio) * 100).toFixed(2) + '%'; } 
-            else { target.value = '0.00%'; }
+
+            if (!cessationStr) {
+                target.value = "Awaiting data...";
+                return;
+            }
+
+            const now = new Date();
+            const cessationDate = new Date(cessationStr);
+            
+            let monthsRemaining = (cessationDate.getFullYear() - now.getFullYear()) * 12;
+            monthsRemaining += cessationDate.getMonth() - now.getMonth();
+            if (now.getDate() < cessationDate.getDate()) monthsRemaining--;
+            if (monthsRemaining < 0) monthsRemaining = 0;
+
+            const totalLiability = (stipend * monthsRemaining);
+            const result = portfolio - (totalLiability + requested);
+            
+            const label = result >= 0 ? "(Surplus)" : "(Deficit)";
+            target.value = 'R ' + result.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ' + label;
+            target.style.color = (result >= 0) ? '#059669' : '#dc2626';
+        }
+
+        // FULL CLAIM CALCULATION (Mirrors Ad Hoc logic)
+        function calculateClaimFullValues(claimDate) {
+            calculatePopupAge('claim_pop_dob', claimDate, 'pop_claim_age');
+            calcClaimAffordabilityFull();
+        }
+
+        function calcClaimAffordabilityFull() {
+            const portfolio = parseFloat(document.getElementById('claim_portfolio').value) || 0;
+            const requested = parseFloat(document.getElementById('claim_req').value) || 0;
+            const stipend = parseFloat(document.getElementById('claim_calc_stipend').value) || 0;
+            const cessationStr = document.getElementById('claim_calc_cessation').value;
+            const target = document.getElementById('claim_pop_afford');
+
+            if (!cessationStr) {
+                target.value = "Awaiting data...";
+                return;
+            }
+
+            const now = new Date();
+            const cessationDate = new Date(cessationStr);
+            
+            let monthsRemaining = (cessationDate.getFullYear() - now.getFullYear()) * 12;
+            monthsRemaining += cessationDate.getMonth() - now.getMonth();
+            if (now.getDate() < cessationDate.getDate()) monthsRemaining--;
+            if (monthsRemaining < 0) monthsRemaining = 0;
+
+            const totalLiability = (stipend * monthsRemaining);
+            const result = portfolio - (totalLiability + requested);
+            
+            const label = result >= 0 ? "(Surplus)" : "(Deficit)";
+            target.value = 'R ' + result.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ' + label;
+            target.style.color = (result >= 0) ? '#059669' : '#dc2626';
         }
 
         window.onclick = function(event) { if (event.target.classList.contains('modal')) { event.target.style.display = "none"; } }

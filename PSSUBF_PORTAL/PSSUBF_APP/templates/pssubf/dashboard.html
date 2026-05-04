@@ -168,9 +168,12 @@
 <body>
 
     <div class="logout-wrapper">
+        <!-- FIXED: Form-based logout to prevent CSRF rotation errors -->
         <form method="post" action="{% url 'logout' %}">
             {% csrf_token %}
-            <button type="submit" class="logout-button"><i class="fas fa-sign-out-alt"></i> Logout</button>
+            <button type="submit" class="logout-button">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </button>
         </form>
     </div>
 
@@ -198,30 +201,24 @@
             <span class="button-desc">Member list & details</span>
         </a>
 
-<a href="{% url 'claim_list' %}" class="button-block">
-    <i class="fas fa-file-invoice-dollar"></i>
-    <span class="button-text">Claim List</span>
-    <span class="button-desc">Manage service claims</span>
-</a>
+        <a href="{% url 'claim_list' %}" class="button-block">
+            <i class="fas fa-file-invoice-dollar"></i>
+            <span class="button-text">Claim List</span>
+            <span class="button-desc">Manage service claims</span>
+        </a>
 
-<a href="{% url 'adhoc_list' %}" class="button-block">
-    <i class="fas fa-clipboard-check"></i>
-    <span class="button-text">Ad Hoc List</span>
-    <span class="button-desc">General record tracking</span>
-</a>
+        <a href="{% url 'adhoc_list' %}" class="button-block">
+            <i class="fas fa-clipboard-check"></i>
+            <span class="button-text">Ad Hoc List</span>
+            <span class="button-desc">General record tracking</span>
+        </a>
 
-<a href="{% url 'affordability_dashboard' %}" class="button-block">
-    <i class="fas fa-calculator text-red-700"></i>
-    <span class="button-text">Affordability Audit</span>
-    <span class="button-desc">Financial projections & risk</span>
-    <span id="badge-affordability-risk" class="badge red-badge" style="display:none;"></span>
-</a>
-
-        <!--<a href="{% url 'beneficiary_import' %}" class="button-block">
-            <i class="fas fa-file-import"></i>
-            <span class="button-text">Import Members</span>
-            <span class="button-desc">Sync Excel Master List</span>
-        </a>-->
+        <a href="{% url 'affordability_dashboard' %}" class="button-block">
+            <i class="fas fa-calculator"></i>
+            <span class="button-text">Affordability Audit</span>
+            <span class="button-desc">Financial projections & risk</span>
+            <span id="badge-affordability-risk" class="badge red-badge" style="display:none;"></span>
+        </a>
 
         <a href="{% url 'pssubf_audit_logs' %}" class="button-block">
             <i class="fas fa-clipboard-list"></i>
@@ -249,13 +246,18 @@
 
     <script>
         function refreshDashboardStats() {
-            fetch('/dashboard-stats/') 
-                .then(response => response.json())
+            // FIXED: Updated path to include PSSUBF namespace if required by your URL conf
+            fetch('/pssubf/dashboard-stats/') 
+                .then(response => {
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    return response.json();
+                })
                 .then(data => {
                     updateBadge('badge-new-emails', data.new_emails_count);
                     updateBadge('badge-recycled', data.recycled_count);
                     updateBadge('badge-my-delegations', data.my_pending_delegations_count);
-                });
+                })
+                .catch(error => console.error('Dashboard Stats Error:', error));
         }
 
         function updateBadge(id, count) {
@@ -264,6 +266,10 @@
             badge.innerText = count;
             badge.style.display = count > 0 ? 'flex' : 'none';
         }
+        
+        // Initial call
+        refreshDashboardStats();
+        // Refresh every 30 seconds
         setInterval(refreshDashboardStats, 30000);
     </script>
 </body>
