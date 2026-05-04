@@ -188,21 +188,24 @@
         <tbody>
             {% for item in messages %}
             <tr>
-                <td><span class="status-new">PENDING</span></td>
+                <td><span class="status-new">{{ item.status|upper }}</span></td>
                 
-                <td class="small fw-bold">{{ item.internal_received_at|date:"d M H:i" }}</td>
+                <!-- Match view key: received_at -->
+                <td class="small fw-bold">{{ item.received_at|date:"d M H:i" }}</td>
                 
                 <td>
                     <div class="fw-bold">{{ item.subject|default:"(No Subject)" }}</div>
-                    <div class="text-muted small text-truncate" style="max-width: 500px;">{{ item.bodyPreview }}</div>
+                    <!-- Match view key: snippet -->
+                    <div class="text-muted small text-truncate" style="max-width: 500px;">{{ item.snippet }}</div>
                 </td>
                 <td>
-                    <div class="small fw-bold">{{ item.from.emailAddress.name }}</div>
-                    <div class="text-muted" style="font-size: 11px;">{{ item.from.emailAddress.address }}</div>
+                    <!-- Match view key: sender -->
+                    <div class="small fw-bold">{{ item.sender }}</div>
                 </td>
                 <td class="text-center">
+                    <!-- Updated modal trigger to use item.sender -->
                     <button class="btn-ogie" 
-                            onclick="openHistoryModal('{{ item.id }}', '{{ item.from.emailAddress.address }}')"
+                            onclick="openHistoryModal('{{ item.id }}', '{{ item.sender }}')"
                             title="View History">
                         <i class="bi bi-eye"></i>
                     </button>
@@ -227,7 +230,6 @@
     </table>
 </div>
 
-<!-- History Modal remains the same as your input -->
 <div class="modal fade" id="historyModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content glass-modal">
