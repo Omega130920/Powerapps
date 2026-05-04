@@ -133,8 +133,24 @@ def consulting_home(request):
     )
     return render(request, 'consulting/home.html', {'reminders': reminders})
 
+from django.db.models import OuterRef, Subquery
+from django.db.models.functions import Trim
 def client_list_view(request):
-    clients = ClientClient.objects.all().order_by('client_name')
+    """
+    List view updated to include the most recent FICA Risk Rating
+    for each client using a Subquery.
+    """
+    # 1. Define a subquery to get the newest rating for each specific client
+    latest_rating = ClientRiskRating.objects.filter(
+        client=OuterRef('pk')
+    ).order_by('-created_at').values('rating')[:1]
+
+    # 2. Annotate the main client list with this rating.
+    # Trim is used to clean up any accidental whitespace from the database.
+    clients = ClientClient.objects.annotate(
+        rating=Trim(Subquery(latest_rating))
+    ).order_by('client_name')
+
     return render(request, 'consulting/client_list.html', {'clients': clients})
 
 def client_info_view(request, client_code):
@@ -143,7 +159,7 @@ def client_info_view(request, client_code):
         ClientClient.objects.prefetch_related(
             'clientcontact_set', 'ficaaddress_set', 'ficadirector_set', 
             'ficabeneficialowner_set', 'ficaresponsibleperson_set',
-            'clientriskrating_set' # Added risk rating prefetch
+            'clientriskrating_set' 
         ), 
         future_client_number=client_code
     )
@@ -154,7 +170,7 @@ def client_info_view(request, client_code):
     fica_resp_person = client.ficaresponsibleperson_set.all().order_by('id')
     fica_directors = client.ficadirector_set.all().order_by('id')
     fica_owners = client.ficabeneficialowner_set.all().order_by('id')
-    risk_data = client.clientriskrating_set.all().order_by('id') # Fetch risk data
+    risk_data = client.clientriskrating_set.all().order_by('id') 
     
     physical_addr = fica_addresses.filter(address_type='physical').first()
     postal_addr = fica_addresses.filter(address_type='postal').first()
@@ -168,7 +184,7 @@ def client_info_view(request, client_code):
         'fica_resp_person': fica_resp_person, 
         'fica_directors': fica_directors,
         'fica_owners': fica_owners,
-        'risk_data': risk_data, # Added to context
+        'risk_data': risk_data, 
         'date_added_formatted': client.date_added.strftime('%d/%m/%Y') if client.date_added else '',
         'declaration_date_formatted': client.declaration_date.strftime('%d/%m/%Y') if client.declaration_date else '',
     }

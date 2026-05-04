@@ -299,15 +299,12 @@
                         <td style="color: var(--text-muted);">{{ client.administrator|upper|default:"N/A" }}</td>
                         <td>{{ client.umbrella_fund|default:"N/A" }}</td>
                         <td>
-                            <!-- 
-                                CRITICAL: Ensure your backend query joins 'client_risk_rating' 
-                                so 'client.rating' exists!
-                            -->
-                            {% if client.rating|upper|trim == 'LOW' %}
+                            <!-- Risk logic cleaned up to avoid TemplateSyntaxError -->
+                            {% if client.rating|upper == 'LOW' %}
                                 <span class="risk-badge badge-low">Low Risk</span>
-                            {% elif client.rating|upper|trim == 'HIGH' %}
+                            {% elif client.rating|upper == 'HIGH' %}
                                 <span class="risk-badge badge-high">High Risk</span>
-                            {% elif client.rating|upper|trim == 'MEDIUM' %}
+                            {% elif client.rating|upper == 'MEDIUM' %}
                                 <span class="risk-badge badge-medium">Med Risk</span>
                             {% else %}
                                 <span class="risk-badge badge-none">Pending</span>
