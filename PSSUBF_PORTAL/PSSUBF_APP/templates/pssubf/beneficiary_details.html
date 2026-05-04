@@ -180,7 +180,7 @@
                 <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Claim Type</label><select name="claim_type" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input"><option>Monthly Income</option><option>Terminations</option><option>Death Terminations</option></select></div>
                 <div><label class="block text-xs font-bold text-gray-400 uppercase mb-1">Age at Claim Date</label><input type="text" id="pop_claim_age" name="age_at_claim" readonly class="w-full p-2.5 border bg-green-50 font-bold text-green-800 rounded-md"></div>
                 <div><label class="block text-xs font-bold text-gray-400 uppercase mb-1">Termination Date</label><input type="text" value="{{ member.cessation_date|date:'Y-m-d' }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md"></div>
-                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Monthly Income Payment</label><input type="text" name="monthly_income" value="{{ member.stipened }}" class="w-full p-2.5 border rounded-md clean-input"></div>
+                <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Monthly Income Payment</label><input type="text" name="monthly_income" value="{{ member.stipened }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md"></div>
                 <div><label class="block text-xs font-bold text-green-700 uppercase mb-1">* Original Claim Form Date</label><input type="date" name="date_logged" onchange="calculatePopupAge('claim_pop_dob', this.value, 'pop_claim_age')" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input"></div>
                 <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Portfolio Value</label><input type="number" step="0.01" name="portfolio_value" required class="w-full p-2.5 border rounded-md clean-input"></div>
                 <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Portfolio Value Date</label><input type="date" name="portfolio_date" required class="w-full p-2.5 border rounded-md clean-input"></div>
@@ -211,7 +211,11 @@
                 <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Age at Claim Date</label><input type="text" id="pop_adhoc_age" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
                 <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Reason</label><select name="title" required class="w-full p-2 border-r-8 border-green-600 rounded text-sm clean-input"><option value="School Fees">School Fees</option><option value="School Clothing">School Clothing</option><option value="Essentials">Essentials</option><option value="Medical Expenses">Medical Expenses</option><option value="Educational Expenses (other)">Educational Expenses (other)</option></select></div>
                 <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Years to Maturity</label><input type="text" id="pop_maturity" name="years_to_maturity" readonly class="w-full p-2 border bg-green-50 rounded text-sm font-bold text-green-700"></div>
-                <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Portfolio Value</label><input type="number" step="0.01" name="portfolio_value" id="adhoc_portfolio" onchange="calcAffordability()" class="w-full p-2 border rounded text-sm clean-input"></div>-->
+                
+                <!-- Updated Stipend and Portfolio Fields -->
+                <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Monthly Stipend</label><input type="text" value="{{ member.stipened }}" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
+                <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Portfolio Value</label><input type="number" step="0.01" name="portfolio_value" id="adhoc_portfolio" value="{{ member.total_fund_value }}" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
+                
                 <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Amount Requested</label><input type="number" step="0.01" name="amount_requested" id="adhoc_req" onchange="calcAffordability()" class="w-full p-2 border rounded text-sm clean-input"></div>
                 <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Affordability %</label><input type="text" id="pop_afford" name="affordability_calculation" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
                 <div class="md:col-span-4 mt-2"><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Ad Hoc Comments</label><textarea name="comments" class="w-full p-4 border rounded-md h-32 clean-input resize-none" placeholder="Enter comments..."></textarea></div>
@@ -439,7 +443,14 @@
             btn.style.opacity = '0.7'; btn.style.pointerEvents = 'none';
         }
 
-        function openModal(id) { document.getElementById(id).style.display = 'block'; }
+        function openModal(id) { 
+            document.getElementById(id).style.display = 'block'; 
+            // Trigger calculation automatically when Ad Hoc modal opens
+            if(id === 'adhocModal') {
+                calcAffordability();
+            }
+        }
+
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
         
         function calculatePopupAge(dobId, claimDateVal, targetId) {
