@@ -193,16 +193,32 @@ def pssubf_delegate_view(request, email_id):
         'inbox_item': inbox_item
     })
 
+logger = logging.getLogger(__name__)
+
 @login_required
 def pssubf_action_view(request, email_id):
     """
     Agent Action View: Handles Notes, Metadata Updates, Completion, 
     and Email Replies while resolving broken inline images.
-    Now includes Call Audit fields (Direction, Method, Type).
+    Now handles both Delegated tasks and Direct Portal communications.
     """
-    task = get_object_or_404(PssubfDelegate, email_id=email_id)
+    
+    # 1. RESOLVE TASK SOURCE (Fixes the 404 for DIRECT_ IDs)
+    # Check Delegations first
+    task = PssubfDelegate.objects.filter(email_id=email_id).first()
+    is_direct_entry = False
+
+    if not task:
+        # If not in delegates, check the Inbox (for Direct entries)
+        task = PssubfInbox.objects.filter(email_id=email_id).first()
+        is_direct_entry = True
+
+    if not task:
+        raise Http404("No record found for this ID in Delegations or Inbox.")
+
     target_email = settings.OUTLOOK_EMAIL_ADDRESS 
 
+    # --- POST Logic ---
     if request.method == 'POST':
         action_type = request.POST.get('action_type')
 
@@ -221,13 +237,12 @@ def pssubf_action_view(request, email_id):
             )
             messages.success(request, "Task information updated successfully.")
 
-        # 2. Add Internal Note (Updated with Call Audit)
+        # 2. Add Internal Note
         elif action_type == 'add_note':
             note_text = request.POST.get('note_content')
             new_category = request.POST.get('email_category')
             new_status = request.POST.get('status')
             
-            # Capture New Call Fields
             call_direction = request.POST.get('call_direction', 'Outbound')
             call_method = request.POST.get('call_method', 'Note')
             call_type = request.POST.get('call_type', 'General Note')
@@ -238,19 +253,16 @@ def pssubf_action_view(request, email_id):
                 task.status = new_status
             task.save()
 
-            # Save to pssubf_notes (Added audit fields to text for now, 
-            # or update your model fields if you added specific columns)
             audit_string = f"[{call_direction} | {call_method} | {call_type}]"
             
             PssubfNote.objects.create(
                 task_email_id=email_id,
                 agent_name=request.user.username,
                 note_text=f"{audit_string} {note_text}",
-                classification_at_time=task.email_category,
+                classification_at_time=getattr(task, 'email_category', 'N/A'),
                 status_at_time=task.status
             )
 
-            # Save to pssubf_actions
             PssubfAction.objects.create(
                 task_email_id=email_id,
                 action_user=request.user.username,
@@ -259,13 +271,12 @@ def pssubf_action_view(request, email_id):
             )
             messages.success(request, "Internal note saved.")
 
-        # 3. Handle External Email Reply (Updated with Call Audit)
+        # 3. Handle External Email Reply
         elif action_type == 'send_reply':
             recipient = request.POST.get('reply_recipient')
             subject = request.POST.get('reply_subject')
             body_content = request.POST.get('reply_body')
             
-            # Fixed values for Email Reply audit
             call_direction = "Outbound"
             call_method = "Emails"
             call_type = "Feedback to Beneficiary"
@@ -286,7 +297,6 @@ def pssubf_action_view(request, email_id):
                 except Exception as e:
                     logger.error(f"Attachment encoding error: {e}")
 
-            # Send via Outlook
             response = OutlookGraphService.send_outlook_email(
                 sender=target_email,
                 recipient=recipient,
@@ -300,7 +310,6 @@ def pssubf_action_view(request, email_id):
             else:
                 audit_string = f"[{call_direction} | {call_method} | {call_type}]"
                 
-                # LOGGING: Save to pssubf_actions
                 PssubfAction.objects.create(
                     task_email_id=email_id,
                     action_user=request.user.username,
@@ -308,15 +317,13 @@ def pssubf_action_view(request, email_id):
                     note_content=f"{audit_string}\nTo: {recipient}\nSubject: {subject}\n\n{body_content}"
                 )
 
-                # LOGGING: Save to pssubf_notes
                 PssubfNote.objects.create(
                     task_email_id=email_id,
                     agent_name=request.user.username,
                     note_text=f"{audit_string} REPLY SENT TO {recipient}: {body_content}",
-                    classification_at_time=task.email_category,
+                    classification_at_time=getattr(task, 'email_category', 'N/A'),
                     status_at_time=task.status
                 )
-                
                 messages.success(request, "Reply sent and logged.")
 
         # 4. Mark as Complete
@@ -336,32 +343,47 @@ def pssubf_action_view(request, email_id):
         return redirect('pssubf_action', email_id=email_id)
 
     # --- GET Logic ---
-    email_data = OutlookGraphService._make_graph_request(f"messages/{email_id}", method='GET')
-    attachments = OutlookGraphService.fetch_attachments(target_email, email_id)
-    email_content = email_data.get('body', {}).get('content', 'Content unavailable.')
+    attachments = []
+    email_content = ""
+    email_subject = getattr(task, 'subject', '(No Subject)')
 
-    # Inline Image Resolution
-    for att in attachments:
-        if att.get('isInline') and att.get('contentId'):
-            cid = att.get('contentId')
-            raw = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
-            if raw and isinstance(raw, dict) and 'contentBytes' in raw:
-                base64_data = raw['contentBytes']
-                content_type = att.get('contentType', 'image/png')
-                data_url = f"data:{content_type};base64,{base64_data}"
-                email_content = email_content.replace(f"cid:{cid}", data_url)
-                att['contentBytes'] = base64_data
+    # Only request from Graph if it's NOT a direct portal entry
+    if not str(email_id).startswith("DIRECT_"):
+        try:
+            email_data = OutlookGraphService._make_graph_request(f"messages/{email_id}", method='GET')
+            attachments = OutlookGraphService.fetch_attachments(target_email, email_id)
+            email_content = email_data.get('body', {}).get('content', 'Content unavailable.')
+            email_subject = email_data.get('subject', email_subject)
+
+            # Inline Image Resolution
+            for att in attachments:
+                if att.get('isInline') and att.get('contentId'):
+                    cid = att.get('contentId')
+                    raw = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
+                    if raw and isinstance(raw, dict) and 'contentBytes' in raw:
+                        base64_data = raw['contentBytes']
+                        content_type = att.get('contentType', 'image/png')
+                        data_url = f"data:{content_type};base64,{base64_data}"
+                        email_content = email_content.replace(f"cid:{cid}", data_url)
+                        att['contentBytes'] = base64_data
+        except Exception as e:
+            logger.error(f"Graph API Error: {e}")
+            email_content = "Could not retrieve email body from Outlook. This may be a local-only record."
+    else:
+        # Handle Direct Entry Display
+        email_content = f"<p><strong>Internal Communication Record</strong></p><p>{getattr(task, 'snippet', 'No content available.')}</p>"
 
     # Fetch History
     history = PssubfAction.objects.filter(task_email_id=email_id).order_by('-action_timestamp')
 
     return render(request, 'pssubf/action_detail.html', {
         'task': task,
-        'email_subject': email_data.get('subject', task.subject or '(No Subject)'),
+        'email_subject': email_subject,
         'email_content': email_content,
         'attachments': attachments,
         'history': history,
-        'email_id': email_id
+        'email_id': email_id,
+        'is_direct': is_direct_entry
     })
 
 import re # Add to imports
@@ -847,15 +869,30 @@ def beneficiary_details_view(request, membership_number):
                 result = OutlookGraphService.send_outlook_email(settings.OUTLOOK_EMAIL_ADDRESS, recipient, subject, body_html)
                 
                 if result.get('success') or result == {}:
-                    PssubfDirectEmail.objects.create(
+                    # Create the primary log
+                    direct_mail = PssubfDirectEmail.objects.create(
                         membership_number=membership_number,
                         agent_name=request.user.username,
                         recipient=recipient,
                         subject=subject,
                         body_html=body_html
                     )
+                    
+                    # --- CRITICAL ADDITION: Create Inbox Record using received_timestamp ---
+                    # Using the correct column name from your MySQL schema to prevent 404 errors
+                    email_id = f"DIRECT_{membership_number}_{direct_mail.id}"
+                    PssubfInbox.objects.create(
+                        email_id=email_id,
+                        subject=subject,
+                        sender=settings.OUTLOOK_EMAIL_ADDRESS,
+                        snippet=f"Direct Email to {recipient}",
+                        status='Sent',
+                        received_timestamp=timezone.now(), # Updated to match MySQL schema
+                        member_group_code=membership_number
+                    )
+
                     PssubfAction.objects.create(
-                        task_email_id=f"DIRECT_{membership_number}",
+                        task_email_id=email_id,
                         action_type="Direct Email Sent",
                         action_user=request.user.username,
                         note_content=f"Sent to: {recipient} | Subject: {subject}",
@@ -913,7 +950,6 @@ def beneficiary_details_view(request, membership_number):
                 member.employee_number = request.POST.get('employee_number')
                 member.stipened_frequency = request.POST.get('stipened_frequency')
                 
-                # Financials (using clean_decimal for safety)
                 member.stipened = float(clean_decimal(request.POST.get('stipened', '0')))
                 member.total_fund_value = float(clean_decimal(request.POST.get('total_fund_value', '0')))
                 
@@ -953,7 +989,41 @@ def beneficiary_details_view(request, membership_number):
             except Exception as e:
                 messages.error(request, f"Error updating record: {str(e)}")
 
-    # --- 4. FETCH DATA FOR TABS ---
+        # --- 4. HANDLE NEW CLAIM (MODAL) ---
+        elif action == 'add_claim_entry':
+            try:
+                ClaimList.objects.create(
+                    beneficiary=member,
+                    claim_type=request.POST.get('claim_type'),
+                    date_logged=request.POST.get('date_logged'),
+                    amount_requested=clean_decimal(request.POST.get('amount_requested')),
+                    status='Pending',
+                    description=request.POST.get('description'),
+                    supporting_document=request.FILES.get('supporting_document')
+                )
+                messages.success(request, "New claim registered successfully.")
+            except Exception as e:
+                messages.error(request, f"Claim Error: {str(e)}")
+            return redirect('beneficiary_details', membership_number=membership_number)
+
+        # --- 5. HANDLE NEW AD HOC (MODAL) ---
+        elif action == 'add_adhoc_entry':
+            try:
+                AdHocList.objects.create(
+                    beneficiary=member,
+                    title=request.POST.get('title'),
+                    claim_form_date=request.POST.get('claim_form_date'),
+                    amount_requested=clean_decimal(request.POST.get('amount_requested')),
+                    status='Pending',
+                    comments=request.POST.get('comments'),
+                    supporting_document=request.FILES.get('supporting_document')
+                )
+                messages.success(request, "Ad Hoc entry saved.")
+            except Exception as e:
+                messages.error(request, f"Ad Hoc Error: {str(e)}")
+            return redirect('beneficiary_details', membership_number=membership_number)
+
+    # --- FETCH DATA FOR TABS ---
     claims = ClaimList.objects.filter(beneficiary=member).order_by('-date_logged')
     adhoc_records = AdHocList.objects.filter(beneficiary=member).order_by('-claim_form_date')
 
@@ -973,7 +1043,7 @@ def beneficiary_details_view(request, membership_number):
 
     for e in outgoing_emails:
         combined_emails.append({
-            'email_id': f"DIRECT_{e.id}", 
+            'email_id': f"DIRECT_{membership_number}_{e.id}", 
             'agent': e.agent_name,
             'subject': e.subject,
             'date': e.sent_at,
