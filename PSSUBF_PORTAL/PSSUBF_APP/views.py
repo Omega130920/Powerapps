@@ -44,84 +44,90 @@ def pssubf_switchboard(request):
 from django.db.models import Q
 
 @login_required
-def pssubf_dashboard(request):
-    """
-    Direct Live View.
-    Fetches from Graph API and registers new items into pssubf_inbox automatically.
-    """
-    # 1. Authorization Check
-    is_admin = request.user.is_superuser or request.user.username.lower() == 'omega'
-    
-    target_email = settings.OUTLOOK_EMAIL_ADDRESS
-    
-    # 2. Fetch Live Messages from Graph API
-    inbox_data = OutlookGraphService.fetch_inbox_messages(target_email, 100) 
-    
-    display_emails = []
+def outlook_dashboard_view(request):
+    # Security Check
+    if request.user.username.lower() != 'omega' and not request.user.is_superuser:
+        messages.error(request, "Access restricted.")
+        return redirect('pssubf_switchboard')
 
-    if 'error' not in inbox_data:
-        emails = inbox_data.get('value', [])
-        email_ids = [email['id'] for email in emails]
+    target_email = request.GET.get('email', 'your_default_email@domain.com')
+    search_query = request.GET.get('q', '').strip().lower()
+    sort_order = request.GET.get('sort', 'newest')
+    
+    # 1. Fetch live data from Graph API
+    inbox_data = OutlookGraphService.fetch_inbox_messages(target_email, top_count=50) 
+    
+    if 'error' in inbox_data:
+        return render(request, 'pssubf/inbox_list.html', {'error': inbox_data['error']})
+
+    all_emails = inbox_data.get('value', [])
+    email_ids = [e['id'] for e in all_emails]
+
+    # 2. Bulk fetch existing records to reduce DB hits
+    local_inbox_map = PssubfInbox.objects.filter(email_id__in=email_ids).in_bulk(field_name='email_id')
+    delegated_map = PssubfDelegate.objects.filter(email_id__in=email_ids).in_bulk(field_name='email_id')
+
+    filtered_emails = []
+
+    for email in all_emails:
+        e_id = email['id']
         
-        # 3. Identify what is ALREADY processed
-        # We check the database for existing IDs where the status isn't 'Pending'
-        processed_ids = PssubfInbox.objects.filter(
-            email_id__in=email_ids
-        ).exclude(status='Pending').values_list('email_id', flat=True)
+        # Skip if already processed (anything not 'Assigned' is considered archived/done)
+        if e_id in delegated_map and delegated_map[e_id].status != 'Assigned':
+            continue
 
-        # 4. Get valid Beneficiary emails
-        beneficiary_emails = set()
-        for b in PssubfBeneficiary.objects.all():
-            if b.email_1: beneficiary_emails.add(b.email_1.strip().lower())
-            if b.email_2: beneficiary_emails.add(b.email_2.strip().lower())
-            if b.email_3: beneficiary_emails.add(b.email_3.strip().lower())
-
-        # 5. Process the Live Feed
-        for email in emails:
-            email_id = email['id']
-            
-            # Skip if this email is already handled
-            if email_id in processed_ids:
-                continue
-
-            sender_addr = email.get('from', {}).get('emailAddress', {}).get('address', '').lower()
-            
-            # 🛡️ Sync with MySQL: Use get_or_create to register the email
-            # Matches your PssubfInbox fields: subject, sender, received_timestamp, snippet, status
-            inbox_item, created = PssubfInbox.objects.get_or_create(
-                email_id=email_id,
-                defaults={
-                    'subject': email.get('subject', '(No Subject)'),
-                    'sender': sender_addr,
-                    'received_timestamp': date_parser.isoparse(email.get('receivedDateTime')) if email.get('receivedDateTime') else timezone.now(),
-                    'snippet': email.get('bodyPreview', ''),
-                    'status': 'Pending'
-                }
+        # Sync PssubfInbox (The Archive)
+        if e_id not in local_inbox_map:
+            received_date = email.get('receivedDateTime')
+            local_record = PssubfInbox.objects.create(
+                email_id=e_id,
+                subject=email.get('subject', '(No Subject)'),
+                sender=email.get('from', {}).get('emailAddress', {}).get('address', '').lower(),
+                received_timestamp=date_parser.isoparse(received_date) if received_date else timezone.now(),
+                snippet=email.get('bodyPreview', ''),
+                status='Pending'
             )
+        else:
+            local_record = local_inbox_map[e_id]
 
-            # 🛡️ THE GATEKEEPER: Only show if sender is a recognized Beneficiary
-            if sender_addr not in beneficiary_emails:
+        # Sync PssubfDelegate (The Active Task List)
+        if e_id not in delegated_map:
+            delegation = PssubfDelegate.objects.create(
+                email_id=e_id,
+                status='Assigned',
+                subject=local_record.subject,
+                sender=local_record.sender,
+            )
+        else:
+            delegation = delegated_map[e_id]
+
+        # Prepare for Template
+        email_display = {
+            'id': e_id,
+            'subject': local_record.subject,
+            'sender': local_record.sender,
+            'received_at': local_record.received_timestamp,
+            'snippet': local_record.snippet,
+            'status': delegation.status,
+        }
+
+        # Search Filter
+        if search_query:
+            content = f"{email_display['subject']} {email_display['sender']}".lower()
+            if search_query not in content:
                 continue
 
-            # Add to list for the HTML template
-            display_emails.append({
-                'email_id': email_id,
-                'status': inbox_item.status.lower(),
-                'received_timestamp': inbox_item.received_timestamp,
-                'subject': inbox_item.subject,
-                'snippet': inbox_item.snippet,
-                'sender': inbox_item.sender,
-            })
+        filtered_emails.append(email_display)
 
-        # Sort newest first
-        display_emails.sort(key=lambda x: x['received_timestamp'], reverse=True)
-        
-    else:
-        messages.error(request, f"Graph API Error: {inbox_data['error']}")
+    # 3. Sort
+    reverse_sort = (sort_order == 'newest')
+    filtered_emails.sort(key=lambda x: x['received_at'], reverse=reverse_sort)
 
     return render(request, 'pssubf/inbox_list.html', {
-        'inbox_items': display_emails,
-        'is_admin': is_admin
+        'messages': filtered_emails,
+        'search_query': search_query,
+        'sort_order': sort_order,
+        'target_email': target_email
     })
 
 @login_required

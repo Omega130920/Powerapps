@@ -18,6 +18,9 @@
             --fica-purple: #6c5ce7;
             --white: #ffffff;
             --shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            --risk-low: #4CAF50;
+            --risk-high: #F44336;
+            --risk-medium: #FF9800;
         }
 
         body {
@@ -141,6 +144,16 @@
             border: none;
         }
 
+        /* Sorting Styles */
+        .sortable {
+            cursor: pointer;
+            position: relative;
+            user-select: none;
+            transition: background 0.2s;
+        }
+        .sortable:hover { background-color: #5da64b; }
+        .sort-icon { font-size: 12px; margin-left: 8px; opacity: 0.9; }
+
         .client-table thead .filter-row {
             background-color: #fbfdfa;
         }
@@ -178,6 +191,23 @@
             accent-color: var(--primary-green);
             cursor: pointer;
         }
+
+        /* Risk Status Badges */
+        .risk-badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.7rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: white;
+            display: inline-block;
+            min-width: 80px;
+            text-align: center;
+        }
+        .badge-low { background-color: var(--risk-low); }
+        .badge-high { background-color: var(--risk-high); }
+        .badge-medium { background-color: var(--risk-medium); }
+        .badge-none { background-color: #bdc3c7; }
     </style>
 </head>
 <body>
@@ -207,12 +237,13 @@
             <table class="client-table" id="clientTable">
                 <thead>
                     <tr class="header-row">
-                        <th>Scheme Code</th>
+                        <th class="sortable" onclick="sortTable(0)">Scheme Code <span id="sortIcon0" class="sort-icon">↕</span></th>
                         <th>Ref No 2</th>
                         <th>Client Name</th>
                         <th>Consultant</th>
                         <th>Administrator</th>
                         <th>Umbrella Option</th>
+                        <th>FICA Risk Status</th>
                         <th style="text-align:center">Bulk Email</th>
                     </tr>
                     <tr class="filter-row" id="filterRow">
@@ -246,7 +277,17 @@
                                 <option value="SUF Exception">SUF Exception</option>
                             </select>
                         </th>
-                        <th></th> </tr>
+                        <th>
+                            <select class="filter-input" data-column="6">
+                                <option value="">All Risks</option>
+                                <option value="LOW">Low</option>
+                                <option value="MEDIUM">Medium</option>
+                                <option value="HIGH">High</option>
+                                <option value="PENDING">Pending</option>
+                            </select>
+                        </th>
+                        <th></th> 
+                    </tr>
                 </thead>
                 <tbody id="clientTableBody">
                     {% for client in clients %}
@@ -257,13 +298,28 @@
                         <td>{{ client.consultant|upper }}</td>
                         <td style="color: var(--text-muted);">{{ client.administrator|upper|default:"N/A" }}</td>
                         <td>{{ client.umbrella_fund|default:"N/A" }}</td>
+                        <td>
+                            <!-- 
+                                CRITICAL: Ensure your backend query joins 'client_risk_rating' 
+                                so 'client.rating' exists!
+                            -->
+                            {% if client.rating|upper|trim == 'LOW' %}
+                                <span class="risk-badge badge-low">Low Risk</span>
+                            {% elif client.rating|upper|trim == 'HIGH' %}
+                                <span class="risk-badge badge-high">High Risk</span>
+                            {% elif client.rating|upper|trim == 'MEDIUM' %}
+                                <span class="risk-badge badge-medium">Med Risk</span>
+                            {% else %}
+                                <span class="risk-badge badge-none">Pending</span>
+                            {% endif %}
+                        </td>
                         <td style="text-align: center;">
                             <input type="checkbox" class="select-tick" {% if client.bulk_email_status %}checked{% endif %} onclick="event.stopPropagation();">
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="7" style="text-align: center; padding: 60px; color: var(--text-muted);">
+                        <td colspan="8" style="text-align: center; padding: 60px; color: var(--text-muted);">
                             No clients found in the database.
                         </td>
                     </tr>
@@ -274,13 +330,36 @@
     </div>
 
     <script>
+    let currentSortOrder = 'asc';
+
+    function sortTable(columnIndex) {
+        const tableBody = document.getElementById('clientTableBody');
+        const rows = Array.from(tableBody.querySelectorAll('tr'));
+        const icon = document.getElementById("sortIcon" + columnIndex);
+        
+        if (rows.length <= 1 && (rows.length === 0 || rows[0].cells.length < 2)) return;
+
+        rows.sort((a, b) => {
+            const valA = a.cells[columnIndex].textContent.trim().toLowerCase();
+            const valB = b.cells[columnIndex].textContent.trim().toLowerCase();
+            
+            return currentSortOrder === 'asc' 
+                ? valA.localeCompare(valB, undefined, {numeric: true, sensitivity: 'base'})
+                : valB.localeCompare(valA, undefined, {numeric: true, sensitivity: 'base'});
+        });
+
+        rows.forEach(row => tableBody.appendChild(row));
+        
+        currentSortOrder = (currentSortOrder === 'asc') ? 'desc' : 'asc';
+        if(icon) icon.innerHTML = (currentSortOrder === 'asc') ? '▲' : '▼';
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         const globalSearch = document.getElementById('globalSearchInput'); 
-        const filterInputs = document.querySelectorAll('#filterRow .filter-input');
+        const filterInputs = document.querySelectorAll('.filter-input');
         const tableBody = document.getElementById('clientTableBody');
         const tableRows = tableBody.getElementsByTagName('tr');
 
-        // --- Table Filtering Logic ---
         function filterTable() {
             if (!globalSearch) return; 
 
@@ -297,8 +376,7 @@
                 
                 let rowVisible = true; 
 
-                // Global Search Logic (Scheme Code or Name)
-                if (globalSearchValue && cells.length >= 3) {
+                if (globalSearchValue) {
                     const schemeCode = cells[0].textContent.toLowerCase();
                     const clientName = cells[2].textContent.toLowerCase();
                     if (!schemeCode.includes(globalSearchValue) && !clientName.includes(globalSearchValue)) {
@@ -306,23 +384,13 @@
                     }
                 }
 
-                // Column Filter Logic
                 if (rowVisible) {
                     for (const filter of columnFilters) {
                         if (filter.value && cells.length > filter.column) {
                             const cellValue = cells[filter.column].textContent.toLowerCase().trim();
-                            
-                            // Text inputs (Scheme, Ref, Name)
-                            if (filter.column <= 2) { 
-                                if (!cellValue.includes(filter.value)) {
-                                    rowVisible = false;
-                                    break; 
-                                }
-                            } else if (filter.column < 6) { // Select dropdowns
-                                if (filter.value !== "" && cellValue !== filter.value) {
-                                     rowVisible = false;
-                                     break;
-                                }
+                            if (!cellValue.includes(filter.value)) {
+                                rowVisible = false;
+                                break; 
                             }
                         }
                     }
@@ -331,17 +399,14 @@
             }
         }
 
-        // --- Listeners ---
         globalSearch.addEventListener('input', filterTable);
         filterInputs.forEach(input => {
             input.addEventListener('input', filterTable);
             input.addEventListener('change', filterTable);
         });
 
-        // Row Click Navigation
         document.querySelectorAll('#clientTableBody tr').forEach(row => {
             row.addEventListener('click', function(event) {
-                // Prevent navigation if clicking bulk email checkbox
                 if (event.target.tagName.toLowerCase() === 'input' && event.target.type === 'checkbox') {
                     return;
                 }
@@ -353,6 +418,5 @@
         });
     });
     </script>
-
 </body>
 </html>

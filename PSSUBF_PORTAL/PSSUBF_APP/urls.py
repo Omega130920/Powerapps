@@ -6,7 +6,7 @@ urlpatterns = [
     path('', views.pssubf_switchboard, name='pssubf_switchboard'),
     
     # 2. Live Inbox List (Renders inbox_list.html from pssubf_inbox table)
-    path('inbox/', views.pssubf_dashboard, name='pssubf_dashboard'),
+    path('inbox/', views.outlook_dashboard_view, name='pssubf_dashboard'),
     
     # 3. Active Delegations List (Renders delegations_list.html from pssubf_delegate table)
     path('delegations/', views.pssubf_delegations_list, name='pssubf_delegations_list'),

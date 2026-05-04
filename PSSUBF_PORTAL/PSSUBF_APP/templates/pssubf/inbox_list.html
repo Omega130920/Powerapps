@@ -158,12 +158,23 @@
 
 <div class="log-container">
     <div class="log-header">
-        <h1><i class="bi bi-envelope-heart-fill me-2"></i> Delegations</h1>
+        <h1><i class="bi bi-envelope-heart-fill me-2"></i> New Incoming Tasks</h1>
         <a href="{% url 'pssubf_switchboard' %}" class="btn-menu">
             <i class="bi bi-arrow-left-circle me-1"></i> Back to Home Screen
         </a>
     </div>
     
+    <!-- Search Bar Section -->
+    <div class="mb-4">
+        <form method="GET" class="d-flex gap-2">
+            <input type="hidden" name="email" value="{{ target_email }}">
+            <input type="text" name="q" class="form-control rounded-pill border-0 px-4" 
+                   placeholder="Search subject or sender..." value="{{ search_query }}" 
+                   style="background: rgba(255,255,255,0.4);">
+            <button type="submit" class="btn btn-success rounded-pill px-4">Search</button>
+        </form>
+    </div>
+
     <table class="task-table">
         <thead>
             <tr>
@@ -175,27 +186,28 @@
             </tr>
         </thead>
         <tbody>
-            {% for item in inbox_items %}
+            {% for item in messages %}
             <tr>
-                <td><span class="status-new">{{ item.status|upper }}</span></td>
+                <td><span class="status-new">PENDING</span></td>
                 
-                <td class="small fw-bold">{{ item.received_timestamp|date:"d M H:i" }}</td>
+                <td class="small fw-bold">{{ item.internal_received_at|date:"d M H:i" }}</td>
                 
                 <td>
                     <div class="fw-bold">{{ item.subject|default:"(No Subject)" }}</div>
-                    <div class="text-muted small text-truncate" style="max-width: 500px;">{{ item.snippet }}</div>
+                    <div class="text-muted small text-truncate" style="max-width: 500px;">{{ item.bodyPreview }}</div>
                 </td>
                 <td>
-                    <div class="small fw-bold">{{ item.sender }}</div>
+                    <div class="small fw-bold">{{ item.from.emailAddress.name }}</div>
+                    <div class="text-muted" style="font-size: 11px;">{{ item.from.emailAddress.address }}</div>
                 </td>
                 <td class="text-center">
                     <button class="btn-ogie" 
-                            onclick="openHistoryModal('{{ item.email_id }}', '{{ item.sender }}')"
+                            onclick="openHistoryModal('{{ item.id }}', '{{ item.from.emailAddress.address }}')"
                             title="View History">
                         <i class="bi bi-eye"></i>
                     </button>
 
-                    <a href="{% url 'pssubf_delegate' item.email_id %}" class="btn-delegate-link">
+                    <a href="{% url 'pssubf_delegate' item.id %}" class="btn-delegate-link">
                         <i class="bi bi-share-fill me-1"></i> Delegate
                     </a>
                 </td>
@@ -215,6 +227,7 @@
     </table>
 </div>
 
+<!-- History Modal remains the same as your input -->
 <div class="modal fade" id="historyModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content glass-modal">

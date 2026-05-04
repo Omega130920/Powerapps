@@ -42,30 +42,43 @@
                 <tbody>
                     {% for item in inbox_items %}
                     <tr>
-                        <td class="small text-muted">{{ item.received_timestamp|date:"d M Y H:i" }}</td>
-                        <td><strong>{{ item.sender }}</strong></td>
+                        <!-- Use the parsed date from the view -->
+                        <td class="small text-muted">{{ item.receivedDateTime|date:"d M Y H:i" }}</td>
+                        
+                        <!-- Extract sender from the Graph API nested structure -->
+                        <td>
+                            <strong>{{ item.from.emailAddress.name|default:item.db_sender }}</strong><br>
+                            <small class="text-muted">{{ item.from.emailAddress.address|default:item.db_sender }}</small>
+                        </td>
+                        
                         <td>
                             <div class="text-truncate" style="max-width: 400px;">{{ item.subject }}</div>
-                            <small class="text-muted">{{ item.snippet|truncatechars:100 }}</small>
+                            <small class="text-muted">{{ item.bodyPreview|truncatechars:100 }}</small>
                         </td>
+                        
                         <td>
-                            {% if item.status == 'Pending' %}
+                            {% if item.db_status == 'Pending' %}
                                 <span class="badge bg-warning text-dark">Pending</span>
-                            {% elif item.status == 'Delegated' %}
+                            {% elif item.db_status == 'Delegated' %}
                                 <span class="badge bg-info">Delegated</span>
                             {% else %}
-                                <span class="badge bg-success">{{ item.status }}</span>
+                                <span class="badge bg-success">{{ item.db_status }}</span>
                             {% endif %}
                         </td>
+                        
                         <td class="text-end">
-                            <a href="{% url 'pssubf_delegate' item.email_id %}" class="btn btn-sm btn-success">
+                            <!-- Use 'id' from Graph API for the delegation link -->
+                            <a href="{% url 'pssubf_delegate' item.id %}" class="btn btn-sm btn-success">
                                 <i class="bi bi-person-plus"></i> Delegate
                             </a>
                         </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="5" class="text-center py-5 text-muted">No emails found in the PSSUBF inbox.</td>
+                        <td colspan="5" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox-fill display-4 d-block mb-3"></i>
+                            No emails found in the PSSUBF inbox for registered beneficiaries.
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
