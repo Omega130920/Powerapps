@@ -79,12 +79,16 @@ def outlook_dashboard_view(request):
         # Sync PssubfInbox (The Archive)
         if e_id not in local_inbox_map:
             received_date = email.get('receivedDateTime')
+            
+            # FIX: Use 'or' to provide a fallback string if subject is None/Null from API
+            safe_subject = email.get('subject') or '(No Subject)'
+            
             local_record = PssubfInbox.objects.create(
                 email_id=e_id,
-                subject=email.get('subject', '(No Subject)'),
+                subject=safe_subject,
                 sender=email.get('from', {}).get('emailAddress', {}).get('address', '').lower(),
                 received_timestamp=date_parser.isoparse(received_date) if received_date else timezone.now(),
-                snippet=email.get('bodyPreview', ''),
+                snippet=email.get('bodyPreview', '') or '',
                 status='Pending'
             )
         else:
@@ -95,7 +99,7 @@ def outlook_dashboard_view(request):
             delegation = PssubfDelegate.objects.create(
                 email_id=e_id,
                 status='Assigned',
-                subject=local_record.subject,
+                subject=local_record.subject or '(No Subject)',
                 sender=local_record.sender,
             )
         else:
@@ -104,7 +108,7 @@ def outlook_dashboard_view(request):
         # Prepare for Template
         email_display = {
             'id': e_id,
-            'subject': local_record.subject,
+            'subject': local_record.subject or '(No Subject)',
             'sender': local_record.sender,
             'received_at': local_record.received_timestamp,
             'snippet': local_record.snippet,
@@ -113,7 +117,10 @@ def outlook_dashboard_view(request):
 
         # Search Filter
         if search_query:
-            content = f"{email_display['subject']} {email_display['sender']}".lower()
+            # Added safe handling for subject in search string
+            subj_lower = (email_display['subject'] or '').lower()
+            sender_lower = (email_display['sender'] or '').lower()
+            content = f"{subj_lower} {sender_lower}"
             if search_query not in content:
                 continue
 
@@ -121,7 +128,7 @@ def outlook_dashboard_view(request):
 
     # 3. Sort
     reverse_sort = (sort_order == 'newest')
-    filtered_emails.sort(key=lambda x: x['received_at'], reverse=reverse_sort)
+    filtered_emails.sort(key=lambda x: x['received_at'] if x['received_at'] else timezone.now(), reverse=reverse_sort)
 
     return render(request, 'pssubf/inbox_list.html', {
         'messages': filtered_emails,

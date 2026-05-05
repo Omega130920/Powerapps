@@ -3,7 +3,8 @@ from datetime import date
 
 class PssubfInbox(models.Model):
     email_id = models.CharField(max_length=255, primary_key=True)
-    subject = models.CharField(max_length=255)
+    # Added null=True and blank=True to handle emails with no subject line
+    subject = models.CharField(max_length=255, null=True, blank=True) 
     sender = models.CharField(max_length=255)
     received_timestamp = models.DateTimeField()
     snippet = models.TextField(blank=True, null=True)
