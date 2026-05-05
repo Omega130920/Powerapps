@@ -886,7 +886,6 @@ def beneficiary_details_view(request, membership_number):
                     )
                     
                     # --- CRITICAL ADDITION: Create Inbox Record using received_timestamp ---
-                    # Using the correct column name from your MySQL schema to prevent 404 errors
                     email_id = f"DIRECT_{membership_number}_{direct_mail.id}"
                     PssubfInbox.objects.create(
                         email_id=email_id,
@@ -894,7 +893,7 @@ def beneficiary_details_view(request, membership_number):
                         sender=settings.OUTLOOK_EMAIL_ADDRESS,
                         snippet=f"Direct Email to {recipient}",
                         status='Sent',
-                        received_timestamp=timezone.now(), # Updated to match MySQL schema
+                        received_timestamp=timezone.now(),
                         member_group_code=membership_number
                     )
 
@@ -1016,11 +1015,22 @@ def beneficiary_details_view(request, membership_number):
         # --- 5. HANDLE NEW AD HOC (MODAL) ---
         elif action == 'add_adhoc_entry':
             try:
+                # NEW: Calculate precise maturity decimal
+                claim_date_str = request.POST.get('claim_form_date')
+                claim_date = datetime.strptime(claim_date_str, '%Y-%m-%d').date() if claim_date_str else date.today()
+                
+                years_val = 0.0
+                if member.cessation_date:
+                    days_remaining = (member.cessation_date - claim_date).days
+                    # Force float division with 365.25 to get decimal precision (e.g. 6.2)
+                    years_val = round(days_remaining / 365.25, 1)
+
                 AdHocList.objects.create(
                     beneficiary=member,
                     title=request.POST.get('title'),
-                    claim_form_date=request.POST.get('claim_form_date'),
+                    claim_form_date=claim_date,
                     amount_requested=clean_decimal(request.POST.get('amount_requested')),
+                    years_to_maturity=years_val, # Saves decimal to DB
                     status='Pending',
                     comments=request.POST.get('comments'),
                     supporting_document=request.FILES.get('supporting_document')

@@ -158,7 +158,7 @@
         </div>
     </div>
 
-    <!-- CLAIM MODAL (UPDATED WITH STIPEND AND SURPLUS LOGIC) -->
+    <!-- CLAIM MODAL -->
     <div id="claimModal" class="modal">
         <div class="modal-content">
             <div class="p-5 border-b flex justify-between items-center bg-white">
@@ -174,7 +174,6 @@
                 <input type="hidden" name="next" value="{{ request.path }}">
                 <input type="hidden" name="membership_number" value="{{ member.membership_number }}">
 
-                <!-- Calculation Helpers -->
                 <input type="hidden" id="claim_calc_stipend" value="{{ member.stipened }}">
                 <input type="hidden" id="claim_calc_cessation" value="{{ member.cessation_date|date:'Y-m-d' }}">
 
@@ -193,7 +192,6 @@
                 <div><label class="block text-xs font-bold text-gray-400 uppercase mb-1">Age at Claim Date</label><input type="text" id="pop_claim_age" name="age_at_claim" readonly class="w-full p-2.5 border bg-green-50 font-bold text-green-800 rounded-md"></div>
                 <div><label class="block text-xs font-bold text-gray-400 uppercase mb-1">Termination Date</label><input type="text" value="{{ member.cessation_date|date:'Y-m-d' }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md"></div>
                 
-                <!-- Stipend Display Added -->
                 <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Monthly Stipend</label><input type="text" value="R {{ member.stipened }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md"></div>
                 
                 <div><label class="block text-xs font-bold text-green-700 uppercase mb-1">* Original Claim Form Date</label><input type="date" name="date_logged" id="claim_form_date_field" onchange="calculateClaimFullValues(this.value)" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input"></div>
@@ -213,7 +211,7 @@
         </div>
     </div>
 
-    <!-- AD HOC MODAL (UPDATED WITH STIPEND AND SURPLUS LOGIC) -->
+    <!-- AD HOC MODAL -->
     <div id="adhocModal" class="modal">
         <div class="modal-content">
             <div class="p-5 border-b bg-white flex flex-col items-center relative">
@@ -227,7 +225,6 @@
                 <input type="hidden" name="next" value="{{ request.path }}">
                 <input type="hidden" name="membership_number" value="{{ member.membership_number }}">
                 
-                <!-- Calculation Helpers -->
                 <input type="hidden" id="calc_stipend" value="{{ member.stipened }}">
                 <input type="hidden" id="calc_cessation" value="{{ member.cessation_date|date:'Y-m-d' }}">
 
@@ -238,7 +235,6 @@
                 <div><label class="block text-xs font-bold text-green-700 uppercase mb-1">* Original Claim Form Date</label><input type="date" name="claim_form_date" id="claim_form_date" onchange="calculateAdHocFullValues(this.value)" required class="w-full p-2 border-2 border-green-600 rounded text-sm clean-input"></div>
                 <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Age at Claim Date</label><input type="text" id="pop_adhoc_age" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
                 
-                <!-- Stipend Display Added -->
                 <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Monthly Stipend</label><input type="text" value="R {{ member.stipened }}" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
                 
                 <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Reason</label>
@@ -292,7 +288,6 @@
                 </ul>
 
                 <div class="tab-content">
-                    <!-- PERSONAL TAB -->
                     <div id="personal" class="tab-pane active">
                         <table class="w-full">
                             <tr><th>Membership Number</th><td><input type="text" value="{{ member.membership_number }}" class="glass-input opacity-60" readonly></td></tr>
@@ -307,7 +302,6 @@
                         </table>
                     </div>
 
-                    <!-- FINANCIALS TAB -->
                     <div id="financials" class="tab-pane">
                         <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}" id="fundForm">
                             {% csrf_token %}
@@ -334,7 +328,6 @@
                         </form>
                     </div>
 
-                    <!-- CLAIMS TAB -->
                     <div id="claims_tab" class="tab-pane">
                         <div class="flex justify-between items-center mb-4"><h3 class="text-emerald-900 font-bold uppercase text-sm">Linked Claim Records</h3><button type="button" onclick="openModal('claimModal')" class="text-xs bg-green-700 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-green-800 transition"><i class="fas fa-plus mr-1"></i> New Claim</button></div>
                         <table class="w-full registry-table"><thead><tr class="border-b border-white border-opacity-20"><th>Ref No.</th><th>Type</th><th>Logged Date</th><th>Status</th><th>Amount (R)</th></tr></thead>
@@ -342,7 +335,6 @@
                         </table>
                     </div>
 
-                    <!-- ADHOC TAB -->
                     <div id="adhoc_tab" class="tab-pane">
                         <div class="flex justify-between items-center mb-4"><h3 class="text-emerald-900 font-bold uppercase text-sm">Linked Ad Hoc Records</h3><button type="button" onclick="openModal('adhocModal')" class="text-xs bg-green-700 text-white px-3 py-1.5 rounded-lg font-bold hover:bg-green-800 transition"><i class="fas fa-plus mr-1"></i> New Ad Hoc</button></div>
                         <table class="w-full registry-table"><thead><tr class="border-b border-white border-opacity-20"><th>Reason</th><th>Claim Date</th><th>Status</th><th>Requested (R)</th></tr></thead>
@@ -350,7 +342,6 @@
                         </table>
                     </div>
 
-                    <!-- CONTACT TAB -->
                     <div id="contact" class="tab-pane">
                         <table class="w-full">
                             <tr><th>Mobile 1</th><td><input type="text" value="{{ member.mobile_1 }}" class="glass-input" readonly></td></tr>
@@ -360,7 +351,6 @@
                         </table>
                     </div>
 
-                    <!-- GUARDIAN TAB -->
                     <div id="guardian" class="tab-pane">
                         <table class="w-full">
                             <tr><th>Guardian Title</th><td><input type="text" value="{{ member.guardian_title }}" class="glass-input" readonly></td></tr>
@@ -372,14 +362,12 @@
                         </table>
                     </div>
 
-                    <!-- AUDIT TAB -->
                     <div id="audit" class="tab-pane">
                         <table class="w-full"><thead><tr class="text-left border-b border-white border-opacity-10"><th class="py-2">User</th><th>Action</th><th>Timestamp</th></tr></thead>
                             <tbody>{% for action in pssubf_actions %}<tr><td>{{ action.action_user }}</td><td>{{ action.action_type }}</td><td>{{ action.action_timestamp|date:"Y-m-d H:i" }}</td></tr>{% empty %}<tr><td colspan="3" class="text-center py-4 opacity-50">No action history recorded.</td></tr>{% endfor %}</tbody>
                         </table>
                     </div>
 
-                    <!-- EMAIL LOG TAB -->
                     <div id="email-log" class="tab-pane">
                         <table class="w-full">
                             <thead>
@@ -409,7 +397,6 @@
                         </table>
                     </div>
 
-                    <!-- DIRECT EMAIL TAB -->
                     <div id="direct-email" class="tab-pane">
                         <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}">
                             {% csrf_token %}
@@ -424,7 +411,6 @@
                         </form>
                     </div>
 
-                    <!-- NOTES TAB -->
                     <div id="notes" class="tab-pane">
                         <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}">
                             {% csrf_token %}
@@ -457,7 +443,6 @@
     </div>
 
     <script>
-        // TAB NAVIGATION
         document.querySelectorAll('.tab-nav li').forEach(tab => {
             tab.addEventListener('click', () => {
                 document.querySelectorAll('.tab-nav li').forEach(t => t.classList.remove('active'));
@@ -468,7 +453,6 @@
             });
         });
 
-        // FUND EDIT TOGGLE
         function toggleFundEdit(active) {
             const container = document.getElementById('profileBody');
             const inputs = document.querySelectorAll('.fund-editable');
@@ -495,7 +479,6 @@
             btn.style.opacity = '0.7'; btn.style.pointerEvents = 'none';
         }
 
-        // MODAL MANAGEMENT
         function openModal(id) { 
             document.getElementById(id).style.display = 'block'; 
             if(id === 'adhocModal') {
@@ -507,28 +490,33 @@
         }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
-        // AGE CALCULATION
         function calculatePopupAge(dobId, claimDateVal, targetId) {
             const dobStr = document.getElementById(dobId).value;
             if(!dobStr || !claimDateVal) return;
-            const birth = new Date(dobStr); const claim = new Date(claimDateVal);
-            let age = claim.getFullYear() - birth.getFullYear();
-            let m = claim.getMonth() - birth.getMonth();
-            if (m < 0 || (m === 0 && claim.getDate() < birth.getDate())) { age--; }
-            let monthDiff = m < 0 ? 12 + m : m;
-            document.getElementById(targetId).value = `${age}.${monthDiff}`;
+            const birth = new Date(dobStr); 
+            const claim = new Date(claimDateVal);
+            
+            // Precise float age calculation (e.g., 11.8)
+            const diffTime = Math.abs(claim - birth);
+            const diffYears = diffTime / (1000 * 60 * 60 * 24 * 365.25);
+            document.getElementById(targetId).value = diffYears.toFixed(1);
         }
 
-        // FULL AD HOC CALCULATION (Surplus/Deficit Logic)
         function calculateAdHocFullValues(claimDate) {
             calculatePopupAge('adhoc_pop_dob', claimDate, 'pop_adhoc_age');
             
-            // Years to Maturity
+            // NEW: Precise Years to Maturity Calculation
             const termDateStr = document.getElementById('calc_cessation').value;
             if(termDateStr && claimDate) {
-                const term = new Date(termDateStr); const claim = new Date(claimDate);
-                let diff = term.getFullYear() - claim.getFullYear();
-                document.getElementById('pop_maturity').value = diff > 0 ? diff : 0;
+                const term = new Date(termDateStr); 
+                const claim = new Date(claimDate);
+                
+                // Calculate difference in days and divide by 365.25 for decimal precision
+                const diffTime = term - claim;
+                const diffYears = diffTime / (1000 * 60 * 60 * 24 * 365.25);
+                
+                // Update input with decimal value (e.g. 6.2)
+                document.getElementById('pop_maturity').value = diffYears > 0 ? diffYears.toFixed(1) : "0.0";
             }
             calcAffordabilityFull();
         }
@@ -561,7 +549,6 @@
             target.style.color = (result >= 0) ? '#059669' : '#dc2626';
         }
 
-        // FULL CLAIM CALCULATION (Mirrors Ad Hoc logic)
         function calculateClaimFullValues(claimDate) {
             calculatePopupAge('claim_pop_dob', claimDate, 'pop_claim_age');
             calcClaimAffordabilityFull();

@@ -242,7 +242,9 @@ class AdHocList(models.Model):
     amount_requested = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
     
     # Calculation Results
-    years_to_maturity = models.IntegerField(default=0)
+    # UPDATED: Changed to DecimalField to prevent rounding (e.g., 6.2 instead of 6)
+    years_to_maturity = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
+    
     # Changed to CharField to store the formatted "%" string from the UI logic
     affordability_calculation = models.CharField(max_length=20, blank=True, null=True)
     
@@ -255,6 +257,14 @@ class AdHocList(models.Model):
     supporting_docs_attached = models.CharField(max_length=10, default='No')
     attachment_path = models.CharField(max_length=255, blank=True, null=True)
     comments = models.TextField(blank=True, null=True)  # Stores 'Claim Note' and Agent Tracking
+
+    @property
+    def age_at_claim_calc(self):
+        """Calculates exact decimal age at the time of claim (e.g., 11.8)"""
+        if self.beneficiary and self.beneficiary.dob and self.claim_form_date:
+            days_diff = (self.claim_form_date - self.beneficiary.dob).days
+            return round(days_diff / 365.25, 1)
+        return 0.0
 
     class Meta:
         db_table = 'pssubf_ad_hoc_list'

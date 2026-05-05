@@ -1769,6 +1769,7 @@ def export_sla_excel(delegate_q, notes_q, email_log_q):
     MASTER SLA EXCEL EXPORT
     Sheet 1: Master SLA Audit Trail (Chronological/Status grouped)
     Sheet 2: Agent Performance Breakdown (Grouped by Agent)
+    UPDATED: Now only shows worked items (New/Pending section disabled).
     """
     wb = openpyxl.Workbook()
     
@@ -1776,8 +1777,8 @@ def export_sla_excel(delegate_q, notes_q, email_log_q):
     header_font = Font(bold=True, color="FFFFFF")
     header_fill = PatternFill(start_color="1B5E20", end_color="1B5E20", fill_type="solid")
     headers = [
-        'Status/Type', 'Date Received', 'Date Actioned', 'Agent Primary', 
-        'Agent Secondary', 'Main Category', 'Enquiry Category (1-14)', 
+        'Status/Type', 'Date Received', 'Date Actioned', 'Delegator', 
+        'Delegated to', 'Communication Log', 'Enquiry Category (1-14)', 
         'Enquiry Type (Action)', 'Reference', 'Content Preview', 'Destination'
     ]
 
@@ -1790,11 +1791,11 @@ def export_sla_excel(delegate_q, notes_q, email_log_q):
     for cell in ws1[1]:
         cell.font, cell.fill, cell.alignment = header_font, header_fill, Alignment(horizontal="center")
 
-    # 1. NEW / UNDELEGATED (CrmInbox)
-    delegated_ids = CrmDelegateTo.objects.values_list('email_id', flat=True)
-    new_emails = CrmInbox.objects.filter(received_timestamp__isnull=False).exclude(email_id__in=delegated_ids).order_by('-received_timestamp')
-    for email in new_emails:
-        ws1.append(['New (Pending)', email.received_timestamp.replace(tzinfo=None), None, None, None, 'Unassigned Inbox', None, 'Incoming Email', getattr(email, 'Member_Group_Code', '---'), email.subject, email.sender])
+    # 1. NEW / UNDELEGATED (CrmInbox) - DISABLED: Report must only show worked items
+    # delegated_ids = CrmDelegateTo.objects.values_list('email_id', flat=True)
+    # new_emails = CrmInbox.objects.filter(received_timestamp__isnull=False).exclude(email_id__in=delegated_ids).order_by('-received_timestamp')
+    # for email in new_emails:
+    #    ws1.append(['New (Pending)', email.received_timestamp.replace(tzinfo=None), None, None, None, 'Unassigned Inbox', None, 'Incoming Email', getattr(email, 'Member_Group_Code', '---'), email.subject, email.sender])
 
     # 2. DELEGATED (CrmDelegateTo)
     for task in CrmDelegateTo.objects.filter(delegate_q):
