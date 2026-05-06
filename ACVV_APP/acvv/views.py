@@ -538,7 +538,8 @@ def acvv_information(request, mip_names):
 @login_required
 def outlook_delegate_to(request, email_id):
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
-    available_users = User.objects.filter(is_active=True).exclude(pk=request.user.pk)
+    # REMOVED .exclude(pk=request.user.pk) so current user shows in list
+    available_users = User.objects.filter(is_active=True).order_by('username')
     acvv_records = Globalacvv.objects.all().values('mip_names', 'branch_code')
     
     # 1. Fetch the main Email Message
@@ -549,7 +550,7 @@ def outlook_delegate_to(request, email_id):
         messages.error(request, "Could not fetch email content.")
         return redirect('outlook_dashboard')
 
-    # 2. Fetch Attachments (Includes contentBytes for the preview)
+    # 2. Fetch Attachments
     attachment_endpoint = f"messages/{email_id}/attachments"
     attachment_data = _make_graph_request(attachment_endpoint, target_email)
     attachments = attachment_data.get('value', []) if 'error' not in attachment_data else []
@@ -600,7 +601,7 @@ def outlook_delegate_to(request, email_id):
                         subject=email_subject,
                         sender_address=sender_email
                     )
-                    messages.success(request, f"Task delegated to {mip_names_value}!")
+                    messages.success(request, f"Task delegated successfully!")
                     return redirect('outlook_dashboard')
                 else:
                     messages.error(request, message)
