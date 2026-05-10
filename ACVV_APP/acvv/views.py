@@ -535,78 +535,104 @@ def acvv_information(request, mip_names):
     }
     return render(request, 'acvv_app/acvv_information.html', context)
 
+import logging
+from django.db import transaction
+
+# Initialize logger to capture errors without crashing the process
+logger = logging.getLogger(__name__)
+
 @login_required
 def outlook_delegate_to(request, email_id):
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
-    # REMOVED .exclude(pk=request.user.pk) so current user shows in list
     available_users = User.objects.filter(is_active=True).order_by('username')
     acvv_records = Globalacvv.objects.all().values('mip_names', 'branch_code')
     
-    # 1. Fetch the main Email Message
-    endpoint = f"messages/{email_id}" 
-    email_data = _make_graph_request(endpoint, target_email) 
+    # 1. Fetch the main Email Message with safety wrapper
+    try:
+        endpoint = f"messages/{email_id}" 
+        email_data = _make_graph_request(endpoint, target_email) 
 
-    if 'error' in email_data:
-        messages.error(request, "Could not fetch email content.")
+        if not email_data or 'error' in email_data:
+            logger.error(f"Graph API Error for ID {email_id}: {email_data.get('error')}")
+            messages.error(request, "Could not fetch email content from Outlook.")
+            return redirect('outlook_dashboard')
+            
+    except Exception as e:
+        logger.exception(f"Unexpected crash fetching email {email_id}")
+        messages.error(request, "A critical error occurred while contacting the mail server.")
         return redirect('outlook_dashboard')
 
-    # 2. Fetch Attachments
-    attachment_endpoint = f"messages/{email_id}/attachments"
-    attachment_data = _make_graph_request(attachment_endpoint, target_email)
-    attachments = attachment_data.get('value', []) if 'error' not in attachment_data else []
+    # 2. Fetch Attachments (Non-critical: if this fails, we still show the email)
+    attachments = []
+    try:
+        attachment_endpoint = f"messages/{email_id}/attachments"
+        attachment_data = _make_graph_request(attachment_endpoint, target_email)
+        if 'value' in attachment_data:
+            attachments = attachment_data['value']
+    except Exception as e:
+        logger.warning(f"Failed to fetch attachments for {email_id}: {str(e)}")
 
     email_subject = email_data.get('subject', '(No Subject)')
     sender_email = email_data.get('from', {}).get('emailAddress', {}).get('address', '')
 
     if request.method == 'POST':
-        work_related_raw = request.POST.get('work_related')
-        is_work_related = (work_related_raw == 'Yes')
-        assignee_pk = request.POST.get('agent_name')
-        mip_names_value = request.POST.get('mip_names')
-        
-        data_for_delegation = {
-            'mip_names': mip_names_value,
-            'subject': email_subject,
-            'sender_address': sender_email,
-            'email_category': request.POST.get('email_category'),
-            'work_related': is_work_related, 
-            'status': 'DEL' if is_work_related else 'DLT',
-            'comm_type': request.POST.get('email_method', 'Email'),
-        }
-        
-        if not is_work_related:
-            delegation = get_or_create_delegation_status(email_id)
-            delegation.work_related = False 
-            delegation.status = 'DLT'
-            delegation.subject = email_subject
-            delegation.sender_address = sender_email
-            delegation.mip_names = mip_names_value
-            delegation.save()
-            
-            messages.success(request, "Task moved to Recycle Bin.")
-            return redirect('outlook_dashboard')
-        else:
-            if assignee_pk and assignee_pk not in ['', '__Select Agent__']:
-                success, message = delegate_email_task(
-                    email_id, 
-                    assignee_pk, 
-                    request.user, 
-                    classification_data=data_for_delegation
-                )
+        try:
+            # Use atomic transaction to prevent database deadlocks 
+            with transaction.atomic():
+                work_related_raw = request.POST.get('work_related')
+                is_work_related = (work_related_raw == 'Yes')
+                assignee_pk = request.POST.get('agent_name')
+                mip_names_value = request.POST.get('mip_names')
                 
-                if success:
-                    EmailDelegation.objects.filter(email_id=email_id).update(
-                        work_related=True, 
-                        status='DEL',
-                        subject=email_subject,
-                        sender_address=sender_email
-                    )
-                    messages.success(request, f"Task delegated successfully!")
+                data_for_delegation = {
+                    'mip_names': mip_names_value,
+                    'subject': email_subject,
+                    'sender_address': sender_email,
+                    'email_category': request.POST.get('email_category'),
+                    'work_related': is_work_related, 
+                    'status': 'DEL' if is_work_related else 'DLT',
+                    'comm_type': request.POST.get('email_method', 'Email'),
+                }
+                
+                if not is_work_related:
+                    delegation = get_or_create_delegation_status(email_id)
+                    delegation.work_related = False 
+                    delegation.status = 'DLT'
+                    delegation.subject = email_subject
+                    delegation.sender_address = sender_email
+                    delegation.mip_names = mip_names_value
+                    delegation.save()
+                    
+                    messages.success(request, "Task moved to Recycle Bin.")
                     return redirect('outlook_dashboard')
+                
                 else:
-                    messages.error(request, message)
-            else:
-                messages.error(request, "Please select an agent.")
+                    if assignee_pk and assignee_pk not in ['', '__Select Agent__']:
+                        success, message = delegate_email_task(
+                            email_id, 
+                            assignee_pk, 
+                            request.user, 
+                            classification_data=data_for_delegation
+                        )
+                        
+                        if success:
+                            EmailDelegation.objects.filter(email_id=email_id).update(
+                                work_related=True, 
+                                status='DEL',
+                                subject=email_subject,
+                                sender_address=sender_email
+                            )
+                            messages.success(request, "Task delegated successfully!")
+                            return redirect('outlook_dashboard')
+                        else:
+                            messages.error(request, message)
+                    else:
+                        messages.error(request, "Please select an agent.")
+
+        except Exception as e:
+            logger.exception(f"Delegation loop/crash prevented for ID {email_id}")
+            messages.error(request, "An error occurred during delegation. The operation was aborted to stay stable.")
+            return redirect('outlook_dashboard')
 
     context = {
         'email_id': email_id,
