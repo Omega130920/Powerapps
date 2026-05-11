@@ -44,9 +44,8 @@
                     <tr class="bg-green-600 text-white text-left text-xs font-bold uppercase tracking-wider">
                         <th class="px-6 py-4 border-r border-green-500">Member No.</th>
                         <th class="px-6 py-4 border-r border-green-500">Beneficiary Details</th>
-                        <th class="px-6 py-4 border-r border-green-500">Guardian Details</th>
                         <th class="px-6 py-4 border-r border-green-500">Claim Form Date</th>
-                        <th class="px-6 py-4 border-r border-green-500">Claim Status</th>
+                        <th class="px-6 py-4 border-r border-green-500">Maturity</th> <th class="px-6 py-4 border-r border-green-500">Claim Status</th>
                         <th class="px-6 py-4 border-r border-green-500">Claim Reason</th>
                         <th class="px-6 py-4 border-r border-green-500 text-center">Support Docs</th>
                         <th class="px-6 py-4 text-center"><i class="fas fa-paperclip"></i></th>
@@ -57,9 +56,8 @@
                     <tr class="hover:bg-white/30 transition cursor-pointer" onclick="openAdHocModal('{{ item.id }}')">
                         <td class="px-6 py-4 text-sm font-bold text-green-900">{{ item.beneficiary.membership_number }}</td>
                         <td class="px-6 py-4 text-sm">{{ item.beneficiary.first_name }} {{ item.beneficiary.last_name }}</td>
-                        <td class="px-6 py-4 text-sm">{{ item.beneficiary.guardian_first_name }} {{ item.beneficiary.guardian_last_name }}</td>
                         <td class="px-6 py-4 text-sm">{{ item.claim_form_date|date:"d/m/Y" }}</td>
-                        <td class="px-6 py-4 text-sm font-semibold">{{ item.status }}</td>
+                        <td class="px-6 py-4 text-sm font-bold text-emerald-800">{{ item.maturity_display }}</td> <td class="px-6 py-4 text-sm font-semibold">{{ item.status }}</td>
                         <td class="px-6 py-4 text-sm">{{ item.title }}</td>
                         <td class="px-6 py-4 text-sm text-center">{{ item.supporting_docs_attached }}</td>
                         <td class="px-6 py-4 text-center">
@@ -92,8 +90,7 @@
 
                 <input type="hidden" id="calc_stipend" value="0">
                 <input type="hidden" id="calc_cessation" value="">
-
-                <div>
+                <input type="hidden" id="pop_maturity" value="0"> <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Claim Type</label>
                     <input type="text" name="category" value="Ad Hoc" readonly class="w-full p-2 border highlight-field rounded text-sm">
                 </div>
@@ -116,7 +113,7 @@
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Age at Claim Date</label>
-                    <input type="text" id="age_at_claim" readonly class="w-full p-2 border highlight-field rounded text-sm">
+                    <input type="text" id="age_at_claim" readonly class="w-full p-2 border highlight-field rounded text-sm" placeholder="00Y 00M">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Termination Date</label>
@@ -129,7 +126,7 @@
 
                 <div>
                     <label class="block text-xs font-bold text-green-700 uppercase mb-1">* Original Claim Form Date</label>
-                    <input type="date" name="claim_form_date" id="claim_form_date" onchange="calculateAge(); calculateMaturity(); calculateAffordability();" required class="w-full p-2 border-2 border-green-600 rounded text-sm clean-input">
+                    <input type="date" name="claim_form_date" id="claim_form_date" onchange="runCalculations()" required class="w-full p-2 border-2 border-green-600 rounded text-sm clean-input">
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Portfolio Value</label>
@@ -146,7 +143,7 @@
 
                 <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Years to Maturity</label>
-                    <input type="text" name="years_to_maturity" id="years_to_maturity" readonly class="w-full p-2 border bg-green-50 rounded text-sm font-bold text-green-700">
+                    <input type="text" id="maturity_display" readonly class="w-full p-2 border bg-green-50 rounded text-sm font-bold text-green-700" placeholder="0Y 00M">
                 </div>
                 <div class="md:col-span-2">
                     <label class="block text-xs font-bold text-emerald-700 uppercase mb-1">Affordability Result (P - (Months * S + R))</label>
@@ -223,6 +220,45 @@
     </div>
 
     <script>
+        // 🚀 SHARED UTILITY: Precision date logic 🚀
+        function getYearMonthData(startDate, endDate) {
+            let years = endDate.getFullYear() - startDate.getFullYear();
+            let months = endDate.getMonth() - startDate.getMonth();
+            let days = endDate.getDate() - startDate.getDate();
+
+            if (days < 0) {
+                months -= 1;
+                const prevMonthLastDay = new Date(endDate.getFullYear(), endDate.getMonth(), 0).getDate();
+                days += prevMonthLastDay;
+            }
+            if (months < 0) {
+                years -= 1;
+                months += 12;
+            }
+
+            const totalMonthsPrecise = (years * 12) + months + (days / 30.44);
+            let finalY = Math.floor(totalMonthsPrecise / 12);
+            let finalM = Math.round(totalMonthsPrecise % 12);
+            
+            if (finalM === 12) {
+                finalY += 1;
+                finalM = 0;
+            }
+
+            const discreteMonths = (finalY * 12) + finalM;
+
+            return {
+                string: `${finalY}Y ${finalM.toString().padStart(2, '0')}M`,
+                totalMonths: discreteMonths
+            };
+        }
+
+        function runCalculations() {
+            calculateAge();
+            calculateMaturity();
+            calculateAffordability();
+        }
+
         function openAdHocModal(recordId = null) {
             const modal = document.getElementById('adhocModal');
             const form = document.getElementById('adhocForm');
@@ -251,18 +287,16 @@
                         document.getElementById('portfolio_value').value = data.portfolio_value;
                         document.getElementById('portfolio_date').value = data.portfolio_date;
                         document.getElementById('amount_requested').value = data.amount_requested;
-                        document.getElementById('years_to_maturity').value = data.years_to_maturity;
                         document.getElementById('supporting_docs_attached').value = data.docs_attached;
                         document.getElementById('comments').value = data.comments;
                         document.getElementById('footer_tracking').innerText = data.tracking_info || '';
                         
-                        // Populate calculation data
+                        // Populate calculation meta
                         document.getElementById('calc_stipend').value = data.stipened || 0;
                         document.getElementById('calc_cessation').value = data.termination_date || data.term_date;
+                        document.getElementById('monthly_income').value = 'R ' + (parseFloat(data.stipened) || 0).toLocaleString();
                         
-                        calculateAge();
-                        calculateMaturity();
-                        calculateAffordability();
+                        runCalculations();
                     });
             } else {
                 form.reset();
@@ -277,60 +311,31 @@
         function calculateAge() {
             const dobStr = document.getElementById('b_dob').value;
             const claimDateStr = document.getElementById('claim_form_date').value;
+            if(!dobStr || !claimDateStr) return;
             
-            if(!dobStr || !claimDateStr) {
-                document.getElementById('age_at_claim').value = "";
-                return;
-            }
-            
-            const birth = new Date(dobStr);
-            const claim = new Date(claimDateStr);
-            
-            let age = claim.getFullYear() - birth.getFullYear();
-            let m = claim.getMonth() - birth.getMonth();
-            
-            if (m < 0 || (m === 0 && claim.getDate() < birth.getDate())) {
-                age--;
-            }
-            
-            let monthDiff = m < 0 ? 12 + m : m;
-            document.getElementById('age_at_claim').value = `${age}.${monthDiff}`;
+            const data = getYearMonthData(new Date(dobStr), new Date(claimDateStr));
+            document.getElementById('age_at_claim').value = data.string;
         }
 
         function calculateMaturity() {
             const termDateStr = document.getElementById('term_date').value;
             const claimDateStr = document.getElementById('claim_form_date').value;
             if(!termDateStr || !claimDateStr) return;
-            const term = new Date(termDateStr);
-            const claim = new Date(claimDateStr);
-            let diff = term.getFullYear() - claim.getFullYear();
-            document.getElementById('years_to_maturity').value = diff > 0 ? diff : 0;
+
+            const data = getYearMonthData(new Date(claimDateStr), new Date(termDateStr));
+            document.getElementById('maturity_display').value = data.string;
+            document.getElementById('pop_maturity').value = data.totalMonths;
         }
 
         function calculateAffordability() {
             const portfolio = parseFloat(document.getElementById('portfolio_value').value) || 0;
             const requested = parseFloat(document.getElementById('amount_requested').value) || 0;
             const stipend = parseFloat(document.getElementById('calc_stipend').value) || 0;
-            const cessationStr = document.getElementById('calc_cessation').value;
+            const totalMonths = parseFloat(document.getElementById('pop_maturity').value) || 0;
             const target = document.getElementById('affordability_calculation');
 
-            if (!cessationStr) {
-                target.value = "Awaiting member data...";
-                return;
-            }
-
-            const now = new Date();
-            const cessationDate = new Date(cessationStr);
-            if (isNaN(cessationDate)) return;
-            
-            let monthsRemaining = (cessationDate.getFullYear() - now.getFullYear()) * 12;
-            monthsRemaining += cessationDate.getMonth() - now.getMonth();
-            if (now.getDate() < cessationDate.getDate()) monthsRemaining--;
-            if (monthsRemaining < 0) monthsRemaining = 0;
-
-            // REVERSED FORMULA: Portfolio - (Months * Stipend + Requested Amount)
-            const totalLiability = (stipend * monthsRemaining);
-            const result = portfolio - (totalLiability + requested);
+            // 🚀 Calculation using discrete months to ensure R 800 consistency
+            const result = portfolio - ((stipend * totalMonths) + requested);
             
             const label = result >= 0 ? "(Surplus)" : "(Deficit)";
             target.value = 'R ' + result.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ' + label;
@@ -349,16 +354,13 @@
                         document.getElementById('g_name').value = data.guardian_name;
                         document.getElementById('b_dob').value = data.dob;
                         document.getElementById('term_date').value = data.term_date;
-                        document.getElementById('monthly_income').value = data.stipened;
+                        document.getElementById('monthly_income').value = 'R ' + (parseFloat(data.stipened) || 0).toLocaleString();
                         
-                        // Populate calculation data
                         document.getElementById('calc_stipend').value = data.stipened;
                         document.getElementById('calc_cessation').value = data.term_date;
                         document.getElementById('portfolio_value').value = data.total_fund_value;
 
-                        calculateAge();
-                        calculateMaturity();
-                        calculateAffordability();
+                        runCalculations();
                     }
                 });
         }

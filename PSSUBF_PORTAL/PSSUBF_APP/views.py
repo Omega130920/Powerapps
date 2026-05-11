@@ -999,16 +999,16 @@ def beneficiary_details_view(request, membership_number):
             except Exception as e:
                 messages.error(request, f"Error updating record: {str(e)}")
 
-        # --- 4. 🚀 HANDLE NEW CLAIM (FIXED PRECISION) ---
+        # --- 4. 🚀 HANDLE NEW CLAIM ---
         elif action == 'add_claim_entry':
             try:
                 date_logged_str = request.POST.get('date_logged')
                 claim_date = datetime.strptime(date_logged_str, '%Y-%m-%d').date() if date_logged_str else date.today()
                 
+                # Logic used for the calculation in the frontend
                 claim_age = 0.0
                 if member.dob:
                     diff_age = relativedelta(claim_date, member.dob)
-                    # 🟢 FIX: Use discrete rounded months to match UI (e.g., 76 months instead of 6.333...)
                     precise_months = (diff_age.years * 12) + diff_age.months + (diff_age.days / 30.44)
                     rounded_months = round(precise_months)
                     claim_age = rounded_months / 12
@@ -1018,7 +1018,6 @@ def beneficiary_details_view(request, membership_number):
                     claim_type=request.POST.get('claim_type'),
                     date_logged=claim_date,
                     amount_requested=clean_decimal(request.POST.get('amount_requested')),
-                    claim_at_age=round(claim_age, 2),
                     status='Pending',
                     description=request.POST.get('description'),
                     supporting_document=request.FILES.get('supporting_document')
@@ -1028,7 +1027,7 @@ def beneficiary_details_view(request, membership_number):
                 messages.error(request, f"Claim Error: {str(e)}")
             return redirect('beneficiary_details', membership_number=membership_number)
 
-        # --- 5. HANDLE NEW AD HOC (FIXED PRECISION) ---
+        # --- 5. HANDLE NEW AD HOC ---
         elif action == 'add_adhoc_entry':
             try:
                 claim_date_str = request.POST.get('claim_form_date')
@@ -1037,7 +1036,6 @@ def beneficiary_details_view(request, membership_number):
                 years_val = 0.0
                 if member.cessation_date:
                     diff = relativedelta(member.cessation_date, claim_date)
-                    # 🟢 FIX: Calculate discrete months first to eliminate R800 rounding drift
                     precise_months = (diff.years * 12) + diff.months + (diff.days / 30.44)
                     rounded_total_months = round(precise_months)
                     years_val = rounded_total_months / 12
@@ -1047,12 +1045,11 @@ def beneficiary_details_view(request, membership_number):
                     title=request.POST.get('title'),
                     claim_form_date=claim_date,
                     amount_requested=clean_decimal(request.POST.get('amount_requested')),
-                    years_to_maturity=round(years_val, 2),
                     status='Pending',
                     comments=request.POST.get('comments'),
                     supporting_document=request.FILES.get('supporting_document')
                 )
-                messages.success(request, "Ad Hoc entry saved with corrected affordability math.")
+                messages.success(request, "Ad Hoc entry saved.")
             except Exception as e:
                 messages.error(request, f"Ad Hoc Error: {str(e)}")
             return redirect('beneficiary_details', membership_number=membership_number)
@@ -1089,6 +1086,23 @@ def beneficiary_details_view(request, membership_number):
     
     internal_notes = PssubfNote.objects.filter(task_email_id__icontains=membership_number).order_by('-created_at')
     pssubf_actions = PssubfAction.objects.filter(Q(task_email_id__icontains=membership_number)).order_by('-action_timestamp')
+
+    # --- 🟢 DYNAMICALLY CALCULATE DISPLAY STRINGS (NO DATABASE CHANGES NEEDED) ---
+    for c in claims:
+        if member.dob and c.date_logged:
+            diff = relativedelta(c.date_logged, member.dob)
+            total_m = round((diff.years * 12) + diff.months + (diff.days / 30.44))
+            c.age_display = f"{total_m // 12}Y {str(total_m % 12).zfill(2)}M"
+        else:
+            c.age_display = "---"
+
+    for a in adhoc_records:
+        if member.cessation_date and a.claim_form_date:
+            diff = relativedelta(member.cessation_date, a.claim_form_date)
+            total_m = round((diff.years * 12) + diff.months + (diff.days / 30.44))
+            a.maturity_display = f"{total_m // 12}Y {str(total_m % 12).zfill(2)}M"
+        else:
+            a.maturity_display = "---"
 
     context = {
         'member': member,
@@ -1234,10 +1248,9 @@ def get_beneficiary_data(request, membership_number):
 
 @login_required
 def claim_list_view(request):
-    """Main view for the full Claim Registry"""
+    """Main view for the full Claim Registry with Dynamic Age Calculation"""
     
     def clean_numeric(val):
-        # 🚀 CRITICAL: This stops "undefined" or currency strings from crashing the save
         if not val or str(val).lower() == 'undefined' or str(val).strip() == '':
             return 0
         return str(val).replace('R', '').replace(',', '').replace('%', '').strip()
@@ -1268,9 +1281,7 @@ def claim_list_view(request):
                     portfolio_value=clean_numeric(request.POST.get('portfolio_value')),
                     portfolio_date=request.POST.get('portfolio_date') or None,
                     amount_requested=clean_numeric(request.POST.get('amount_requested')),
-                    age_at_claim=request.POST.get('age_at_claim'),
                     supporting_docs_attached=request.POST.get('supporting_docs_attached'),
-                    # Mapping 'monthly_income' from UI to 'monthly_income_payment' in DB
                     monthly_income_payment=clean_numeric(request.POST.get('monthly_income')),
                     date_paid=request.POST.get('date_paid') or None,
                     loaded_by_agent=request.user.username,
@@ -1300,7 +1311,6 @@ def claim_list_view(request):
                 claim.portfolio_value = clean_numeric(request.POST.get('portfolio_value'))
                 claim.portfolio_date = request.POST.get('portfolio_date') or None
                 claim.amount_requested = clean_numeric(request.POST.get('amount_requested'))
-                claim.age_at_claim = request.POST.get('age_at_claim')
                 claim.supporting_docs_attached = request.POST.get('supporting_docs_attached')
                 claim.monthly_income_payment = clean_numeric(request.POST.get('monthly_income'))
                 claim.save()
@@ -1316,61 +1326,60 @@ def claim_list_view(request):
             return redirect('claim_list')
             
         except Exception as e:
-            import traceback
-            print(traceback.format_exc())
             messages.error(request, f"Error: {str(e)}")
 
-    # Fetching logic
+    # Fetching logic with select_related optimization
     membership_number = request.GET.get('membership_number')
-    claims = ClaimList.objects.all().order_by('-date_logged')
+    claims = ClaimList.objects.all().select_related('beneficiary').order_by('-date_logged')
     
     if membership_number:
         claims = claims.filter(beneficiary__membership_number=membership_number)
 
+    # 🟢 DYNAMIC DISPLAY CALCULATION: Age at Claim
+    for c in claims:
+        if c.beneficiary and c.beneficiary.dob and c.date_logged:
+            diff = relativedelta(c.date_logged, c.beneficiary.dob)
+            total_m = round((diff.years * 12) + diff.months + (diff.days / 30.44))
+            c.age_display = f"{total_m // 12}Y {str(total_m % 12).zfill(2)}M"
+        else:
+            c.age_display = "---"
+
     return render(request, 'claim_list.html', {'claims': claims, 'title': 'Claims Registry'})
+
 
 @login_required
 def ad_hoc_list_view(request):
-    """
-    Main view for the Ad Hoc Registry handling Saves, Updates, 
-    and calculation storage with Agent Tracking.
-    """
+    """Main view for the Ad Hoc Registry with Dynamic Maturity Calculation"""
     
+    def clean_numeric(val):
+        if not val or str(val).lower() == 'undefined' or str(val).strip() == '':
+            return 0
+        return str(val).replace('R', '').replace(',', '').replace('%', '').strip()
+
     if request.method == 'POST':
         action = request.POST.get('action')
         m_num = request.POST.get('membership_number')
         
         try:
-            # Fetch the beneficiary based on membership number
             member = get_object_or_404(PssubfBeneficiary, membership_number=m_num)
             uploaded_file = request.FILES.get('supporting_document')
             file_name = uploaded_file.name if uploaded_file else None
-
-            # Agent Tracking Logic: Creates a signature stamp for the claim note
             timestamp = timezone.now().strftime('%Y-%m-%d %H:%M')
             agent_stamp = f"\n\n--- Managed by {request.user.username} on {timestamp} ---"
-
-            # Helper function to clean numeric/percentage inputs from UI for DB storage
-            def clean_decimal(value):
-                if not value or value == '': return 0.00
-                return str(value).replace('%', '').strip()
 
             if action == 'add_adhoc_entry':
                 AdHocList.objects.create(
                     beneficiary=member,
-                    title=request.POST.get('title'), # UI: Reason
+                    title=request.POST.get('title'),
                     comments=(request.POST.get('comments') or "") + agent_stamp,
                     claim_form_date=request.POST.get('claim_form_date') or None,
                     date_paid=request.POST.get('date_paid') or None,
                     status=request.POST.get('status', 'Created'),
                     supporting_docs_attached=request.POST.get('supporting_docs_attached', 'No'),
                     attachment_path=file_name,
-                    # Financial fields and calculations
-                    portfolio_value=clean_decimal(request.POST.get('portfolio_value')),
+                    portfolio_value=clean_numeric(request.POST.get('portfolio_value')),
                     portfolio_date=request.POST.get('portfolio_date') or None,
-                    amount_requested=clean_decimal(request.POST.get('amount_requested')),
-                    years_to_maturity=request.POST.get('years_to_maturity') or 0,
-                    affordability_calculation=request.POST.get('affordability_calculation') # Saved as string "X.XX%"
+                    amount_requested=clean_numeric(request.POST.get('amount_requested')),
                 )
                 messages.success(request, f"New Ad Hoc claim for Member {m_num} successfully logged.")
 
@@ -1378,27 +1387,20 @@ def ad_hoc_list_view(request):
                 record_id = request.POST.get('record_id')
                 record = get_object_or_404(AdHocList, id=record_id)
                 
-                # File Management: Update only if a new file is uploaded or removal requested
                 if file_name:
                     record.attachment_path = file_name
                 elif request.POST.get('remove_attachment') == 'true':
                     record.attachment_path = None
 
-                # Update core metadata
                 record.title = request.POST.get('title')
                 record.status = request.POST.get('status')
                 record.claim_form_date = request.POST.get('claim_form_date') or None
                 record.date_paid = request.POST.get('date_paid') or None
                 record.supporting_docs_attached = request.POST.get('supporting_docs_attached')
-                
-                # Update financial values and calculations
-                record.portfolio_value = clean_decimal(request.POST.get('portfolio_value'))
+                record.portfolio_value = clean_numeric(request.POST.get('portfolio_value'))
                 record.portfolio_date = request.POST.get('portfolio_date') or None
-                record.amount_requested = clean_decimal(request.POST.get('amount_requested'))
-                record.years_to_maturity = request.POST.get('years_to_maturity') or 0
-                record.affordability_calculation = request.POST.get('affordability_calculation')
+                record.amount_requested = clean_numeric(request.POST.get('amount_requested'))
 
-                # Maintain Agent Tracking history in the Claim Note
                 user_comments = request.POST.get('comments') or ""
                 if agent_stamp not in (record.comments or ""):
                     record.comments = user_comments + agent_stamp
@@ -1413,13 +1415,20 @@ def ad_hoc_list_view(request):
         except Exception as e:
             messages.error(request, f"Process Error: {str(e)}")
 
-    # GET logic: Populate registry table with filtering support
     membership_number = request.GET.get('membership_number')
-    # Use select_related to optimize the join with the Beneficiary table
     adhoc_records = AdHocList.objects.all().select_related('beneficiary').order_by('-date_created')
 
     if membership_number:
         adhoc_records = adhoc_records.filter(beneficiary__membership_number=membership_number)
+
+    # 🟢 DYNAMIC DISPLAY CALCULATION: Years to Maturity
+    for a in adhoc_records:
+        if a.beneficiary and a.beneficiary.cessation_date and a.claim_form_date:
+            diff = relativedelta(a.beneficiary.cessation_date, a.claim_form_date)
+            total_m = round((diff.years * 12) + diff.months + (diff.days / 30.44))
+            a.maturity_display = f"{total_m // 12}Y {str(total_m % 12).zfill(2)}M"
+        else:
+            a.maturity_display = "---"
 
     context = {
         'adhoc_list': adhoc_records,
@@ -1461,10 +1470,13 @@ def get_claim_details(request, claim_id):
 
 @login_required
 def ad_hoc_list_view(request):
-    """
-    Main view for the Ad Hoc Registry handling Saves, Updates, 
-    and calculation storage with Agent Tracking.
-    """
+    """Main view for the Ad Hoc Registry with Dynamic Maturity Calculation"""
+    
+    def clean_numeric(val):
+        if not val or str(val).lower() == 'undefined' or str(val).strip() == '':
+            return 0
+        return str(val).replace('R', '').replace(',', '').replace('%', '').strip()
+
     if request.method == 'POST':
         action = request.POST.get('action')
         m_num = request.POST.get('membership_number')
@@ -1473,7 +1485,6 @@ def ad_hoc_list_view(request):
             member = get_object_or_404(PssubfBeneficiary, membership_number=m_num)
             uploaded_file = request.FILES.get('supporting_document')
             file_name = uploaded_file.name if uploaded_file else None
-
             timestamp = timezone.now().strftime('%Y-%m-%d %H:%M')
             agent_stamp = f"\n\n--- Managed by {request.user.username} on {timestamp} ---"
 
@@ -1490,8 +1501,6 @@ def ad_hoc_list_view(request):
                     portfolio_value=clean_numeric(request.POST.get('portfolio_value')),
                     portfolio_date=request.POST.get('portfolio_date') or None,
                     amount_requested=clean_numeric(request.POST.get('amount_requested')),
-                    years_to_maturity=request.POST.get('years_to_maturity') or 0,
-                    affordability_calculation=request.POST.get('affordability_calculation')
                 )
                 messages.success(request, f"New Ad Hoc claim for Member {m_num} successfully logged.")
 
@@ -1509,12 +1518,9 @@ def ad_hoc_list_view(request):
                 record.claim_form_date = request.POST.get('claim_form_date') or None
                 record.date_paid = request.POST.get('date_paid') or None
                 record.supporting_docs_attached = request.POST.get('supporting_docs_attached')
-                
                 record.portfolio_value = clean_numeric(request.POST.get('portfolio_value'))
                 record.portfolio_date = request.POST.get('portfolio_date') or None
                 record.amount_requested = clean_numeric(request.POST.get('amount_requested'))
-                record.years_to_maturity = request.POST.get('years_to_maturity') or 0
-                record.affordability_calculation = request.POST.get('affordability_calculation')
 
                 user_comments = request.POST.get('comments') or ""
                 if agent_stamp not in (record.comments or ""):
@@ -1535,6 +1541,15 @@ def ad_hoc_list_view(request):
 
     if membership_number:
         adhoc_records = adhoc_records.filter(beneficiary__membership_number=membership_number)
+
+    # 🟢 DYNAMIC DISPLAY CALCULATION: Years to Maturity
+    for a in adhoc_records:
+        if a.beneficiary and a.beneficiary.cessation_date and a.claim_form_date:
+            diff = relativedelta(a.beneficiary.cessation_date, a.claim_form_date)
+            total_m = round((diff.years * 12) + diff.months + (diff.days / 30.44))
+            a.maturity_display = f"{total_m // 12}Y {str(total_m % 12).zfill(2)}M"
+        else:
+            a.maturity_display = "---"
 
     context = {
         'adhoc_list': adhoc_records,
