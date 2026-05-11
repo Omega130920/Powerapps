@@ -1012,7 +1012,7 @@ def delegate_action_view(request, email_id):
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     
     # --- 🟢 CAPTURE SOURCE FOR CONDITIONAL BACK BUTTON ---
-    source = request.GET.get('from') # Capture ?from=member
+    source = request.GET.get('from') 
     
     action_history = CrmDelegateAction.objects.filter(task_email_id=email_id).order_by('-action_timestamp')
 
@@ -1028,7 +1028,7 @@ def delegate_action_view(request, email_id):
                     if raw_att and isinstance(raw_att, dict) and 'contentBytes' in raw_att:
                         att['contentBytes'] = raw_att['contentBytes']
     except Exception as e:
-        print(f"Error fetching CRM attachment data in delegate_action: {e}")
+        print(f"Error fetching CRM attachment data: {e}")
 
     if request.method == 'POST':
         action_type = request.POST.get('action_type')
@@ -1081,7 +1081,7 @@ def delegate_action_view(request, email_id):
                 )
                 messages.success(request, "Task metadata updated successfully.")
 
-            # --- 3. ADD INTERNAL NOTE (FIXED NAMES & TAGGING) ---
+            # --- 3. ADD INTERNAL NOTE ---
             elif action_type == 'add_note':
                 note_text = request.POST.get('internal_note')
                 comm_type = request.POST.get('communication_type') 
@@ -1107,13 +1107,10 @@ def delegate_action_view(request, email_id):
                 task.internal_notes = json.dumps(current_notes)
                 task.save()
                 
-                # 🚀 TAGGING: Prepend "Delegated:" so the report can identify the source
-                delegated_tag = f"Delegated: {comm_type}" if comm_type else "Delegated Note"
-
                 ClientNotes.objects.create(
                     related_member_group_code=task.member_group_code,
                     notes=note_text,
-                    communication_type=delegated_tag, 
+                    communication_type=f"Delegated: {comm_type}", 
                     action_notes=action_note_val, 
                     user=user_display,
                     date=timezone.now()
@@ -1133,7 +1130,6 @@ def delegate_action_view(request, email_id):
                 task.status = 'Completed'
                 task.save()
                 
-                # 🚀 ALSO MIRROR COMPLETION TO CLIENT NOTES (Tagged as Delegated)
                 ClientNotes.objects.create(
                     related_member_group_code=task.member_group_code,
                     notes=f"Task Completed: {final_note}",
@@ -1152,7 +1148,40 @@ def delegate_action_view(request, email_id):
                 messages.success(request, "Task marked as Completed.")
                 return redirect('tasks')
 
-        # Redirect back to the same view, preserving the 'from' parameter if it exists
+            # --- 5. 🚀 SEND RESPONSE (SLA REPORT ALIGNMENT) ---
+            elif action_type == 'send_response':
+                recipient = request.POST.get('recipient')
+                subject = request.POST.get('subject')
+                body_html = request.POST.get('email_html_content')
+                action_log_type = request.POST.get('action_log_type', 'General Feedback')
+
+                if recipient and subject and body_html:
+                    result = OutlookGraphService.send_outlook_email(recipient, subject, body_html)
+                    
+                    if result.get('success') or result == {}:
+                        # A. Log to ClientNotes (For Web view and detail tracking)
+                        ClientNotes.objects.create(
+                            related_member_group_code=task.member_group_code,
+                            notes=f"Email Sent (Delegated): {subject}",
+                            communication_type="Delegated: Sent Email (Reply)",
+                            action_notes=action_log_type, 
+                            user=user_display,
+                            date=timezone.now()
+                        )
+
+                        # B. Log to internal audit table (For the 'Reply Sent (Thread)' Excel row)
+                        CrmDelegateAction.objects.create(
+                            task_email_id=email_id,
+                            action_type='REPLY_SENT',
+                            action_user=user_display,
+                            note_content=action_log_type, # 🟢 dropdown value saved here
+                            related_subject=subject
+                        )
+                        
+                        messages.success(request, f"Reply Sent successfully.")
+                    else:
+                        messages.error(request, f"Email failed: {result.get('error')}")
+
         redirect_url = reverse('delegate_action', kwargs={'email_id': email_id})
         if source:
             redirect_url += f"?from={source}"
@@ -1767,9 +1796,6 @@ def final_sla_report_view(request):
 def export_sla_excel(delegate_q, notes_q, email_log_q):
     """
     MASTER SLA EXCEL EXPORT
-    Sheet 1: Master SLA Audit Trail (Chronological/Status grouped)
-    Sheet 2: Agent Performance Breakdown (Grouped by Agent)
-    UPDATED: Now only shows worked items (New/Pending section disabled).
     """
     wb = openpyxl.Workbook()
     
@@ -1791,12 +1817,6 @@ def export_sla_excel(delegate_q, notes_q, email_log_q):
     for cell in ws1[1]:
         cell.font, cell.fill, cell.alignment = header_font, header_fill, Alignment(horizontal="center")
 
-    # 1. NEW / UNDELEGATED (CrmInbox) - DISABLED: Report must only show worked items
-    # delegated_ids = CrmDelegateTo.objects.values_list('email_id', flat=True)
-    # new_emails = CrmInbox.objects.filter(received_timestamp__isnull=False).exclude(email_id__in=delegated_ids).order_by('-received_timestamp')
-    # for email in new_emails:
-    #    ws1.append(['New (Pending)', email.received_timestamp.replace(tzinfo=None), None, None, None, 'Unassigned Inbox', None, 'Incoming Email', getattr(email, 'Member_Group_Code', '---'), email.subject, email.sender])
-
     # 2. DELEGATED (CrmDelegateTo)
     for task in CrmDelegateTo.objects.filter(delegate_q):
         inbox_record = CrmInbox.objects.filter(email_id=task.email_id).first()
@@ -1807,30 +1827,16 @@ def export_sla_excel(delegate_q, notes_q, email_log_q):
             actioned_dt = comp.action_timestamp.replace(tzinfo=None) if comp else task.received_timestamp.replace(tzinfo=None)
         ws1.append([task.status, received_dt, actioned_dt, task.delegated_by, task.delegated_to, 'Inbox Delegation', CATEGORY_NAMES.get(str(task.category), task.category), task.type, getattr(task, 'member_group_code', '---'), task.subject, getattr(task, 'sender', '---')])
 
-    # 3. DIRECT & DELEGATED NOTES (UPDATED LOGIC)
+    # 3. DIRECT & DELEGATED NOTES
     for note in ClientNotes.objects.filter(notes_q):
-        # 🚀 LOGIC TO DIFFERENTIATE DIRECT VS DELEGATED
         display_label = "Direct Note"
         clean_comm_type = note.communication_type or "Note"
         
         if note.communication_type and "Delegated:" in note.communication_type:
             display_label = "Delegated Note"
-            # Remove the prefix for a cleaner category display in Excel
             clean_comm_type = note.communication_type.replace("Delegated: ", "")
 
-        ws1.append([
-            display_label, 
-            None, 
-            note.date.replace(tzinfo=None), 
-            None, 
-            note.user, 
-            clean_comm_type, 
-            None, 
-            note.action_notes, 
-            note.related_member_group_code, 
-            note.notes[:250], 
-            None
-        ])
+        ws1.append([display_label, None, note.date.replace(tzinfo=None), None, note.user, clean_comm_type, None, note.action_notes, note.related_member_group_code, note.notes[:250], None])
 
     # 4. DIRECT EMAILS
     for email in DirectEmailLog.objects.filter(email_log_q):
@@ -1839,7 +1845,20 @@ def export_sla_excel(delegate_q, notes_q, email_log_q):
     # 5. THREAD REPLIES
     for action in CrmDelegateAction.objects.filter(action_type='REPLY_SENT'):
         parent = CrmDelegateTo.objects.filter(email_id=action.task_email_id).first()
-        ws1.append(['Reply Sent (Thread)', None, action.action_timestamp.replace(tzinfo=None), None, action.action_user, 'Sent Email (Reply)', None, 'Thread Reply', getattr(parent, 'member_group_code', '---') if parent else '---', action.related_subject, getattr(parent, 'sender', '---') if parent else '---'])
+        # 🟢 FIXED: Changed hardcoded 'Thread Reply' to action.note_content
+        ws1.append([
+            'Reply Sent (Thread)', 
+            None, 
+            action.action_timestamp.replace(tzinfo=None), 
+            None, 
+            action.action_user, 
+            'Sent Email (Reply)', 
+            None, 
+            action.note_content, 
+            getattr(parent, 'member_group_code', '---') if parent else '---', 
+            action.related_subject, 
+            getattr(parent, 'sender', '---') if parent else '---'
+        ])
 
     # ==========================================================================
     # SHEET 2: AGENT SUMMARY (GROUPED BY AGENT)
@@ -1849,13 +1868,11 @@ def export_sla_excel(delegate_q, notes_q, email_log_q):
     for cell in ws2[1]:
         cell.font, cell.fill, cell.alignment = header_font, header_fill, Alignment(horizontal="center")
 
-    # Get unique agents who have done SOMETHING in the filtered period
     agents = set(CrmDelegateTo.objects.filter(delegate_q).values_list('delegated_to', flat=True)) | \
               set(ClientNotes.objects.filter(notes_q).values_list('user', flat=True)) | \
               set(DirectEmailLog.objects.filter(email_log_q).values_list('sent_by_user__username', flat=True))
 
     for agent in sorted(filter(None, agents)):
-        # --- Add a sub-header for the Agent ---
         agent_fill = PatternFill(start_color="D1D5DB", end_color="D1D5DB", fill_type="solid")
         row_num = ws2.max_row + 1
         ws2.append([f"AGENT: {agent.upper()}"])
@@ -1863,31 +1880,26 @@ def export_sla_excel(delegate_q, notes_q, email_log_q):
         ws2.cell(row=row_num, column=1).font = Font(bold=True)
         ws2.cell(row=row_num, column=1).fill = agent_fill
 
-        # 1. Agent's Delegated Tasks
         for t in CrmDelegateTo.objects.filter(delegate_q, delegated_to=agent):
             ws2.append([t.status, None, None, t.delegated_by, t.delegated_to, 'Inbox Delegation', t.category, t.type, t.member_group_code, t.subject, '---'])
         
-        # 2. Agent's Notes (UPDATED LOGIC FOR AGENT SHEET)
         for n in ClientNotes.objects.filter(notes_q, user=agent):
             display_label = "Direct Note"
             clean_type = n.communication_type or "Note"
             if n.communication_type and "Delegated:" in n.communication_type:
                 display_label = "Delegated Note"
                 clean_type = n.communication_type.replace("Delegated: ", "")
-                
             ws2.append([display_label, None, n.date.replace(tzinfo=None), None, n.user, clean_type, None, n.action_notes, n.related_member_group_code, n.notes[:100], None])
         
-        # 3. Agent's Direct Emails
         for e in DirectEmailLog.objects.filter(email_log_q, sent_by_user__username=agent):
             ws2.append(['Direct Email', None, e.sent_at.replace(tzinfo=None), None, agent, 'Direct Email', '', e.action_type, e.member_group_code, e.subject, e.recipient_email])
 
-        # 4. Agent's Replies
         for r in CrmDelegateAction.objects.filter(action_type='REPLY_SENT', action_user=agent):
-            ws2.append(['Reply Sent (Thread)', None, r.action_timestamp.replace(tzinfo=None), None, agent, 'Sent Email (Reply)', None, 'Thread Reply', '---', r.related_subject, '---'])
+            # 🟢 FIXED: Changed hardcoded 'Thread Reply' to r.note_content
+            ws2.append(['Reply Sent (Thread)', None, r.action_timestamp.replace(tzinfo=None), None, agent, 'Sent Email (Reply)', None, r.note_content, '---', r.related_subject, '---'])
 
-        ws2.append([]) # Blank spacer row between agents
+        ws2.append([]) 
 
-    # --- Formatting Both Sheets ---
     for sheet in [ws1, ws2]:
         for col in sheet.columns:
             sheet.column_dimensions[col[0].column_letter].width = 25

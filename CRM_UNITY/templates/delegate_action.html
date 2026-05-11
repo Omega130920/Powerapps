@@ -384,19 +384,19 @@
                     <i class="fas fa-chevron-down toggle-icon"></i>
                 </button>
                 <div class="collapse-content" id="collapseEmail">
-                    <form method="POST" action="{% url 'send_task_email' email_id=task.email_id %}" id="email_response_form" enctype="multipart/form-data">
+                    <form method="POST" action="{% url 'delegate_action' email_id=task.email_id %}" id="email_response_form">
                         {% csrf_token %}
-                        <input type="hidden" name="action_type" value="send_email">
-                        <input type="hidden" name="email_body_reply" id="email_body_reply_hidden">
+                        <input type="hidden" name="action_type" value="send_response">
+                        <input type="hidden" name="email_html_content" id="email_body_reply_hidden">
                         
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
                             <div>
                                 <label class="form-label">Recipient:</label>
-                                <input type="email" name="recipient_email" value="{{ task.sender_email|default:task.sender }}" class="form-control" required>
+                                <input type="email" name="recipient" value="{{ task.sender_email|default:task.sender }}" class="form-control" required>
                             </div>
                             <div>
                                 <label class="form-label">Action Log Type:</label>
-                                <select name="action_notes_email" class="form-control">
+                                <select name="action_log_type" class="form-control" required>
                                     <option value="">Select Action Note</option>
                                     <option value="Feedback to Sanlam">Feedback to Sanlam</option>
                                     <option value="Feedback to Employer">Feedback to Employer</option>
@@ -416,7 +416,7 @@
 
                         <div>
                             <label class="form-label">Subject:</label>
-                            <input type="text" id="email_subject_reply" name="email_subject_reply" 
+                            <input type="text" id="email_subject_reply" name="subject" 
                                    value="RE: {{ task.subject|slice:'0:40' }}..." class="form-control" required>
                             <small style="color: #777; font-size: 11px;">
                                 **Reference:** <span id="display_unique_ref">{{ task.member_group_code|default:"NO_REF" }}</span>
