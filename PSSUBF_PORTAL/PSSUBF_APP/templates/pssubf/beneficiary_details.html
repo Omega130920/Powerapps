@@ -113,9 +113,10 @@
             font-weight: 500; outline: none; transition: all 0.2s;
         }
 
-        .fund-edit-mode .glass-input.fund-editable {
-            background: rgba(255, 255, 255, 0.4);
-            border: 1px solid var(--glass-border);
+        /* 🚀 Highlighting for the active editing state 🚀 */
+        .fund-edit-mode .fund-editable {
+            background: rgba(255, 255, 255, 0.4) !important;
+            border: 1px solid var(--glass-border) !important;
             font-weight: 600;
         }
 
@@ -158,7 +159,6 @@
         </div>
     </div>
 
-    <!-- CLAIM MODAL -->
     <div id="claimModal" class="modal">
         <div class="modal-content">
             <div class="p-5 border-b flex justify-between items-center bg-white">
@@ -173,15 +173,12 @@
                 <input type="hidden" name="action" value="add_claim_entry">
                 <input type="hidden" name="next" value="{{ request.path }}">
                 <input type="hidden" name="membership_number" value="{{ member.membership_number }}">
-
                 <input type="hidden" id="claim_calc_stipend" value="{{ member.stipened }}">
                 <input type="hidden" id="claim_calc_cessation" value="{{ member.cessation_date|date:'Y-m-d' }}">
-
                 <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Member Number</label><input type="text" value="{{ member.membership_number }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md"></div>
                 <div><label class="block text-xs font-bold text-gray-400 uppercase mb-1">Guardian Details</label><input type="text" value="{{ member.guardian_first_name }} {{ member.guardian_last_name }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md italic"></div>
                 <div><label class="block text-xs font-bold text-gray-400 uppercase mb-1">Beneficiary Details</label><input type="text" value="{{ member.first_name }} {{ member.last_name }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md italic"></div>
                 <div><label class="block text-xs font-bold text-gray-400 uppercase mb-1">Beneficiary DOB</label><input type="text" id="claim_pop_dob" value="{{ member.dob|date:'Y-m-d' }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md"></div>
-                
                 <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Claim Type</label>
                     <select name="claim_type" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input">
                         <option>Monthly Income</option>
@@ -191,27 +188,19 @@
                 </div>
                 <div><label class="block text-xs font-bold text-gray-400 uppercase mb-1">Age at Claim Date</label><input type="text" id="pop_claim_age" name="age_at_claim" readonly class="w-full p-2.5 border bg-green-50 font-bold text-green-800 rounded-md"></div>
                 <div><label class="block text-xs font-bold text-gray-400 uppercase mb-1">Termination Date</label><input type="text" value="{{ member.cessation_date|date:'Y-m-d' }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md"></div>
-                
                 <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Monthly Stipend</label><input type="text" value="R {{ member.stipened }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md"></div>
-                
                 <div><label class="block text-xs font-bold text-green-700 uppercase mb-1">* Original Claim Form Date</label><input type="date" name="date_logged" id="claim_form_date_field" onchange="calculateClaimFullValues(this.value)" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input"></div>
                 <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Portfolio Value</label><input type="number" step="0.01" name="portfolio_value" id="claim_portfolio" value="{{ member.total_fund_value }}" readonly class="w-full p-2.5 border rounded-md highlight-field"></div>
                 <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Portfolio Value Date</label><input type="date" name="portfolio_date" value="{{ member.portfolio_date|date:'Y-m-d' }}" required class="w-full p-2.5 border rounded-md clean-input"></div>
                 <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Amount Requested</label><input type="number" step="0.01" name="amount_requested" id="claim_req" onchange="calcClaimAffordabilityFull()" required class="w-full p-2.5 border rounded-md clean-input"></div>
-                
-                <div class="md:col-span-2">
-                    <label class="block text-xs font-bold text-emerald-700 uppercase mb-1">Affordability Result (P - (Months * S + R))</label>
-                    <input type="text" name="affordability_calculation" id="claim_pop_afford" readonly class="w-full p-2.5 border highlight-field rounded-md" placeholder="Awaiting data...">
-                </div>
-
-                <div class="md:col-span-4 mt-2"><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Claim Notes (Agent Tracking)</label><textarea name="description" class="w-full p-4 border rounded-md h-32 clean-input resize-none" placeholder="Enter notes..."></textarea></div>
-                <div class="md:col-span-4 mt-2"><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Supporting Documentation (Files)</label><div class="relative border-2 border-dashed border-gray-300 bg-white rounded-xl p-8 flex flex-col items-center justify-center hover:border-green-500 transition-all group cursor-pointer"><input type="file" name="supporting_document" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"><div class="flex items-center gap-3"><i class="fas fa-cloud-upload-alt text-3xl text-gray-400 group-hover:text-green-600 transition-colors"></i><div class="text-center"><span class="text-sm font-semibold text-gray-600 group-hover:text-green-700">Click to upload or drag and drop</span><p class="text-xs text-gray-400">PDF, PNG, JPG (Max 10MB)</p></div></div></div></div>
+                <div class="md:col-span-2"><label class="block text-xs font-bold text-emerald-700 uppercase mb-1">Affordability Result (P - (Months * S + R))</label><input type="text" name="affordability_calculation" id="claim_pop_afford" readonly class="w-full p-2.5 border highlight-field rounded-md" placeholder="Awaiting data..."></div>
+                <div class="md:col-span-4 mt-2"><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Claim Notes</label><textarea name="description" class="w-full p-4 border rounded-md h-32 clean-input resize-none" placeholder="Enter notes..."></textarea></div>
+                <div class="md:col-span-4 mt-2"><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Supporting Documentation</label><div class="relative border-2 border-dashed border-gray-300 bg-white rounded-xl p-8 flex flex-col items-center justify-center hover:border-green-500 transition-all group cursor-pointer"><input type="file" name="supporting_document" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"><div class="flex items-center gap-3"><i class="fas fa-cloud-upload-alt text-3xl text-gray-400 group-hover:text-green-600 transition-colors"></i><div class="text-center"><span class="text-sm font-semibold text-gray-600 group-hover:text-green-700">Click to upload or drag and drop</span><p class="text-xs text-gray-400">PDF, PNG, JPG (Max 10MB)</p></div></div></div></div>
                 <div class="md:col-span-4 flex justify-end gap-3 pt-6 border-t mt-4"><button type="button" onclick="closeModal('claimModal')" class="px-8 py-2.5 bg-gray-400 text-white font-bold rounded-lg hover:bg-gray-500 transition">Cancel</button><button type="submit" class="px-8 py-2.5 bg-green-700 text-white font-bold rounded-lg hover:bg-green-800 shadow-lg transition">Save Claim Data</button></div>
             </form>
         </div>
     </div>
 
-    <!-- AD HOC MODAL -->
     <div id="adhocModal" class="modal">
         <div class="modal-content">
             <div class="p-5 border-b bg-white flex flex-col items-center relative">
@@ -224,40 +213,21 @@
                 <input type="hidden" name="action" value="add_adhoc_entry">
                 <input type="hidden" name="next" value="{{ request.path }}">
                 <input type="hidden" name="membership_number" value="{{ member.membership_number }}">
-                
                 <input type="hidden" id="calc_stipend" value="{{ member.stipened }}">
                 <input type="hidden" id="calc_cessation" value="{{ member.cessation_date|date:'Y-m-d' }}">
-
                 <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Member Number</label><input type="text" value="{{ member.membership_number }}" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
-                <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Beneficiary Name & Surname</label><input type="text" value="{{ member.first_name }} {{ member.last_name }}" readonly class="w-full p-2 border highlight-field rounded text-sm italic"></div>
+                <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Beneficiary Name</label><input type="text" value="{{ member.first_name }} {{ member.last_name }}" readonly class="w-full p-2 border highlight-field rounded text-sm italic"></div>
                 <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Beneficiary DOB</label><input type="text" id="adhoc_pop_dob" value="{{ member.dob|date:'Y-m-d' }}" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
-                
-                <div><label class="block text-xs font-bold text-green-700 uppercase mb-1">* Original Claim Form Date</label><input type="date" name="claim_form_date" id="claim_form_date" onchange="calculateAdHocFullValues(this.value)" required class="w-full p-2 border-2 border-green-600 rounded text-sm clean-input"></div>
-                <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Age at Claim Date</label><input type="text" id="pop_adhoc_age" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
-                
+                <div><label class="block text-xs font-bold text-green-700 uppercase mb-1">* Claim Form Date</label><input type="date" name="claim_form_date" id="claim_form_date" onchange="calculateAdHocFullValues(this.value)" required class="w-full p-2 border-2 border-green-600 rounded text-sm clean-input"></div>
+                <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Age at Claim</label><input type="text" id="pop_adhoc_age" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
                 <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Monthly Stipend</label><input type="text" value="R {{ member.stipened }}" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
-                
-                <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Reason</label>
-                    <select name="title" required class="w-full p-2 border-r-8 border-green-600 rounded text-sm clean-input">
-                        <option value="School Fees">School Fees</option>
-                        <option value="School Clothing">School Clothing</option>
-                        <option value="Essentials">Essentials</option>
-                        <option value="Medical Expenses">Medical Expenses</option>
-                        <option value="Educational Expenses (other)">Educational Expenses (other)</option>
-                    </select>
-                </div>
-
-                <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Years to Maturity</label><input type="text" id="pop_maturity" name="years_to_maturity" readonly class="w-full p-2 border bg-green-50 rounded text-sm font-bold text-green-700"></div>
+                <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Reason</label><select name="title" required class="w-full p-2 border-r-8 border-green-600 rounded text-sm clean-input"><option value="School Fees">School Fees</option><option value="School Clothing">School Clothing</option><option value="Essentials">Essentials</option><option value="Medical Expenses">Medical Expenses</option><option value="Educational Expenses (other)">Educational Expenses (other)</option></select></div>
+                <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Years to Maturity</label><input type="text" id="pop_maturity_display" readonly class="w-full p-2 border bg-green-50 rounded text-sm font-bold text-green-700" placeholder="0Y 00M"><input type="hidden" id="pop_maturity" name="years_to_maturity"></div>
                 <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Portfolio Value</label><input type="number" step="0.01" name="portfolio_value" id="adhoc_portfolio" value="{{ member.total_fund_value }}" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
                 <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Amount Requested</label><input type="number" step="0.01" name="amount_requested" id="adhoc_req" onchange="calcAffordabilityFull()" class="w-full p-2 border rounded text-sm clean-input"></div>
-                
-                <div class="md:col-span-2">
-                    <label class="block text-xs font-bold text-emerald-700 uppercase mb-1">Affordability Result (P - (Months * S + R))</label>
-                    <input type="text" name="affordability_calculation" id="pop_afford" readonly class="w-full p-2 border highlight-field rounded text-sm" placeholder="Awaiting data...">
-                </div>
-
+                <div class="md:col-span-2"><label class="block text-xs font-bold text-emerald-700 uppercase mb-1">Affordability Result</label><input type="text" name="affordability_calculation" id="pop_afford" readonly class="w-full p-2 border highlight-field rounded text-sm" placeholder="Awaiting data..."></div>
                 <div class="md:col-span-4 mt-2"><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Ad Hoc Comments</label><textarea name="comments" class="w-full p-4 border rounded-md h-32 clean-input resize-none" placeholder="Enter comments..."></textarea></div>
-                <div class="md:col-span-4 mt-2"><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Supporting Documentation (Files)</label><div class="relative border-2 border-dashed border-gray-300 bg-white rounded-xl p-8 flex flex-col items-center justify-center hover:border-green-500 transition-all group cursor-pointer"><input type="file" name="supporting_document" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"><div class="flex items-center gap-3"><i class="fas fa-paperclip text-3xl text-gray-400 group-hover:text-green-600 transition-colors"></i><span class="text-sm font-semibold text-gray-600 group-hover:text-green-700">Attach Supporting File</span></div></div></div>
+                <div class="md:col-span-4 mt-2"><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Supporting Documentation</label><div class="relative border-2 border-dashed border-gray-300 bg-white rounded-xl p-8 flex flex-col items-center justify-center hover:border-green-500 transition-all group cursor-pointer"><input type="file" name="supporting_document" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"><div class="flex items-center gap-3"><i class="fas fa-paperclip text-3xl text-gray-400 group-hover:text-green-600 transition-colors"></i><span class="text-sm font-semibold text-gray-600 group-hover:text-green-700">Attach Supporting File</span></div></div></div>
                 <div class="md:col-span-4 flex justify-end gap-3 pt-4 border-t mt-4"><button type="button" onclick="closeModal('adhocModal')" class="px-8 py-2.5 bg-gray-400 text-white font-bold rounded-lg hover:bg-gray-500 transition">Cancel</button><button type="submit" class="px-8 py-2.5 bg-green-700 text-white font-bold rounded-lg hover:bg-green-800 shadow-lg transition">Save Entry</button></div>
             </form>
         </div>
@@ -287,15 +257,15 @@
                     <li data-tab-target="#notes">Notes <i class="fas fa-sticky-note ml-2"></i></li>
                 </ul>
 
-                <div class="tab-content">
+                <div class="tab-content" id="tabContentArea">
                     <div id="personal" class="tab-pane active">
+                        <h3 class="text-emerald-900 font-bold uppercase text-sm mb-4">Personal Information</h3>
                         <table class="w-full">
                             <tr><th>Membership Number</th><td><input type="text" value="{{ member.membership_number }}" class="glass-input opacity-60" readonly></td></tr>
                             <tr><th>Old Membership No.</th><td><input type="text" value="{{ member.old_membership_number|default:'' }}" class="glass-input" readonly></td></tr>
                             <tr><th>Title</th><td><input type="text" value="{{ member.title }}" class="glass-input" readonly></td></tr>
                             <tr><th>Initials</th><td><input type="text" value="{{ member.initials }}" class="glass-input" readonly></td></tr>
                             <tr><th>First Name</th><td><input type="text" value="{{ member.first_name }}" class="glass-input" readonly></td></tr>
-                            <tr><th>Second Name</th><td><input type="text" value="{{ member.second_name|default:'' }}" class="glass-input" readonly></td></tr>
                             <tr><th>Last Name</th><td><input type="text" value="{{ member.last_name }}" class="glass-input" readonly></td></tr>
                             <tr><th>ID / Passport</th><td><input type="text" value="{{ member.id_number }}" class="glass-input" readonly></td></tr>
                             <tr><th>Date of Birth</th><td><input type="text" value="{{ member.dob|date:'Y-m-d' }}" class="glass-input" readonly></td></tr>
@@ -306,23 +276,33 @@
                         <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}" id="fundForm">
                             {% csrf_token %}
                             <input type="hidden" name="action" value="update_profile">
+                            
                             <div class="flex justify-between items-center mb-4">
                                 <h3 class="text-emerald-900 font-bold uppercase text-sm">Financial Data</h3>
                                 <div id="fundViewControls">
-                                    <button type="button" onclick="toggleFundEdit(true)" class="text-xs bg-emerald-700 text-white px-3 py-1.5 rounded-lg font-bold"><i class="fas fa-edit mr-1"></i> Edit Fund Details</button>
+                                    <button type="button" onclick="toggleFundEdit(true)" class="text-xs bg-emerald-700 text-white px-3 py-1.5 rounded-lg font-bold">
+                                        <i class="fas fa-edit mr-1"></i> Edit Fund Details
+                                    </button>
                                 </div>
                                 <div id="fundEditControls" style="display: none;" class="flex gap-2">
                                     <button type="button" onclick="toggleFundEdit(false)" class="text-xs bg-red-500 text-white px-3 py-1.5 rounded-lg font-bold">Cancel</button>
                                     <button type="submit" class="text-xs bg-emerald-900 text-white px-3 py-1.5 rounded-lg font-bold">Save Fund Changes</button>
                                 </div>
                             </div>
+
                             <table class="w-full">
                                 <tr><th>Employee Number</th><td><input type="text" name="employee_number" value="{{ member.employee_number|default:'' }}" class="glass-input fund-editable" readonly></td></tr>
                                 <tr><th>Fund Join Date</th><td><input type="date" name="fund_join_date" value="{{ member.fund_join_date|date:'Y-m-d' }}" class="glass-input fund-editable" readonly></td></tr>
                                 <tr><th>Stipend Frequency</th><td><input type="text" name="stipened_frequency" value="{{ member.stipened_frequency }}" class="glass-input fund-editable" readonly></td></tr>
                                 <tr><th>Stipend (R)</th><td><input type="text" name="stipened" value="{{ member.stipened }}" class="glass-input fund-editable" readonly></td></tr>
-                                <tr class="border-t border-white border-opacity-10"><th class="text-emerald-800">Total Fund Value (R)</th><td><input type="number" step="0.01" name="total_fund_value" value="{{ member.total_fund_value }}" class="glass-input fund-editable font-bold" readonly></td></tr>
-                                <tr><th class="text-emerald-800">Date of Value (Portfolio Date)</th><td><input type="date" name="portfolio_date" value="{{ member.portfolio_date|date:'Y-m-d' }}" class="glass-input fund-editable" readonly></td></tr>
+                                <tr class="border-t border-white border-opacity-10">
+                                    <th class="text-emerald-800">Total Fund Value (R)</th>
+                                    <td><input type="text" name="total_fund_value" value="{{ member.total_fund_value }}" class="glass-input fund-editable font-bold" readonly></td>
+                                </tr>
+                                <tr>
+                                    <th class="text-emerald-800">Date of Value (Portfolio Date)</th>
+                                    <td><input type="date" name="portfolio_date" value="{{ member.portfolio_date|date:'Y-m-d' }}" class="glass-input fund-editable" readonly></td>
+                                </tr>
                                 <tr><th>Cessation Date</th><td><input type="text" value="{{ member.cessation_date|date:'d F Y' }}" class="glass-input opacity-60" readonly></td></tr>
                             </table>
                         </form>
@@ -343,6 +323,7 @@
                     </div>
 
                     <div id="contact" class="tab-pane">
+                        <h3 class="text-emerald-900 font-bold uppercase text-sm mb-4">Contact Channels</h3>
                         <table class="w-full">
                             <tr><th>Mobile 1</th><td><input type="text" value="{{ member.mobile_1 }}" class="glass-input" readonly></td></tr>
                             <tr><th>Email 1</th><td><input type="email" value="{{ member.email_1 }}" class="glass-input" readonly></td></tr>
@@ -352,6 +333,7 @@
                     </div>
 
                     <div id="guardian" class="tab-pane">
+                        <h3 class="text-emerald-900 font-bold uppercase text-sm mb-4">Guardian Info</h3>
                         <table class="w-full">
                             <tr><th>Guardian Title</th><td><input type="text" value="{{ member.guardian_title }}" class="glass-input" readonly></td></tr>
                             <tr><th>First Name</th><td><input type="text" value="{{ member.guardian_first_name }}" class="glass-input" readonly></td></tr>
@@ -364,78 +346,27 @@
 
                     <div id="audit" class="tab-pane">
                         <table class="w-full"><thead><tr class="text-left border-b border-white border-opacity-10"><th class="py-2">User</th><th>Action</th><th>Timestamp</th></tr></thead>
-                            <tbody>{% for action in pssubf_actions %}<tr><td>{{ action.action_user }}</td><td>{{ action.action_type }}</td><td>{{ action.action_timestamp|date:"Y-m-d H:i" }}</td></tr>{% empty %}<tr><td colspan="3" class="text-center py-4 opacity-50">No action history recorded.</td></tr>{% endfor %}</tbody>
+                            <tbody>{% for action in pssubf_actions %}<tr><td>{{ action.action_user }}</td><td>{{ action.action_type }}</td><td>{{ action.action_timestamp|date:"Y-m-d H:i" }}</td></tr>{% empty %}<tr><td colspan="3" class="text-center py-4 opacity-50">No activity.</td></tr>{% endfor %}</tbody>
                         </table>
                     </div>
 
                     <div id="email-log" class="tab-pane">
-                        <table class="w-full">
-                            <thead>
-                                <tr class="text-left border-b border-white border-opacity-10">
-                                    <th class="py-2">Dir</th><th>Agent</th><th>Subject</th><th>Date</th><th>Status</th><th class="text-right">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for email in email_logs %}
-                                <tr class="hover:bg-white hover:bg-opacity-5 transition">
-                                    <td>{% if email.type == 'INCOMING' %}<span class="badge-in">📩 Delegated</span>{% else %}<span class="badge-out">📤 Direct Email</span>{% endif %}</td>
-                                    <td>{{ email.agent }}</td>
-                                    <td class="text-sm"><span title="{{ email.subject }}">{{ email.subject|truncatechars:50 }}</span></td>
-                                    <td class="text-xs">{{ email.date|date:"d M Y H:i" }}</td>
-                                    <td><span class="text-xs opacity-75 font-bold uppercase">{{ email.status }}</span></td>
-                                    <td class="text-right space-x-3">
-                                        {% if email.email_id %}
-                                            <a href="{% url 'pssubf_thread' email.email_id %}" class="text-emerald-800 hover:text-emerald-600" title="View Thread"><i class="fas fa-stream"></i></a>
-                                            <a href="{% url 'download_email_eml' email.email_id %}" class="text-blue-700 hover:text-blue-500" title="Download .eml"><i class="fas fa-file-download"></i></a>
-                                        {% endif %}
-                                    </td>
-                                </tr>
-                                {% empty %}
-                                <tr><td colspan="6" class="text-center py-10 opacity-50 italic">No communication history found.</td></tr>
-                                {% endfor %}
-                            </tbody>
+                        <table class="w-full"><thead><tr class="text-left border-b border-white border-opacity-10"><th class="py-2">Dir</th><th>Agent</th><th>Subject</th><th>Date</th><th class="text-right">Actions</th></tr></thead>
+                            <tbody>{% for email in email_logs %}<tr class="hover:bg-white hover:bg-opacity-5 transition"><td>{% if email.type == 'INCOMING' %}<span class="badge-in">📩 Delegated</span>{% else %}<span class="badge-out">📤 Direct</span>{% endif %}</td><td>{{ email.agent }}</td><td class="text-sm"><span>{{ email.subject|truncatechars:50 }}</span></td><td class="text-xs">{{ email.date|date:"d M Y H:i" }}</td><td class="text-right"><a href="{% url 'pssubf_thread' email.email_id %}" class="text-emerald-800"><i class="fas fa-stream"></i></a></td></tr>{% empty %}<tr><td colspan="5" class="text-center py-10 opacity-50 italic">No logs.</td></tr>{% endfor %}</tbody>
                         </table>
                     </div>
 
                     <div id="direct-email" class="tab-pane">
                         <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}">
-                            {% csrf_token %}
-                            <div class="space-y-4">
-                                <input type="hidden" name="action" value="send_direct_email">
-                                <input type="hidden" name="email_html_content" id="email_html_content">
-                                <div><label class="text-xs font-bold uppercase opacity-60">To:</label><input type="email" name="to_email" value="{{ member.email_1 }}" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10"></div>
-                                <div><label class="text-xs font-bold uppercase opacity-60">Subject:</label><input type="text" name="subject" value="Regarding PSSUBF Membership: {{ member.membership_number }}" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10"></div>
-                                <div id="editor" class="rich-text-editor" contenteditable="true"><p>Dear {{ member.first_name }},</p><p><br></p><p>Kind regards,</p><p>{{ request.user.username }}</p></div>
-                                <div class="text-right"><button type="submit" onclick="document.getElementById('email_html_content').value = document.getElementById('editor').innerHTML" class="action-btn bg-emerald-800 text-white shadow-lg">Send & Log Email</button></div>
-                            </div>
+                            {% csrf_token %}<div class="space-y-4"><input type="hidden" name="action" value="send_direct_email"><input type="hidden" name="email_html_content" id="email_html_content"><div><label class="text-xs font-bold uppercase opacity-60">To:</label><input type="email" name="to_email" value="{{ member.email_1 }}" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10"></div><div><label class="text-xs font-bold uppercase opacity-60">Subject:</label><input type="text" name="subject" value="Regarding PSSUBF Membership: {{ member.membership_number }}" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10"></div><div id="editor" class="rich-text-editor" contenteditable="true"><p>Dear {{ member.first_name }},</p><p><br></p><p>Kind regards,</p></div><div class="text-right"><button type="submit" onclick="document.getElementById('email_html_content').value = document.getElementById('editor').innerHTML" class="action-btn bg-emerald-800 text-white">Send & Log</button></div></div>
                         </form>
                     </div>
 
                     <div id="notes" class="tab-pane">
                         <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}">
-                            {% csrf_token %}
-                            <div class="mb-6 p-4 border border-white border-opacity-10 rounded-xl bg-white bg-opacity-10">
-                                <textarea name="note_text" placeholder="Add an internal note..." class="w-full bg-transparent outline-none h-20 text-sm" required></textarea>
-                                <div class="flex justify-end mt-2">
-                                    <button type="submit" name="save_note" onclick="showNoteLoading(this)" class="text-xs font-bold uppercase text-emerald-900 hover:underline flex items-center">
-                                        <span id="noteSpinner" class="spinner" style="display:none;"></span>Save Profile Note
-                                    </button>
-                                </div>
-                            </div>
+                            {% csrf_token %}<div class="mb-6 p-4 border border-white border-opacity-10 rounded-xl bg-white bg-opacity-10"><textarea name="note_text" placeholder="Add an internal note..." class="w-full bg-transparent h-20 text-sm" required></textarea><div class="flex justify-end mt-2"><button type="submit" name="save_note" class="text-xs font-bold uppercase text-emerald-900">Save Profile Note</button></div></div>
                         </form>
-                        <div class="space-y-4">
-                            {% for note in internal_notes %}
-                            <div class="p-4 border-b border-white border-opacity-10">
-                                <div class="flex justify-between items-center mb-1">
-                                    <span class="font-bold text-emerald-900 text-sm">{{ note.agent_name }}</span>
-                                    <span class="text-[10px] opacity-60">{{ note.created_at|date:"d M Y H:i" }}</span>
-                                </div>
-                                <p class="text-sm opacity-90">{{ note.note_text }}</p>
-                            </div>
-                            {% empty %}
-                            <p class="text-center py-10 opacity-50 italic">No notes recorded for this beneficiary.</p>
-                            {% endfor %}
-                        </div>
+                        <div class="space-y-4">{% for note in internal_notes %}<div class="p-4 border-b border-white border-opacity-10"><div class="flex justify-between items-center mb-1"><span class="font-bold text-emerald-900 text-sm">{{ note.agent_name }}</span><span class="text-[10px] opacity-60">{{ note.created_at|date:"d M Y H:i" }}</span></div><p class="text-sm opacity-90">{{ note.note_text }}</p></div>{% empty %}<p class="text-center py-10 opacity-50 italic">No notes.</p>{% endfor %}</div>
                     </div>
                 </div>
             </div>
@@ -453,6 +384,7 @@
             });
         });
 
+        // 🚀 TOGGLE EDIT STRICTLY FOR FUND FORM 🚀
         function toggleFundEdit(active) {
             const container = document.getElementById('profileBody');
             const inputs = document.querySelectorAll('.fund-editable');
@@ -473,20 +405,10 @@
             }
         }
 
-        function showNoteLoading(btn) {
-            const spinner = document.getElementById('noteSpinner');
-            if (spinner) spinner.style.display = 'inline-block';
-            btn.style.opacity = '0.7'; btn.style.pointerEvents = 'none';
-        }
-
         function openModal(id) { 
             document.getElementById(id).style.display = 'block'; 
-            if(id === 'adhocModal') {
-                calculateAdHocFullValues(document.getElementById('claim_form_date').value);
-            }
-            if(id === 'claimModal') {
-                calculateClaimFullValues(document.getElementById('claim_form_date_field').value);
-            }
+            if(id === 'adhocModal') calculateAdHocFullValues(document.getElementById('claim_form_date').value);
+            if(id === 'claimModal') calculateClaimFullValues(document.getElementById('claim_form_date_field').value);
         }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
@@ -495,8 +417,6 @@
             if(!dobStr || !claimDateVal) return;
             const birth = new Date(dobStr); 
             const claim = new Date(claimDateVal);
-            
-            // Precise float age calculation (e.g., 11.8)
             const diffTime = Math.abs(claim - birth);
             const diffYears = diffTime / (1000 * 60 * 60 * 24 * 365.25);
             document.getElementById(targetId).value = diffYears.toFixed(1);
@@ -504,18 +424,20 @@
 
         function calculateAdHocFullValues(claimDate) {
             calculatePopupAge('adhoc_pop_dob', claimDate, 'pop_adhoc_age');
-            
-            // NEW: Precise Years to Maturity Calculation
             const termDateStr = document.getElementById('calc_cessation').value;
             if(termDateStr && claimDate) {
                 const term = new Date(termDateStr); 
                 const claim = new Date(claimDate);
-                
-                // Calculate difference in days and divide by 365.25 for decimal precision
                 const diffTime = term - claim;
                 const diffYears = diffTime / (1000 * 60 * 60 * 24 * 365.25);
                 
-                // Update input with decimal value (e.g. 6.2)
+                const totalMonths = Math.round(diffYears * 12);
+                const displayY = Math.floor(totalMonths / 12);
+                const displayM = totalMonths % 12;
+                
+                document.getElementById('pop_maturity_display').value = diffYears > 0 ? 
+                    `${displayY}Y ${displayM.toString().padStart(2, '0')}M` : "0Y 00M";
+                
                 document.getElementById('pop_maturity').value = diffYears > 0 ? diffYears.toFixed(1) : "0.0";
             }
             calcAffordabilityFull();
@@ -525,25 +447,9 @@
             const portfolio = parseFloat(document.getElementById('adhoc_portfolio').value) || 0;
             const requested = parseFloat(document.getElementById('adhoc_req').value) || 0;
             const stipend = parseFloat(document.getElementById('calc_stipend').value) || 0;
-            const cessationStr = document.getElementById('calc_cessation').value;
+            const maturity = parseFloat(document.getElementById('pop_maturity').value) || 0;
             const target = document.getElementById('pop_afford');
-
-            if (!cessationStr) {
-                target.value = "Awaiting data...";
-                return;
-            }
-
-            const now = new Date();
-            const cessationDate = new Date(cessationStr);
-            
-            let monthsRemaining = (cessationDate.getFullYear() - now.getFullYear()) * 12;
-            monthsRemaining += cessationDate.getMonth() - now.getMonth();
-            if (now.getDate() < cessationDate.getDate()) monthsRemaining--;
-            if (monthsRemaining < 0) monthsRemaining = 0;
-
-            const totalLiability = (stipend * monthsRemaining);
-            const result = portfolio - (totalLiability + requested);
-            
+            const result = portfolio - ((stipend * maturity * 12) + requested);
             const label = result >= 0 ? "(Surplus)" : "(Deficit)";
             target.value = 'R ' + result.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ' + label;
             target.style.color = (result >= 0) ? '#059669' : '#dc2626';
@@ -558,28 +464,21 @@
             const portfolio = parseFloat(document.getElementById('claim_portfolio').value) || 0;
             const requested = parseFloat(document.getElementById('claim_req').value) || 0;
             const stipend = parseFloat(document.getElementById('claim_calc_stipend').value) || 0;
-            const cessationStr = document.getElementById('claim_calc_cessation').value;
+            const dobStr = document.getElementById('claim_pop_dob').value;
+            const claimDateStr = document.getElementById('claim_form_date_field').value;
             const target = document.getElementById('claim_pop_afford');
 
-            if (!cessationStr) {
-                target.value = "Awaiting data...";
-                return;
+            if (dobStr && claimDateStr) {
+                const claimDate = new Date(claimDateStr);
+                const dob = new Date(dobStr);
+                const cessationDate = new Date(dob.setFullYear(dob.getFullYear() + 18));
+                const diffTime = cessationDate - claimDate;
+                const maturity = diffTime / (1000 * 60 * 60 * 24 * 365.25);
+                const result = portfolio - ((stipend * maturity * 12) + requested);
+                const label = result >= 0 ? "(Surplus)" : "(Deficit)";
+                target.value = 'R ' + result.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ' + label;
+                target.style.color = (result >= 0) ? '#059669' : '#dc2626';
             }
-
-            const now = new Date();
-            const cessationDate = new Date(cessationStr);
-            
-            let monthsRemaining = (cessationDate.getFullYear() - now.getFullYear()) * 12;
-            monthsRemaining += cessationDate.getMonth() - now.getMonth();
-            if (now.getDate() < cessationDate.getDate()) monthsRemaining--;
-            if (monthsRemaining < 0) monthsRemaining = 0;
-
-            const totalLiability = (stipend * monthsRemaining);
-            const result = portfolio - (totalLiability + requested);
-            
-            const label = result >= 0 ? "(Surplus)" : "(Deficit)";
-            target.value = 'R ' + result.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ' + label;
-            target.style.color = (result >= 0) ? '#059669' : '#dc2626';
         }
 
         window.onclick = function(event) { if (event.target.classList.contains('modal')) { event.target.style.display = "none"; } }

@@ -858,10 +858,15 @@ from django.utils import timezone # Ensure this is at the top of your views.py
 def beneficiary_details_view(request, membership_number):
     member = get_object_or_404(PssubfBeneficiary, membership_number=membership_number)
     
-    # Helper function to clean currency/numeric strings before saving
+    # 🟢 IMPROVED: Handles South African formatting (spaces and commas)
     def clean_decimal(value):
         if not value or value == '': return 0.00
-        return str(value).replace('R', '').replace(',', '').replace('%', '').strip()
+        # Remove R, spaces, and percent. Convert comma to dot for float conversion.
+        cleaned = str(value).replace('R', '').replace(' ', '').replace(',', '.').replace('%', '').strip()
+        try:
+            return float(cleaned)
+        except (ValueError, TypeError):
+            return 0.00
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -876,7 +881,6 @@ def beneficiary_details_view(request, membership_number):
                 result = OutlookGraphService.send_outlook_email(settings.OUTLOOK_EMAIL_ADDRESS, recipient, subject, body_html)
                 
                 if result.get('success') or result == {}:
-                    # Create the primary log
                     direct_mail = PssubfDirectEmail.objects.create(
                         membership_number=membership_number,
                         agent_name=request.user.username,
@@ -885,7 +889,6 @@ def beneficiary_details_view(request, membership_number):
                         body_html=body_html
                     )
                     
-                    # --- CRITICAL ADDITION: Create Inbox Record using received_timestamp ---
                     email_id = f"DIRECT_{membership_number}_{direct_mail.id}"
                     PssubfInbox.objects.create(
                         email_id=email_id,
@@ -939,13 +942,14 @@ def beneficiary_details_view(request, membership_number):
         # --- 3. HANDLE CORE PROFILE UPDATES ---
         elif action == 'update_profile':
             try:
-                member.old_membership_number = request.POST.get('old_membership_number')
-                member.title = request.POST.get('title')
-                member.initials = request.POST.get('initials')
-                member.first_name = request.POST.get('first_name')
-                member.second_name = request.POST.get('second_name')
-                member.last_name = request.POST.get('last_name')
-                member.id_number = request.POST.get('id_number')
+                # 🟢 DEFENSIVE UPDATES: Default to existing value if key is missing from POST
+                member.old_membership_number = request.POST.get('old_membership_number', member.old_membership_number)
+                member.title = request.POST.get('title', member.title)
+                member.initials = request.POST.get('initials', member.initials)
+                member.first_name = request.POST.get('first_name', member.first_name)
+                member.second_name = request.POST.get('second_name', member.second_name)
+                member.last_name = request.POST.get('last_name', member.last_name)
+                member.id_number = request.POST.get('id_number', member.id_number)
                 
                 dob_str = request.POST.get('dob')
                 if dob_str:
@@ -953,11 +957,14 @@ def beneficiary_details_view(request, membership_number):
                     member.dob = dob_date
                     member.cessation_date = dob_date + relativedelta(years=18)
                 
-                member.employee_number = request.POST.get('employee_number')
-                member.stipened_frequency = request.POST.get('stipened_frequency')
+                member.employee_number = request.POST.get('employee_number', member.employee_number)
+                member.stipened_frequency = request.POST.get('stipened_frequency', member.stipened_frequency)
                 
-                member.stipened = float(clean_decimal(request.POST.get('stipened', '0')))
-                member.total_fund_value = float(clean_decimal(request.POST.get('total_fund_value', '0')))
+                # Numeric Clean Saves
+                if 'stipened' in request.POST:
+                    member.stipened = clean_decimal(request.POST.get('stipened'))
+                if 'total_fund_value' in request.POST:
+                    member.total_fund_value = clean_decimal(request.POST.get('total_fund_value'))
                 
                 port_date_str = request.POST.get('portfolio_date')
                 if port_date_str:
@@ -967,19 +974,19 @@ def beneficiary_details_view(request, membership_number):
                 if join_date_str:
                     member.fund_join_date = datetime.strptime(join_date_str, '%Y-%m-%d').date()
 
-                member.mobile_1 = request.POST.get('mobile_1')
-                member.email_1 = request.POST.get('email_1')
-                member.mobile_2 = request.POST.get('mobile_2')
-                member.email_2 = request.POST.get('email_2')
-                member.mobile_3 = request.POST.get('mobile_3')
-                member.email_3 = request.POST.get('email_3')
+                member.mobile_1 = request.POST.get('mobile_1', member.mobile_1)
+                member.email_1 = request.POST.get('email_1', member.email_1)
+                member.mobile_2 = request.POST.get('mobile_2', member.mobile_2)
+                member.email_2 = request.POST.get('email_2', member.email_2)
+                member.mobile_3 = request.POST.get('mobile_3', member.mobile_3)
+                member.email_3 = request.POST.get('email_3', member.email_3)
 
-                member.guardian_title = request.POST.get('guardian_title')
-                member.guardian_first_name = request.POST.get('guardian_first_name')
-                member.guardian_last_name = request.POST.get('guardian_last_name')
-                member.guardian_mobile = request.POST.get('guardian_mobile')
-                member.guardian_email = request.POST.get('guardian_email')
-                member.guardian_address = request.POST.get('guardian_address')
+                member.guardian_title = request.POST.get('guardian_title', member.guardian_title)
+                member.guardian_first_name = request.POST.get('guardian_first_name', member.guardian_first_name)
+                member.guardian_last_name = request.POST.get('guardian_last_name', member.guardian_last_name)
+                member.guardian_mobile = request.POST.get('guardian_mobile', member.guardian_mobile)
+                member.guardian_email = request.POST.get('guardian_email', member.guardian_email)
+                member.guardian_address = request.POST.get('guardian_address', member.guardian_address)
                 
                 member.save()
 
@@ -990,7 +997,7 @@ def beneficiary_details_view(request, membership_number):
                     note_content="Modified beneficiary personal/financial details and fund values.",
                     action_timestamp=timezone.now()
                 )
-                messages.success(request, f"Changes saved for Member {member.membership_number}.")
+                messages.success(request, f"Changes saved successfully for Member {member.membership_number}.")
                 return redirect('beneficiary_details', membership_number=member.membership_number)
             except Exception as e:
                 messages.error(request, f"Error updating record: {str(e)}")
@@ -1015,27 +1022,26 @@ def beneficiary_details_view(request, membership_number):
         # --- 5. HANDLE NEW AD HOC (MODAL) ---
         elif action == 'add_adhoc_entry':
             try:
-                # NEW: Calculate precise maturity decimal
                 claim_date_str = request.POST.get('claim_form_date')
                 claim_date = datetime.strptime(claim_date_str, '%Y-%m-%d').date() if claim_date_str else date.today()
                 
                 years_val = 0.0
                 if member.cessation_date:
-                    days_remaining = (member.cessation_date - claim_date).days
-                    # Force float division with 365.25 to get decimal precision (e.g. 6.2)
-                    years_val = round(days_remaining / 365.25, 1)
+                    diff = relativedelta(member.cessation_date, claim_date)
+                    total_months = (diff.years * 12) + diff.months + (diff.days / 30.44)
+                    years_val = round(total_months / 12, 1)
 
                 AdHocList.objects.create(
                     beneficiary=member,
                     title=request.POST.get('title'),
                     claim_form_date=claim_date,
                     amount_requested=clean_decimal(request.POST.get('amount_requested')),
-                    years_to_maturity=years_val, # Saves decimal to DB
+                    years_to_maturity=years_val,
                     status='Pending',
                     comments=request.POST.get('comments'),
                     supporting_document=request.FILES.get('supporting_document')
                 )
-                messages.success(request, "Ad Hoc entry saved.")
+                messages.success(request, "Ad Hoc entry saved with corrected affordability math.")
             except Exception as e:
                 messages.error(request, f"Ad Hoc Error: {str(e)}")
             return redirect('beneficiary_details', membership_number=membership_number)
