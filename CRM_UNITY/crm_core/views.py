@@ -1778,8 +1778,8 @@ def export_sla_excel(delegate_q, notes_q, email_log_q):
     header_fill = PatternFill(start_color="1B5E20", end_color="1B5E20", fill_type="solid")
     headers = [
         'Status/Type', 'Date Received', 'Date Actioned', 'Delegator', 
-        'Delegated to', 'Communication Log', 'Enquiry Category (1-14)', 
-        'Enquiry Type (Action)', 'Reference', 'Content Preview', 'Destination'
+        'Delegated to/Action By', 'Communication Type', 'Enquiry Category (1-14)', 
+        'Action Notes', 'Reference', 'Content Preview', 'Destination'
     ]
 
     # ==========================================================================
