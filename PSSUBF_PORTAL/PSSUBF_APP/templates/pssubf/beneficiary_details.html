@@ -113,7 +113,6 @@
             font-weight: 500; outline: none; transition: all 0.2s;
         }
 
-        /* 🚀 Highlighting for the active editing state 🚀 */
         .fund-edit-mode .fund-editable {
             background: rgba(255, 255, 255, 0.4) !important;
             border: 1px solid var(--glass-border) !important;
@@ -168,7 +167,7 @@
                 </div>
                 <button type="button" onclick="closeModal('claimModal')" class="text-gray-400 hover:text-red-600 transition text-3xl">&times;</button>
             </div>
-            <form method="POST" action="{% url 'claim_list' %}" enctype="multipart/form-data" class="p-8 grid grid-cols-1 md:grid-cols-4 gap-6 overflow-y-auto max-h-[85vh]">
+            <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}" enctype="multipart/form-data" class="p-8 grid grid-cols-1 md:grid-cols-4 gap-6 overflow-y-auto max-h-[85vh]">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="add_claim_entry">
                 <input type="hidden" name="next" value="{{ request.path }}">
@@ -186,7 +185,7 @@
                         <option>Death Terminations</option>
                     </select>
                 </div>
-                <div><label class="block text-xs font-bold text-gray-400 uppercase mb-1">Age at Claim Date</label><input type="text" id="pop_claim_age" name="age_at_claim" readonly class="w-full p-2.5 border bg-green-50 font-bold text-green-800 rounded-md"></div>
+                <div><label class="block text-xs font-bold text-gray-400 uppercase mb-1">Age at Claim Date</label><input type="text" id="pop_claim_age" readonly class="w-full p-2.5 border bg-green-50 font-bold text-green-800 rounded-md" placeholder="00Y 00M"></div>
                 <div><label class="block text-xs font-bold text-gray-400 uppercase mb-1">Termination Date</label><input type="text" value="{{ member.cessation_date|date:'Y-m-d' }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md"></div>
                 <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">Monthly Stipend</label><input type="text" value="R {{ member.stipened }}" readonly class="w-full p-2.5 border bg-gray-100 rounded-md"></div>
                 <div><label class="block text-xs font-bold text-green-700 uppercase mb-1">* Original Claim Form Date</label><input type="date" name="date_logged" id="claim_form_date_field" onchange="calculateClaimFullValues(this.value)" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input"></div>
@@ -208,7 +207,7 @@
                 <p class="text-sm font-semibold text-gray-500">ID/Passport: {{ member.id_number }}</p>
                 <h2 class="text-3xl font-light tracking-tight text-gray-800">Create New Ad Hoc Claim</h2>
             </div>
-            <form method="POST" action="{% url 'adhoc_list' %}" enctype="multipart/form-data" class="p-8 grid grid-cols-1 md:grid-cols-4 gap-4 overflow-y-auto max-h-[85vh]">
+            <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}" enctype="multipart/form-data" class="p-8 grid grid-cols-1 md:grid-cols-4 gap-4 overflow-y-auto max-h-[85vh]">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="add_adhoc_entry">
                 <input type="hidden" name="next" value="{{ request.path }}">
@@ -219,7 +218,7 @@
                 <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Beneficiary Name</label><input type="text" value="{{ member.first_name }} {{ member.last_name }}" readonly class="w-full p-2 border highlight-field rounded text-sm italic"></div>
                 <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Beneficiary DOB</label><input type="text" id="adhoc_pop_dob" value="{{ member.dob|date:'Y-m-d' }}" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
                 <div><label class="block text-xs font-bold text-green-700 uppercase mb-1">* Claim Form Date</label><input type="date" name="claim_form_date" id="claim_form_date" onchange="calculateAdHocFullValues(this.value)" required class="w-full p-2 border-2 border-green-600 rounded text-sm clean-input"></div>
-                <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Age at Claim</label><input type="text" id="pop_adhoc_age" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
+                <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Age at Claim</label><input type="text" id="pop_adhoc_age" readonly class="w-full p-2 border highlight-field rounded text-sm" placeholder="00Y 00M"></div>
                 <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Monthly Stipend</label><input type="text" value="R {{ member.stipened }}" readonly class="w-full p-2 border highlight-field rounded text-sm"></div>
                 <div class="md:col-span-2"><label class="block text-xs font-bold text-gray-600 uppercase mb-1">* Reason</label><select name="title" required class="w-full p-2 border-r-8 border-green-600 rounded text-sm clean-input"><option value="School Fees">School Fees</option><option value="School Clothing">School Clothing</option><option value="Essentials">Essentials</option><option value="Medical Expenses">Medical Expenses</option><option value="Educational Expenses (other)">Educational Expenses (other)</option></select></div>
                 <div><label class="block text-xs font-bold text-gray-600 uppercase mb-1">Years to Maturity</label><input type="text" id="pop_maturity_display" readonly class="w-full p-2 border bg-green-50 rounded text-sm font-bold text-green-700" placeholder="0Y 00M"><input type="hidden" id="pop_maturity" name="years_to_maturity"></div>
@@ -384,7 +383,41 @@
             });
         });
 
-        // 🚀 TOGGLE EDIT STRICTLY FOR FUND FORM 🚀
+        // 🚀 SHARED UTILITY: Calculate Years/Months logic matching backend (30.44 factor) 🚀
+        function getYearMonthData(startDate, endDate) {
+            let years = endDate.getFullYear() - startDate.getFullYear();
+            let months = endDate.getMonth() - startDate.getMonth();
+            let days = endDate.getDate() - startDate.getDate();
+
+            if (days < 0) {
+                months -= 1;
+                const prevMonthLastDay = new Date(endDate.getFullYear(), endDate.getMonth(), 0).getDate();
+                days += prevMonthLastDay;
+            }
+            if (months < 0) {
+                years -= 1;
+                months += 12;
+            }
+
+            const totalMonthsPrecise = (years * 12) + months + (days / 30.44);
+            let finalY = Math.floor(totalMonthsPrecise / 12);
+            let finalM = Math.round(totalMonthsPrecise % 12);
+            
+            if (finalM === 12) {
+                finalY += 1;
+                finalM = 0;
+            }
+
+            // 🚀 The FIX: Calculate actual months used for the display to ensure math matches UI
+            const discreteMonths = (finalY * 12) + finalM;
+
+            return {
+                string: `${finalY}Y ${finalM.toString().padStart(2, '0')}M`,
+                decimal: (discreteMonths / 12),
+                totalMonths: discreteMonths // 🟢 Return integer months for affordability math
+            };
+        }
+
         function toggleFundEdit(active) {
             const container = document.getElementById('profileBody');
             const inputs = document.querySelectorAll('.fund-editable');
@@ -412,52 +445,46 @@
         }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
-        function calculatePopupAge(dobId, claimDateVal, targetId) {
-            const dobStr = document.getElementById(dobId).value;
-            if(!dobStr || !claimDateVal) return;
-            const birth = new Date(dobStr); 
-            const claim = new Date(claimDateVal);
-            const diffTime = Math.abs(claim - birth);
-            const diffYears = diffTime / (1000 * 60 * 60 * 24 * 365.25);
-            document.getElementById(targetId).value = diffYears.toFixed(1);
-        }
+        // 🚀 UPDATED: Logic for Age at Claim (string format) 🚀
+        function calculateAdHocFullValues(claimDateStr) {
+            const dobStr = document.getElementById('adhoc_pop_dob').value;
+            if(dobStr && claimDateStr) {
+                const data = getYearMonthData(new Date(dobStr), new Date(claimDateStr));
+                document.getElementById('pop_adhoc_age').value = data.string;
+            }
 
-        function calculateAdHocFullValues(claimDate) {
-            calculatePopupAge('adhoc_pop_dob', claimDate, 'pop_adhoc_age');
             const termDateStr = document.getElementById('calc_cessation').value;
-            if(termDateStr && claimDate) {
-                const term = new Date(termDateStr); 
-                const claim = new Date(claimDate);
-                const diffTime = term - claim;
-                const diffYears = diffTime / (1000 * 60 * 60 * 24 * 365.25);
-                
-                const totalMonths = Math.round(diffYears * 12);
-                const displayY = Math.floor(totalMonths / 12);
-                const displayM = totalMonths % 12;
-                
-                document.getElementById('pop_maturity_display').value = diffYears > 0 ? 
-                    `${displayY}Y ${displayM.toString().padStart(2, '0')}M` : "0Y 00M";
-                
-                document.getElementById('pop_maturity').value = diffYears > 0 ? diffYears.toFixed(1) : "0.0";
+            if(termDateStr && claimDateStr) {
+                const data = getYearMonthData(new Date(claimDateStr), new Date(termDateStr));
+                document.getElementById('pop_maturity_display').value = data.string;
+                document.getElementById('pop_maturity').value = data.totalMonths; // 🟢 Use months
             }
             calcAffordabilityFull();
+        }
+
+        // 🚀 UPDATED: Logic for Age at Claim in Claim Modal 🚀
+        function calculateClaimFullValues(claimDateStr) {
+            const dobStr = document.getElementById('claim_pop_dob').value;
+            if(dobStr && claimDateStr) {
+                const data = getYearMonthData(new Date(dobStr), new Date(claimDateStr));
+                document.getElementById('pop_claim_age').value = data.string;
+            }
+            calcClaimAffordabilityFull();
         }
 
         function calcAffordabilityFull() {
             const portfolio = parseFloat(document.getElementById('adhoc_portfolio').value) || 0;
             const requested = parseFloat(document.getElementById('adhoc_req').value) || 0;
             const stipend = parseFloat(document.getElementById('calc_stipend').value) || 0;
-            const maturity = parseFloat(document.getElementById('pop_maturity').value) || 0;
+            const totalMonths = parseFloat(document.getElementById('pop_maturity').value) || 0;
             const target = document.getElementById('pop_afford');
-            const result = portfolio - ((stipend * maturity * 12) + requested);
+            
+            // 🚀 Calculation now uses total months directly (e.g., 76 * 1000)
+            const result = portfolio - ((stipend * totalMonths) + requested);
+            
             const label = result >= 0 ? "(Surplus)" : "(Deficit)";
             target.value = 'R ' + result.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ' + label;
             target.style.color = (result >= 0) ? '#059669' : '#dc2626';
-        }
-
-        function calculateClaimFullValues(claimDate) {
-            calculatePopupAge('claim_pop_dob', claimDate, 'pop_claim_age');
-            calcClaimAffordabilityFull();
         }
 
         function calcClaimAffordabilityFull() {
@@ -470,11 +497,13 @@
 
             if (dobStr && claimDateStr) {
                 const claimDate = new Date(claimDateStr);
-                const dob = new Date(dobStr);
-                const cessationDate = new Date(dob.setFullYear(dob.getFullYear() + 18));
-                const diffTime = cessationDate - claimDate;
-                const maturity = diffTime / (1000 * 60 * 60 * 24 * 365.25);
-                const result = portfolio - ((stipend * maturity * 12) + requested);
+                const dobDate = new Date(dobStr);
+                const cessationDate = new Date(new Date(dobStr).setFullYear(new Date(dobStr).getFullYear() + 18));
+                
+                const data = getYearMonthData(claimDate, cessationDate);
+                const totalMonths = data.totalMonths; // 🟢 Use discrete months
+                
+                const result = portfolio - ((stipend * totalMonths) + requested);
                 const label = result >= 0 ? "(Surplus)" : "(Deficit)";
                 target.value = 'R ' + result.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ' + label;
                 target.style.color = (result >= 0) ? '#059669' : '#dc2626';

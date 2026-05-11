@@ -861,7 +861,6 @@ def beneficiary_details_view(request, membership_number):
     # 🟢 IMPROVED: Handles South African formatting (spaces and commas)
     def clean_decimal(value):
         if not value or value == '': return 0.00
-        # Remove R, spaces, and percent. Convert comma to dot for float conversion.
         cleaned = str(value).replace('R', '').replace(' ', '').replace(',', '.').replace('%', '').strip()
         try:
             return float(cleaned)
@@ -942,7 +941,6 @@ def beneficiary_details_view(request, membership_number):
         # --- 3. HANDLE CORE PROFILE UPDATES ---
         elif action == 'update_profile':
             try:
-                # 🟢 DEFENSIVE UPDATES: Default to existing value if key is missing from POST
                 member.old_membership_number = request.POST.get('old_membership_number', member.old_membership_number)
                 member.title = request.POST.get('title', member.title)
                 member.initials = request.POST.get('initials', member.initials)
@@ -960,7 +958,6 @@ def beneficiary_details_view(request, membership_number):
                 member.employee_number = request.POST.get('employee_number', member.employee_number)
                 member.stipened_frequency = request.POST.get('stipened_frequency', member.stipened_frequency)
                 
-                # Numeric Clean Saves
                 if 'stipened' in request.POST:
                     member.stipened = clean_decimal(request.POST.get('stipened'))
                 if 'total_fund_value' in request.POST:
@@ -1002,24 +999,36 @@ def beneficiary_details_view(request, membership_number):
             except Exception as e:
                 messages.error(request, f"Error updating record: {str(e)}")
 
-        # --- 4. HANDLE NEW CLAIM (MODAL) ---
+        # --- 4. 🚀 HANDLE NEW CLAIM (FIXED PRECISION) ---
         elif action == 'add_claim_entry':
             try:
+                date_logged_str = request.POST.get('date_logged')
+                claim_date = datetime.strptime(date_logged_str, '%Y-%m-%d').date() if date_logged_str else date.today()
+                
+                claim_age = 0.0
+                if member.dob:
+                    diff_age = relativedelta(claim_date, member.dob)
+                    # 🟢 FIX: Use discrete rounded months to match UI (e.g., 76 months instead of 6.333...)
+                    precise_months = (diff_age.years * 12) + diff_age.months + (diff_age.days / 30.44)
+                    rounded_months = round(precise_months)
+                    claim_age = rounded_months / 12
+
                 ClaimList.objects.create(
                     beneficiary=member,
                     claim_type=request.POST.get('claim_type'),
-                    date_logged=request.POST.get('date_logged'),
+                    date_logged=claim_date,
                     amount_requested=clean_decimal(request.POST.get('amount_requested')),
+                    claim_at_age=round(claim_age, 2),
                     status='Pending',
                     description=request.POST.get('description'),
                     supporting_document=request.FILES.get('supporting_document')
                 )
-                messages.success(request, "New claim registered successfully.")
+                messages.success(request, f"New claim registered successfully.")
             except Exception as e:
                 messages.error(request, f"Claim Error: {str(e)}")
             return redirect('beneficiary_details', membership_number=membership_number)
 
-        # --- 5. HANDLE NEW AD HOC (MODAL) ---
+        # --- 5. HANDLE NEW AD HOC (FIXED PRECISION) ---
         elif action == 'add_adhoc_entry':
             try:
                 claim_date_str = request.POST.get('claim_form_date')
@@ -1028,15 +1037,17 @@ def beneficiary_details_view(request, membership_number):
                 years_val = 0.0
                 if member.cessation_date:
                     diff = relativedelta(member.cessation_date, claim_date)
-                    total_months = (diff.years * 12) + diff.months + (diff.days / 30.44)
-                    years_val = round(total_months / 12, 1)
+                    # 🟢 FIX: Calculate discrete months first to eliminate R800 rounding drift
+                    precise_months = (diff.years * 12) + diff.months + (diff.days / 30.44)
+                    rounded_total_months = round(precise_months)
+                    years_val = rounded_total_months / 12
 
                 AdHocList.objects.create(
                     beneficiary=member,
                     title=request.POST.get('title'),
                     claim_form_date=claim_date,
                     amount_requested=clean_decimal(request.POST.get('amount_requested')),
-                    years_to_maturity=years_val,
+                    years_to_maturity=round(years_val, 2),
                     status='Pending',
                     comments=request.POST.get('comments'),
                     supporting_document=request.FILES.get('supporting_document')
