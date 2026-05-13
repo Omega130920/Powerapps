@@ -218,24 +218,30 @@
                         <label class="form-label">Classification:</label>
                         <select name="email_category" class="form-control">
                             <option value="">-- Select --</option>
-                            <option value="Normal Withdrawal Claim" {% if delegation.email_category == "Normal Withdrawal Claim" %}selected{% endif %}>Normal Withdrawal Claim</option>
-                            <option value="Two-Pot withdrawal Request" {% if delegation.email_category == "Two-Pot withdrawal Request" %}selected{% endif %}>Two-Pot withdrawal Request</option>
-                            <option value="Schedule - Current Month" {% if delegation.email_category == "Schedule - Current Month" %}selected{% endif %}>Schedule - Current Month</option>
-                            <option value="Schedule - Following Month" {% if delegation.email_category == "Schedule - Following Month" %}selected{% endif %}>Schedule - Following Month</option>
-                            <option value="New Member Doc." {% if delegation.email_category == "New Member Doc." %}selected{% endif %}>New Member Doc.</option>
-                            <option value="Enquiry from Sanlam" {% if delegation.email_category == "Enquiry from Sanlam" %}selected{% endif %}>Enquiry from Sanlam</option>
-                            <option value="Enquiry from Broker" {% if delegation.email_category == "Enquiry from Broker" %}selected{% endif %}>Enquiry from Broker</option>
-                            <option value="Enquiry from MG" {% if delegation.email_category == "Enquiry from MG" %}selected{% endif %}>Enquiry from MG</option>
-                            <option value="Succesfull submission" {% if delegation.email_category == "Succesfull submission" %}selected{% endif %}>Succesfull submission</option>
+                                                    <option value="Normal Withdrawal Claim">Normal Withdrawal Claim</option>
+                            <option value="Two-Pot withdrawal Request">Two-Pot withdrawal Request</option>
+                            <option value="Schedule - Current Month">Schedule - Current Month</option>
+                            <option value="Schedule - Following Month">Schedule - Following Month</option>
+                            <option value="New Member Doc.">New Member Doc.</option>
+                            <option value="Enquiry from Sanlam">Enquiry from Sanlam</option>
+                            <option value="Enquiry from Broker">Enquiry from Broker</option>
+                            <option value="Enquiry from MG">Enquiry from MG</option>
+                            <option value="Succesfull submission">Succesfull submission</option>
+                            <option value="Two-Pot Application Received">Two-Pot Application Received</option>
+                            <option value="Benefit Letter from Sanlam">Benefit Letter from Sanlam</option>
+                            <option value="Vester Pot Letter from Sanlam">Vester Pot Letter from Sanlam</option>
+                            <option value="Savings Pot Letter from Sanlam">Savings Pot Letter from Sanlam</option>
+                            <option value="Paid Up Certificate from Sanlam">Paid Up Certificate from Sanlam</option>
+                            <option value="Member Info Update Request">Member Info Update Request</option>
                         </select>
                     </div>
-                    <div>
+                    <!--<div>
                         <label class="form-label">Communication Type:</label>
                         <select name="communication_type" class="form-control">
                             <option value="Email" {% if delegation.communication_type == "Email" %}selected{% endif %}>Outlook Inbox</option>
                             <option value="Phone Call" {% if delegation.communication_type == "Phone Call" %}selected{% endif %}>Phone Call</option>
                         </select>
-                    </div>
+                    </div>-->
                     <div>
                         <button type="submit" class="custom-btn btn-update"><i class="fas fa-save"></i> Update Metadata</button>
                     </div>

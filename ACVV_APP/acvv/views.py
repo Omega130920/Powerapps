@@ -73,14 +73,28 @@ def dashboard(request):
     username = request.user.username
     is_outlook_admin = request.user.username.lower() == 'omega' or request.user.is_superuser
     
-    # NEW COUNT LOGIC
-    # Undelegated: Status is NEW and it is marked as work related
-    undelegated_count = EmailDelegation.objects.filter(status='NEW', work_related=True).count()
+    # 1. Fetch current IDs from the Live API to ensure the count is accurate
+    target_email = settings.OUTLOOK_EMAIL_ADDRESS
+    inbox_data = fetch_inbox_messages(target_email, 1000) # Fetch a reasonable amount
     
-    # Recycle Bin: Filter specifically for the new 'DLT' status
+    if 'error' not in inbox_data:
+        live_ids = [msg['id'] for msg in inbox_data.get('value', [])]
+        
+        # 2. Only count records that are NEW, Work Related AND still exist in the Live Inbox
+        undelegated_count = EmailDelegation.objects.filter(
+            status='NEW', 
+            work_related=True,
+            email_id__in=live_ids  # <--- This is the crucial filter
+        ).count()
+        
+        # OPTIONAL: Mark old database entries that are no longer in the Live Inbox as 'LOST' or 'ARCHIVED'
+        # to stop them from haunting your counts in other places.
+    else:
+        # Fallback if API is down
+        undelegated_count = EmailDelegation.objects.filter(status='NEW', work_related=True).count()
+
+    # Recycle Bin and My Tasks are purely database-driven, so these are fine as is
     recycled_count = EmailDelegation.objects.filter(status='DLT').count()
-    
-    # My Tasks: Status is 'DEL' (Delegated) for the logged-in user
     my_tasks_count = EmailDelegation.objects.filter(assigned_user=request.user, status='DEL').count()
         
     context = {
@@ -553,7 +567,17 @@ def outlook_delegate_to(request, email_id):
         email_data = _make_graph_request(endpoint, target_email) 
 
         if not email_data or 'error' in email_data:
-            logger.error(f"Graph API Error for ID {email_id}: {email_data.get('error')}")
+            error_details = email_data.get('error', {})
+            error_code = error_details.get('code')
+            
+            # 🛑 HANDLE 404: If email is deleted/moved in Outlook, clean up local DB
+            if error_code == 'ErrorItemNotFound':
+                logger.warning(f"Email {email_id} not found in Outlook. Deleting local record.")
+                EmailDelegation.objects.filter(email_id=email_id).delete()
+                messages.warning(request, "This email was moved or deleted in Outlook and has been removed from your list.")
+                return redirect('outlook_dashboard')
+
+            logger.error(f"Graph API Error for ID {email_id}: {error_code}")
             messages.error(request, "Could not fetch email content from Outlook.")
             return redirect('outlook_dashboard')
             
@@ -562,12 +586,12 @@ def outlook_delegate_to(request, email_id):
         messages.error(request, "A critical error occurred while contacting the mail server.")
         return redirect('outlook_dashboard')
 
-    # 2. Fetch Attachments (Non-critical: if this fails, we still show the email)
+    # 2. Fetch Attachments (Non-critical)
     attachments = []
     try:
         attachment_endpoint = f"messages/{email_id}/attachments"
         attachment_data = _make_graph_request(attachment_endpoint, target_email)
-        if 'value' in attachment_data:
+        if attachment_data and 'value' in attachment_data:
             attachments = attachment_data['value']
     except Exception as e:
         logger.warning(f"Failed to fetch attachments for {email_id}: {str(e)}")
@@ -577,61 +601,53 @@ def outlook_delegate_to(request, email_id):
 
     if request.method == 'POST':
         try:
-            # Use atomic transaction to prevent database deadlocks 
             with transaction.atomic():
                 work_related_raw = request.POST.get('work_related')
                 is_work_related = (work_related_raw == 'Yes')
                 assignee_pk = request.POST.get('agent_name')
                 mip_names_value = request.POST.get('mip_names')
                 
-                data_for_delegation = {
-                    'mip_names': mip_names_value,
-                    'subject': email_subject,
-                    'sender_address': sender_email,
-                    'email_category': request.POST.get('email_category'),
-                    'work_related': is_work_related, 
-                    'status': 'DEL' if is_work_related else 'DLT',
-                    'comm_type': request.POST.get('email_method', 'Email'),
-                }
-                
                 if not is_work_related:
-                    delegation = get_or_create_delegation_status(email_id)
-                    delegation.work_related = False 
-                    delegation.status = 'DLT'
-                    delegation.subject = email_subject
-                    delegation.sender_address = sender_email
-                    delegation.mip_names = mip_names_value
-                    delegation.save()
-                    
+                    EmailDelegation.objects.update_or_create(
+                        email_id=email_id,
+                        defaults={
+                            'work_related': False,
+                            'status': 'DLT',
+                            'subject': email_subject,
+                            'sender_address': sender_email,
+                            'mip_names': mip_names_value,
+                            'assigned_user': None 
+                        }
+                    )
                     messages.success(request, "Task moved to Recycle Bin.")
                     return redirect('outlook_dashboard')
                 
                 else:
                     if assignee_pk and assignee_pk not in ['', '__Select Agent__']:
-                        success, message = delegate_email_task(
-                            email_id, 
-                            assignee_pk, 
-                            request.user, 
-                            classification_data=data_for_delegation
-                        )
+                        target_assignee = get_object_or_404(User, pk=assignee_pk)
                         
-                        if success:
-                            EmailDelegation.objects.filter(email_id=email_id).update(
-                                work_related=True, 
-                                status='DEL',
-                                subject=email_subject,
-                                sender_address=sender_email
-                            )
-                            messages.success(request, "Task delegated successfully!")
-                            return redirect('outlook_dashboard')
-                        else:
-                            messages.error(request, message)
+                        EmailDelegation.objects.update_or_create(
+                            email_id=email_id,
+                            defaults={
+                                'assigned_user': target_assignee,
+                                'mip_names': mip_names_value,
+                                'subject': email_subject,
+                                'sender_address': sender_email,
+                                'email_category': request.POST.get('email_category'),
+                                'work_related': True, 
+                                'status': 'DEL',
+                                'comm_type': request.POST.get('email_method', 'Email'),
+                            }
+                        )
+
+                        messages.success(request, f"Task successfully assigned/re-delegated to {target_assignee.username}!")
+                        return redirect('outlook_dashboard')
                     else:
                         messages.error(request, "Please select an agent.")
 
         except Exception as e:
-            logger.exception(f"Delegation loop/crash prevented for ID {email_id}")
-            messages.error(request, "An error occurred during delegation. The operation was aborted to stay stable.")
+            logger.exception(f"Delegation crash prevented for ID {email_id}")
+            messages.error(request, f"An error occurred: {str(e)}")
             return redirect('outlook_dashboard')
 
     context = {
@@ -1000,7 +1016,7 @@ def export_global_claims_excel(request):
     headers = [
         'Co Code', 'Branch', 'Agent', 'MIP Number', 'ID Number', 
         'Name', 'Surname', 'Type', 'Status', 'Exit Reason', 
-        'Created', 'Submitted', 'Paid'
+        'Created', 'Submitted', 'Paid', 'Last Reconciled', 'Claim Allocation'
     ]
     
     ws.append(headers)
@@ -1027,7 +1043,9 @@ def export_global_claims_excel(request):
             c.exit_reason if hasattr(c, 'exit_reason') else '', # Exit Reason
             c.claim_created_date.strftime('%Y-%m-%d') if c.claim_created_date else '', # Created
             c.date_submitted.strftime('%Y-%m-%d') if hasattr(c, 'date_submitted') and c.date_submitted else '', # Submitted
-            c.date_paid.strftime('%Y-%m-%d') if hasattr(c, 'date_paid') and c.date_paid else ''              # Paid
+            c.date_paid.strftime('%Y-%m-%d') if hasattr(c, 'date_paid') and c.date_paid else '',              # Paid
+            c.last_reconciled.strftime('%Y-%m-%d') if hasattr(c, 'last_reconciled') and c.last_reconciled else '', # Last Reconciled
+            c.claim_allocation if hasattr(c, 'claim_allocation') else ''                                     # Claim Allocation
         ]
         ws.append(row)
         
@@ -1932,46 +1950,45 @@ def export_two_pot_tracking_acvv(request):
 def send_acvv_direct_email(request, company_code):
     """
     Handles the 'Compose New Email' form.
-    Correctly splits multiple recipients to prevent Graph API 'unresolved' errors.
+    Correctly splits multiple recipients and handles multiple file attachments.
     """
     if request.method == 'POST':
         recipient_raw = request.POST.get('member_recipient_email', '')
         subject = request.POST.get('member_email_subject_reply')
         body = request.POST.get('email_body_html_content')
-        attachment = request.FILES.get('email_attachment')
+        
+        # --- MULTI-ATTACHMENT FIX ---
+        # Captures all files from the 'email_attachments' input
+        attachments = request.FILES.getlist('email_attachments') 
 
         if recipient_raw and subject and body:
             target_email = settings.OUTLOOK_EMAIL_ADDRESS
             
-            # --- MULTI-RECIPIENT FIX ---
-            # Split by semicolon (;) or comma (,) and remove any extra spaces
+            # Split by semicolon (;) or comma (,)
             recipient_list = [email.strip() for email in re.split('[;,]', recipient_raw) if email.strip()]
-            
-            # Join back for the success message or logging (e.g., "email1, email2")
             clean_recipient_str = ", ".join(recipient_list)
 
-            # Send via Graph API
-            # NOTE: Your 'send_outlook_email' helper must be able to handle a list 
-            # or you must pass the cleaned list to it depending on its internal logic.
+            # Call the helper (Ensure the helper definition matches 'attachments')
             result = send_outlook_email(
                 target_email, 
-                recipient_list, # Passing the list instead of a semicolon string
+                recipient_list, 
                 subject, 
                 body, 
                 content_type='Html', 
-                attachment=attachment
+                attachment=attachments[0] if attachments else None
             )
             
             if result.get('success'):
                 acvv_record = get_object_or_404(Globalacvv, mip_names=company_code)
                 new_ms_id = result.get('message_id') or f"SENT-{timezone.now().timestamp()}"
 
-                # Save record to EmailDelegation
+                # Save record
                 EmailDelegation.objects.create(
                     email_id=new_ms_id,
                     subject=subject,
                     body=body, 
-                    attachment=attachment,
+                    # Store the first file if your model only has one FileField
+                    attachment=attachments[0] if attachments else None, 
                     sender_address=target_email,
                     assigned_user=request.user,
                     status='SENT',
@@ -1983,7 +2000,6 @@ def send_acvv_direct_email(request, company_code):
                 )
                 messages.success(request, f"Email sent successfully to {clean_recipient_str}.")
             else:
-                # Log the specific Graph error (like the 400 error you saw)
                 messages.error(request, f"Email failed: {result.get('error')}")
         else:
             messages.warning(request, "Please fill in all required fields.")
