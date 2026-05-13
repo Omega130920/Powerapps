@@ -165,8 +165,6 @@ tr:hover {background-color: #f1f8e9;}
                             {% endif %}
                         </td>
                     </tr>
-                {% empty %}
-                    <tr><td colspan="5" style="text-align:center; color:#777;">No notes found.</td></tr>
                 {% endfor %}
             </template>
             {% endfor %}
@@ -189,6 +187,7 @@ tr:hover {background-color: #f1f8e9;}
         {% endif %}
     </div>
 
+    <!-- MODAL -->
     <div id="claimModal" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
         <div style="background: white; width: 90%; max-width: 1000px; margin: 30px auto; padding: 30px; border-radius: 12px; max-height: 90vh; overflow-y: auto; box-shadow: 0 15px 40px rgba(0,0,0,0.2);">
             <h2 id="modalTitle" style="color: #1b5e20; border-bottom: 3px solid #aed581; padding-bottom: 15px; margin-top: 0;">Manage Global Claim</h2>
@@ -288,6 +287,37 @@ tr:hover {background-color: #f1f8e9;}
                     </div>
                 </div>
 
+                <!-- 🚀 POT AVAILABILITY SECTION (UNITY INTERNAL) 🚀 -->
+                <div class="pot-section" id="two_pot_fields_section" style="display: none;">
+                    <h4 style="margin-top: 0; color: #1565c0; border-bottom: 1px solid #1e88e5; padding-bottom: 10px; font-weight: 800;">Pot Availability & Certificates</h4>
+                    <div class="pot-grid">
+                        <div class="pot-box">
+                            <label style="font-weight: bold; display: block; margin-bottom: 10px; cursor: pointer;">
+                                <input type="checkbox" name="vested_pot_available" id="id_vested_pot_available" onchange="togglePotVisibility()" style="margin-right: 8px;"> 
+                                Vested Pot payout available
+                            </label>
+                            <div id="div_vested_paid" style="display: none; margin-top: 10px;">
+                                <label style="font-size: 0.85em; font-weight: bold;">Vested Pot Paid Date</label>
+                                <input type="date" name="vested_pot_paid_date" id="id_vested_pot_paid_date" class="form-input">
+                            </div>
+                        </div>
+                        <div class="pot-box">
+                            <label style="font-weight: bold; display: block; margin-bottom: 10px; cursor: pointer;">
+                                <input type="checkbox" name="savings_pot_available" id="id_savings_pot_available" onchange="togglePotVisibility()" style="margin-right: 8px;"> 
+                                Savings Pot available
+                            </label>
+                            <div id="div_savings_paid" style="display: none; margin-top: 10px;">
+                                <label style="font-size: 0.85em; font-weight: bold;">Savings Pot Paid Date</label>
+                                <input type="date" name="savings_pot_paid_date" id="id_savings_pot_paid_date" class="form-input">
+                            </div>
+                        </div>
+                    </div>
+                    <div style="margin-top: 15px; background: #fffde7; padding: 10px; border-radius: 6px; border: 1px solid #fbc02d; display: flex; align-items: center; gap: 15px;">
+                        <label style="font-weight: bold; color: #f57f17; margin: 0; flex: 1;">In-Fund Preservation Paid Up Certificate Date:</label>
+                        <input type="date" name="infund_cert_date" id="id_infund_cert_date" class="form-input" style="width: auto;">
+                    </div>
+                </div>
+
                 <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                     <div><label style="font-weight:bold;">Created *</label><input type="date" name="claim_created_date" class="form-input" required value="{% now 'Y-m-d' %}"></div>
                     <div><label style="font-weight:bold;">Last Contrib.</label><input type="date" name="last_contribution_date" class="form-input"></div>
@@ -295,41 +325,7 @@ tr:hover {background-color: #f1f8e9;}
                     <div><label style="font-weight:bold;">Paid</label><input type="date" name="date_paid" class="form-input"></div>
                 </div>
 
-                <div class="pot-section" id="two_pot_fields_section" style="display: none;">
-                    <h4 style="margin-top: 0; color: #1565c0; border-bottom: 1px solid #1e88e5; padding-bottom: 10px; font-weight: 800;">Pot Availability & Certificates</h4>
-                    <div class="pot-grid">
-                        <div class="pot-box">
-                            <label style="font-weight: bold; display: block; margin-bottom: 10px; cursor: pointer;">
-                                <input type="checkbox" name="vested_pot_available" id="id_vested_pot_available" onchange="togglePotVisibility()" style="margin-right: 8px;"> 
-                                Vested Pot Funds available for payout
-                            </label>
-                            <div id="div_vested_paid" style="display: none; margin-top: 10px;">
-                                <div style="display: flex; align-items: center; gap: 15px;">
-                                    <label style="font-size: 0.9em; color: #333; font-weight: bold; margin: 0;">Vested Pot Paid</label>
-                                    <input type="date" name="vested_pot_paid_date" id="id_vested_pot_paid_date" class="form-input" style="width: auto;">
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="pot-box">
-                            <label style="font-weight: bold; display: block; margin-bottom: 10px; cursor: pointer;">
-                                <input type="checkbox" name="savings_pot_available" id="id_savings_pot_available" onchange="togglePotVisibility()" style="margin-right: 8px;"> 
-                                Savings Pot available
-                            </label>
-                            <div id="div_savings_paid" style="display: none; margin-top: 10px;">
-                                <div style="display: flex; align-items: center; gap: 15px;">
-                                    <label style="font-size: 0.9em; color: #333; font-weight: bold; margin: 0;">Savings Pot Paid</label>
-                                    <input type="date" name="savings_pot_paid_date" id="id_savings_pot_paid_date" class="form-input" style="width: auto;">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div style="margin-top: 20px; background: #fffde7; padding: 15px; border-radius: 8px; border: 1px solid #fbc02d; display: flex; align-items: center; gap: 20px;">
-                        <label style="font-weight: bold; color: #f57f17; margin: 0; font-size: 0.95rem;">In-Fund Preservation Paid Up Certificate Date:</label>
-                        <input type="date" name="infund_cert_date" id="id_infund_cert_date" class="form-input" style="width: auto;">
-                    </div>
-                </div>
-
+                <!-- 🔗 EMAIL COMPOSITION SECTION 🔗 -->
                 <div class="row" style="margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 20px; margin-bottom: 15px;">
                     <div class="col-md-12">
                         <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 8px;">
@@ -346,6 +342,7 @@ tr:hover {background-color: #f1f8e9;}
 
                         <div id="email-composition-container" style="display: none; margin-top: 20px; background-color: #fffaf5; border: 2.5px dashed #ff9800; border-radius: 12px; padding: 25px;">
                             <h3 style="color: #ff9800; margin-top: 0; font-size: 18px; font-weight: 800;">Compose Outgoing Email</h3>
+                            <!-- Important: Ensure editor syncs to this hidden input -->
                             <textarea id="email_body_html_content" name="email_body_html_content" style="display:none;"></textarea>
                             <div class="form-group" style="margin-bottom: 15px;"><label>To:</label><input type="text" id="member_recipient_email" name="member_recipient_email" class="form-input"></div>
                             <div class="form-group" style="margin-bottom: 15px;"><label>Subject:</label><input type="text" id="member_email_subject_reply" name="member_email_subject_reply" class="form-input"></div>
@@ -365,6 +362,7 @@ tr:hover {background-color: #f1f8e9;}
                 </div>
 
                 <hr style="border: 1px solid #aed581; margin: 30px 0;">
+                <!-- 📝 ADD CLAIM NOTE SECTION 📝 -->
                 <h3 style="color: #38761d; font-weight: 800;">Add Claim Note</h3>
                 <div style="background-color: #f9f9f9; padding: 25px; border-radius: 12px; border: 1.5px solid #ccc;">
                     <select name="note_selection" class="form-select" style="margin-bottom: 15px;">

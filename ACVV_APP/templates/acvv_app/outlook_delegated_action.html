@@ -218,7 +218,7 @@
                         <label class="form-label">Classification:</label>
                         <select name="email_category" class="form-control">
                             <option value="">-- Select --</option>
-                                                    <option value="Normal Withdrawal Claim">Normal Withdrawal Claim</option>
+                            <option value="Normal Withdrawal Claim">Normal Withdrawal Claim</option>
                             <option value="Two-Pot withdrawal Request">Two-Pot withdrawal Request</option>
                             <option value="Schedule - Current Month">Schedule - Current Month</option>
                             <option value="Schedule - Following Month">Schedule - Following Month</option>
@@ -235,13 +235,6 @@
                             <option value="Member Info Update Request">Member Info Update Request</option>
                         </select>
                     </div>
-                    <!--<div>
-                        <label class="form-label">Communication Type:</label>
-                        <select name="communication_type" class="form-control">
-                            <option value="Email" {% if delegation.communication_type == "Email" %}selected{% endif %}>Outlook Inbox</option>
-                            <option value="Phone Call" {% if delegation.communication_type == "Phone Call" %}selected{% endif %}>Phone Call</option>
-                        </select>
-                    </div>-->
                     <div>
                         <button type="submit" class="custom-btn btn-update"><i class="fas fa-save"></i> Update Metadata</button>
                     </div>
@@ -326,6 +319,35 @@
                             <label class="form-label">Subject:</label>
                             <input type="text" class="form-control" name="reply_subject" value="Re: {{ email.subject|default:'(No Subject)' }}" required>
                         </div>
+                        
+                        {# --- ACTION LOG TYPE DROPDOWN --- #}
+                        <div style="margin-bottom: 10px;">
+                            <label class="form-label">Action Log Type:</label>
+                            <select name="action_log_type" class="form-control">
+                                <option value="">-- Select Log Type --</option>
+                                <option value="Feedback to Sanlam">Feedback to Sanlam</option>
+                                <option value="Feedback to Employer">Feedback to Employer</option>
+                                <option value="Feedback to Member">Feedback to Member</option>
+                                <option value="Feedback to CBC">Feedback to CBC</option>
+                                <option value="Feedback to FO">Feedback to FO</option>
+                                <option value="D/O failed – insufficient funds">D/O failed – insufficient funds</option>
+                                <option value="Requested exit claim documents from ER">Requested exit claim documents from ER</option>
+                                <option value="Followed up on outstanding exit claim docs">Followed up on outstanding exit claim docs</option>
+                                <option value="Follow up on risk claim (SEB request)">Follow up on risk claim (SEB request)</option>
+                                <option value="Schedule discrepancy">Schedule discrepancy</option>
+                                <option value="Two Pot Claim Form sent to ER">Two Pot Claim Form sent to ER</option>
+                                <option value="Two Pot submission confirmation to ER">Two Pot submission confirmation to ER</option>
+                                <option value="Exit form sent to ER">Exit form sent to ER</option>
+                                <option value="Follow up on incomplete Exit Form">Follow up on incomplete Exit Form</option>
+                                <option value="Informed ER of claim submission">Informed ER of claim submission</option>
+                                <option value="Informed ER of claim paid">Informed ER of claim paid</option>
+                                <option value="SEB Employer Declaration sent to ER">SEB Employer Declaration sent to ER</option>
+                                <option value="SEB Employer Declaration sent SEB">SEB Employer Declaration sent SEB</option>
+                                <option value="General Fund Rules Enquiry">General Fund Rules Enquiry</option>
+
+                            </select>
+                        </div>
+
                         <div style="margin-bottom: 15px; padding: 12px; border: 1px dashed #1e88e5; background-color: #f1f8ff; border-radius: 4px;">
                             <label class="form-label" style="margin-top: 0; color: #1e88e5;"><i class="fas fa-paperclip"></i> Attachment:</label>
                             <input type="file" class="form-control" name="email_attachment" style="background: white;">

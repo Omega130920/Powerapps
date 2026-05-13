@@ -1950,44 +1950,43 @@ def export_two_pot_tracking_acvv(request):
 def send_acvv_direct_email(request, company_code):
     """
     Handles the 'Compose New Email' form.
-    Correctly splits multiple recipients and handles multiple file attachments.
+    Correctly captures the selected Action Log Type from the dropdown.
     """
     if request.method == 'POST':
         recipient_raw = request.POST.get('member_recipient_email', '')
         subject = request.POST.get('member_email_subject_reply')
         body = request.POST.get('email_body_html_content')
         
-        # --- MULTI-ATTACHMENT FIX ---
-        # Captures all files from the 'email_attachments' input
+        # --- NEW: Capture the selected Action Log Type from the form ---
+        # If the form field is named 'action_log_type', we grab that value
+        # Otherwise, we default to 'Correspondence' as a fallback
+        selected_action_type = request.POST.get('action_log_type') or "Correspondence"
+        
         attachments = request.FILES.getlist('email_attachments') 
 
         if recipient_raw and subject and body:
             target_email = settings.OUTLOOK_EMAIL_ADDRESS
             
-            # Split by semicolon (;) or comma (,)
             recipient_list = [email.strip() for email in re.split('[;,]', recipient_raw) if email.strip()]
             clean_recipient_str = ", ".join(recipient_list)
 
-            # Call the helper (Ensure the helper definition matches 'attachments')
             result = send_outlook_email(
                 target_email, 
                 recipient_list, 
                 subject, 
                 body, 
                 content_type='Html', 
-                attachment=attachments[0] if attachments else None
+                attachments=attachments 
             )
             
             if result.get('success'):
                 acvv_record = get_object_or_404(Globalacvv, mip_names=company_code)
                 new_ms_id = result.get('message_id') or f"SENT-{timezone.now().timestamp()}"
 
-                # Save record
                 EmailDelegation.objects.create(
                     email_id=new_ms_id,
                     subject=subject,
                     body=body, 
-                    # Store the first file if your model only has one FileField
                     attachment=attachments[0] if attachments else None, 
                     sender_address=target_email,
                     assigned_user=request.user,
@@ -1996,8 +1995,21 @@ def send_acvv_direct_email(request, company_code):
                     received_at=timezone.now(),
                     delegated_at=timezone.now(),
                     work_related=True,
-                    communication_type='Email'
+                    communication_type='Email',
+                    # --- NEW: Store the selected log type here too if needed ---
+                    action_log_type=selected_action_type 
                 )
+
+                # --- FIX: Use selected_action_type instead of hardcoded 'Correspondence' ---
+                ClientNotes.objects.create(
+                    acvv_record=acvv_record,
+                    notes=f"Email Sent: {subject}\nRecipient: {clean_recipient_str}",
+                    user=request.user.username,
+                    date=timezone.now(),
+                    communication_type="Email",
+                    action_note_type=selected_action_type # <--- UPDATED FIELD
+                )
+                
                 messages.success(request, f"Email sent successfully to {clean_recipient_str}.")
             else:
                 messages.error(request, f"Email failed: {result.get('error')}")

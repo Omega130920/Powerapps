@@ -60,21 +60,22 @@ def fetch_inbox_messages(target_email, top_count=10):
     endpoint = f"mailFolders/inbox/messages?$top={top_count}&$select=subject,from,receivedDateTime,isRead"
     return _make_graph_request(endpoint, target_email)
 
-def send_outlook_email(target_email, recipient_email, subject, body_content, content_type='Text', attachment=None):
+def send_outlook_email(target_email, recipient_email, subject, body_content, content_type='Text', attachments=None, attachment=None):
     """
     Sends an email from the specified target mailbox (target_email).
-    FIXED: Handles recipient_email as a single string OR a list of strings to support multiple recipients.
+    UPDATED: Supports multiple file attachments via the 'attachments' list.
     """
     
+    # Handle the transition from singular to plural argument
+    if attachment and not attachments:
+        attachments = [attachment]
+
     # --- MULTI-RECIPIENT LOGIC ---
-    # If it's a string (e.g., from a database or manual entry), split it into a list
     if isinstance(recipient_email, str):
         recipients_list = [email.strip() for email in re.split('[;,]', recipient_email) if email.strip()]
     else:
-        # Otherwise assume it's already a list passed from the view
         recipients_list = recipient_email
 
-    # Format for Graph API: Each email must be its own object in the array
     to_recipients = [
         {
             "emailAddress": {
@@ -90,26 +91,28 @@ def send_outlook_email(target_email, recipient_email, subject, body_content, con
                 "contentType": content_type, 
                 "content": body_content
             },
-            "toRecipients": to_recipients, # Now a correctly formatted list of objects
+            "toRecipients": to_recipients,
             "attachments": [] 
         },
         "saveToSentItems": "true" 
     }
 
-    if attachment:
-        try:
-            attachment.seek(0)
-            content_bytes = attachment.read()
-            encoded_content = base64.b64encode(content_bytes).decode('utf-8')
+    # --- MULTI-ATTACHMENT LOGIC ---
+    if attachments:
+        for file in attachments:
+            try:
+                file.seek(0)
+                content_bytes = file.read()
+                encoded_content = base64.b64encode(content_bytes).decode('utf-8')
 
-            email_data["message"]["attachments"].append({
-                "@odata.type": "#microsoft.graph.fileAttachment",
-                "name": attachment.name,
-                "contentType": attachment.content_type,
-                "contentBytes": encoded_content
-            })
-        except Exception as e:
-            print(f"Failed to process attachment for sendMail: {e}")
+                email_data["message"]["attachments"].append({
+                    "@odata.type": "#microsoft.graph.fileAttachment",
+                    "name": file.name,
+                    "contentType": getattr(file, 'content_type', 'application/octet-stream'),
+                    "contentBytes": encoded_content
+                })
+            except Exception as e:
+                print(f"Failed to process attachment {getattr(file, 'name', 'unknown')} for sendMail: {e}")
     
     endpoint = "sendMail"
     

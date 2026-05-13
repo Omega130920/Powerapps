@@ -260,7 +260,7 @@
                             <tr style="text-align: left; background-color: #f8f9fa;">
                                 <th style="width: 160px; padding: 10px;">Type</th>
                                 <th style="padding: 10px;">Subject</th>
-                                <th style="padding: 10px;">Assigned/User</th>
+                                <th style="padding: 10px;">Action Log Type</th>
                                 <th style="padding: 10px;">Status</th>
                                 <th style="padding: 10px; text-align: center;">Actions</th>
                             </tr>
@@ -279,7 +279,16 @@
                                     <br>
                                     <small style="color: #888;">{{ log.sort_date|date:"Y-m-d H:i" }}</small>
                                 </td>
-                                <td style="padding: 10px;">{{ log.assigned_to|default:"-" }}</td>
+                                <!-- FIXED LOGIC FOR ACTION LOG TYPE -->
+                                <td style="padding: 10px;">
+                                    <span style="font-size: 0.9em; font-weight: 600; color: #444;">
+                                        {% if log.action_note_type %}
+                                            {{ log.action_note_type }}
+                                        {% else %}
+                                            Delegated Task
+                                        {% endif %}
+                                    </span>
+                                </td>
                                 <td style="padding: 10px;">
                                     <span class="status-badge" style="background-color: {{ log.badge_color }}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.8em;">
                                         {{ log.display_type|upper }}
@@ -553,13 +562,9 @@
         function syncStandaloneEditor() {
             const editor = document.getElementById('standalone_email_body_editor');
             const recipientInput = document.getElementById('standalone_recipient_input');
-            
-            // Front-end cleanup of multiple email string
-            // Replaces multiple commas/spaces with a clean semicolon separator
             if(recipientInput.value) {
                 recipientInput.value = recipientInput.value.replace(/[, ]+/g, ';').replace(/;+/g, ';');
             }
-            
             document.getElementById('standalone_email_html_content').value = editor.innerHTML;
         }
         function toggleEmailForm() {
