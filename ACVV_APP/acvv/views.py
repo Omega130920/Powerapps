@@ -320,10 +320,40 @@ def outlook_delegated_action(request, delegation_id):
             body = request.POST.get('reply_body')
             attachment = request.FILES.get('email_attachment')
             
+            selected_action_type = request.POST.get('action_log_type') or "Correspondence"
+            
             result = send_outlook_email(target_email, recipient, subject, body, content_type='Html', attachment=attachment)
             
             if result.get('success'):
                 log_delegation_transaction(delegation_id, request.user, subject, recipient, action_type='EMAIL_REPLY')
+                
+                new_ms_id = result.get('message_id') or f"REPLY-{timezone.now().timestamp()}"
+                
+                # FIX: Removed the non-existent field 'action_log_type' from constructor parameters
+                EmailDelegation.objects.create(
+                    email_id=new_ms_id,
+                    subject=subject,
+                    body=body,
+                    attachment=attachment,
+                    sender_address=target_email,
+                    assigned_user=request.user,
+                    status='SENT',
+                    mip_names=delegation.mip_names,
+                    received_at=timezone.now(),
+                    delegated_at=timezone.now(),
+                    work_related=True,
+                    communication_type='Reply'
+                )
+                
+                ClientNotes.objects.create(
+                    acvv_record=Globalacvv.objects.filter(Q(mip_names=delegation.mip_names) | Q(branch_code=delegation.mip_names)).first(),
+                    notes=f"Reply Sent: {subject}\nRecipient: {recipient}",
+                    user=request.user.username,
+                    date=timezone.now(),
+                    communication_type="Email",
+                    action_note_type=selected_action_type # Saves cleanly to your database column here
+                )
+                
                 messages.success(request, "Reply sent.")
             else:
                 messages.error(request, f"Reply failed: {result.get('error')}")
@@ -332,22 +362,47 @@ def outlook_delegated_action(request, delegation_id):
     # --- FETCH Data for GET ---
     acvv_records = Globalacvv.objects.all().only('mip_names', 'branch_code')
     
-    # FETCH 1: Message Content
-    email_data = _make_graph_request(f"messages/{delegation.email_id}", target_email)
-    
-    # 🛑 FETCH 2: Attachments (Added for Preview) 🛑
-    attachment_endpoint = f"messages/{delegation.email_id}/attachments"
-    attachment_data = _make_graph_request(attachment_endpoint, target_email)
-    attachments = attachment_data.get('value', []) if 'error' not in attachment_data else []
+    if delegation.email_id.startswith('SENT-') or delegation.email_id.startswith('REPLY-') or delegation.email_id.startswith('LOCAL-'):
+        email_data = {
+            'subject': delegation.subject,
+            'body': {'content': delegation.body or "Local preview content not found."},
+            'from': {'emailAddress': {'address': delegation.sender_address or target_email}}
+        }
+        attachments = []
+        if delegation.attachment:
+            attachments = [{
+                'name': os.path.basename(delegation.attachment.name),
+                'url': delegation.attachment.url,
+                'contentType': 'application/octet-stream',
+                'is_local': True
+            }]
+    else:
+        email_data = _make_graph_request(f"messages/{delegation.email_id}", target_email)
+        
+        is_404_error = False
+        if isinstance(email_data, dict):
+            if isinstance(email_data.get('error'), dict) and email_data['error'].get('code') == 'ErrorItemNotFound':
+                is_404_error = True
+            elif isinstance(email_data.get('details'), dict) and isinstance(email_data['details'].get('error'), dict):
+                if email_data['details']['error'].get('code') == 'ErrorItemNotFound':
+                    is_404_error = True
 
-    if 'error' in email_data:
+        if is_404_error:
+            messages.warning(request, "This message tracker placeholder was not found on the Microsoft server.")
+            return redirect('outlook_delegated_box')
+
+        attachment_endpoint = f"messages/{delegation.email_id}/attachments"
+        attachment_data = _make_graph_request(attachment_endpoint, target_email)
+        attachments = attachment_data.get('value', []) if 'error' not in attachment_data else []
+
+    if isinstance(email_data, dict) and 'error' in email_data and not email_data.get('subject'):
         messages.error(request, f"Error fetching content: {email_data.get('error')}")
         return redirect('outlook_delegated_box')
 
     context = {
         'delegation': delegation,
         'email': email_data,
-        'attachments': attachments, # 👈 Passed to template
+        'attachments': attachments,
         'notes': delegation.notes.all().order_by('-created_at'),
         'acvv_records': acvv_records,
         'target_email': target_email,
@@ -523,17 +578,37 @@ def acvv_information(request, mip_names):
 
     combined_email_log = []
     for log in delegated_logs:
-        is_sent = (log.status == 'SENT')
+        if log.status == 'SENT':
+            # --- UPDATED: Recognize 'Claim Sent' from global workflow ---
+            comm_type_lower = getattr(log, 'communication_type', '').lower()
+            if comm_type_lower == 'reply':
+                log_type = 'REPLY'
+                log_icon = '↩️'
+                badge_color = '#f7931e' # Orange
+            elif comm_type_lower == 'claim sent':
+                log_type = 'CLAIM SENT'
+                log_icon = '📋'
+                badge_color = '#9c27b0' # Purple for distinct tracking visibility
+            else:
+                log_type = 'DIRECT'
+                log_icon = '📤'
+                badge_color = '#28a745' # Green
+        else:
+            log_type = 'ORIGINAL'
+            log_icon = '📩'
+            badge_color = '#1976d2' if log.status != 'DLT' else '#ef5350'
+
         combined_email_log.append({
-            'type': 'DIRECT' if is_sent else 'ORIGINAL',
-            'icon': '📤' if is_sent else '📩',
-            'badge_color': '#28a745' if is_sent else ('#1976d2' if log.status != 'DLT' else '#ef5350'), 
+            'type': log_type,
+            'icon': log_icon,
+            'badge_color': badge_color, 
             'subject': log.subject or "Outlook Task",
             'received_at': log.received_at,
             'assigned_to': log.assigned_user.username if log.assigned_user else "Unassigned",
-            'display_type': 'SENT' if is_sent else log.get_status_display(),
+            'display_type': log_type if log.status == 'SENT' else log.get_status_display(),
             'email_id': log.email_id,
             'file_url': log.attachment.url if hasattr(log, 'attachment') and log.attachment else None,
+            'action_note_type': getattr(log, 'action_note_type', '-'),
             'sort_date': log.received_at or log.delegated_at
         })
 
@@ -771,51 +846,7 @@ from django.conf import settings
 from .models import AcvvClaim, Globalacvv, EmailDelegation
 from .services.outlook_graph_service import _make_graph_request # Assuming your service name
 
-@login_required
-def global_claims_view(request):
-    """Register for ALL claims EXCEPT Two Pot."""
-    query = request.GET.get('q')
-    target_email = settings.OUTLOOK_EMAIL_ADDRESS
-    
-    base_claims = AcvvClaim.objects.exclude(claim_type='Two Pot')
 
-    if query:
-        claims = base_claims.filter(
-            Q(id_number__icontains=query) | 
-            Q(member_surname__icontains=query) | 
-            Q(company_code__icontains=query)
-        ).order_by('-claim_created_date')
-    else:
-        claims = base_claims.order_by('-claim_created_date')[:50] 
-
-    # --- UPDATED: Email Preview Logic ---
-    # Fetch IDs as strings to handle both legacy (int) and new (string) formats
-    delegation_ids = [str(c.linked_email_id) for c in claims if c.linked_email_id]
-    
-    if delegation_ids:
-        # Fetching bulk using string keys
-        delegations_map = EmailDelegation.objects.in_bulk(delegation_ids, field_name='email_id')
-        
-        for claim in claims:
-            if claim.linked_email_id:
-                # 🛑 REMOVED int() conversion to allow long string IDs
-                del_obj = delegations_map.get(str(claim.linked_email_id))
-                if del_obj:
-                    endpoint = f"messages/{del_obj.email_id}?$select=subject,from,body,receivedDateTime"
-                    email_data = _make_graph_request(endpoint, target_email)
-                    if 'error' not in email_data:
-                        claim.email_preview_subject = email_data.get('subject')
-                        claim.email_preview_sender = email_data.get('from', {}).get('emailAddress', {}).get('address')
-                        claim.email_preview_body = email_data.get('body', {}).get('content')
-                        claim.email_preview_date = email_data.get('receivedDateTime')
-
-    return render(request, 'acvv_app/global_claims.html', {
-        'claims': claims,
-        'all_companies': Globalacvv.objects.values('mip_names', 'branch_code'),
-        # Ensure we can see 'DEL' (Incoming) and 'SENT' (Replies) to link them
-        'my_delegated_emails': EmailDelegation.objects.filter(assigned_user=request.user).exclude(status='DLT'),
-        'is_two_pot_view': False 
-    })
 
 @login_required
 def global_two_pot_view(request):
@@ -880,6 +911,49 @@ def global_two_pot_view(request):
         'start_date': start_date,
         'end_date': end_date,
     })
+    
+@login_required
+def global_claims_view(request):
+    """Register for ALL claims EXCEPT Two Pot."""
+    query = request.GET.get('q')
+    target_email = settings.OUTLOOK_EMAIL_ADDRESS
+    
+    base_claims = AcvvClaim.objects.exclude(claim_type='Two Pot')
+
+    if query:
+        claims = base_claims.filter(
+            Q(id_number__icontains=query) | 
+            Q(member_surname__icontains=query) | 
+            Q(company_code__icontains=query)
+        ).order_by('-claim_created_date')
+    else:
+        claims = base_claims.order_by('-claim_created_date')[:50] 
+
+    # --- UPDATED: Email Preview Logic ---
+    delegation_ids = [str(c.linked_email_id) for c in claims if c.linked_email_id]
+    
+    if delegation_ids:
+        delegations_map = EmailDelegation.objects.in_bulk(delegation_ids, field_name='email_id')
+        
+        for claim in claims:
+            if claim.linked_email_id:
+                del_obj = delegations_map.get(str(claim.linked_email_id))
+                if del_obj:
+                    endpoint = f"messages/{del_obj.email_id}?$select=subject,from,body,receivedDateTime"
+                    email_data = _make_graph_request(endpoint, target_email)
+                    if 'error' not in email_data:
+                        claim.email_preview_subject = email_data.get('subject')
+                        claim.email_preview_sender = email_data.get('from', {}).get('emailAddress', {}).get('address')
+                        claim.email_preview_body = email_data.get('body', {}).get('content')
+                        claim.email_preview_date = email_data.get('receivedDateTime')
+
+    return render(request, 'acvv_app/global_claims.html', {
+        'claims': claims,
+        'all_companies': Globalacvv.objects.values('mip_names', 'branch_code'),
+        'my_delegated_emails': EmailDelegation.objects.filter(assigned_user=request.user).exclude(status='DLT'),
+        'is_two_pot_view': False 
+    })
+
 
 @login_required
 def save_global_claim(request):
@@ -891,6 +965,21 @@ def save_global_claim(request):
         
         linked_id = request.POST.get('linked_email_id') or None
 
+        # Clean decimal/numeric entries to prevent validation crashes
+        claim_amount_raw = request.POST.get('claim_amount')
+        claim_amount_val = None
+        if claim_amount_raw and claim_amount_raw.strip():
+            try:
+                claim_amount_val = float(claim_amount_raw.replace(',', '').strip())
+            except ValueError:
+                pass
+
+        # Helper function to ensure empty date strings are handled as None/NULL safely
+        def clean_date_input(val):
+            if val and val.strip() and val.strip() != 'None':
+                return val.strip()
+            return None
+
         data = {
             'company_code': company_code,
             'agent': request.POST.get('agent'),
@@ -901,74 +990,110 @@ def save_global_claim(request):
             'claim_type': claim_type,
             'claim_status': request.POST.get('claim_status'),
             'payment_option': request.POST.get('payment_option'),
-            'claim_amount': request.POST.get('claim_amount') or None,
-            'claim_created_date': request.POST.get('claim_created_date') or None,
+            'claim_amount': claim_amount_val,
+            'claim_created_date': clean_date_input(request.POST.get('claim_created_date')),
             'linked_email_id': linked_id,
             'vested_pot_available': request.POST.get('vested_pot_available') == 'on',
-            'vested_pot_paid_date': request.POST.get('vested_pot_paid_date') or None,
+            'vested_pot_paid_date': clean_date_input(request.POST.get('vested_pot_paid_date')),
             'savings_pot_available': request.POST.get('savings_pot_available') == 'on',
-            'savings_pot_paid_date': request.POST.get('savings_pot_paid_date') or None,
-            'infund_cert_date': request.POST.get('infund_cert_date') or None,
+            'savings_pot_paid_date': clean_date_input(request.POST.get('savings_pot_paid_date')),
+            'infund_cert_date': clean_date_input(request.POST.get('infund_cert_date')),
         }
 
-        # 1. Save or Update the Claim
-        if claim_id:
-            AcvvClaim.objects.filter(id=claim_id).update(**data)
-            claim_obj = AcvvClaim.objects.get(id=claim_id)
-            messages.success(request, f"Claim for {claim_obj.member_surname} updated.")
-        else:
-            claim_obj = AcvvClaim.objects.create(**data)
-            messages.success(request, f"New {claim_type} claim created successfully.")
+        # --- 1. SAVE OR UPDATE THE CLAIM WITH TRY/EXCEPT DEBUGGING ---
+        claim_obj = None
+        try:
+            if claim_id and claim_id.strip():
+                AcvvClaim.objects.filter(id=claim_id).update(**data)
+                claim_obj = AcvvClaim.objects.get(id=claim_id)
+                messages.success(request, f"Claim for {claim_obj.member_surname} updated.")
+            else:
+                claim_obj = AcvvClaim.objects.create(**data)
+                messages.success(request, f"New {claim_type} claim created successfully.")
+        except Exception as e:
+            # This prints the precise reason (e.g., Data truncation, null constraint) to your terminal console
+            print(f"\n❌ [CRITICAL DATABASE SAVE ERROR]: {str(e)}\n")
+            messages.error(request, f"Database Save Failed: {str(e)}")
+            # Fallback redirect so you can see the message error banner
+            if claim_type == 'Two Pot':
+                return redirect('global_two_pot')
+            return redirect('global_claims')
 
         # 2. HANDLE CLAIM NOTES & INTERNAL ATTACHMENTS
         note_selection = request.POST.get('note_selection')
         note_description = request.POST.get('note_description')
         internal_attachment = request.FILES.get('claim_attachment')
 
-        if note_selection or note_description or internal_attachment:
-            ClaimNote.objects.create(
-                claim=claim_obj,
-                note_selection=note_selection,
-                note_description=note_description,
-                attachment=internal_attachment,
-                created_by=request.user
-            )
-            messages.info(request, "Internal claim note saved.")
+        if claim_obj and (note_selection or note_description or internal_attachment):
+            try:
+                ClaimNote.objects.create(
+                    claim=claim_obj,
+                    note_selection=note_selection,
+                    note_description=note_description,
+                    attachment=internal_attachment,
+                    created_by=request.user
+                )
+                messages.info(request, "Internal claim note saved.")
+            except Exception as note_err:
+                print(f"⚠️ [NON-CRITICAL NOTE SAVE ERROR]: {str(note_err)}")
 
         # 3. HANDLE OUTGOING EMAIL LOGIC WITH ATTACHMENTS
         recipient = request.POST.get('member_recipient_email')
         subject = request.POST.get('member_email_subject_reply')
         body = request.POST.get('email_body_html_content')
         
-        # Capture the specific file meant for the email recipient
         email_attachment = request.FILES.get('email_attachment')
 
         if recipient and subject and body:
             target_email = settings.OUTLOOK_EMAIL_ADDRESS
             
-            # Pass the email_attachment to your outlook service
             result = send_outlook_email(
                 target_email, 
                 recipient, 
                 subject, 
                 body, 
                 content_type='Html',
-                attachment=email_attachment  # Ensure your service is updated to handle this
+                attachment=email_attachment
             )
             
             if result.get('success'):
-                # Log the email to branch history
-                acvv_record = Globalacvv.objects.filter(mip_names=company_code).first()
-                if acvv_record:
-                    attach_msg = f" (with attachment: {email_attachment.name})" if email_attachment else ""
-                    ClientNotes.objects.create(
-                        acvv_record=acvv_record,
-                        notes=f"Email Sent: {subject}\nRecipient: {recipient}{attach_msg}",
-                        user=request.user.username,
-                        date=timezone.now(),
-                        communication_type="Email",
-                        action_note_type="Correspondence"
+                acvv_record = Globalacvv.objects.filter(
+                    Q(mip_names=company_code) | Q(branch_code=company_code)
+                ).first()
+                
+                resolved_mip_name = acvv_record.mip_names if acvv_record else company_code
+                note_selection_type = note_selection if note_selection else "Correspondence"
+                
+                new_ms_id = result.get('message_id') or f"CLAIM-{timezone.now().timestamp()}"
+                
+                try:
+                    EmailDelegation.objects.create(
+                        email_id=new_ms_id,
+                        subject=subject,
+                        body=body,
+                        attachment=email_attachment,
+                        sender_address=target_email,
+                        assigned_user=request.user,
+                        status='SENT',
+                        mip_names=resolved_mip_name, 
+                        received_at=timezone.now(),
+                        delegated_at=timezone.now(),
+                        work_related=True,
+                        communication_type='Claim Sent'
                     )
+
+                    if acvv_record:
+                        ClientNotes.objects.create(
+                            acvv_record=acvv_record,
+                            notes=f"Email Sent: {subject}\nRecipient: {recipient}" + (f" (with attachment: {email_attachment.name})" if email_attachment else ""),
+                            user=request.user.username,
+                            date=timezone.now(),
+                            communication_type="Email",
+                            action_note_type=note_selection_type
+                        )
+                except Exception as log_err:
+                    print(f"⚠️ [NON-CRITICAL EMAIL LOG ERROR]: {str(log_err)}")
+                    
                 messages.success(request, f"Email sent successfully to {recipient}.")
             else:
                 messages.error(request, f"Email failed: {result.get('error')}")
@@ -1950,39 +2075,41 @@ def export_two_pot_tracking_acvv(request):
 def send_acvv_direct_email(request, company_code):
     """
     Handles the 'Compose New Email' form.
-    Correctly captures the selected Action Log Type from the dropdown.
+    Correctly splits multiple recipients and handles multiple file attachments.
     """
     if request.method == 'POST':
         recipient_raw = request.POST.get('member_recipient_email', '')
         subject = request.POST.get('member_email_subject_reply')
         body = request.POST.get('email_body_html_content')
         
-        # --- NEW: Capture the selected Action Log Type from the form ---
-        # If the form field is named 'action_log_type', we grab that value
-        # Otherwise, we default to 'Correspondence' as a fallback
+        # --- NEW: Capture selected action log type safely ---
         selected_action_type = request.POST.get('action_log_type') or "Correspondence"
         
+        # --- MULTI-ATTACHMENT FIX ---
         attachments = request.FILES.getlist('email_attachments') 
 
         if recipient_raw and subject and body:
             target_email = settings.OUTLOOK_EMAIL_ADDRESS
             
+            # Split by semicolon (;) or comma (,)
             recipient_list = [email.strip() for email in re.split('[;,]', recipient_raw) if email.strip()]
             clean_recipient_str = ", ".join(recipient_list)
 
+            # Pass the full 'attachments' list instead of just [0]
             result = send_outlook_email(
                 target_email, 
                 recipient_list, 
                 subject, 
                 body, 
                 content_type='Html', 
-                attachments=attachments 
+                attachments=attachments
             )
             
             if result.get('success'):
                 acvv_record = get_object_or_404(Globalacvv, mip_names=company_code)
                 new_ms_id = result.get('message_id') or f"SENT-{timezone.now().timestamp()}"
 
+                # FIX: Removed 'action_log_type' parameter here to prevent the TypeError
                 EmailDelegation.objects.create(
                     email_id=new_ms_id,
                     subject=subject,
@@ -1995,19 +2122,17 @@ def send_acvv_direct_email(request, company_code):
                     received_at=timezone.now(),
                     delegated_at=timezone.now(),
                     work_related=True,
-                    communication_type='Email',
-                    # --- NEW: Store the selected log type here too if needed ---
-                    action_log_type=selected_action_type 
+                    communication_type='Email'
                 )
-
-                # --- FIX: Use selected_action_type instead of hardcoded 'Correspondence' ---
+                
+                # Keep it active here where your client_notes MySQL schema expects it!
                 ClientNotes.objects.create(
                     acvv_record=acvv_record,
                     notes=f"Email Sent: {subject}\nRecipient: {clean_recipient_str}",
                     user=request.user.username,
                     date=timezone.now(),
                     communication_type="Email",
-                    action_note_type=selected_action_type # <--- UPDATED FIELD
+                    action_note_type=selected_action_type
                 )
                 
                 messages.success(request, f"Email sent successfully to {clean_recipient_str}.")

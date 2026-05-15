@@ -279,14 +279,9 @@
                                     <br>
                                     <small style="color: #888;">{{ log.sort_date|date:"Y-m-d H:i" }}</small>
                                 </td>
-                                <!-- FIXED LOGIC FOR ACTION LOG TYPE -->
                                 <td style="padding: 10px;">
                                     <span style="font-size: 0.9em; font-weight: 600; color: #444;">
-                                        {% if log.action_note_type %}
-                                            {{ log.action_note_type }}
-                                        {% else %}
-                                            Delegated Task
-                                        {% endif %}
+                                        {{ log.action_note_type }}
                                     </span>
                                 </td>
                                 <td style="padding: 10px;">
