@@ -579,7 +579,6 @@ def acvv_information(request, mip_names):
     combined_email_log = []
     for log in delegated_logs:
         if log.status == 'SENT':
-            # --- UPDATED: Recognize 'Claim Sent' from global workflow ---
             comm_type_lower = getattr(log, 'communication_type', '').lower()
             if comm_type_lower == 'reply':
                 log_type = 'REPLY'
@@ -589,6 +588,11 @@ def acvv_information(request, mip_names):
                 log_type = 'CLAIM SENT'
                 log_icon = '📋'
                 badge_color = '#9c27b0' # Purple for distinct tracking visibility
+            # --- ADDED: Map the layout representation rules for Two Pot workflow entries ---
+            elif comm_type_lower == 'two pot email':
+                log_type = 'TWO POT EMAIL'
+                log_icon = '🍯'
+                badge_color = '#e65100' # Deep Amber/Orange text visibility style
             else:
                 log_type = 'DIRECT'
                 log_icon = '📤'
@@ -1064,6 +1068,12 @@ def save_global_claim(request):
                 resolved_mip_name = acvv_record.mip_names if acvv_record else company_code
                 note_selection_type = note_selection if note_selection else "Correspondence"
                 
+                # --- ADDED: Dynamically classify the communication type field value ---
+                if claim_type == 'Two Pot':
+                    resolved_comm_type = 'Two Pot Email'
+                else:
+                    resolved_comm_type = 'Claim Sent'
+                
                 new_ms_id = result.get('message_id') or f"CLAIM-{timezone.now().timestamp()}"
                 
                 try:
@@ -1079,7 +1089,7 @@ def save_global_claim(request):
                         received_at=timezone.now(),
                         delegated_at=timezone.now(),
                         work_related=True,
-                        communication_type='Claim Sent'
+                        communication_type=resolved_comm_type  # 👈 Dynamic label assignment
                     )
 
                     if acvv_record:
