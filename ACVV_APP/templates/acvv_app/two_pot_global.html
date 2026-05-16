@@ -130,6 +130,10 @@
                             data-claim_amount="{{ claim.claim_amount|default:'' }}"
                             data-claim_created_date="{{ claim.claim_created_date|date:'Y-m-d' }}"
                             data-linked_email_id="{{ claim.linked_email_id|default:'' }}"
+                            data-qualified="{{ claim.qualified|default:'YES' }}"
+                            data-date_submitted="{{ claim.date_submitted|date:'Y-m-d' }}"
+                            data-informed_er="{{ claim.informed_er|default:'NO' }}"
+                            data-submitted_by_agent="{{ claim.submitted_by_agent|default:'' }}"
                         >Edit</button>
 
                         <template id="notes-data-{{ claim.id }}">
@@ -198,7 +202,7 @@
 
             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                 <div>
-                    <label style="font-weight:bold;">Claim Status</label>
+                    <label style="font-weight:bold;">Claim Status (Column J)</label>
                     <select name="claim_status" id="claim_status_select" class="form-select" onchange="toggleWithdrawalSubFields()">
                         <option value="Member Emergency Savings Pot Withdrawal Submitted">MESPW Submitted</option>
                         <option value="Member Emergency Savings Pot Withdrawal Requested">MESPW Requested</option>
@@ -207,11 +211,11 @@
                     </select>
 
                     <div id="div_two_pot_withdrawal_details" style="display:none; margin-top: 10px; padding: 10px; background: #fffde7; border-left: 3px solid #fbc02d;">
-                        <label style="font-size: 0.85em; font-weight: bold; color: #bc5100;">Note Helper: Reason</label>
+                        <label style="font-size: 0.85em; font-weight: bold; color: #bc5100;">Note Helper: Reason (Column O)</label>
                         <select id="two_pot_withdrawal_status" class="form-select" onchange="handleWithdrawalStatusChange()">
                             <option value="">-- Select Status --</option>
-                            <option value="Withdrawal - Not Allowed">Withdrawal - Not Allowed</option>
-                            <option value="Withdrawal - Already claim in current financial year">Withdrawal - Already claim in current financial year</option>
+                            <option value="Withdrawal - Not Allowed">Not enough funds available</option>
+                            <option value="Withdrawal - Already claim in current financial year">Member already claimed this financial year</option>
                         </select>
                         <div id="div_prev_claim_date" style="display:none; margin-top: 8px;">
                             <label style="font-size: 0.85em; font-weight: bold;">Previous Claim Date</label>
@@ -221,7 +225,37 @@
                 </div>
                 <div><label style="font-weight:bold;">Payment Option</label><select name="payment_option" class="form-select"><option value="Full Payment">Full Payment</option><option value="Partially Taken">Partially Taken</option></select></div>
                 <div><label style="font-weight:bold;">Amount (R)</label><input type="number" step="0.01" name="claim_amount" class="form-input"></div>
-                <div><label style="font-weight:bold;">Created Date *</label><input type="date" name="claim_created_date" id="claim_created_date" class="form-input" required></div>
+                <div><label style="font-weight:bold;">Date Application Extracted (Column B) *</label><input type="date" name="claim_created_date" id="claim_created_date" class="form-input" required></div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px; padding: 15px; background-color: #f1f8e9; border: 1px solid #c8e6c9; border-radius: 8px;">
+                <div>
+                    <label style="font-weight:bold; color: #1b5e20;">Qualified Y/N (Column K)</label>
+                    <select name="qualified" id="qualified_select" class="form-select">
+                        <option value="YES">YES</option>
+                        <option value="NO">NO</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-weight:bold; color: #1b5e20;">Date Submitted Online (Column L)</label>
+                    <input type="date" name="date_submitted" id="date_submitted" class="form-input">
+                </div>
+                <div>
+                    <label style="font-weight:bold; color: #1b5e20;">Informed ER of submission (Column M)</label>
+                    <select name="informed_er" id="informed_er_select" class="form-select">
+                        <option value="YES">YES</option>
+                        <option value="NO">NO</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-weight:bold; color: #1b5e20;">Submitted By Agent (Column N)</label>
+                    <select name="submitted_by_agent" id="submitted_by_agent_select" class="form-select">
+                        <option value="">-- Select Agent --</option>
+                        <option value="TD">TD</option>
+                        <option value="LG">LG</option>
+                        <option value="JV">JV</option>
+                    </select>
+                </div>
             </div>
 
             <div style="margin-top: 20px; border-top: 1px dashed #ccc; padding-top: 15px;">
@@ -336,6 +370,14 @@
         const status = document.getElementById('claim_status_select').value;
         const div = document.getElementById('div_two_pot_withdrawal_details');
         div.style.display = (status === "Withdraw - Not Allowed") ? 'block' : 'none';
+        
+        // Auto Sync Qualified selection to NO if Status is Withdraw - Not Allowed
+        const qualSelect = document.getElementById('qualified_select');
+        if (status === "Withdraw - Not Allowed") {
+            qualSelect.value = "NO";
+        } else if (status === "Paid") {
+            qualSelect.value = "YES";
+        }
     }
 
     function handleWithdrawalStatusChange() {
@@ -346,10 +388,10 @@
         dateDiv.style.display = reason.includes("Already claim") ? 'block' : 'none';
 
         if (reason === "Withdrawal - Not Allowed") {
-            note.value = "Withdrawal - Not Allowed - Not enough funds available";
+            note.value = "Not enough funds available";
         } else if (reason.includes("Already claim")) {
             const dateStr = dateInput.value || "[Date Not Selected]";
-            note.value = `Withdrawal - Already claim in current financial year - Member claim date = ${dateStr}`;
+            note.value = "Member already claimed this financial year";
         }
     }
 
@@ -382,6 +424,12 @@
         document.querySelector('select[name="payment_option"]').value = d.payment_option;
         document.querySelector('input[name="claim_amount"]').value = d.claim_amount;
         document.querySelector('input[name="claim_created_date"]').value = d.claim_created_date;
+
+        // Populate newly added parameters cleanly from data mappings
+        document.getElementById('qualified_select').value = d.qualified || 'YES';
+        document.getElementById('date_submitted').value = d.date_submitted || '';
+        document.getElementById('informed_er_select').value = d.informed_er || 'NO';
+        document.getElementById('submitted_by_agent_select').value = d.submitted_by_agent || '';
 
         const notesSrc = document.getElementById('notes-data-' + d.id);
         const notesTrg = document.getElementById('claim_notes_tbody');

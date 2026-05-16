@@ -980,13 +980,21 @@ def save_global_claim(request):
 
         # Helper function to ensure empty date strings are handled as None/NULL safely
         def clean_date_input(val):
-            if val and val.strip() and val.strip() != 'None':
+            if val and val.strip() and val.strip() != 'None' and val.strip() != '':
                 return val.strip()
             return None
 
+        # Extract your newly added template parameters safely so they don't break the base save
+        form_qualified = request.POST.get('qualified') or "YES"
+        form_date_submitted = clean_date_input(request.POST.get('date_submitted'))
+        form_informed_er = request.POST.get('informed_er') or "NO"
+        form_submitted_by_agent = request.POST.get('submitted_by_agent') or ""
+
+        # --- EXTRACT BASE FIELD ATTRIBUTES CLEANLY FOR BASE CLAIM OBJECT ---
         data = {
             'company_code': company_code,
-            'agent': request.POST.get('agent'),
+            # Map form dropdown field directly back onto database column
+            'agent': form_submitted_by_agent, 
             'id_number': request.POST.get('id_number'),
             'member_name': request.POST.get('member_name'),
             'member_surname': request.POST.get('member_surname'),
@@ -996,12 +1004,9 @@ def save_global_claim(request):
             'payment_option': request.POST.get('payment_option'),
             'claim_amount': claim_amount_val,
             'claim_created_date': clean_date_input(request.POST.get('claim_created_date')),
+            # Map form date input field directly back onto database column 
+            'date_submitted': form_date_submitted,
             'linked_email_id': linked_id,
-            'vested_pot_available': request.POST.get('vested_pot_available') == 'on',
-            'vested_pot_paid_date': clean_date_input(request.POST.get('vested_pot_paid_date')),
-            'savings_pot_available': request.POST.get('savings_pot_available') == 'on',
-            'savings_pot_paid_date': clean_date_input(request.POST.get('savings_pot_paid_date')),
-            'infund_cert_date': clean_date_input(request.POST.get('infund_cert_date')),
         }
 
         # --- 1. SAVE OR UPDATE THE CLAIM WITH TRY/EXCEPT DEBUGGING ---
@@ -1023,17 +1028,31 @@ def save_global_claim(request):
                 return redirect('global_two_pot')
             return redirect('global_claims')
 
-        # 2. HANDLE CLAIM NOTES & INTERNAL ATTACHMENTS
+        # 2. HANDLE CLAIM NOTES & INTERNAL ATTACHMENTS (Enriched with tracking parameters)
         note_selection = request.POST.get('note_selection')
-        note_description = request.POST.get('note_description')
+        note_description = request.POST.get('note_description') or ""
         internal_attachment = request.FILES.get('claim_attachment')
 
-        if claim_obj and (note_selection or note_description or internal_attachment):
+        # Format tracking context info into the note field summary to keep history clean
+        tracking_metadata_summary = (
+            f"\n\n[Tracking Parameters Logged]:\n"
+            f"- Qualified: {form_qualified}\n"
+            f"- Date Submitted Online: {form_date_submitted or 'N/A'}\n"
+            f"- Informed ER: {form_informed_er}\n"
+            f"- Submitted by Agent: {form_submitted_by_agent or 'N/A'}"
+        )
+        
+        enriched_note_details = note_description + tracking_metadata_summary
+
+        if claim_obj:
             try:
+                # If no explicit selection type was provided by dropdown, set a helpful tracking fallback label
+                resolved_note_selection = note_selection if note_selection else "TRACKING METADATA UPDATE"
+                
                 ClaimNote.objects.create(
                     claim=claim_obj,
-                    note_selection=note_selection,
-                    note_description=note_description,
+                    note_selection=resolved_note_selection,
+                    note_description=enriched_note_details,
                     attachment=internal_attachment,
                     created_by=request.user
                 )
@@ -1068,7 +1087,6 @@ def save_global_claim(request):
                 resolved_mip_name = acvv_record.mip_names if acvv_record else company_code
                 note_selection_type = note_selection if note_selection else "Correspondence"
                 
-                # --- ADDED: Dynamically classify the communication type field value ---
                 if claim_type == 'Two Pot':
                     resolved_comm_type = 'Two Pot Email'
                 else:
@@ -1089,7 +1107,7 @@ def save_global_claim(request):
                         received_at=timezone.now(),
                         delegated_at=timezone.now(),
                         work_related=True,
-                        communication_type=resolved_comm_type  # 👈 Dynamic label assignment
+                        communication_type=resolved_comm_type
                     )
 
                     if acvv_record:
@@ -2018,12 +2036,22 @@ def export_two_pot_tracking_acvv(request):
     header_cell.fill = yellow_fill
     header_cell.border = thin_border
 
-    # Row 2 Headers
+    # Row 2 Headers (Updated to match Blue template row labels exactly)
     headers = [
-        "DATE EXTRACT INFO / FORM FROM WEB", "Initials", "Surname", 
-        "Member number", "ID NUMBER", "Fund", "Branch", "Query", "Claim", 
-        "Qualified", "Date submitted/ online", "Succesfull Loaded confirm", 
-        "Amount Apply for", "Admin Fee R33+15%", "Note"
+        "Date application extracted from Web: Savings Form Request",  # Column B
+        "Initials",                                                    # Column C
+        "Surname",                                                     # Column D
+        "Member number",                                               # Column E
+        "ID NUMBER",                                                   # Column F
+        "Fund Code",                                                   # Column G
+        "Company Name",                                                # Column H
+        "Query",                                                       # Column I
+        "Claim",                                                       # Column J
+        "Qualified Y/N",                                               # Column K
+        "Date submitted online",                                       # Column L
+        "Inform Employer that the claim is succesfully loaded",       # Column M
+        "Admin Front Office Application Submitted",                    # Column N
+        "Note Helper"                                                  # Column O
     ]
     ws.append(headers)
     
@@ -2036,34 +2064,39 @@ def export_two_pot_tracking_acvv(request):
 
     for claim in claims_queryset:
         initials = "".join([n[0] for n in claim.member_name.split() if n]) if claim.member_name else ""
+        
+        # Determine Qualified value explicitly based on form state
         is_paid = str(claim.claim_status).upper().strip() == "PAID"
         qualified_val = "YES" if is_paid else "NO"
         
-        if is_paid:
-            submit_date_label = claim.date_submitted.strftime('%d.%m.%Y') if claim.date_submitted else "Pending"
-        else:
-            submit_date_label = "Withdrawal Not Allowed"
+        # Build out dynamic Note helper descriptions for Column O when NO is encountered
+        note_helper = ""
+        if qualified_val == "NO":
+            status_str = str(claim.claim_status).strip()
+            if "Already claim" in status_str:
+                note_helper = "Member already claimed this financial year"
+            else:
+                note_helper = "Not enough funds available"
 
         row = [
-            claim.claim_created_date.strftime('%d/%m/%Y') if claim.claim_created_date else '',
-            initials,
-            claim.member_surname,
-            claim.mip_number,
-            claim.id_number,
-            claim.company_code,
-            branch_map.get(claim.company_code, "Unknown"),
-            "Savings Form Request",
-            "Savings Form Submitted" if is_paid else "Member Emergency Savings Pot Withdrawal Requested",
-            qualified_val,
-            submit_date_label,
-            "YES" if is_paid else "",
-            float(claim.claim_amount or 0),
-            "37.95",
-            claim.notes.last().note_description if claim.notes.exists() else ""
+            claim.claim_created_date.strftime('%d/%m/%Y') if claim.claim_created_date else '', # Col B
+            initials,                                                                          # Col C
+            claim.member_surname,                                                              # Col D
+            claim.mip_number,                                                                  # Col E
+            claim.id_number,                                                                   # Col F
+            claim.company_code,                                                                # Col G
+            branch_map.get(claim.company_code, "Unknown"),                                     # Col H
+            "Savings Form Request",                                                            # Col I (Default)
+            claim.claim_status or "",                                                          # Col J (Claim status field value)
+            qualified_val,                                                                     # Col K
+            claim.date_submitted.strftime('%d/%m/%Y') if claim.date_submitted else '',         # Col L
+            "YES" if is_paid else "No",                                                        # Col M
+            claim.agent or "TD",                                                               # Col N (Submitted by agent dropdown)
+            note_helper                                                                        # Col O (Note Helper reasoning layout)
         ]
         ws.append(row)
 
-        # Apply Red Text for "NO" status rows
+        # Apply Red Text formatting targets to lines evaluating as "NO" 
         for cell in ws[ws.max_row]:
             cell.border = thin_border
             cell.alignment = Alignment(vertical='center', horizontal='left')
@@ -2072,7 +2105,7 @@ def export_two_pot_tracking_acvv(request):
             else:
                 cell.font = Font(size=9)
 
-    widths = [22, 8, 18, 14, 18, 10, 25, 20, 35, 10, 22, 18, 14, 14, 40]
+    widths = [30, 8, 18, 14, 18, 12, 35, 22, 35, 12, 22, 22, 22, 50]
     for i, width in enumerate(widths):
         ws.column_dimensions[get_column_letter(i+1)].width = width
 
