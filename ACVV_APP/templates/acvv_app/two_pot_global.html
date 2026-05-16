@@ -56,6 +56,11 @@
     /* EMAIL PREVIEW MODAL STYLES */
     .email-preview-modal-content { background: #ffffff; width: 85%; max-width: 1000px; margin: 40px auto; padding: 0; border-radius: 16px; box-shadow: 0 25px 60px rgba(0,0,0,0.5); overflow: hidden; }
     .email-body-container { padding: 40px; background: #ffffff; max-height: 70vh; overflow-y: auto; color: #3c4043; font-size: 1rem; line-height: 1.7; }
+    
+    /* POT AVAILABILITY SPECIFIC STYLES */
+    .pot-section { border: 1.5px solid #1e88e5; background-color: #f1f8ff; padding: 20px; border-radius: 10px; margin-bottom: 15px; }
+    .pot-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+    .pot-box { background: white; padding: 15px; border: 1px solid #bbdefb; border-radius: 6px; }
 </style>
 {% endblock %}
 
@@ -134,6 +139,13 @@
                             data-date_submitted="{{ claim.date_submitted|date:'Y-m-d' }}"
                             data-informed_er="{{ claim.informed_er|default:'NO' }}"
                             data-submitted_by_agent="{{ claim.submitted_by_agent|default:'' }}"
+                            data-vested_pot_available="{{ claim.vested_pot_available }}"
+                            data-vested_pot_paid_date="{{ claim.vested_pot_paid_date|date:'Y-m-d' }}"
+                            data-savings_pot_available="{{ claim.savings_pot_available }}"
+                            data-savings_pot_paid_date="{{ claim.savings_pot_paid_date|date:'Y-m-d' }}"
+                            data-infund_cert_date="{{ claim.infund_cert_date|date:'Y-m-d' }}"
+                            data-last_contribution_date="{{ claim.last_contribution_date|date:'Y-m-d' }}"
+                            data-date_paid="{{ claim.date_paid|date:'Y-m-d' }}"
                         >Edit</button>
 
                         <template id="notes-data-{{ claim.id }}">
@@ -258,43 +270,73 @@
                 </div>
             </div>
 
-            <div style="margin-top: 20px; border-top: 1px dashed #ccc; padding-top: 15px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <label style="font-weight: bold; color: #1e88e5;">🔗 Link or Compose Email</label>
-                    <button type="button" onclick="toggleEmailForm()" style="background-color: #ff9800; color: white; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 800;">✉️ Compose Email</button>
+            <div class="pot-section" id="two_pot_fields_section">
+                <h4 style="margin-top: 0; color: #1565c0; border-bottom: 1px solid #1e88e5; padding-bottom: 10px; font-weight: 800;">Pot Availability & Certificates</h4>
+                <div class="pot-grid">
+                    <div class="pot-box">
+                        <label style="font-weight: bold; display: block; margin-bottom: 10px; cursor: pointer;">
+                            <input type="checkbox" name="vested_pot_available" id="id_vested_pot_available" onchange="togglePotVisibility()" style="margin-right: 8px;"> 
+                            Vested Pot payout available
+                        </label>
+                        <div id="div_vested_paid" style="display: none; margin-top: 10px;">
+                            <label style="font-size: 0.85em; font-weight: bold;">Vested Pot Paid Date</label>
+                            <input type="date" name="vested_pot_paid_date" id="id_vested_pot_paid_date" class="form-input">
+                        </div>
+                    </div>
+                    <div class="pot-box">
+                        <label style="font-weight: bold; display: block; margin-bottom: 10px; cursor: pointer;">
+                            <input type="checkbox" name="savings_pot_available" id="id_savings_pot_available" onchange="togglePotVisibility()" style="margin-right: 8px;"> 
+                            Savings Pot available
+                        </label>
+                        <div id="div_savings_paid" style="display: none; margin-top: 10px;">
+                            <label style="font-size: 0.85em; font-weight: bold;">Savings Pot Paid Date</label>
+                            <input type="date" name="savings_pot_paid_date" id="id_savings_pot_paid_date" class="form-input">
+                        </div>
+                    </div>
                 </div>
+                <div style="margin-top: 15px; background: #fffde7; padding: 10px; border-radius: 6px; border: 1px solid #fbc02d; display: flex; align-items: center; gap: 15px;">
+                    <label style="font-weight: bold; color: #f57f17; margin: 0; flex: 1;">In-Fund Preservation Paid Up Certificate Date:</label>
+                    <input type="date" name="infund_cert_date" id="id_infund_cert_date" class="form-input" style="width: auto;">
+                </div>
+            </div>
 
-                <select id="linked_email_id" name="linked_email_id" class="form-select" style="border: 1.5px solid #1e88e5;">
-                    <option value="">-- Link an existing delegated email --</option>
-                    {% for email in my_delegated_emails %}
-                        <option value="{{ email.id }}">📅 {{ email.received_at|date:"Y-m-d" }} | {{ email.subject|slice:":40" }}... (From: {{ email.sender_address }})</option>
-                    {% endfor %}
-                </select>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                <div><label style="font-weight:bold;">Created *</label><input type="date" name="claim_created_date" id="claim_created_date_fallback" class="form-input" required value="{% now 'Y-m-d' %}"></div>
+                <div><label style="font-weight:bold;">Last Contrib.</label><input type="date" name="last_contribution_date" id="last_contribution_date" class="form-input"></div>
+                <div><label style="font-weight:bold;">Submitted</label><input type="date" name="date_submitted_fallback" id="date_submitted_fallback" class="form-input"></div>
+                <div><label style="font-weight:bold;">Paid</label><input type="date" name="date_paid" id="date_paid" class="form-input"></div>
+            </div>
 
-                <div id="email-composition-container" style="display: none; margin-top: 15px; background-color: #fffaf5; border: 2px dashed #ff9800; border-radius: 10px; padding: 20px;">
-                    <h3 style="color: #ff9800; margin: 0 0 15px 0; font-size: 16px;">Compose Member Response</h3>
-                    <textarea id="email_body_html_content" name="email_body_html_content" style="display:none;"></textarea>
+            <div class="row" style="margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 20px; margin-bottom: 15px;">
+                <div class="col-md-12">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 8px;">
+                        <label for="linked_email_id" style="font-weight: bold; color: #1e88e5; font-size: 1rem;">🔗 Attach Delegated Email (Optional)</label>
+                        <button type="button" onclick="toggleEmailForm()" style="background-color: #ff9800; color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 800; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">✉️ Compose Email</button>
+                    </div>
                     
-                    <div style="margin-bottom: 10px;">
-                        <label style="font-weight: bold; font-size: 12px;">To:</label>
-                        <input type="text" id="member_recipient_email" name="member_recipient_email" class="form-input">
-                    </div>
-                    <div style="margin-bottom: 10px;">
-                        <label style="font-weight: bold; font-size: 12px;">Subject:</label>
-                        <input type="text" id="member_email_subject_reply" name="member_email_subject_reply" class="form-input">
-                    </div>
+                    <select id="linked_email_id" name="linked_email_id" class="form-select" style="border: 1.5px solid #1e88e5; width: 100%; padding: 12px;">
+                        <option value="">-- Select an email to link to this claim --</option>
+                        {% for email in my_delegated_emails %}
+                            <option value="{{ email.email_id }}">📅 {{ email.received_at|date:"Y-m-d" }} | ✉️ {{ email.subject|slice:":40" }}... (From: {{ email.sender_address }})</option>
+                        {% endfor %}
+                    </select>
 
-                    <div style="margin-bottom: 10px; padding: 10px; border: 1px dashed #ff9800; background-color: #fff; border-radius: 8px;">
-                        <label style="color: #e65100; font-weight: bold; display: block; margin-bottom: 5px; font-size: 12px;"><i class="fas fa-paperclip"></i> Email Attachment:</label>
-                        <input type="file" name="email_attachment" class="form-input" style="border: none; padding: 0;">
-                    </div>
+                    <div id="email-composition-container" style="display: none; margin-top: 20px; background-color: #fffaf5; border: 2.5px dashed #ff9800; border-radius: 12px; padding: 25px;">
+                        <h3 style="color: #ff9800; margin-top: 0; font-size: 18px; font-weight: 800;">Compose Outgoing Email</h3>
+                        <textarea id="email_body_html_content" name="email_body_html_content" style="display:none;"></textarea>
+                        <div class="form-group" style="margin-bottom: 15px;"><label>To:</label><input type="text" id="member_recipient_email" name="member_recipient_email" class="form-input"></div>
+                        <div class="form-group" style="margin-bottom: 15px;"><label>Subject:</label><input type="text" id="member_email_subject_reply" name="member_email_subject_reply" class="form-input"></div>
+                        
+                        <div class="form-group" style="margin-bottom: 15px; padding: 10px; border: 1px dashed #ff9800; background-color: #fff; border-radius: 8px;">
+                            <label style="color: #e65100; font-weight: bold; display: block; margin-bottom: 5px;"><i class="fas fa-paperclip"></i> Email Attachment (Sent with Email):</label>
+                            <input type="file" name="email_attachment" class="form-input" style="border: none; padding: 0;">
+                        </div>
 
-                    <div style="margin-bottom: 15px;">
-                        <label style="font-weight: bold; font-size: 12px;">Email Body:</label>
-                        <textarea id="member_email_body_editor" class="form-input" rows="6">Dear Sir/Madam,&#10;&#10;Kind regards,&#10;{{ request.user.username }}</textarea>
-                    </div>
-                    <div style="text-align: right;">
-                        <button type="submit" name="email_submission_action" value="send_email_and_log" onclick="syncEmailEditor()" style="padding: 10px 20px; background-color: #f7931e; color: white; border: none; border-radius: 6px; font-weight: 800;">Send Email & Save</button>
+                        <div class="form-group" style="margin-bottom: 20px;"><label>Email Body:</label><textarea id="member_email_body_editor" class="form-input" rows="8">Dear Sir/Madam,&#10;&#10;Kind regards,&#10;{{ request.user.username }}</textarea></div>
+                        <div style="text-align: right;">
+                            <button type="button" class="cancel-btn" onclick="toggleEmailForm()">Hide</button>
+                            <button type="submit" name="email_submission_action" value="send_email_and_log" class="save-info-btn" onclick="syncEmailEditor()">Send & Save</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -361,6 +403,15 @@
         if(editor && hidden) hidden.value = editor.value.replace(/\n/g, '<br>');
     }
 
+    // Toggle logic update for visibility tracking rules
+    function togglePotVisibility() {
+        const vestedCb = document.getElementById('id_vested_pot_available');
+        const savingsCb = document.getElementById('id_savings_pot_available');
+        
+        document.getElementById('div_vested_paid').style.display = vestedCb && vestedCb.checked ? 'block' : 'none';
+        document.getElementById('div_savings_paid').style.display = savingsCb && savingsCb.checked ? 'block' : 'none';
+    }
+
     function toggleEmailForm() {
         const div = document.getElementById('email-composition-container');
         div.style.display = div.style.display === 'none' ? 'block' : 'none';
@@ -371,7 +422,6 @@
         const div = document.getElementById('div_two_pot_withdrawal_details');
         div.style.display = (status === "Withdraw - Not Allowed") ? 'block' : 'none';
         
-        // Auto Sync Qualified selection to NO if Status is Withdraw - Not Allowed
         const qualSelect = document.getElementById('qualified_select');
         if (status === "Withdraw - Not Allowed") {
             qualSelect.value = "NO";
@@ -402,9 +452,16 @@
         document.getElementById('linked_email_id').value = '';
         document.getElementById('email-composition-container').style.display = 'none';
         document.getElementById('div_two_pot_withdrawal_details').style.display = 'none';
+        
+        // Standard defaults initialization
         document.getElementById('claim_created_date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('claim_created_date_fallback').value = new Date().toISOString().split('T')[0];
+        
         document.getElementById('modalTitle').innerText = "New Two-Pot Entry";
         document.getElementById('claim_notes_tbody').innerHTML = '<tr><td colspan="5" style="text-align:center;">New record.</td></tr>';
+        
+        // Initialize visibility checks
+        togglePotVisibility();
         modal.style.display = 'block';
     }
 
@@ -423,13 +480,25 @@
         toggleWithdrawalSubFields();
         document.querySelector('select[name="payment_option"]').value = d.payment_option;
         document.querySelector('input[name="claim_amount"]').value = d.claim_amount;
-        document.querySelector('input[name="claim_created_date"]').value = d.claim_created_date;
+        
+        // Populate synchronized extraction date parameters
+        document.getElementById('claim_created_date').value = d.claim_created_date;
+        document.getElementById('claim_created_date_fallback').value = d.claim_created_date;
 
-        // Populate newly added parameters cleanly from data mappings
         document.getElementById('qualified_select').value = d.qualified || 'YES';
         document.getElementById('date_submitted').value = d.date_submitted || '';
+        document.getElementById('date_submitted_fallback').value = d.date_submitted || '';
         document.getElementById('informed_er_select').value = d.informed_er || 'NO';
         document.getElementById('submitted_by_agent_select').value = d.submitted_by_agent || '';
+
+        // Hydrate newly added validation parameters cleanly into the modal fields layout
+        document.getElementById('id_vested_pot_available').checked = (d.vested_pot_available === 'True');
+        document.getElementById('id_vested_pot_paid_date').value = d.vested_pot_paid_date || '';
+        document.getElementById('id_savings_pot_available').checked = (d.savings_pot_available === 'True');
+        document.getElementById('id_savings_pot_paid_date').value = d.savings_pot_paid_date || '';
+        document.getElementById('id_infund_cert_date').value = d.infund_cert_date || '';
+        document.getElementById('last_contribution_date').value = d.last_contribution_date || '';
+        document.getElementById('date_paid').value = d.date_paid || '';
 
         const notesSrc = document.getElementById('notes-data-' + d.id);
         const notesTrg = document.getElementById('claim_notes_tbody');
@@ -437,6 +506,9 @@
             notesTrg.innerHTML = "";
             notesTrg.appendChild(notesSrc.content.cloneNode(true));
         }
+        
+        // Execute dynamic visibility loop processing
+        togglePotVisibility();
         document.getElementById('claimModal').style.display = 'block';
     }
 

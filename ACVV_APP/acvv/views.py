@@ -564,8 +564,10 @@ def acvv_information(request, mip_names):
             messages.success(request, "Contact information updated successfully.")
             return redirect('acvv_information', mip_names=acvv_record.mip_names)
 
-    # --- DATA FETCHING ---
-    notes = ClientNotes.objects.filter(acvv_record=acvv_record).exclude(
+    # --- DATA FETCHING & COLUMN LINKING ---
+    all_notes = ClientNotes.objects.filter(acvv_record=acvv_record)
+    
+    notes = all_notes.exclude(
         Q(notes__icontains="Email Composed") | Q(notes__icontains="Email Sent")
     ).order_by('-date')
     
@@ -575,6 +577,18 @@ def acvv_information(request, mip_names):
     delegated_logs = EmailDelegation.objects.filter(
         Q(mip_names__icontains=acvv_record.mip_names) | Q(mip_names__icontains=acvv_record.branch_code)
     ).select_related('assigned_user')
+
+    # --- FIX: Build a robust lookup map from client_notes table using email subject headers ---
+    notes_action_map = {}
+    for n in all_notes:
+        note_text = n.notes or ""
+        if "Email Sent:" in note_text:
+            try:
+                # Isolate the precise subject string row by removing the system logging prefix label
+                sub_line = note_text.split('\n')[0].replace("Email Sent:", "").strip()
+                notes_action_map[sub_line] = n.action_note_type
+            except Exception:
+                pass
 
     combined_email_log = []
     for log in delegated_logs:
@@ -588,7 +602,6 @@ def acvv_information(request, mip_names):
                 log_type = 'CLAIM SENT'
                 log_icon = '📋'
                 badge_color = '#9c27b0' # Purple for distinct tracking visibility
-            # --- ADDED: Map the layout representation rules for Two Pot workflow entries ---
             elif comm_type_lower == 'two pot email':
                 log_type = 'TWO POT EMAIL'
                 log_icon = '🍯'
@@ -602,6 +615,11 @@ def acvv_information(request, mip_names):
             log_icon = '📩'
             badge_color = '#1976d2' if log.status != 'DLT' else '#ef5350'
 
+        # --- FIX: Retrieve the matching value from client_notes table via map lookup ---
+        resolved_action_note_type = notes_action_map.get(log.subject, getattr(log, 'action_note_type', None))
+        if not resolved_action_note_type or resolved_action_note_type == 'None':
+            resolved_action_note_type = '-'
+
         combined_email_log.append({
             'type': log_type,
             'icon': log_icon,
@@ -612,7 +630,7 @@ def acvv_information(request, mip_names):
             'display_type': log_type if log.status == 'SENT' else log.get_status_display(),
             'email_id': log.email_id,
             'file_url': log.attachment.url if hasattr(log, 'attachment') and log.attachment else None,
-            'action_note_type': getattr(log, 'action_note_type', '-'),
+            'action_note_type': resolved_action_note_type, # 👈 Successfully binds true action_note_type data
             'sort_date': log.received_at or log.delegated_at
         })
 
@@ -1689,28 +1707,31 @@ def export_reconciliation(request, date_str):
 @login_required
 def outlook_email_list(request):
     """
-    View to display only NEW and DELEGATED (DEL) emails with date filtering.
+    View to display NEW, DELEGATED (DEL), and COMPLETED (COM) emails with date filtering.
     """
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
 
-    # Filter for NEW and DEL statuses only
+    # --- FIX: Expanded statuses inclusion list filter matrix targets ---
     emails = EmailDelegation.objects.filter(
-        status__in=['NEW', 'DEL']
+        status__in=['NEW', 'DEL', 'COM']
     ).select_related('assigned_user').order_by('-received_at')
 
     # Apply date filters if provided
     if start_date and end_date:
         emails = emails.filter(received_at__date__range=[start_date, end_date])
 
-    # Status counts for badges
-    new_count = emails.filter(status='NEW').count()
-    del_count = emails.filter(status='DEL').count()
+    # Status counts for badges (Calculated post base filter execution alignment)
+    new_count = EmailDelegation.objects.filter(status='NEW').count()
+    del_count = EmailDelegation.objects.filter(status='DEL').count()
+    # --- ADDED: Track and expose Completed status metrics safely ---
+    com_count = EmailDelegation.objects.filter(status='COM').count()
 
     context = {
         'emails': emails,
         'new_count': new_count,
         'del_count': del_count,
+        'com_count': com_count,  # 👈 Available for badge counters inside your HTML layout view template
     }
     return render(request, 'acvv_app/outlook_email_list.html', context)
 
@@ -2125,8 +2146,8 @@ def send_acvv_direct_email(request, company_code):
         subject = request.POST.get('member_email_subject_reply')
         body = request.POST.get('email_body_html_content')
         
-        # --- NEW: Capture selected action log type safely ---
-        selected_action_type = request.POST.get('action_log_type') or "Correspondence"
+        # --- FIX: Capture from either action_note_type or action_log_type safely ---
+        selected_action_type = request.POST.get('action_note_type') or request.POST.get('action_log_type') or "Correspondence"
         
         # --- MULTI-ATTACHMENT FIX ---
         attachments = request.FILES.getlist('email_attachments') 
