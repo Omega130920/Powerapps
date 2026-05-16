@@ -850,6 +850,233 @@ def beneficiary_list_view(request):
         'total_count': queryset.count()
     })
 
+
+@login_required
+def beneficiary_details_view(request, membership_number):
+    member = get_object_or_404(PssubfBeneficiary, membership_number=membership_number)
+    
+    # Helper function to clean currency/numeric strings before saving
+    def clean_decimal(value):
+        if not value or value == '': return 0.00
+        return str(value).replace('R', '').replace(',', '').replace('%', '').strip()
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+
+        # --- 1. HANDLE DIRECT EMAIL (COMPOSITION TAB) ---
+        if action == 'send_direct_email':
+            recipient = request.POST.get('to_email')
+            subject = request.POST.get('subject')
+            body_html = request.POST.get('email_html_content')
+
+            if recipient and subject and body_html:
+                result = OutlookGraphService.send_outlook_email(settings.OUTLOOK_EMAIL_ADDRESS, recipient, subject, body_html)
+                
+                if result.get('success') or result == {}:
+                    # Create the primary log
+                    direct_mail = PssubfDirectEmail.objects.create(
+                        membership_number=membership_number,
+                        agent_name=request.user.username,
+                        recipient=recipient,
+                        subject=subject,
+                        body_html=body_html
+                    )
+                    
+                    # --- CRITICAL ADDITION: Create Inbox Record using received_timestamp ---
+                    email_id = f"DIRECT_{membership_number}_{direct_mail.id}"
+                    PssubfInbox.objects.create(
+                        email_id=email_id,
+                        subject=subject,
+                        sender=settings.OUTLOOK_EMAIL_ADDRESS,
+                        snippet=f"Direct Email to {recipient}",
+                        status='Sent',
+                        received_timestamp=timezone.now(),
+                        member_group_code=membership_number
+                    )
+
+                    PssubfAction.objects.create(
+                        task_email_id=email_id,
+                        action_type="Direct Email Sent",
+                        action_user=request.user.username,
+                        note_content=f"Sent to: {recipient} | Subject: {subject}",
+                        action_timestamp=timezone.now()
+                    )
+                    messages.success(request, f"Direct email sent successfully to {recipient}.")
+                else:
+                    messages.error(request, f"Email failed to send: {result.get('error')}")
+            return redirect('beneficiary_details', membership_number=membership_number)
+
+        # --- 2. HANDLE GENERAL NOTES (NOTES TAB) ---
+        elif action == 'save_note' or 'save_note' in request.POST:
+            note_text = request.POST.get('note_text')
+            if note_text:
+                current_status = "Expired" if member.is_expired else "Active"
+                PssubfNote.objects.create(
+                    task_email_id=f"PROFILE_{membership_number}",
+                    agent_name=request.user.username,
+                    note_text=note_text,
+                    classification_at_time="Profile Detail Note",
+                    status_at_time=current_status
+                )
+                PssubfProfileNote.objects.create(
+                    membership_number=membership_number,
+                    agent_name=request.user.username,
+                    note_content=note_text
+                )
+                PssubfAction.objects.create(
+                    task_email_id=f"NOTE_{membership_number}",
+                    action_type="Internal Note",
+                    action_user=request.user.username,
+                    note_content=f"Added profile note: {note_text[:50]}...",
+                    action_timestamp=timezone.now()
+                )
+                messages.success(request, "Internal note added to profile.")
+            return redirect('beneficiary_details', membership_number=membership_number)
+
+        # --- 3. HANDLE CORE PROFILE UPDATES ---
+        elif action == 'update_profile':
+            try:
+                member.old_membership_number = request.POST.get('old_membership_number')
+                member.title = request.POST.get('title')
+                member.initials = request.POST.get('initials')
+                member.first_name = request.POST.get('first_name')
+                member.second_name = request.POST.get('second_name')
+                member.last_name = request.POST.get('last_name')
+                member.id_number = request.POST.get('id_number')
+                
+                dob_str = request.POST.get('dob')
+                if dob_str:
+                    dob_date = datetime.strptime(dob_str, '%Y-%m-%d').date()
+                    member.dob = dob_date
+                    member.cessation_date = dob_date + relativedelta(years=18)
+                
+                member.employee_number = request.POST.get('employee_number')
+                member.stipened_frequency = request.POST.get('stipened_frequency')
+                
+                member.stipened = float(clean_decimal(request.POST.get('stipened', '0')))
+                member.total_fund_value = float(clean_decimal(request.POST.get('total_fund_value', '0')))
+                
+                port_date_str = request.POST.get('portfolio_date')
+                if port_date_str:
+                    member.portfolio_date = datetime.strptime(port_date_str, '%Y-%m-%d').date()
+
+                join_date_str = request.POST.get('fund_join_date')
+                if join_date_str:
+                    member.fund_join_date = datetime.strptime(join_date_str, '%Y-%m-%d').date()
+
+                member.mobile_1 = request.POST.get('mobile_1')
+                member.email_1 = request.POST.get('email_1')
+                member.mobile_2 = request.POST.get('mobile_2')
+                member.email_2 = request.POST.get('email_2')
+                member.mobile_3 = request.POST.get('mobile_3')
+                member.email_3 = request.POST.get('email_3')
+
+                member.guardian_title = request.POST.get('guardian_title')
+                member.guardian_first_name = request.POST.get('guardian_first_name')
+                member.guardian_last_name = request.POST.get('guardian_last_name')
+                member.guardian_mobile = request.POST.get('guardian_mobile')
+                member.guardian_email = request.POST.get('guardian_email')
+                member.guardian_address = request.POST.get('guardian_address')
+                
+                member.save()
+
+                PssubfAction.objects.create(
+                    task_email_id=f"PROFILE_MOD_{membership_number}",
+                    action_type="Profile Update",
+                    action_user=request.user.username,
+                    note_content="Modified beneficiary personal/financial details and fund values.",
+                    action_timestamp=timezone.now()
+                )
+                messages.success(request, f"Changes saved for Member {member.membership_number}.")
+                return redirect('beneficiary_details', membership_number=member.membership_number)
+            except Exception as e:
+                messages.error(request, f"Error updating record: {str(e)}")
+
+        # --- 4. HANDLE NEW CLAIM (MODAL) ---
+        elif action == 'add_claim_entry':
+            # 🚀 TEMPORARY DEBUG: Removed try/except block to reveal the exact DB error string
+            ClaimList.objects.create(
+                beneficiary=member,
+                claim_type=request.POST.get('claim_type'),
+                date_logged=request.POST.get('date_logged'),
+                amount_requested=clean_decimal(request.POST.get('amount_requested')),
+                status='Pending',
+                description=request.POST.get('description'),
+                supporting_document=request.FILES.get('supporting_document')
+            )
+            messages.success(request, "New claim registered successfully.")
+            return redirect('beneficiary_details', membership_number=membership_number)
+
+        # --- 5. HANDLE NEW AD HOC (MODAL) ---
+        elif action == 'add_adhoc_entry':
+            try:
+                claim_date_str = request.POST.get('claim_form_date')
+                claim_date = datetime.strptime(claim_date_str, '%Y-%m-%d').date() if claim_date_str else date.today()
+                
+                years_val = 0.0
+                if member.cessation_date:
+                    days_remaining = (member.cessation_date - claim_date).days
+                    years_val = round(days_remaining / 365.25, 1)
+
+                AdHocList.objects.create(
+                    beneficiary=member,
+                    title=request.POST.get('title'),
+                    claim_form_date=claim_date,
+                    amount_requested=clean_decimal(request.POST.get('amount_requested')),
+                    years_to_maturity=years_val,
+                    status='Pending',
+                    comments=request.POST.get('comments'),
+                    supporting_document=request.FILES.get('supporting_document')
+                )
+                messages.success(request, "Ad Hoc entry saved.")
+            except Exception as e:
+                messages.error(request, f"Ad Hoc Error: {str(e)}")
+            return redirect('beneficiary_details', membership_number=membership_number)
+
+    # --- FETCH DATA FOR TABS ---
+    claims = ClaimList.objects.filter(beneficiary__membership_number=membership_number).order_by('-date_logged')
+    adhoc_records = AdHocList.objects.filter(beneficiary=member).order_by('-claim_form_date')
+
+    incoming_emails = PssubfDelegate.objects.filter(member_group_code=membership_number)
+    outgoing_emails = PssubfDirectEmail.objects.filter(membership_number=membership_number)
+
+    combined_emails = []
+    for e in incoming_emails:
+        combined_emails.append({
+            'email_id': e.email_id, 
+            'agent': e.assigned_agent or "Unassigned",
+            'subject': e.subject,
+            'date': e.created_at,
+            'status': e.status,
+            'type': 'INCOMING'
+        })
+
+    for e in outgoing_emails:
+        combined_emails.append({
+            'email_id': f"DIRECT_{membership_number}_{e.id}", 
+            'agent': e.agent_name,
+            'subject': e.subject,
+            'date': e.sent_at,
+            'status': 'Sent',
+            'type': 'OUTGOING'
+        })
+
+    combined_emails.sort(key=lambda x: x['date'] if x['date'] else timezone.now(), reverse=True)
+    
+    internal_notes = PssubfNote.objects.filter(task_email_id__icontains=membership_number).order_by('-created_at')
+    pssubf_actions = PssubfAction.objects.filter(Q(task_email_id__icontains=membership_number)).order_by('-action_timestamp')
+
+    context = {
+        'member': member,
+        'claims': claims,
+        'adhoc_records': adhoc_records,
+        'email_logs': combined_emails,
+        'internal_notes': internal_notes,
+        'pssubf_actions': pssubf_actions,
+        'title': f"Member Profile - {membership_number}"
+    }
+    return render(request, 'pssubf/beneficiary_details.html', context)
+
 from django.utils import timezone  # Ensure this is at the top of your file
 
 from django.utils import timezone # Ensure this is at the top of your views.py

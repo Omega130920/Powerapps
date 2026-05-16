@@ -243,17 +243,6 @@
         </div>
     </div>
 
-    {# --- System Messages --- #}
-    {% if messages %}
-        <div class="message-area" style="margin-bottom: 15px;">
-        {% for message in messages %}
-            <div class="alert alert-{{ message.tags }}" role="alert" style="padding: 10px; border-radius: 4px; background: #fff3cd; border: 1px solid #ffeeba; font-size: 13px;">
-                {{ message }}
-            </div>
-        {% endfor %}
-        </div>
-    {% endif %}
-
     <div class="main-grid">
         {# LEFT COLUMN: EMAIL CONTENT #}
         <div class="left-column">
@@ -344,13 +333,12 @@
                                 <option value="SEB Employer Declaration sent to ER">SEB Employer Declaration sent to ER</option>
                                 <option value="SEB Employer Declaration sent SEB">SEB Employer Declaration sent SEB</option>
                                 <option value="General Fund Rules Enquiry">General Fund Rules Enquiry</option>
-
                             </select>
                         </div>
 
                         <div style="margin-bottom: 15px; padding: 12px; border: 1px dashed #1e88e5; background-color: #f1f8ff; border-radius: 4px;">
-                            <label class="form-label" style="margin-top: 0; color: #1e88e5;"><i class="fas fa-paperclip"></i> Attachment:</label>
-                            <input type="file" class="form-control" name="email_attachment" style="background: white;">
+                            <label class="form-label" style="margin-top: 0; color: #1e88e5;"><i class="fas fa-paperclip"></i> Attach Files (Hold Ctrl to select multiple):</label>
+                            <input type="file" class="form-control" name="email_attachments" multiple style="background: white;">
                         </div>
                         <div style="margin-bottom: 15px;">
                             <label class="form-label">Body:</label>

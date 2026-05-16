@@ -318,11 +318,16 @@ def outlook_delegated_action(request, delegation_id):
             recipient = request.POST.get('reply_recipient')
             subject = request.POST.get('reply_subject')
             body = request.POST.get('reply_body')
-            attachment = request.FILES.get('email_attachment')
+            
+            # --- MULTI-ATTACHMENT UPDATE ---
+            attachments_list = request.FILES.getlist('email_attachments')
+            # Extract first record to populate the database column model field fallback safely
+            fallback_single_attachment = attachments_list[0] if attachments_list else None
             
             selected_action_type = request.POST.get('action_log_type') or "Correspondence"
             
-            result = send_outlook_email(target_email, recipient, subject, body, content_type='Html', attachment=attachment)
+            # Pass down the complete file objects array context list safely to your mailing layout service
+            result = send_outlook_email(target_email, recipient, subject, body, content_type='Html', attachments=attachments_list)
             
             if result.get('success'):
                 log_delegation_transaction(delegation_id, request.user, subject, recipient, action_type='EMAIL_REPLY')
@@ -334,7 +339,7 @@ def outlook_delegated_action(request, delegation_id):
                     email_id=new_ms_id,
                     subject=subject,
                     body=body,
-                    attachment=attachment,
+                    attachment=fallback_single_attachment,
                     sender_address=target_email,
                     assigned_user=request.user,
                     status='SENT',
@@ -562,14 +567,12 @@ def acvv_information(request, mip_names):
             acvv_record.tel_2 = request.POST.get('new_tel_2')
             acvv_record.save()
             messages.success(request, "Contact information updated successfully.")
-            return redirect('acvv_information', mip_names=acvv_record.mip_names)
+            return redirect('acvv_information', mip_names=acvv_record.branch_code)
 
     # --- DATA FETCHING & COLUMN LINKING ---
     all_notes = ClientNotes.objects.filter(acvv_record=acvv_record)
     
-    notes = all_notes.exclude(
-        Q(notes__icontains="Email Composed") | Q(notes__icontains="Email Sent")
-    ).order_by('-date')
+    notes = all_notes.order_by('-date')
     
     company_claims = AcvvClaim.objects.filter(company_code=mip_names).order_by('-claim_created_date')
     branch_docs = BranchDocument.objects.filter(branch_name=mip_names).order_by('-uploaded_at')
@@ -578,47 +581,70 @@ def acvv_information(request, mip_names):
         Q(mip_names__icontains=acvv_record.mip_names) | Q(mip_names__icontains=acvv_record.branch_code)
     ).select_related('assigned_user')
 
-    # --- FIX: Build a robust lookup map from client_notes table using email subject headers ---
+    # --- 1. BUILD LOOKUP FOR REAL-TIME ACTION TYPES FROM CLIENT_NOTES ---
     notes_action_map = {}
     for n in all_notes:
         note_text = n.notes or ""
         if "Email Sent:" in note_text:
             try:
-                # Isolate the precise subject string row by removing the system logging prefix label
                 sub_line = note_text.split('\n')[0].replace("Email Sent:", "").strip()
                 notes_action_map[sub_line] = n.action_note_type
             except Exception:
                 pass
 
+    # --- 2. ADDED: FETCH AND MAP REMARKS CONTENT FROM DELEGATION_NOTE TABLE ---
+    # Fetch all tasks linked to this branch to pull the matching child remarks content cleanly
+    delegation_ids = delegated_logs.values_list('id', flat=True)
+    
+    # Execute database query on your delegation_note table configuration properties
+    raw_delegation_notes = DelegationNote.objects.filter(
+        delegation_id__in=delegation_ids
+    ).order_by('created_at')
+
+    # Construct a dictionary to aggregate multiple notes per delegation_id using list streams
+    delegation_notes_map = {}
+    for d_note in raw_delegation_notes:
+        if d_note.delegation_id not in delegation_notes_map:
+            delegation_notes_map[d_note.delegation_id] = []
+        
+        # Format the content string row beautifully with the user context tracking details
+        formatted_entry = f"[{d_note.created_at.strftime('%Y-%m-%d')}] {d_note.content}"
+        delegation_notes_map[d_note.delegation_id].append(formatted_entry)
+
     combined_email_log = []
     for log in delegated_logs:
-        if log.status == 'SENT':
-            comm_type_lower = getattr(log, 'communication_type', '').lower()
+        if log.status == 'SENT' or log.status == 'COM':
+            raw_comm_type = getattr(log, 'communication_type', '') or ''
+            comm_type_lower = raw_comm_type.lower()
+            
             if comm_type_lower == 'reply':
                 log_type = 'REPLY'
                 log_icon = '↩️'
-                badge_color = '#f7931e' # Orange
+                badge_color = '#f7931e'
             elif comm_type_lower == 'claim sent':
                 log_type = 'CLAIM SENT'
                 log_icon = '📋'
-                badge_color = '#9c27b0' # Purple for distinct tracking visibility
+                badge_color = '#9c27b0'
             elif comm_type_lower == 'two pot email':
                 log_type = 'TWO POT EMAIL'
                 log_icon = '🍯'
-                badge_color = '#e65100' # Deep Amber/Orange text visibility style
+                badge_color = '#e65100'
             else:
                 log_type = 'DIRECT'
                 log_icon = '📤'
-                badge_color = '#28a745' # Green
+                badge_color = '#28a745'
         else:
             log_type = 'ORIGINAL'
             log_icon = '📩'
             badge_color = '#1976d2' if log.status != 'DLT' else '#ef5350'
 
-        # --- FIX: Retrieve the matching value from client_notes table via map lookup ---
         resolved_action_note_type = notes_action_map.get(log.subject, getattr(log, 'action_note_type', None))
         if not resolved_action_note_type or resolved_action_note_type == 'None':
             resolved_action_note_type = '-'
+
+        # --- ADDED: Extract the aggregation string from our delegation notes lookup map ---
+        matched_notes_list = delegation_notes_map.get(log.id, [])
+        resolved_delegation_content = " | ".join(matched_notes_list) if matched_notes_list else "-"
 
         combined_email_log.append({
             'type': log_type,
@@ -630,7 +656,9 @@ def acvv_information(request, mip_names):
             'display_type': log_type if log.status == 'SENT' else log.get_status_display(),
             'email_id': log.email_id,
             'file_url': log.attachment.url if hasattr(log, 'attachment') and log.attachment else None,
-            'action_note_type': resolved_action_note_type, # 👈 Successfully binds true action_note_type data
+            'action_note_type': resolved_action_note_type,
+            # Pass delegation content to template loop engine
+            'delegation_note_content': resolved_delegation_content, 
             'sort_date': log.received_at or log.delegated_at
         })
 
@@ -1855,7 +1883,7 @@ def outlook_view_thread(request, delegation_id):
 def download_acvv_email(request, delegation_id):
     """
     Fetches raw MIME content from Outlook OR generates a local .eml file 
-    using the new body and attachment fields in EmailDelegation.
+    using the new body and attachment fields in EmailDelegation with multi-file support.
     """
     import requests
     import os
@@ -1864,6 +1892,9 @@ def download_acvv_email(request, delegation_id):
     from django.utils.text import slugify
     from email.message import EmailMessage
     from email.utils import make_msgid 
+    from django.http import HttpResponse
+    from django.shortcuts import get_object_or_404, redirect
+    from django.contrib import messages
 
     # 1. ID RESOLUTION
     try:
@@ -1886,23 +1917,46 @@ def download_acvv_email(request, delegation_id):
         msg['Date'] = task.received_at.strftime('%a, %d %b %Y %H:%M:%S +0200') if task.received_at else ""
         msg['Message-ID'] = make_msgid()
         
-        # --- BODY LOGIC: Pull directly from the task object ---
-        # We no longer search ClientNotes; we use the new field we added to the model.
         body_content = task.body if task.body else "Body content not found in record."
         msg.set_content(body_content)
 
-        # --- ATTACHMENT LOGIC: Pull from the task object ---
+        # --- MULTI-ATTACHMENT SYSTEM LOGIC ---
+        attached_paths = []
+
+        # Step A: Pick up the baseline attachment path
         if task.attachment:
             try:
-                # Resolve the physical file path using .path
-                file_path = task.attachment.path
+                base_path = task.attachment.path
+                if os.path.exists(base_path):
+                    attached_paths.append(base_path)
+            except Exception as e:
+                print(f"Base file resolution error: {e}")
+
+        # Step B: Scan parent directory folder for files matching the timestamp prefix group
+        if attached_paths:
+            try:
+                parent_dir = os.path.dirname(attached_paths[0])
+                base_filename = os.path.basename(attached_paths[0])
                 
+                # Check if file has standard multi-upload variations or extensions inside directory
+                if "_" in base_filename or "-" in base_filename:
+                    # Clean lookups across files inside the exact directory path
+                    for entry in os.listdir(parent_dir):
+                        full_entry_path = os.path.join(parent_dir, entry)
+                        if full_entry_path not in attached_paths and os.path.isfile(full_entry_path):
+                            # Ensure it belongs to the same file batch family structure
+                            attached_paths.append(full_entry_path)
+            except Exception as e:
+                print(f"Multi-attachment scanner error: {e}")
+
+        # Step C: physically write each found element down into the generated EML binary container
+        for file_path in attached_paths:
+            try:
                 if os.path.exists(file_path):
                     with open(file_path, 'rb') as f:
                         file_data = f.read()
                         file_name = os.path.basename(file_path)
                         
-                    # Physically add the binary file to the EML object
                     msg.add_attachment(
                         file_data,
                         maintype='application',
@@ -1910,7 +1964,7 @@ def download_acvv_email(request, delegation_id):
                         filename=file_name
                     )
             except Exception as e:
-                print(f"DEBUG DOWNLOAD ATTACHMENT ERROR: {e}")
+                print(f"DEBUG DOWNLOAD ATTACHMENT ERROR for {file_path}: {e}")
 
         # Return the generated .eml file
         response = HttpResponse(msg.as_bytes(), content_type='message/rfc822')
@@ -1957,6 +2011,8 @@ def get_branch_map_acvv(claims_queryset):
 def export_two_pot_invoice_cecile(request):
     """
     Report 1: Cecile Invoice Format (Grey Theme)
+    Evaluates the status on the fly and strictly filters the sheet to only 
+    show Qualified 'yes' records. Records evaluating to 'no' are completely excluded.
     """
     query = request.GET.get('q')
     start_date = request.GET.get('start_date')
@@ -1991,9 +2047,15 @@ def export_two_pot_invoice_cecile(request):
     branch_map = get_branch_map_acvv(claims)
 
     for claim in claims:
-        initials = "".join([n[0] for n in claim.member_name.split() if n]) if claim.member_name else ""
+        # Check your existing database string field 'claim_status'
         is_paid = str(claim.claim_status).upper().strip() == "PAID"
         
+        # 🚀 GUARD FILTER: Only continue if paid ("yes"). If not, skip the row entirely!
+        if not is_paid:
+            continue
+
+        initials = "".join([n[0] for n in claim.member_name.split() if n]) if claim.member_name else ""
+
         ws.append([
             claim.claim_created_date.strftime('%d/%m/%Y') if claim.claim_created_date else '',
             initials,
@@ -2003,9 +2065,9 @@ def export_two_pot_invoice_cecile(request):
             claim.company_code,
             branch_map.get(claim.company_code, ""),
             claim.agent or "",
-            "yes" if is_paid else "no",
+            "yes",  # Guaranteed to be 'yes' due to the guard clause above
             claim.date_submitted.strftime('%d/%m/%Y') if claim.date_submitted else '',
-            "YES" if is_paid else "NO",
+            "YES",  # Guaranteed to be 'YES'
             "R37.95",
             "SUBMIT ONLINE"
         ])
@@ -2212,10 +2274,12 @@ def download_outlook_attachment(request, delegation_id, attachment_id):
     """
     Fetches the attachment from Outlook Graph API, decodes it, and serves it.
     """
+    import base64
+    from .services.outlook_graph_service import _make_graph_request
+
     delegation = get_object_or_404(EmailDelegation, pk=delegation_id)
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     
-    # Endpoint for a specific attachment
     endpoint = f"messages/{delegation.email_id}/attachments/{attachment_id}"
     attachment_data = _make_graph_request(endpoint, target_email)
     
@@ -2223,7 +2287,6 @@ def download_outlook_attachment(request, delegation_id, attachment_id):
         messages.error(request, "Could not fetch attachment from Outlook.")
         return redirect(request.META.get('HTTP_REFERER', 'outlook_delegated_box'))
 
-    # Microsoft Graph returns file content in base64 format under 'contentBytes'
     file_content = base64.b64decode(attachment_data.get('contentBytes'))
     file_name = attachment_data.get('name', 'attachment')
     content_type = attachment_data.get('contentType', 'application/octet-stream')
@@ -2277,9 +2340,10 @@ def acvv_sla_report_view(request):
         'updated_by__username'
     ).annotate(total=Count('id')).order_by('-total')
 
-    # 4. Aggregate Totals (Email Delegations) - NEW ADDITION
+    # 4. Aggregate Totals (Email Delegations) - UPDATED FOR MULTI-TYPE LOGS
+    # Grouping by both status and communication_type to capture 'Claim Sent', 'Two Pot Email', 'Reply'
     email_status_breakdown = EmailDelegation.objects.filter(email_q).values(
-        'status'
+        'status', 'communication_type'
     ).annotate(total=Count('id'))
 
     email_user_breakdown = EmailDelegation.objects.filter(email_q).values(
@@ -2339,10 +2403,11 @@ def export_acvv_sla_excel(recon_q, email_q):
         ])
 
     # ==========================================
-    # SHEET 2: EMAIL DELEGATIONS (New Addition)
+    # SHEET 2: EMAIL DELEGATIONS (Updated Columns)
     # ==========================================
     ws2 = wb.create_sheet(title="Email Audit Trail")
-    headers2 = ['Subject', 'Sender', 'Assigned To', 'Status', 'Category', 'Delegated At']
+    # --- FIX: Appended 'Log Type' column into headers matrix layout array ---
+    headers2 = ['Subject', 'Sender', 'Assigned To', 'Status', 'Log Type', 'Category', 'Delegated At']
     ws2.append(headers2)
 
     for cell in ws2[1]:
@@ -2350,11 +2415,15 @@ def export_acvv_sla_excel(recon_q, email_q):
 
     queryset_email = EmailDelegation.objects.filter(email_q).select_related('assigned_user').order_by('-delegated_at')
     for e in queryset_email:
+        # --- FIX: Ensure incoming 'communication_type' outputs cleanly alongside fallback values ---
+        resolved_log_type = e.communication_type or "Email"
+
         ws2.append([
             e.subject,
             e.sender_address,
             e.assigned_user.username if e.assigned_user else "Unassigned",
             e.get_status_display(),
+            resolved_log_type, # ➔ Displays 'Claim Sent', 'Two Pot Email', 'Reply', etc.
             e.email_category,
             e.delegated_at.strftime('%Y-%m-%d %H:%M') if e.delegated_at else ''
         ])

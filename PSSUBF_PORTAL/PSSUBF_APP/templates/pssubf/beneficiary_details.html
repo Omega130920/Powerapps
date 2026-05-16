@@ -298,6 +298,14 @@
                 </ul>
 
                 <div class="tab-content" id="tabContentArea">
+                    <div class="mb-4 p-4 border border-red-400 bg-red-100 text-red-900 rounded-lg text-xs font-mono space-y-1">
+                        <div><strong>[TEMPLATE DEBUG]</strong> Current Beneficiary ID: {{ member.membership_number }}</div>
+                        <div><strong>[CLAIMS COUNT IN CONTEXT]:</strong> {{ claims|length }} records found.</div>
+                        <div><strong>[RAW LOOP TEST]:</strong> 
+                            {% for c in claims %}[ID: {{ c.id }}|Ref: {{ c.reference_no }}|Type: {{ c.claim_type }}] {% empty %}(Array holds absolutely 0 elements){% endfor %}
+                        </div>
+                    </div>
+
                     <div id="personal" class="tab-pane active">
                         <h3 class="text-emerald-900 font-bold uppercase text-sm mb-4">Personal Information</h3>
                         <table class="w-full">
@@ -460,7 +468,6 @@
             });
         });
 
-        // 🚀 SHARED UTILITY: Calculate Years/Months logic matching backend (30.44 factor) 🚀
         function getYearMonthData(startDate, endDate) {
             let years = endDate.getFullYear() - startDate.getFullYear();
             let months = endDate.getMonth() - startDate.getMonth();
@@ -485,13 +492,12 @@
                 finalM = 0;
             }
 
-            // 🚀 The FIX: Calculate actual months used for the display to ensure math matches UI
             const discreteMonths = (finalY * 12) + finalM;
 
             return {
                 string: `${finalY}Y ${finalM.toString().padStart(2, '0')}M`,
                 decimal: (discreteMonths / 12),
-                totalMonths: discreteMonths // 🟢 Return integer months for affordability math
+                totalMonths: discreteMonths 
             };
         }
 
@@ -522,30 +528,35 @@
         }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
-        // 🚀 UPDATED: Logic for Age at Claim (string format) 🚀
-        function calculateAdHocFullValues(claimDateStr) {
-            const dobStr = document.getElementById('adhoc_pop_dob').value;
-            if(dobStr && claimDateStr) {
-                const data = getYearMonthData(new Date(dobStr), new Date(claimDateStr));
-                document.getElementById('pop_adhoc_age').value = data.string;
-            }
+        function calculatePopupAge(dobId, claimDateVal, targetId) {
+            const dobStr = document.getElementById(dobId).value;
+            if(!dobStr || !claimDateVal) return;
+            const birth = new Date(dobStr); 
+            const claim = new Date(claimDateVal);
+            
+            const diffTime = Math.abs(claim - birth);
+            const diffYears = diffTime / (1000 * 60 * 60 * 24 * 365.25);
+            document.getElementById(targetId).value = diffYears.toFixed(1);
+        }
 
+        function calculateAdHocFullValues(claimDate) {
+            calculatePopupAge('adhoc_pop_dob', claimDate, 'pop_adhoc_age');
+            
             const termDateStr = document.getElementById('calc_cessation').value;
-            if(termDateStr && claimDateStr) {
-                const data = getYearMonthData(new Date(claimDateStr), new Date(termDateStr));
-                document.getElementById('pop_maturity_display').value = data.string;
-                document.getElementById('pop_maturity').value = data.totalMonths; // 🟢 Use months
+            if(termDateStr && claimDate) {
+                const term = new Date(termDateStr); 
+                const claim = new Date(claimDate);
+                
+                const diffTime = term - claim;
+                const diffYears = diffTime / (1000 * 60 * 60 * 24 * 365.25);
+                
+                document.getElementById('pop_maturity').value = diffYears > 0 ? diffYears.toFixed(1) : "0.0";
             }
             calcAffordabilityFull();
         }
 
-        // 🚀 UPDATED: Logic for Age at Claim in Claim Modal 🚀
         function calculateClaimFullValues(claimDateStr) {
-            const dobStr = document.getElementById('claim_pop_dob').value;
-            if(dobStr && claimDateStr) {
-                const data = getYearMonthData(new Date(dobStr), new Date(claimDateStr));
-                document.getElementById('pop_claim_age').value = data.string;
-            }
+            calculatePopupAge('claim_pop_dob', claimDateStr, 'pop_claim_age');
             calcClaimAffordabilityFull();
         }
 
@@ -556,7 +567,6 @@
             const totalMonths = parseFloat(document.getElementById('pop_maturity').value) || 0;
             const target = document.getElementById('pop_afford');
             
-            // 🚀 Calculation now uses total months directly (e.g., 76 * 1000)
             const result = portfolio - ((stipend * totalMonths) + requested);
             
             const label = result >= 0 ? "(Surplus)" : "(Deficit)";
@@ -578,7 +588,7 @@
                 const cessationDate = new Date(dobDate.setFullYear(dobDate.getFullYear() + 18));
                 
                 const data = getYearMonthData(claimDate, cessationDate);
-                const totalMonths = data.totalMonths; // 🟢 Use discrete months
+                const totalMonths = data.totalMonths; 
                 
                 const result = portfolio - ((stipend * totalMonths) + requested);
                 const label = result >= 0 ? "(Surplus)" : "(Deficit)";
