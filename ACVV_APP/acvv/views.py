@@ -310,7 +310,18 @@ def outlook_delegated_action(request, delegation_id):
         elif action_type == 'add_note':
             note_content = request.POST.get('note_content')
             success, message = add_delegation_note(delegation_id, request.user, note_content)
-            if success: messages.success(request, message)
+            
+            if success:
+                # 🟢 CRITICAL SYSTEM ADDITION: Write manual internal note entry straight to ClientNotes 
+                ClientNotes.objects.create(
+                    acvv_record=Globalacvv.objects.filter(Q(mip_names=delegation.mip_names) | Q(branch_code=delegation.mip_names)).first(),
+                    notes=note_content,
+                    user=request.user.username,
+                    date=timezone.now(),
+                    communication_type="Internal Note",
+                    action_note_type=delegation.email_category or "Task Note"
+                )
+                messages.success(request, message)
             return redirect('outlook_delegated_action', delegation_id=delegation_id)
         
         # 4. Handle Reply

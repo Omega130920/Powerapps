@@ -109,7 +109,16 @@
     textarea.form-control { min-height: 100px; resize: vertical; }
 
     /* --- Email Body Adjustments --- */
-    .email-body-html, .email-body-pre {
+    .email-body-html {
+        padding: 15px; 
+        border: 1px solid #ddd; 
+        background: #f8f9fa; 
+        max-height: 50vh; 
+        overflow-y: auto;
+        white-space: pre-line; /* 💡 Respects incoming message linebreaks */
+    }
+    
+    .email-body-pre {
         padding: 15px; 
         border: 1px solid #ddd; 
         background: #f8f9fa; 
@@ -117,7 +126,7 @@
         overflow-y: auto;
     }
 
-    /* --- ATTACHMENT BADGE STYLES (UPDATED) --- */
+    /* --- ATTACHMENT BADGE STYLES --- */
     .attachment-list { margin-top: 15px; padding: 15px; background-color: #f0fff0; border-top: 1px solid #c3e6cb; }
     .attachment-badge { 
         display: inline-flex; align-items: center; background: white; border: 1px solid #aed581; 
@@ -155,6 +164,7 @@
         position: relative; margin: 2% auto; padding: 20px; width: 90%; height: 90%; 
         background: #fff; border-radius: 8px; display: flex; flex-direction: column; 
     }
+    .modal-wrapper p { white-space: pre-line; }
     .close-preview { 
         position: absolute; top: 10px; right: 20px; font-size: 30px; font-weight: bold; 
         cursor: pointer; color: #333; z-index: 10001; 
@@ -183,6 +193,9 @@
     .btn-complete { background-color: #28a745; color: white; width: 100%; padding: 12px; margin-bottom: 10px; }
     .btn-redelegate { background-color: #f7931e; color: white; width: 100%; padding: 12px; margin-bottom: 10px; }
     .btn-back { background-color: white; color: #343a40; border: 1px solid #343a40; width: 100%; margin-top: 10px; padding: 12px; }
+
+    /* --- Note Item Typography Spacing --- */
+    .note-item p { white-space: pre-line; margin-top: 4px; margin-bottom: 12px; }
 
     @media (max-width: 992px) { .main-grid { flex-direction: column; } }
 </style>
@@ -267,7 +280,7 @@
                         <pre class="email-body-pre" style="white-space: pre-wrap; word-wrap: break-word; font-family: inherit;">{{ email.body.content }}</pre>
                     {% endif %}
 
-                    {# 🛑 INCOMING ATTACHMENTS SECTION (UPDATED) 🛑 #}
+                    {# INCOMING ATTACHMENTS SECTION #}
                     {% if attachments %}
                     <div class="attachment-list">
                         <div style="margin-bottom: 8px; color: #2e7d32; font-weight: bold; font-size: 13px;">
@@ -297,7 +310,7 @@
                     <i class="fas fa-chevron-down toggle-icon"></i>
                 </button>
                 <div class="collapse-content" id="collapseReplyForm">
-                    <form method="POST" enctype="multipart/form-data">
+                    <form method="POST" enctype="multipart/form-data" onsubmit="prepareEmailHtmlPayload(this)">
                         {% csrf_token %}
                         <input type="hidden" name="action_type" value="send_reply">
                         <div style="margin-bottom: 10px;">
@@ -342,7 +355,7 @@
                         </div>
                         <div style="margin-bottom: 15px;">
                             <label class="form-label">Body:</label>
-                            <textarea class="form-control" name="reply_body" rows="6" required></textarea>
+                            <textarea class="form-control" id="raw_reply_body" name="reply_body" rows="6" required></textarea>
                         </div>
                         <button type="submit" class="custom-btn btn-primary" style="width: 100%; padding: 12px;">Send Reply</button>
                     </form>
@@ -376,7 +389,9 @@
                             <small><strong>{{ note.user.username }}</strong> on {{ note.created_at|date:"Y-m-d H:i" }}</small>
                             <p>{{ note.content }}</p>
                         </div>
-                        {% empty %}<p style="text-align: center; font-size: 13px;">No notes yet.</p>{% endfor %}
+                        {% empty %}
+                        <p style="text-align: center; font-size: 13px;">No notes yet.</p>
+                        {% endfor %}
                     </div>
                     {% if delegation.status != 'COM' %}
                     <button class="collapse-toggle" style="border-bottom: 3px solid #28a745; background: none; padding: 10px 0; font-size: 14px;" type="button" data-toggle="collapse" data-target="#collapseAddNote">
@@ -409,6 +424,26 @@
 </div>
 
 <script>
+    // Auto-translates textual breaks to HTML paragraphs before posting to Microsoft Graph API channels
+    function prepareEmailHtmlPayload(formInstance) {
+        const textarea = document.getElementById('raw_reply_body');
+        if (!textarea || !textarea.value) return;
+        
+        const rawText = textarea.value.trim();
+        const paragraphs = rawText.split('\n').map(p => p.trim());
+        let htmlPayload = "";
+        
+        paragraphs.forEach(para => {
+            if (para.length > 0) {
+                htmlPayload += `<p style="margin-top:0; margin-bottom:12px; font-family:sans-serif; font-size:14px; color:#222;">${para}</p>`;
+            } else {
+                htmlPayload += `<br />`;
+            }
+        });
+        
+        textarea.value = htmlPayload;
+    }
+
     // --- DOWNLOAD LOGIC ---
     function downloadAttachment(base64, contentType, fileName) {
         const linkSource = `data:${contentType};base64,${base64}`;

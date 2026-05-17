@@ -297,15 +297,6 @@
                     <li data-tab-target="#notes">Notes <i class="fas fa-sticky-note ml-2"></i></li>
                 </ul>
 
-                <div class="tab-content" id="tabContentArea">
-                    <div class="mb-4 p-4 border border-red-400 bg-red-100 text-red-900 rounded-lg text-xs font-mono space-y-1">
-                        <div><strong>[TEMPLATE DEBUG]</strong> Current Beneficiary ID: {{ member.membership_number }}</div>
-                        <div><strong>[CLAIMS COUNT IN CONTEXT]:</strong> {{ claims|length }} records found.</div>
-                        <div><strong>[RAW LOOP TEST]:</strong> 
-                            {% for c in claims %}[ID: {{ c.id }}|Ref: {{ c.reference_no }}|Type: {{ c.claim_type }}] {% empty %}(Array holds absolutely 0 elements){% endfor %}
-                        </div>
-                    </div>
-
                     <div id="personal" class="tab-pane active">
                         <h3 class="text-emerald-900 font-bold uppercase text-sm mb-4">Personal Information</h3>
                         <table class="w-full">
