@@ -2,6 +2,7 @@ import base64
 from datetime import date
 from email import parser
 import random
+import traceback
 from dateutil import parser as date_parser
 from time import timezone
 from django.shortcuts import render, get_object_or_404, redirect
@@ -850,12 +851,14 @@ def beneficiary_list_view(request):
         'total_count': queryset.count()
     })
 
+import os
+from django.core.files.storage import FileSystemStorage
 
 @login_required
 def beneficiary_details_view(request, membership_number):
     member = get_object_or_404(PssubfBeneficiary, membership_number=membership_number)
     
-    # 🟢 Handles South African formatting (spaces and commas) safely
+    # Handles South African formatting (spaces and commas) safely
     def clean_decimal(value):
         if not value or value == '': return 0.00
         cleaned = str(value).replace('R', '').replace(' ', '').replace(',', '.').replace('%', '').strip()
@@ -1002,17 +1005,24 @@ def beneficiary_details_view(request, membership_number):
                 date_logged_str = request.POST.get('date_logged')
                 claim_date = datetime.strptime(date_logged_str, '%Y-%m-%d').date() if date_logged_str else date.today()
                 
-                # Dynamic age layout calculation string formatting logic
                 calculated_age_str = "---"
                 if member.dob:
                     diff_age = relativedelta(claim_date, member.dob)
                     total_m = round((diff_age.years * 12) + diff_age.months + (diff_age.days / 30.44))
                     calculated_age_str = f"{total_m // 12}Y {str(total_m % 12).zfill(2)}M"
 
-                # Check file upload criteria properties mapping directly to database column schema definitions
                 file_payload = request.FILES.get('supporting_document')
-                file_status_label = "Yes" if file_payload else "No"
-                file_saved_path = file_payload.name if file_payload else None
+                if not file_payload and request.FILES:
+                    file_payload = list(request.FILES.values())[0]
+
+                file_status_label = "No"
+                file_saved_path = None
+                
+                if file_payload:
+                    fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT))
+                    saved_filename = fs.save(file_payload.name, file_payload)
+                    file_saved_path = saved_filename
+                    file_status_label = "Yes"
 
                 timestamp_string = datetime.now().strftime('%Y%m%d')
                 generated_reference = f"CLM-{timestamp_string}{random.randint(1000, 9999)}"
@@ -1034,7 +1044,7 @@ def beneficiary_details_view(request, membership_number):
                     age_at_claim=calculated_age_str,
                     supporting_docs_attached=file_status_label,
                     loaded_by_agent=request.user.username,
-                    attachment_path=file_saved_path  # Maps directly to unmanaged schema signature row field
+                    attachment_path=file_saved_path
                 )
                 messages.success(request, f"New claim registered successfully. Reference Code: {generated_reference}")
             except Exception as e:
@@ -1048,24 +1058,53 @@ def beneficiary_details_view(request, membership_number):
                 claim_date = datetime.strptime(claim_date_str, '%Y-%m-%d').date() if claim_date_str else date.today()
                 
                 years_val = 0.0
-                if member.cessation_date:
+                if member.cessation_date and claim_date < member.cessation_date:
                     diff = relativedelta(member.cessation_date, claim_date)
-                    precise_months = (diff.years * 12) + diff.months + (diff.days / 30.44)
-                    rounded_total_months = round(precise_months)
-                    years_val = rounded_total_months / 12
+                    total_m = round((diff.years * 12) + diff.months + (diff.days / 30.44))
+                    years_val = total_m / 12
+
+                # 🟢 ROBUST FILE STREAM FALLBACK CHECKER
+                file_payload = request.FILES.get('supporting_document')
+                if not file_payload and request.FILES:
+                    file_payload = list(request.FILES.values())[0]
+
+                file_status_label = "No"
+                file_saved_path = None
+                
+                if file_payload:
+                    fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT))
+                    saved_filename = fs.save(file_payload.name, file_payload)
+                    file_saved_path = saved_filename
+                    file_status_label = "Yes"
+
+                requested_amt = clean_decimal(request.POST.get('amount_requested'))
+                portfolio_val = clean_decimal(request.POST.get('portfolio_value', member.total_fund_value))
+                stipend_val = float(member.stipened or 0)
+                
+                total_months = round(years_val * 12)
+                calc_liability = total_months * stipend_val
+                surplus_calc = portfolio_val - (calc_liability + requested_amt)
+                
+                # 🟢 TRUNCATION SECURITY GUARANTEE: Trim value strings to fit the varchar(20) target safely
+                afford_string = f"R {surplus_calc:.2f}".strip()[:20]
 
                 AdHocList.objects.create(
                     beneficiary=member,
                     title=request.POST.get('title'),
-                    claim_form_date=claim_date,
-                    amount_requested=clean_decimal(request.POST.get('amount_requested')),
-                    years_to_maturity=years_val,
-                    status='Pending',
                     comments=request.POST.get('comments'),
-                    supporting_document=request.FILES.get('supporting_document')
+                    claim_form_date=claim_date,
+                    status='Pending',
+                    supporting_docs_attached=file_status_label,
+                    attachment_path=file_saved_path, 
+                    years_to_maturity=years_val, 
+                    affordability_calculation=afford_string,
+                    portfolio_value=portfolio_val,
+                    portfolio_date=member.portfolio_date or date.today(),
+                    amount_requested=requested_amt
                 )
-                messages.success(request, "Ad Hoc entry saved.")
+                messages.success(request, "Ad Hoc entry saved successfully.")
             except Exception as e:
+                print(traceback.format_exc())
                 messages.error(request, f"Ad Hoc Error: {str(e)}")
             return redirect('beneficiary_details', membership_number=membership_number)
 
@@ -1102,7 +1141,7 @@ def beneficiary_details_view(request, membership_number):
     internal_notes = PssubfNote.objects.filter(task_email_id__icontains=membership_number).order_by('-created_at')
     pssubf_actions = PssubfAction.objects.filter(Q(task_email_id__icontains=membership_number)).order_by('-action_timestamp')
 
-    # --- DYNAMICALLY CALCULATE DISPLAY STRINGS (NO DATABASE CHANGES NEEDED) ---
+    # --- DYNAMICALLY CALCULATE DISPLAY STRINGS ---
     for c in claims:
         if member.dob and c.date_logged:
             diff = relativedelta(c.date_logged, member.dob)
@@ -1115,9 +1154,18 @@ def beneficiary_details_view(request, membership_number):
         if member.cessation_date and a.claim_form_date:
             diff = relativedelta(member.cessation_date, a.claim_form_date)
             total_m = round((diff.years * 12) + diff.months + (diff.days / 30.44))
+            
             a.maturity_display = f"{total_m // 12}Y {str(total_m % 12).zfill(2)}M"
+            
+            stipend_value = float(member.stipened or 0)
+            total_liability = total_m * stipend_value
+            portfolio_val = float(a.amount_requested or member.total_fund_value or 0)
+            
+            surplus_val = portfolio_val - total_liability
+            a.calculated_surplus = f"R {surplus_val:,.2f} ({'Surplus' if surplus_val >= 0 else 'Deficit'})"
         else:
             a.maturity_display = "---"
+            a.calculated_surplus = "N/A"
 
     context = {
         'member': member,

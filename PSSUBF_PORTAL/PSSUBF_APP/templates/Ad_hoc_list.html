@@ -61,7 +61,13 @@
                         <td class="px-6 py-4 text-sm">{{ item.title }}</td>
                         <td class="px-6 py-4 text-sm text-center">{{ item.supporting_docs_attached }}</td>
                         <td class="px-6 py-4 text-center">
-                            {% if item.attachment_path %}<i class="fas fa-paperclip text-green-800"></i>{% endif %}
+                            {% if item.attachment_path %}
+                                <a href="/media/{{ item.attachment_path }}" target="_blank" onclick="event.stopPropagation();" class="inline-flex items-center gap-1.5 text-xs bg-emerald-800 hover:bg-emerald-900 text-white font-semibold py-1 px-2.5 rounded-md transition shadow-sm">
+                                    <i class="fas fa-paperclip"></i> View Doc
+                                </a>
+                            {% else %}
+                                <span class="text-xs opacity-40 italic">None</span>
+                            {% endif %}
                         </td>
                     </tr>
                     {% empty %}
@@ -89,6 +95,7 @@
                 <input type="hidden" name="remove_attachment" id="remove_attachment" value="false">
 
                 <input type="hidden" id="calc_stipend" value="0">
+                <input type="hidden" id="calc_portfolio" value="0">
                 <input type="hidden" id="calc_cessation" value="">
                 <input type="hidden" id="pop_maturity" value="0"> <div>
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Claim Type</label>
@@ -199,10 +206,10 @@
                 <div class="md:col-span-4 mt-2">
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Supporting Documentation (Files)</label>
                     <div class="relative border-2 border-dashed border-gray-300 bg-white rounded-xl p-8 flex flex-col items-center justify-center hover:border-green-500 transition-all group cursor-pointer">
-                        <input type="file" name="supporting_document" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                        <input type="file" id="popup_file_input" name="supporting_document" onchange="updatePopupFileLabel(this)" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
                         <div class="flex items-center gap-3">
                             <i class="fas fa-paperclip text-3xl text-gray-400 group-hover:text-green-600 transition-colors"></i>
-                            <span class="text-sm font-semibold text-gray-600 group-hover:text-green-700">Attach file</span>
+                            <span class="text-sm font-semibold text-gray-600 group-hover:text-green-700" id="popup_file_label">Attach file</span>
                         </div>
                     </div>
                 </div>
@@ -264,6 +271,10 @@
             const form = document.getElementById('adhocForm');
             modal.classList.remove('hidden');
             document.getElementById('footer_tracking').innerText = '';
+
+            // Reset dynamic label layout indicators upon display toggle
+            document.getElementById('popup_file_label').innerText = "Attach file";
+            document.getElementById('popup_file_label').style.color = "";
 
             if (recordId) {
                 document.getElementById('formAction').value = "update_adhoc_entry";
@@ -327,6 +338,18 @@
             document.getElementById('pop_maturity').value = data.totalMonths;
         }
 
+        // 🟢 ADDED: JavaScript utility to process chosen file items and render custom indicator parameters
+        function updatePopupFileLabel(inputInstance) {
+            const label = document.getElementById('popup_file_label');
+            if (inputInstance.files && inputInstance.files.length > 0) {
+                label.innerText = "📄 Selected: " + inputInstance.files[0].name;
+                label.style.color = "#047857";
+            } else {
+                label.innerText = "Attach file";
+                label.style.color = "";
+            }
+        }
+
         function calculateAffordability() {
             const portfolio = parseFloat(document.getElementById('portfolio_value').value) || 0;
             const requested = parseFloat(document.getElementById('amount_requested').value) || 0;
@@ -334,7 +357,7 @@
             const totalMonths = parseFloat(document.getElementById('pop_maturity').value) || 0;
             const target = document.getElementById('affordability_calculation');
 
-            // 🚀 Calculation using discrete months to ensure R 800 consistency
+            // Calculation using discrete months to ensure R 800 consistency
             const result = portfolio - ((stipend * totalMonths) + requested);
             
             const label = result >= 0 ? "(Surplus)" : "(Deficit)";

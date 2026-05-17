@@ -201,11 +201,11 @@
                 <div class="md:col-span-4 mt-2">
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Supporting Documentation</label>
                     <div class="relative border-2 border-dashed border-gray-300 bg-white rounded-xl p-8 flex flex-col items-center justify-center hover:border-green-500 transition-all group cursor-pointer">
-                        <input type="file" name="supporting_document" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                        <input type="file" name="supporting_document" id="claim_file_input" onchange="updateFileLabel(this, 'claim_file_label')" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
                         <div class="flex items-center gap-3">
                             <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 group-hover:text-green-600 transition-colors"></i>
                             <div class="text-center">
-                                <span class="text-sm font-semibold text-gray-600 group-hover:text-green-700">Click to upload or drag and drop</span>
+                                <span class="text-sm font-semibold text-gray-600 group-hover:text-green-700" id="claim_file_label">Click to upload or drag and drop</span>
                                 <p class="text-xs text-gray-400">PDF, PNG, JPG (Max 10MB)</p>
                             </div>
                         </div>
@@ -261,8 +261,11 @@
                 <div class="md:col-span-4 mt-2">
                     <label class="block text-xs font-bold text-gray-600 uppercase mb-1">Supporting Documentation</label>
                     <div class="relative border-2 border-dashed border-gray-300 bg-white rounded-xl p-8 flex flex-col items-center justify-center hover:border-green-500 transition-all group cursor-pointer">
-                        <input type="file" name="supporting_document" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
-                        <div class="flex items-center gap-3"><i class="fas fa-paperclip text-3xl text-gray-400 group-hover:text-green-600 transition-colors"></i><span class="text-sm font-semibold text-gray-600 group-hover:text-green-700">Attach Supporting File</span></div>
+                        <input type="file" name="supporting_document" id="adhoc_file_input" onchange="updateFileLabel(this, 'adhoc_file_label')" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                        <div class="flex items-center gap-3">
+                            <i class="fas fa-paperclip text-3xl text-gray-400 group-hover:text-green-600 transition-colors"></i>
+                            <span class="text-sm font-semibold text-gray-600 group-hover:text-green-700" id="adhoc_file_label">Attach Supporting File</span>
+                        </div>
                     </div>
                 </div>
                 <div class="md:col-span-4 flex justify-end gap-3 pt-4 border-t mt-4">
@@ -297,6 +300,7 @@
                     <li data-tab-target="#notes">Notes <i class="fas fa-sticky-note ml-2"></i></li>
                 </ul>
 
+                <div class="tab-content flex-1 overflow-y-auto">
                     <div id="personal" class="tab-pane active">
                         <h3 class="text-emerald-900 font-bold uppercase text-sm mb-4">Personal Information</h3>
                         <table class="w-full">
@@ -350,6 +354,7 @@
                                     <th>Logged Date</th>
                                     <th>Age at Claim</th> <th>Status</th>
                                     <th>Amount (R)</th>
+                                    <th>Attachment</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -360,9 +365,18 @@
                                     <td>{{ claim.date_logged|date:"d M Y" }}</td>
                                     <td class="font-bold text-emerald-800">{{ claim.age_display }}</td> <td><span class="text-[10px] font-black uppercase">{{ claim.status }}</span></td>
                                     <td>{{ claim.amount_requested }}</td>
+                                    <td>
+                                        {% if claim.attachment_path %}
+                                            <a href="/media/{{ claim.attachment_path }}" target="_blank" class="inline-flex items-center gap-1.5 text-xs bg-emerald-800 hover:bg-emerald-900 text-white font-semibold py-1 px-2.5 rounded-md transition shadow-sm">
+                                                <i class="fas fa-paperclip"></i> View Doc
+                                            </a>
+                                        {% else %}
+                                            <span class="text-xs opacity-40 italic">None Loaded</span>
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 {% empty %}
-                                <tr><td colspan="6" class="text-center py-10 opacity-50 italic">No linked claims found.</td></tr>
+                                <tr><td colspan="7" class="text-center py-10 opacity-50 italic">No linked claims found.</td></tr>
                                 {% endfor %}
                             </tbody>
                         </table>
@@ -380,6 +394,7 @@
                                     <th>Claim Date</th>
                                     <th>Maturity</th> <th>Status</th>
                                     <th>Requested (R)</th>
+                                    <th>Attachment</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -389,9 +404,18 @@
                                     <td>{{ adhoc.claim_form_date|date:"d M Y" }}</td>
                                     <td class="font-bold text-emerald-800">{{ adhoc.maturity_display }}</td> <td><span class="text-[10px] font-black uppercase">{{ adhoc.status }}</span></td>
                                     <td>{{ adhoc.amount_requested }}</td>
+                                    <td>
+                                        {% if adhoc.supporting_document %}
+                                            <a href="/media/{{ adhoc.supporting_document }}" target="_blank" class="inline-flex items-center gap-1.5 text-xs bg-emerald-800 hover:bg-emerald-900 text-white font-semibold py-1 px-2.5 rounded-md transition shadow-sm">
+                                                <i class="fas fa-file-alt"></i> View File
+                                            </a>
+                                        {% else %}
+                                            <span class="text-xs opacity-40 italic">None Loaded</span>
+                                        {% endif %}
+                                    </td>
                                 </tr>
                                 {% empty %}
-                                <tr><td colspan="5" class="text-center py-10 opacity-50 italic">No ad hoc records found.</td></tr>
+                                <tr><td colspan="6" class="text-center py-10 opacity-50 italic">No ad hoc records found.</td></tr>
                                 {% endfor %}
                             </tbody>
                         </table>
@@ -459,6 +483,7 @@
             });
         });
 
+        // UNIFIED RELATIVE DELTA CALCULATOR (Matches back-end rules exactly)
         function getYearMonthData(startDate, endDate) {
             let years = endDate.getFullYear() - startDate.getFullYear();
             let months = endDate.getMonth() - startDate.getMonth();
@@ -475,15 +500,10 @@
             }
 
             const totalMonthsPrecise = (years * 12) + months + (days / 30.44);
-            let finalY = Math.floor(totalMonthsPrecise / 12);
-            let finalM = Math.round(totalMonthsPrecise % 12);
+            const discreteMonths = Math.round(totalMonthsPrecise);
             
-            if (finalM === 12) {
-                finalY += 1;
-                finalM = 0;
-            }
-
-            const discreteMonths = (finalY * 12) + finalM;
+            let finalY = Math.floor(discreteMonths / 12);
+            let finalM = discreteMonths % 12;
 
             return {
                 string: `${finalY}Y ${finalM.toString().padStart(2, '0')}M`,
@@ -519,29 +539,37 @@
         }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
+        // Calculates dynamic age display for the form rows safely
         function calculatePopupAge(dobId, claimDateVal, targetId) {
             const dobStr = document.getElementById(dobId).value;
             if(!dobStr || !claimDateVal) return;
-            const birth = new Date(dobStr); 
-            const claim = new Date(claimDateVal);
+            const birthDate = new Date(dobStr); 
+            const claimDate = new Date(claimDateVal);
             
-            const diffTime = Math.abs(claim - birth);
-            const diffYears = diffTime / (1000 * 60 * 60 * 24 * 365.25);
-            document.getElementById(targetId).value = diffYears.toFixed(1);
+            const data = getYearMonthData(birthDate, claimDate);
+            document.getElementById(targetId).value = data.string;
         }
 
-        function calculateAdHocFullValues(claimDate) {
-            calculatePopupAge('adhoc_pop_dob', claimDate, 'pop_adhoc_age');
+        // Refactored Ad Hoc dynamic row engine mapping
+        function calculateAdHocFullValues(claimDateStr) {
+            calculatePopupAge('adhoc_pop_dob', claimDateStr, 'pop_adhoc_age');
             
             const termDateStr = document.getElementById('calc_cessation').value;
-            if(termDateStr && claimDate) {
+            const targetDisplay = document.getElementById('pop_maturity_display');
+            const targetHidden = document.getElementById('pop_maturity');
+
+            if(termDateStr && claimDateStr) {
                 const term = new Date(termDateStr); 
-                const claim = new Date(claimDate);
+                const claim = new Date(claimDateStr);
                 
-                const diffTime = term - claim;
-                const diffYears = diffTime / (1000 * 60 * 60 * 24 * 365.25);
-                
-                document.getElementById('pop_maturity').value = diffYears > 0 ? diffYears.toFixed(1) : "0.0";
+                if (claim < term) {
+                    const data = getYearMonthData(claim, term);
+                    targetDisplay.value = data.string;
+                    targetHidden.value = data.decimal; // Passes pure accurate float to form payload row
+                } else {
+                    targetDisplay.value = "0Y 00M";
+                    targetHidden.value = "0";
+                }
             }
             calcAffordabilityFull();
         }
@@ -551,13 +579,16 @@
             calcClaimAffordabilityFull();
         }
 
+        // Refactored Ad Hoc Liability calculation layout logic 
         function calcAffordabilityFull() {
             const portfolio = parseFloat(document.getElementById('adhoc_portfolio').value) || 0;
             const requested = parseFloat(document.getElementById('adhoc_req').value) || 0;
             const stipend = parseFloat(document.getElementById('calc_stipend').value) || 0;
-            const totalMonths = parseFloat(document.getElementById('pop_maturity').value) || 0;
+            const yearsToMaturity = parseFloat(document.getElementById('pop_maturity').value) || 0;
             const target = document.getElementById('pop_afford');
             
+            // Re-convert absolute float values back to total distinct months used for payout
+            const totalMonths = Math.round(yearsToMaturity * 12);
             const result = portfolio - ((stipend * totalMonths) + requested);
             
             const label = result >= 0 ? "(Surplus)" : "(Deficit)";
@@ -585,6 +616,18 @@
                 const label = result >= 0 ? "(Surplus)" : "(Deficit)";
                 target.value = 'R ' + result.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ' + label;
                 target.style.color = (result >= 0) ? '#059669' : '#dc2626';
+            }
+        }
+
+        // Dynamic text update indicator for file streams
+        function updateFileLabel(inputInstance, targetLabelId) {
+            const label = document.getElementById(targetLabelId);
+            if (inputInstance.files && inputInstance.files.length > 0) {
+                label.innerText = "📄 Selected: " + inputInstance.files[0].name;
+                label.style.color = "#047857";
+            } else {
+                label.innerText = (targetLabelId === 'claim_file_label') ? "Click to upload or drag and drop" : "Attach Supporting File";
+                label.style.color = "";
             }
         }
 

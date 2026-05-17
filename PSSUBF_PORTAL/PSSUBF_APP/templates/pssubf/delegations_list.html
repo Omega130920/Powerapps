@@ -187,7 +187,7 @@
             <tr>
                 <th style="width: 22%;">Email Subject</th> 
                 <th style="width: 10%;">Email Received</th> 
-                <th style="width: 10%;">Delegated Date</th>
+                <!--<th style="width: 10%;">Delegated Date</th>-->
                 <th style="width: 18%;">Email From</th> 
                 <th style="width: 10%;">Status</th>
                 <th style="width: 10%;" class="text-center">Linked</th>
@@ -210,10 +210,10 @@
                     <div class="text-muted small" style="font-size: 0.75rem;">{{ task.received_timestamp|date:"H:i" }}</div>
                 </td>
 
-                <td>
+                <!--<td>
                     <div class="small fw-bold text-success">{{ task.created_at|date:"d M" }}</div>
                     <div class="text-muted small" style="font-size: 0.75rem;">{{ task.created_at|date:"H:i" }}</div>
-                </td>
+                </td>-->
 
                 <td class="search-field">
                     <div class="small fw-bold">{{ task.sender }}</div>
@@ -303,7 +303,12 @@
         const start = (currentPage - 1) * rowsPerPage;
         const end = start + rowsPerPage;
 
-        allRows.forEach(row => row.style.display = 'none');
+        // 🟢 FIX: Exclude template row filters from breaking pagination layout
+        allRows.forEach(row => {
+            if (row.id !== 'emptyRow') {
+                row.style.display = 'none';
+            }
+        });
         filteredRows.slice(start, end).forEach(row => row.style.display = '');
 
         document.getElementById('totalCount').innerText = totalRows;

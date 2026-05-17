@@ -123,7 +123,13 @@
                         </td>
 
                         <td class="px-6 py-4 text-center">
-                            {% if claim.attachment_path %}<i class="fas fa-paperclip text-green-800"></i>{% endif %}
+                            {% if claim.attachment_path %}
+                                <a href="/media/{{ claim.attachment_path }}" target="_blank" onclick="event.stopPropagation();" class="inline-flex items-center gap-1.5 text-xs bg-emerald-800 hover:bg-emerald-900 text-white font-semibold py-1 px-2.5 rounded-md transition shadow-sm">
+                                    <i class="fas fa-paperclip"></i> View Doc
+                                </a>
+                            {% else %}
+                                <span class="text-xs opacity-40 italic">None</span>
+                            {% endif %}
                         </td>
                     </tr>
                     {% empty %}
@@ -234,6 +240,20 @@
                     <textarea name="description" id="description" class="w-full p-4 border rounded-md h-32 clean-input resize-none"></textarea>
                 </div>
 
+                <div class="md:col-span-4 mt-2">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Supporting Documentation</label>
+                    <div class="relative border-2 border-dashed border-gray-300 bg-white rounded-xl p-8 flex flex-col items-center justify-center hover:border-green-500 transition-all group cursor-pointer">
+                        <input type="file" name="supporting_document" id="popup_file_input" onchange="updatePopupFileLabel(this)" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
+                        <div class="flex items-center gap-3">
+                            <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 group-hover:text-green-600 transition-colors"></i>
+                            <div class="text-center">
+                                <span class="text-sm font-semibold text-gray-600 group-hover:text-green-700" id="popup_file_label">Click to upload or drag and drop</span>
+                                <p class="text-xs text-gray-400">PDF, PNG, JPG, XLSX (Max 10MB)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="md:col-span-4 flex justify-end gap-3 pt-6 border-t mt-4">
                     <button type="button" onclick="closeClaimModal()" class="px-8 py-2.5 bg-gray-400 text-white font-bold rounded-lg hover:bg-gray-500 transition">Cancel</button>
                     <button type="submit" class="px-8 py-2.5 bg-green-700 text-white font-bold rounded-lg hover:bg-green-800 shadow-lg transition">Save Changes</button>
@@ -243,7 +263,7 @@
     </div>
 
     <script>
-        // 🚀 SHARED UTILITY: Precision date logic matching Ad Hoc 🚀
+        // SHARED UTILITY: Precision date logic matching Ad Hoc 
         function getYearMonthData(startDate, endDate) {
             let years = endDate.getFullYear() - startDate.getFullYear();
             let months = endDate.getMonth() - startDate.getMonth();
@@ -293,6 +313,10 @@
             const modal = document.getElementById('claimModal');
             const form = document.getElementById('claimForm');
             modal.classList.remove('hidden');
+
+            // Reset dynamic file upload visual indicators upon modal display swap
+            document.getElementById('popup_file_label').innerText = "Click to upload or drag and drop";
+            document.getElementById('popup_file_label').style.color = "";
 
             if (claimId) {
                 document.getElementById('modalTitle').innerText = "Update Claim Record";
@@ -357,13 +381,13 @@
                 return;
             }
 
-            // 🚀 Logic matched exactly to Ad Hoc (discrete months)
+            // Logic matched exactly to Ad Hoc (discrete months)
             const data = getYearMonthData(new Date(claimFormStr), new Date(cessationStr));
             const totalMonths = data.totalMonths;
             
             const totalLiability = (stipend * totalMonths);
             
-            // 🟢 Always include requested (R) to match P - (Months * S + R)
+            // Always include requested (R) to match P - (Months * S + R)
             const result = portfolio - (totalLiability + requested);
             
             const label = result >= 0 ? "(Surplus)" : "(Deficit)";
@@ -397,6 +421,18 @@
                         document.getElementById('beneficiary_name').placeholder = "Member not found";
                     }
                 });
+        }
+
+        // 🟢 ADDED: JavaScript utility to catch input updates and display the clean string filename path
+        function updatePopupFileLabel(inputInstance) {
+            const label = document.getElementById('popup_file_label');
+            if (inputInstance.files && inputInstance.files.length > 0) {
+                label.innerText = "📄 Selected: " + inputInstance.files[0].name;
+                label.style.color = "#047857";
+            } else {
+                label.innerText = "Click to upload or drag and drop";
+                label.style.color = "";
+            }
         }
     </script>
 </body>
