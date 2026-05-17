@@ -1919,9 +1919,9 @@ def download_acvv_email(request, delegation_id):
         messages.error(request, "Task record not found.")
         return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
 
-    # 2. LOCAL GENERATION (For SENT-, REPLY-, or LOCAL- IDs)
-    # 💡 Added ms_id.startswith('REPLY-') to intercept app-generated correspondence seamlessly
-    if ms_id.startswith('SENT-') or ms_id.startswith('LOCAL-') or ms_id.startswith('REPLY-'):
+    # 2. LOCAL GENERATION (For SENT-, REPLY-, CLAIM-, or LOCAL- IDs)
+    # 💡 Added ms_id.startswith('CLAIM-') to catch and format system-generated claim tasks locally
+    if ms_id.startswith('SENT-') or ms_id.startswith('LOCAL-') or ms_id.startswith('REPLY-') or ms_id.startswith('CLAIM-'):
         msg = EmailMessage()
         msg['Subject'] = task.subject
         msg['From'] = task.sender_address or settings.OUTLOOK_EMAIL_ADDRESS
@@ -1980,7 +1980,7 @@ def download_acvv_email(request, delegation_id):
 
         # Return the generated .eml file
         response = HttpResponse(msg.as_bytes(), content_type='message/rfc822')
-        response['Content-Disposition'] = f'attachment; filename="SENT_{slugify(task.subject)[:30] or "record"}.eml"'
+        response['Content-Disposition'] = f'attachment; filename="CLAIM_{slugify(task.subject)[:30] or "record"}.eml"'
         return response
 
     # 3. LIVE MICROSOFT DOWNLOAD (Keep this for real Outlook IDs)
@@ -2138,8 +2138,8 @@ def export_two_pot_tracking_acvv(request):
         "Surname",                                                     # Column D
         "Member number",                                               # Column E
         "ID NUMBER",                                                   # Column F
-        "Fund Code",                                                   # Column G
-        "Company Name",                                                # Column H
+        "Company Name",                                                   # Column G
+        "Number of Employees",                                                # Column H
         "Query",                                                       # Column I
         "Claim",                                                       # Column J
         "Qualified Y/N",                                               # Column K

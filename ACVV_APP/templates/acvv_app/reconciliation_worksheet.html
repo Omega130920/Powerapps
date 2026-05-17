@@ -132,14 +132,6 @@
             </div>
         </div>
 
-        {% if messages %}
-            {% for message in messages %}
-                <div style="padding: 15px; margin-bottom: 20px; border-radius: 4px; background: {% if message.tags == 'success' %}#e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9;{% elif message.tags == 'warning' %}#fff3e0; color: #e65100; border: 1px solid #ffe0b2;{% else %}#ffebee; color: #c62828; border: 1px solid #ffcdd2;{% endif %}">
-                    {{ message }}
-                </div>
-            {% endfor %}
-        {% endif %}
-
         <form method="post" id="reconForm">
             {% csrf_token %}
             
