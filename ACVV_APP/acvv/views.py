@@ -1919,8 +1919,9 @@ def download_acvv_email(request, delegation_id):
         messages.error(request, "Task record not found.")
         return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
 
-    # 2. LOCAL GENERATION (For SENT- or LOCAL- IDs)
-    if ms_id.startswith('SENT-') or ms_id.startswith('LOCAL-'):
+    # 2. LOCAL GENERATION (For SENT-, REPLY-, or LOCAL- IDs)
+    # 💡 Added ms_id.startswith('REPLY-') to intercept app-generated correspondence seamlessly
+    if ms_id.startswith('SENT-') or ms_id.startswith('LOCAL-') or ms_id.startswith('REPLY-'):
         msg = EmailMessage()
         msg['Subject'] = task.subject
         msg['From'] = task.sender_address or settings.OUTLOOK_EMAIL_ADDRESS
