@@ -231,21 +231,21 @@
                         <label class="form-label">Classification:</label>
                         <select name="email_category" class="form-control">
                             <option value="">-- Select --</option>
-                            <option value="Normal Withdrawal Claim">Normal Withdrawal Claim</option>
-                            <option value="Two-Pot withdrawal Request">Two-Pot withdrawal Request</option>
-                            <option value="Schedule - Current Month">Schedule - Current Month</option>
-                            <option value="Schedule - Following Month">Schedule - Following Month</option>
-                            <option value="New Member Doc.">New Member Doc.</option>
-                            <option value="Enquiry from Sanlam">Enquiry from Sanlam</option>
-                            <option value="Enquiry from Broker">Enquiry from Broker</option>
-                            <option value="Enquiry from MG">Enquiry from MG</option>
-                            <option value="Succesfull submission">Succesfull submission</option>
-                            <option value="Two-Pot Application Received">Two-Pot Application Received</option>
-                            <option value="Benefit Letter from Sanlam">Benefit Letter from Sanlam</option>
-                            <option value="Vester Pot Letter from Sanlam">Vester Pot Letter from Sanlam</option>
-                            <option value="Savings Pot Letter from Sanlam">Savings Pot Letter from Sanlam</option>
-                            <option value="Paid Up Certificate from Sanlam">Paid Up Certificate from Sanlam</option>
-                            <option value="Member Info Update Request">Member Info Update Request</option>
+                            <option value="Normal Withdrawal Claim" {% if delegation.email_category == "Normal Withdrawal Claim" %}selected{% endif %}>Normal Withdrawal Claim</option>
+                            <option value="Two-Pot withdrawal Request" {% if delegation.email_category == "Two-Pot withdrawal Request" %}selected{% endif %}>Two-Pot withdrawal Request</option>
+                            <option value="Schedule - Current Month" {% if delegation.email_category == "Schedule - Current Month" %}selected{% endif %}>Schedule - Current Month</option>
+                            <option value="Schedule - Following Month" {% if delegation.email_category == "Schedule - Following Month" %}selected{% endif %}>Schedule - Following Month</option>
+                            <option value="New Member Doc." {% if delegation.email_category == "New Member Doc." %}selected{% endif %}>New Member Doc.</option>
+                            <option value="Enquiry from Sanlam" {% if delegation.email_category == "Enquiry from Sanlam" %}selected{% endif %}>Enquiry from Sanlam</option>
+                            <option value="Enquiry from Broker" {% if delegation.email_category == "Enquiry from Broker" %}selected{% endif %}>Enquiry from Broker</option>
+                            <option value="Enquiry from MG" {% if delegation.email_category == "Enquiry from MG" %}selected{% endif %}>Enquiry from MG</option>
+                            <option value="Succesfull submission" {% if delegation.email_category == "Succesfull submission" %}selected{% endif %}>Succesfull submission</option>
+                            <option value="Two-Pot Application Received" {% if delegation.email_category == "Two-Pot Application Received" %}selected{% endif %}>Two-Pot Application Received</option>
+                            <option value="Benefit Letter from Sanlam" {% if delegation.email_category == "Benefit Letter from Sanlam" %}selected{% endif %}>Benefit Letter from Sanlam</option>
+                            <option value="Vester Pot Letter from Sanlam" {% if delegation.email_category == "Vester Pot Letter from Sanlam" %}selected{% endif %}>Vester Pot Letter from Sanlam</option>
+                            <option value="Savings Pot Letter from Sanlam" {% if delegation.email_category == "Savings Pot Letter from Sanlam" %}selected{% endif %}>Savings Pot Letter from Sanlam</option>
+                            <option value="Paid Up Certificate from Sanlam" {% if delegation.email_category == "Paid Up Certificate from Sanlam" %}selected{% endif %}>Paid Up Certificate from Sanlam</option>
+                            <option value="Member Info Update Request" {% if delegation.email_category == "Member Info Update Request" %}selected{% endif %}>Member Info Update Request</option>
                         </select>
                     </div>
                     <div>
@@ -346,6 +346,7 @@
                                 <option value="SEB Employer Declaration sent to ER">SEB Employer Declaration sent to ER</option>
                                 <option value="SEB Employer Declaration sent SEB">SEB Employer Declaration sent SEB</option>
                                 <option value="General Fund Rules Enquiry">General Fund Rules Enquiry</option>
+                                <option value="Info Only">Info Only</option>
                             </select>
                         </div>
 

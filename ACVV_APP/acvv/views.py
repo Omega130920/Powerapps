@@ -495,6 +495,7 @@ def export_acvv_list_excel(request):
 def acvv_list(request):
     """
     Displays a list of all ACVV records from the Globalacvv model with search functionality.
+    Sorted by branch code.
     """
     acvv_records = Globalacvv.objects.all()
     search_query = request.GET.get('search_query')
@@ -508,8 +509,8 @@ def acvv_list(request):
             Q(tel_2__icontains=search_query)
         )
 
-    # Order the results
-    acvv_records = acvv_records.order_by('mip_names')
+    # Order the results by code instead of mip_names
+    acvv_records = acvv_records.order_by('branch_code')
 
     context = {
         'acvv_records': acvv_records,
@@ -1828,21 +1829,35 @@ def export_email_tasks_excel(request):
 
 @login_required
 def temp_exists_list(request):
-    # Handle New Entry Submission
+    # Handle New Entry or Update Submission
     if request.method == 'POST':
-        TempExit.objects.create(
-            mg_code=request.POST.get('mg_code'),
-            surname=request.POST.get('surname'),
-            initials=request.POST.get('initials'),
-            mip_no=request.POST.get('mip_no'),
-            id_no=request.POST.get('id_no'),
-            reason=request.POST.get('reason'),
-            bis_from_date=request.POST.get('bis_from') or None,
-            bis_end_date=request.POST.get('bis_end') or None,
-            full_contributions_start_date=request.POST.get('full_start') or None,
-            note=request.POST.get('note')
-        )
-        messages.success(request, "Temp Exit added successfully.")
+        exit_id = request.POST.get('exit_id')
+        
+        data_fields = {
+            'mg_code': request.POST.get('mg_code'),
+            'surname': request.POST.get('surname'),
+            'initials': request.POST.get('initials'),
+            'mip_no': request.POST.get('mip_no'),
+            'id_no': request.POST.get('id_no'),
+            'reason': request.POST.get('reason'),
+            'bis_from_date': request.POST.get('bis_from') or None,
+            'bis_end_date': request.POST.get('bis_end') or None,
+            'full_contributions_start_date': request.POST.get('full_start') or None,
+            'note': request.POST.get('note')
+        }
+
+        if exit_id:
+            # Update existing record
+            exit_record = get_object_or_404(TempExit, pk=exit_id)
+            for field, value in data_fields.items():
+                setattr(exit_record, field, value)
+            exit_record.save()
+            messages.success(request, "Temp Exit updated successfully.")
+        else:
+            # Create new record
+            TempExit.objects.create(**data_fields)
+            messages.success(request, "Temp Exit added successfully.")
+            
         return redirect('temp_exists_list')
 
     # Display existing entries

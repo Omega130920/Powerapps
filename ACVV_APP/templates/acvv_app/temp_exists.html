@@ -109,7 +109,7 @@
         }
 
         tbody tr:nth-child(even) { background-color: #e6ffe6; }
-        tbody tr:hover { background-color: #ccffcc; }
+        tbody tr:hover { background-color: #ccffcc; cursor: pointer; }
 
         /* --- FORM STYLES --- */
         .form-container {
@@ -142,6 +142,29 @@
             border: 1px solid #ccc;
             box-sizing: border-box;
         }
+
+        /* --- MODAL OVERLAY STYLES --- */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.6);
+            z-index: 1000;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        .modal-content {
+            background: white;
+            width: 95%;
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);
+        }
     </style>
 </head>
 <body>
@@ -166,6 +189,17 @@
         </div>
     </div>
 
+    {# --- System Messages --- #}
+    {% if messages %}
+        <div style="margin-bottom: 15px;">
+        {% for message in messages %}
+            <div style="padding: 12px; border-radius: 5px; background: #d4edda; color: #155724; border: 1px solid #c3e6cb; font-size: 14px; margin-bottom: 5px;">
+                {{ message }}
+            </div>
+        {% endfor %}
+        </div>
+    {% endif %}
+
     <div class="table-responsive">
         <table>
             <thead>
@@ -183,7 +217,18 @@
             </thead>
             <tbody>
                 {% for exit in exits %}
-                <tr>
+                <tr onclick="openEditModal(this)"
+                    data-id="{{ exit.id }}"
+                    data-mg_code="{{ exit.mg_code }}"
+                    data-surname="{{ exit.surname }}"
+                    data-initials="{{ exit.initials|default:'' }}"
+                    data-mip_no="{{ exit.mip_no|default:'' }}"
+                    data-id_no="{{ exit.id_no|default:'' }}"
+                    data-reason="{{ exit.reason|default:'' }}"
+                    data-bis_from="{{ exit.bis_from_date|date:'Y-m-d' }}"
+                    data-bis_end="{{ exit.bis_end_date|date:'Y-m-d' }}"
+                    data-full_start="{{ exit.full_contributions_start_date|date:'Y-m-d' }}"
+                    data-note="{{ exit.note|default:'' }}">
                     <td><strong>{{ exit.mg_code }}</strong></td>
                     <td>{{ exit.surname }}</td>
                     <td>{{ exit.initials }}</td>
@@ -242,6 +287,10 @@
                     <label>BIS End Date</label>
                     <input type="date" name="bis_end" class="input-field">
                 </div>
+                <div class="input-group">
+                    <label>Full Contributions Start Date</label>
+                    <input type="date" name="full_start" class="input-field">
+                </div>
                 <div class="input-group" style="grid-column: 1 / -1;">
                     <label>Notes</label>
                     <input type="text" name="note" class="input-field" placeholder="Additional information...">
@@ -256,6 +305,64 @@
     </div>
 </div>
 
+{# --- EDIT MODAL OVERLAY --- #}
+<div id="editModal" class="modal-overlay">
+    <div class="modal-content">
+        <h2 style="color: #1b5e20; border-bottom: 2px solid #aed581; padding-bottom: 10px; margin-top: 0;">Edit Exit Details</h2>
+        <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="exit_id" id="edit_exit_id">
+            <div class="grid-form">
+                <div class="input-group">
+                    <label>MG Code</label>
+                    <input type="text" name="mg_code" id="edit_mg_code" class="input-field" required>
+                </div>
+                <div class="input-group">
+                    <label>Surname</label>
+                    <input type="text" name="surname" id="edit_surname" class="input-field" required>
+                </div>
+                <div class="input-group">
+                    <label>Initials</label>
+                    <input type="text" name="initials" id="edit_initials" class="input-field">
+                </div>
+                <div class="input-group">
+                    <label>MIP No.</label>
+                    <input type="text" name="mip_no" id="edit_mip_no" class="input-field">
+                </div>
+                <div class="input-group">
+                    <label>ID No.</label>
+                    <input type="text" name="id_no" id="edit_id_no" class="input-field">
+                </div>
+                <div class="input-group">
+                    <label>Reason</label>
+                    <input type="text" name="reason" id="edit_reason" class="input-field">
+                </div>
+                <div class="input-group">
+                    <label>BIS From Date</label>
+                    <input type="date" name="bis_from" id="edit_bis_from" class="input-field">
+                </div>
+                <div class="input-group">
+                    <label>BIS End Date</label>
+                    <input type="date" name="bis_end" id="edit_bis_end" class="input-field">
+                </div>
+                <div class="input-group">
+                    <label>Full Contributions Start Date</label>
+                    <input type="date" name="full_start" id="edit_full_start" class="input-field">
+                </div>
+                <div class="input-group" style="grid-column: 1 / -1;">
+                    <label>Notes</label>
+                    <input type="text" name="note" id="edit_note" class="input-field">
+                </div>
+            </div>
+            
+            <div style="margin-top: 25px; border-top: 1px solid #eee; padding-top: 15px; display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" onclick="closeEditModal()" class="return-button" style="background-color: #9e9e9e;">Cancel</button>
+                <button type="submit" class="return-button export-button">Update Exit Record</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
     function toggleAddForm() {
         const form = document.getElementById('addFormContainer');
@@ -265,6 +372,30 @@
         } else {
             form.style.display = 'none';
         }
+    }
+
+    function openEditModal(row) {
+        document.getElementById('edit_exit_id').value = row.dataset.id;
+        document.getElementById('edit_mg_code').value = row.dataset.mg_code;
+        document.getElementById('edit_surname').value = row.dataset.surname;
+        document.getElementById('edit_initials').value = row.dataset.initials;
+        document.getElementById('edit_mip_no').value = row.dataset.mip_no;
+        document.getElementById('edit_id_no').value = row.dataset.id_no;
+        document.getElementById('edit_reason').value = row.dataset.reason;
+        document.getElementById('edit_bis_from').value = row.dataset.bis_from;
+        document.getElementById('edit_bis_end').value = row.dataset.bis_end;
+        document.getElementById('edit_full_start').value = row.dataset.full_start;
+        document.getElementById('edit_note').value = row.dataset.note;
+
+        document.getElementById('editModal').style.display = 'block';
+    }
+
+    function closeEditModal() {
+        document.getElementById('editModal').style.display = 'none';
+    }
+
+    window.onclick = (e) => { 
+        if (e.target == document.getElementById('editModal')) closeEditModal(); 
     }
 </script>
 
