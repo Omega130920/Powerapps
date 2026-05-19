@@ -1698,7 +1698,8 @@ def export_delegation_report_excel(request):
 
 @login_required
 def final_sla_report_view(request):
-    if request.user.username.lower() not in ['omega', 'manager']:
+    # Added "and not request.user.is_superuser" so newly promoted admins aren't kicked out
+    if request.user.username.lower() not in ['omega', 'manager'] and not request.user.is_superuser:
         return redirect('dashboard')
 
     start_str = request.GET.get('start_date')

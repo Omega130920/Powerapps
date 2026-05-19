@@ -137,21 +137,21 @@
 
     <div class="button-container">
         
-        {% if user.username == 'omega' or user.username == 'Manager' %}
-            <a href="{% url 'fetch_emails' %}" class="button-block">
-                Delegations
-                {% if new_emails_count > 0 %}
-                    <span class="badge blue-badge">{{ new_emails_count }}</span>
-                {% endif %}
-            </a>
+        <!-- Delegations: Now visible to all users -->
+        <a href="{% url 'fetch_emails' %}" class="button-block">
+            Delegations
+            {% if new_emails_count > 0 %}
+                <span class="badge blue-badge">{{ new_emails_count }}</span>
+            {% endif %}
+        </a>
 
-            <a href="{% url 'recycle_bin' %}" class="button-block">
-                Recycle Bin
-                {% if recycled_count > 0 %}
-                    <span class="badge grey-badge">{{ recycled_count }}</span>
-                {% endif %}
-            </a>
-        {% endif %}
+        <!-- Recycle Bin: Now visible to all users -->
+        <a href="{% url 'recycle_bin' %}" class="button-block">
+            Recycle Bin
+            {% if recycled_count > 0 %}
+                <span class="badge grey-badge">{{ recycled_count }}</span>
+            {% endif %}
+        </a>
         
         <a href="{% url 'tasks' %}" class="button-block">
             Dashboard

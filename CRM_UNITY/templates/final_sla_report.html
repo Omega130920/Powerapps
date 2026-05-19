@@ -37,10 +37,13 @@
                 <p class="text-emerald-100 mt-1 text-sm font-medium">Multi-channel metrics grouped by Enquiry and Action types.</p>
             </div>
             <div class="flex gap-3">
+                <!-- Added role check to protect Excel exporting for Superusers/Managers -->
+                {% if user.is_superuser or user.username == 'omega' or user.username == 'Manager' %}
                 <a href="?export=excel&start_date={{ start_date }}&end_date={{ end_date }}" 
                    class="bg-emerald-500 hover:bg-emerald-400 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-lg flex items-center gap-2 transition-all">
                     <i class="fas fa-file-excel"></i> Export Excel
                 </a>
+                {% endif %}
             </div>
         </div>
 
