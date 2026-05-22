@@ -1,34 +1,44 @@
 import base64
-from itertools import count
 import os
 import re
+import logging
+from itertools import count
+from datetime import datetime, timedelta
+
+# Django Imports
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.decorators import login_required
-from django.contrib import messages
-from datetime import datetime, timedelta
-from django.db.models import Q
-from django.urls import reverse # Required for clean redirects
-from django.conf import settings # Required for target_email default
-
-from django.utils import timezone
-from dateutil.relativedelta import relativedelta
-from django.core.files.storage import FileSystemStorage
-
-# Core Django Auth Models
 from django.contrib.auth.models import User
+from django.contrib import messages
+from django.db import transaction
+from django.db.models import Q, OuterRef, Subquery, Sum, Count, Avg
+from django.db.models.functions import TruncMonth
+from django.urls import reverse
+from django.conf import settings
+from django.utils import timezone
+from django.utils.dateparse import parse_date
+from django.utils.safestring import mark_safe
+from django.http import HttpResponse
+from django.core.files.storage import FileSystemStorage
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+
+# Third-Party Imports
+import requests
 import openpyxl
-import requests 
+from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
+from openpyxl.utils import get_column_letter
+from dateutil import parser
+from dateutil.relativedelta import relativedelta
 
-# Local Model Imports
-from .models import AcvvClaim, BranchDocument, ClaimNote, Globalacvv, ClientNotes, EmailDelegation, DelegationNote, DelegationTransactionLog, ReconciliationRecord, ReconciliationWorksheet, TempExit
-
-
-# Import the new Graph API service functions
-from .services.outlook_graph_service import fetch_inbox_messages, send_outlook_email, _make_graph_request
-
-# Import Delegation Service functions
+# Local Project Imports
+from .models import (
+    AcvvClaim, BranchDocument, ClaimNote, Globalacvv, ClientNotes, 
+    EmailDelegation, DelegationNote, DelegationTransactionLog, 
+    ReconciliationRecord, ReconciliationWorksheet, TempExit
+)
+from .services.outlook_graph_service import OutlookGraphService
 from .services.delegation_service import (
     get_or_create_delegation_status, 
     delegate_email_task, 
@@ -37,17 +47,8 @@ from .services.delegation_service import (
     log_delegation_transaction
 )
 
-from dateutil import parser
-
-from django.utils.safestring import mark_safe # for the email body & signature
-
-from django.http import HttpResponse
-
-from django.db.models import OuterRef, Subquery, Q
-
-# --------------------------------------------------------------------- #
-# AUTHENTICATION VIEWS (REMAINS THE SAME)
-# --------------------------------------------------------------------- #
+# Initialize logger
+logger = logging.getLogger(__name__)
 
 def login_view(request):
     """
@@ -75,7 +76,7 @@ def dashboard(request):
     
     # 1. Fetch current IDs from the Live API to ensure the count is accurate
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
-    inbox_data = fetch_inbox_messages(target_email, 1000) # Fetch a reasonable amount
+    inbox_data = OutlookGraphService._make_graph_request(target_email, 1000) # Fetch a reasonable amount
     
     if 'error' not in inbox_data:
         live_ids = [msg['id'] for msg in inbox_data.get('value', [])]
@@ -120,15 +121,8 @@ def index(request):
     """
     return redirect('login') 
 
-# --------------------------------------------------------------------- #
-# OUTLOOK DELEGATOR VIEWS (Inbox & Assignment)
-# --------------------------------------------------------------------- #
-
 @login_required
 def outlook_dashboard_view(request):
-    """
-    Displays the Live Inbox. Only shows emails that are WORK RELATED and NOT YET DELEGATED.
-    """
     if request.user.username.lower() != 'omega' and not request.user.is_superuser:
         messages.error(request, "Access restricted.")
         return redirect('outlook_delegated_box')
@@ -136,7 +130,8 @@ def outlook_dashboard_view(request):
     target_email = request.GET.get('email', settings.OUTLOOK_EMAIL_ADDRESS)
     context = {'target_email': target_email, 'messages': []}
     
-    inbox_data = fetch_inbox_messages(target_email, 10000) 
+    # Use Service class
+    inbox_data = OutlookGraphService.fetch_inbox_messages(target_email, 1000) 
     
     if 'error' not in inbox_data:
         emails = inbox_data.get('value', [])
@@ -147,29 +142,25 @@ def outlook_dashboard_view(request):
         ).exclude(status='NEW', work_related=True).values_list('email_id', flat=True)
 
         display_emails = []
-        
         for email in emails:
             email_id = email['id']
             if email_id in processed_ids:
                 continue
 
             received_date_str = email.get('receivedDateTime') 
-            # --- NEW: Extract Sender Address ---
             sender_email = email.get('from', {}).get('emailAddress', {}).get('address', '')
             
-            # Update/Create record with sender info
             delegation, created = EmailDelegation.objects.get_or_create(
                 email_id=email_id,
                 defaults={
                     'received_at': parser.isoparse(received_date_str) if received_date_str else None,
                     'status': 'NEW',
                     'work_related': True,
-                    'sender_address': sender_email, # Save sender
+                    'sender_address': sender_email,
                     'subject': email.get('subject', '(No Subject)')
                 }
             )
             
-            # If the record already existed but sender was missing, update it
             if not created and not delegation.sender_address:
                 delegation.sender_address = sender_email
                 delegation.save()
@@ -189,7 +180,6 @@ def outlook_dashboard_view(request):
         context['error'] = f"Error: {inbox_data['error']}"
 
     return render(request, 'acvv_app/outlook_dashboard.html', context)
-
 
 @login_required
 def send_email_view(request):
@@ -211,7 +201,7 @@ def send_email_view(request):
             return render(request, 'acvv_app/send_email_form.html', {'target_email': target_email})
         
         # Call the service function, passing the target_email as the sender mailbox
-        result = send_outlook_email(target_email, recipient, subject, body)
+        result = OutlookGraphService.send_outlook_email(target_email, recipient, subject, body, 'HTML')
         
         if result.get('success'):
             messages.success(request, f"Email sent successfully from {target_email} to {recipient}.")
@@ -237,19 +227,8 @@ def send_email_view(request):
     # Render the empty form on GET request
     return render(request, 'acvv_app/send_email_form.html', {'target_email': target_email})
 
-
-# --------------------------------------------------------------------- #
-# OUTLOOK DELEGATED VIEWS (Assigned User Workflow)
-# --------------------------------------------------------------------- #
-
 @login_required
 def outlook_delegated_box(request):
-    """
-    Dashboard view: Fetch delegations assigned to the user that are NOT completed.
-    Assumes 'DEL' is Delegated/Active.
-    """
-    # Fetch delegations assigned to the user with status 'DEL'
-    # We exclude 'COM' (Completed) so they are removed from the dashboard
     delegations = EmailDelegation.objects.filter(
         assigned_user=request.user, 
         status='DEL'
@@ -267,9 +246,7 @@ def outlook_delegated_box(request):
             'delegated_at': delegation.delegated_at,
             'email_type': delegation.email_category,
         })
-
     return render(request, 'acvv_app/outlook_delegated_box.html', {'tasks': tasks})
-
 
 @login_required
 def outlook_delegated_action(request, delegation_id):
@@ -332,20 +309,18 @@ def outlook_delegated_action(request, delegation_id):
             
             # --- MULTI-ATTACHMENT UPDATE ---
             attachments_list = request.FILES.getlist('email_attachments')
-            # Extract first record to populate the database column model field fallback safely
             fallback_single_attachment = attachments_list[0] if attachments_list else None
             
             selected_action_type = request.POST.get('action_log_type') or "Correspondence"
             
-            # Pass down the complete file objects array context list safely to your mailing layout service
-            result = send_outlook_email(target_email, recipient, subject, body, content_type='Html', attachments=attachments_list)
+            # Pass down the complete file objects array context list safely
+            result = OutlookGraphService.send_outlook_email(target_email, recipient, subject, body, content_type='Html', attachments=attachments_list)
             
             if result.get('success'):
                 log_delegation_transaction(delegation_id, request.user, subject, recipient, action_type='EMAIL_REPLY')
                 
                 new_ms_id = result.get('message_id') or f"REPLY-{timezone.now().timestamp()}"
                 
-                # FIX: Removed the non-existent field 'action_log_type' from constructor parameters
                 EmailDelegation.objects.create(
                     email_id=new_ms_id,
                     subject=subject,
@@ -367,7 +342,7 @@ def outlook_delegated_action(request, delegation_id):
                     user=request.user.username,
                     date=timezone.now(),
                     communication_type="Email",
-                    action_note_type=selected_action_type # Saves cleanly to your database column here
+                    action_note_type=selected_action_type 
                 )
                 
                 messages.success(request, "Reply sent.")
@@ -393,23 +368,35 @@ def outlook_delegated_action(request, delegation_id):
                 'is_local': True
             }]
     else:
-        email_data = _make_graph_request(f"messages/{delegation.email_id}", target_email)
-        
-        is_404_error = False
-        if isinstance(email_data, dict):
-            if isinstance(email_data.get('error'), dict) and email_data['error'].get('code') == 'ErrorItemNotFound':
-                is_404_error = True
-            elif isinstance(email_data.get('details'), dict) and isinstance(email_data['details'].get('error'), dict):
-                if email_data['details']['error'].get('code') == 'ErrorItemNotFound':
+        # 🔑 SAFELY WRAP OUTLOOK MICROSOFT LIVE API CALLS IN EXCEPTION TRY BLOCKS
+        try:
+            # FIX: Used new fetch_outlook_data instead of send_outlook_email for GET requests
+            email_data = OutlookGraphService.fetch_outlook_data(f"messages/{delegation.email_id}", target_email)
+            
+            is_404_error = False
+            if isinstance(email_data, dict):
+                error_value = str(email_data.get('error', ''))
+                details_value = str(email_data.get('details', ''))
+                
+                if "Status 404" in error_value or "ErrorItemNotFound" in details_value:
                     is_404_error = True
+            elif isinstance(email_data, str) and "ErrorItemNotFound" in email_data:
+                is_404_error = True
 
-        if is_404_error:
-            messages.warning(request, "This message tracker placeholder was not found on the Microsoft server.")
-            return redirect('outlook_delegated_box')
+            if is_404_error:
+                raise Exception("ErrorItemNotFound")
 
-        attachment_endpoint = f"messages/{delegation.email_id}/attachments"
-        attachment_data = _make_graph_request(attachment_endpoint, target_email)
-        attachments = attachment_data.get('value', []) if 'error' not in attachment_data else []
+            # FIX: Used new fetch_outlook_data for attachment retrieval
+            attachment_endpoint = f"messages/{delegation.email_id}/attachments"
+            attachment_data = OutlookGraphService.fetch_outlook_data(attachment_endpoint, target_email)
+            attachments = attachment_data.get('value', []) if isinstance(attachment_data, dict) and 'error' not in attachment_data else []
+
+        except Exception as graph_error:
+            if "ErrorItemNotFound" in str(graph_error) or "404" in str(graph_error):
+                messages.warning(request, "This email could not be found in Outlook. It may have been moved, deleted, or archived.")
+                return redirect('outlook_delegated_box')
+            else:
+                raise graph_error
 
     if isinstance(email_data, dict) and 'error' in email_data and not email_data.get('subject'):
         messages.error(request, f"Error fetching content: {email_data.get('error')}")
@@ -425,10 +412,6 @@ def outlook_delegated_action(request, delegation_id):
     }
     return render(request, 'acvv_app/outlook_delegated_action.html', context)
 
-
-# --------------------------------------------------------------------- #
-# ACVV App Views (Existing)
-# --------------------------------------------------------------------- #
 @login_required
 def export_acvv_list_excel(request):
     """Exports filtered ACVV records to Excel with specific column mapping."""
@@ -518,15 +501,15 @@ def acvv_list(request):
     }
     return render(request, 'acvv_app/acvv_list.html', context)
 
-from django.db.models import Q # For flexible filtering
-
 @login_required
 def acvv_information(request, mip_names):
     """
     Detailed view for a specific ACVV record with unified logging.
-    Includes support for TEL and TEL 2 from the Globalacvv model.
+    Includes support for TEL, TEL 2, MG ADDRESS, NPO CODE, and MG BANK INFO from the Globalacvv model.
     """
-    acvv_record = get_object_or_404(Globalacvv, mip_names=mip_names)
+    # 🔑 FIX: Look up the record by matching either 'mip_names' OR 'branch_code' 
+    # to handle code-based routing links safely without throwing a 404.
+    acvv_record = get_object_or_404(Globalacvv, Q(mip_names=mip_names) | Q(branch_code=mip_names))
     
     if request.method == 'POST':
         # 1. Handle Note Uploads
@@ -572,11 +555,17 @@ def acvv_information(request, mip_names):
                 messages.success(request, "PDF added.")
                 return redirect(f'/acvv-records/{acvv_record.mip_names}/#pdf-upload')
 
-        # 3. Handle Contact Info Update (NEW)
+        # 3. Handle Contact Info Update (NEW FIELDS ADDED)
         elif 'update_contact_info' in request.POST:
             acvv_record.mg_email_address = request.POST.get('new_email')
             acvv_record.tel = request.POST.get('new_tel')
             acvv_record.tel_2 = request.POST.get('new_tel_2')
+            
+            # --- EXTRACT AND SAVE THE NEW ASSIGNED DATA ATTRIBUTES HERE ---
+            acvv_record.mg_address = request.POST.get('new_mg_address')
+            acvv_record.npo_code = request.POST.get('new_npo_code')
+            acvv_record.mg_bank_info = request.POST.get('new_mg_bank_info')
+            
             acvv_record.save()
             messages.success(request, "Contact information updated successfully.")
             return redirect('acvv_information', mip_names=acvv_record.branch_code)
@@ -605,21 +594,17 @@ def acvv_information(request, mip_names):
                 pass
 
     # --- 2. ADDED: FETCH AND MAP REMARKS CONTENT FROM DELEGATION_NOTE TABLE ---
-    # Fetch all tasks linked to this branch to pull the matching child remarks content cleanly
     delegation_ids = delegated_logs.values_list('id', flat=True)
     
-    # Execute database query on your delegation_note table configuration properties
     raw_delegation_notes = DelegationNote.objects.filter(
         delegation_id__in=delegation_ids
     ).order_by('created_at')
 
-    # Construct a dictionary to aggregate multiple notes per delegation_id using list streams
     delegation_notes_map = {}
     for d_note in raw_delegation_notes:
         if d_note.delegation_id not in delegation_notes_map:
             delegation_notes_map[d_note.delegation_id] = []
         
-        # Format the content string row beautifully with the user context tracking details
         formatted_entry = f"[{d_note.created_at.strftime('%Y-%m-%d')}] {d_note.content}"
         delegation_notes_map[d_note.delegation_id].append(formatted_entry)
 
@@ -654,7 +639,6 @@ def acvv_information(request, mip_names):
         if not resolved_action_note_type or resolved_action_note_type == 'None':
             resolved_action_note_type = '-'
 
-        # --- ADDED: Extract the aggregation string from our delegation notes lookup map ---
         matched_notes_list = delegation_notes_map.get(log.id, [])
         resolved_delegation_content = " | ".join(matched_notes_list) if matched_notes_list else "-"
 
@@ -669,7 +653,6 @@ def acvv_information(request, mip_names):
             'email_id': log.email_id,
             'file_url': log.attachment.url if hasattr(log, 'attachment') and log.attachment else None,
             'action_note_type': resolved_action_note_type,
-            # Pass delegation content to template loop engine
             'delegation_note_content': resolved_delegation_content, 
             'sort_date': log.received_at or log.delegated_at
         })
@@ -686,12 +669,6 @@ def acvv_information(request, mip_names):
     }
     return render(request, 'acvv_app/acvv_information.html', context)
 
-import logging
-from django.db import transaction
-
-# Initialize logger to capture errors without crashing the process
-logger = logging.getLogger(__name__)
-
 @login_required
 def outlook_delegate_to(request, email_id):
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
@@ -701,7 +678,7 @@ def outlook_delegate_to(request, email_id):
     # 1. Fetch the main Email Message with safety wrapper
     try:
         endpoint = f"messages/{email_id}" 
-        email_data = _make_graph_request(endpoint, target_email) 
+        email_data = OutlookGraphService._make_graph_request(endpoint, target_email) 
 
         if not email_data or 'error' in email_data:
             error_details = email_data.get('error', {})
@@ -727,7 +704,7 @@ def outlook_delegate_to(request, email_id):
     attachments = []
     try:
         attachment_endpoint = f"messages/{email_id}/attachments"
-        attachment_data = _make_graph_request(attachment_endpoint, target_email)
+        attachment_data = OutlookGraphService._make_graph_request(attachment_endpoint, target_email)
         if attachment_data and 'value' in attachment_data:
             attachments = attachment_data['value']
     except Exception as e:
@@ -743,6 +720,8 @@ def outlook_delegate_to(request, email_id):
                 is_work_related = (work_related_raw == 'Yes')
                 assignee_pk = request.POST.get('agent_name')
                 mip_names_value = request.POST.get('mip_names')
+                # Capture the log type
+                action_log_type_value = request.POST.get('action_log_type', 'General')
                 
                 if not is_work_related:
                     EmailDelegation.objects.update_or_create(
@@ -777,6 +756,16 @@ def outlook_delegate_to(request, email_id):
                             }
                         )
 
+                        # Create the log entry to persist the Action Log Type
+                        ClientNotes.objects.create(
+                            acvv_record=Globalacvv.objects.filter(Q(mip_names=mip_names_value) | Q(branch_code=mip_names_value)).first(),
+                            notes=f"Email delegated to {target_assignee.username}",
+                            user=request.user.username,
+                            date=timezone.now(),
+                            communication_type="Email Delegation",
+                            action_note_type=action_log_type_value
+                        )
+
                         messages.success(request, f"Task successfully assigned/re-delegated to {target_assignee.username}!")
                         return redirect('outlook_dashboard')
                     else:
@@ -805,7 +794,7 @@ def outlook_email_content(request, email_id):
     """
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     endpoint = f"messages/{email_id}" 
-    email_data = _make_graph_request(endpoint, target_email)
+    email_data = OutlookGraphService._make_graph_request(endpoint, target_email)
 
     if 'error' in email_data:
         return HttpResponse("<h1>Error fetching email content.</h1>", status=500)
@@ -834,10 +823,6 @@ def outlook_email_content(request, email_id):
     
     # Return as plain HTML response (not marked safe, but the browser loads it securely)
     return HttpResponse(wrapped_content, content_type='text/html')
-
-
-from django.db.models import Sum, Count, Avg
-from django.db.models.functions import TruncMonth
 
 @login_required
 def save_acvv_claim(request, company_code):
@@ -899,17 +884,6 @@ def save_acvv_claim(request, company_code):
 
     return redirect('acvv_information', mip_names=company_code)
 
-from django.shortcuts import render, redirect
-from django.contrib.auth.decorators import login_required
-from django.db.models import Q
-from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
-from django.utils.dateparse import parse_date
-from django.conf import settings
-from .models import AcvvClaim, Globalacvv, EmailDelegation
-from .services.outlook_graph_service import _make_graph_request # Assuming your service name
-
-
-
 @login_required
 def global_two_pot_view(request):
     """Dedicated Register for ONLY Two Pot claims with Note/Attachment support."""
@@ -949,7 +923,7 @@ def global_two_pot_view(request):
                 try:
                     del_obj = delegations_map.get(int(claim.linked_email_id))
                     if del_obj:
-                        email_data = _make_graph_request(
+                        email_data = OutlookGraphService._make_graph_request(
                             f"messages/{del_obj.email_id}?$select=subject,from,body,receivedDateTime", 
                             target_email
                         )
@@ -1002,7 +976,7 @@ def global_claims_view(request):
                 del_obj = delegations_map.get(str(claim.linked_email_id))
                 if del_obj:
                     endpoint = f"messages/{del_obj.email_id}?$select=subject,from,body,receivedDateTime"
-                    email_data = _make_graph_request(endpoint, target_email)
+                    email_data = OutlookGraphService._make_graph_request(endpoint, target_email)
                     if 'error' not in email_data:
                         claim.email_preview_subject = email_data.get('subject')
                         claim.email_preview_sender = email_data.get('from', {}).get('emailAddress', {}).get('address')
@@ -1015,7 +989,6 @@ def global_claims_view(request):
         'my_delegated_emails': EmailDelegation.objects.filter(assigned_user=request.user).exclude(status='DLT'),
         'is_two_pot_view': False 
     })
-
 
 @login_required
 def save_global_claim(request):
@@ -1128,7 +1101,7 @@ def save_global_claim(request):
         if recipient and subject and body:
             target_email = settings.OUTLOOK_EMAIL_ADDRESS
             
-            result = send_outlook_email(
+            result = OutlookGraphService.send_outlook_email(
                 target_email, 
                 recipient, 
                 subject, 
@@ -1188,11 +1161,6 @@ def save_global_claim(request):
         if claim_type == 'Two Pot':
             return redirect('global_two_pot')
         return redirect('global_claims')
-
-import openpyxl
-from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
-from django.utils import timezone
-from django.http import HttpResponse
 
 @login_required
 def export_global_claims_excel(request):
@@ -1297,7 +1265,7 @@ def recycle_bin_view(request):
 
     for item in recycled_items:
         endpoint = f"messages/{item.email_id}?$select=subject,from"
-        email_data = _make_graph_request(endpoint, target_email)
+        email_data = OutlookGraphService._make_graph_request(endpoint, target_email)
         
         if 'error' not in email_data:
             subject = email_data.get('subject')
@@ -1344,7 +1312,7 @@ def view_recycled_item(request, delegation_id):
     delegation = get_object_or_404(EmailDelegation, pk=delegation_id)
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     endpoint = f"messages/{delegation.email_id}"
-    email_data = _make_graph_request(endpoint, target_email)
+    email_data = OutlookGraphService._make_graph_request(endpoint, target_email)
 
     if 'error' in email_data:
         messages.error(request, "Error fetching email content.")
@@ -1408,10 +1376,10 @@ def outlook_view_thread(request, delegation_id):
     else:
         # --- LIVE MICROSOFT FETCH (For original incoming emails) ---
         endpoint = f"messages/{task.email_id}"
-        email_data = _make_graph_request(endpoint, target_email)
+        email_data = OutlookGraphService._make_graph_request(endpoint, target_email)
         
         attachment_endpoint = f"messages/{task.email_id}/attachments"
-        attachment_data = _make_graph_request(attachment_endpoint, target_email)
+        attachment_data = OutlookGraphService._make_graph_request(attachment_endpoint, target_email)
         
         attachments = attachment_data.get('value', [])
         email_content = email_data.get('body', {}).get('content')
@@ -1642,7 +1610,6 @@ def reconciliation_worksheet(request):
         'current_fiscal': current_fiscal
     })
 
-# Export functions remain same as provided
 @login_required
 def export_reconciliation_worksheet(request, date_str):
     try:
@@ -1779,11 +1746,13 @@ def outlook_email_list(request):
 def export_email_tasks_excel(request):
     """
     Exports the filtered email task list to Excel.
+    Includes NEW, DEL, and COM (Completed) records.
     """
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
     
-    emails = EmailDelegation.objects.filter(status__in=['NEW', 'DEL']).order_by('-received_at')
+    # 🔑 FIX: Added 'COM' to include completed tasks inside your spreadsheet export query matrix
+    emails = EmailDelegation.objects.filter(status__in=['NEW', 'DEL', 'COM']).order_by('-received_at')
     
     if start_date and end_date:
         emails = emails.filter(received_at__date__range=[start_date, end_date])
@@ -1887,10 +1856,10 @@ def outlook_view_thread(request, delegation_id):
     else:
         # Only call Graph API for real Microsoft IDs
         endpoint = f"messages/{task.email_id}"
-        email_data = _make_graph_request(endpoint, target_email)
+        email_data = OutlookGraphService._make_graph_request(endpoint, target_email)
         
         attachment_endpoint = f"messages/{task.email_id}/attachments"
-        attachment_data = _make_graph_request(attachment_endpoint, target_email)
+        attachment_data = OutlookGraphService._make_graph_request(attachment_endpoint, target_email)
         attachments = attachment_data.get('value', [])
         email_content = email_data.get('body', {}).get('content')
 
@@ -2019,14 +1988,6 @@ def download_acvv_email(request, delegation_id):
         messages.error(request, f"Outlook Error: {e}")
 
     return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
-    
-import openpyxl
-from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
-from openpyxl.utils import get_column_letter
-from django.http import HttpResponse
-from django.utils import timezone
-from django.db.models import Q
-from .models import AcvvClaim, Globalacvv
 
 def get_branch_map_acvv(claims_queryset):
     """ Helper to map company codes to formal Branch names for ACVV """
@@ -2249,7 +2210,7 @@ def send_acvv_direct_email(request, company_code):
             clean_recipient_str = ", ".join(recipient_list)
 
             # Pass the full 'attachments' list instead of just [0]
-            result = send_outlook_email(
+            result = OutlookGraphService.send_outlook_email(
                 target_email, 
                 recipient_list, 
                 subject, 
@@ -2321,9 +2282,6 @@ def download_outlook_attachment(request, delegation_id, attachment_id):
     response = HttpResponse(file_content, content_type=content_type)
     response['Content-Disposition'] = f'attachment; filename="{file_name}"'
     return response
-
-from django.db.models import Count, Sum
-from django.utils.dateparse import parse_date
 
 @login_required
 def acvv_sla_report_view(request):

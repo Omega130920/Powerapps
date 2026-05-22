@@ -20,6 +20,7 @@
         .tab-nav li { padding: 12px 15px; cursor: pointer; background-color: #81c784; color: white; margin-bottom: 4px; border-radius: 5px 0 0 5px; text-align: right; transition: 0.2s; font-size: 13px; font-weight: 600; }
         .tab-nav li.active { background-color: #f0fff0; color: #1b5e20; border: 2px solid #43a047; border-right: none; font-weight: 800; transform: translateX(2px); z-index: 1; }
         .tab-content { flex: 1; background-color: #f0fff0; padding: 15px; border: 1px solid #aed581; border-radius: 8px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); overflow-y: auto; }
+        .tab-nav-panel { background-color: #81c784; border-radius: 5px; }
         .tab-pane { display: none; }
         .tab-pane.active { display: block; }
         table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; margin-top: 10px; }
@@ -72,6 +73,10 @@
                         <tr><th>Email Address</th><td>{{ acvv_record.mg_email_address|default:"-" }}</td></tr>
                         <tr><th>Tel 1</th><td>{{ acvv_record.tel|default:"-" }}</td></tr>
                         <tr><th>Tel 2</th><td>{{ acvv_record.tel_2|default:"-" }}</td></tr>
+                        {# --- NEW VALUE TRACKING PROPERTIES DISPLAYED EXTRACTSED BELOW --- #}
+                        <tr><th>MG Address</th><td>{{ acvv_record.mg_address|default:"-" }}</td></tr>
+                        <tr><th>NPO Code</th><td>{{ acvv_record.npo_code|default:"-" }}</td></tr>
+                        <tr><th>MG Bank Info</th><td>{{ acvv_record.mg_bank_info|default:"-" }}</td></tr>
                     </table>
                 </div>
 
@@ -394,9 +399,22 @@
                     <label class="block text-sm font-bold mb-1">Tel 1</label>
                     <input type="text" name="new_tel" value="{{ acvv_record.tel }}" class="form-input">
                 </div>
-                <div class="mb-6">
+                <div class="mb-4">
                     <label class="block text-sm font-bold mb-1">Tel 2</label>
                     <input type="text" name="new_tel_2" value="{{ acvv_record.tel_2 }}" class="form-input">
+                </div>
+                {# --- NEW FORM FIELDS FOR EDITS ADDED BELOW --- #}
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-1">MG Address</label>
+                    <input type="text" name="new_mg_address" value="{{ acvv_record.mg_address|default:'' }}" class="form-input">
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-1">NPO Code</label>
+                    <input type="text" name="new_npo_code" value="{{ acvv_record.npo_code|default:'' }}" class="form-input">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-bold mb-1">MG Bank Info</label>
+                    <input type="text" name="new_mg_bank_info" value="{{ acvv_record.mg_bank_info|default:'' }}" class="form-input">
                 </div>
                 <div class="flex justify-end gap-3">
                     <button type="button" class="cancel-btn" onclick="closeContactModal()">Cancel</button>
@@ -429,7 +447,7 @@
                     <div>
                         <label style="font-weight:bold;">Claim Type</label>
                         <select name="claim_type" id="claim_type_select" class="form-select" onchange="toggleTwoPotLogic()">
-                            <option value="Withdrawal">Withdrawal</option><option value="Retirement">Retirement</option><option value="Death">Death</option><option value="Two Pot">Two Pot</option> 
+                            <option value="Withdrawal">Withdrawal</option><option value="Retirement">Retirement</option><option value="Death">Death</option><option value="Two Pot</option> 
                         </select>
                     </div>
                     <div id="div_exit_reason">
@@ -521,23 +539,23 @@
                     </div>
                 </div>
 
-                <hr style="border: 1px solid #aed581; margin: 20px 0;">
-                
-                <h3 style="color: #38761d; font-weight: bold;">Add Claim Note</h3>
-                <div style="background-color: #f9f9f9; padding: 15px; border: 1px solid #ccc; border-radius: 4px;">
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;">
-                        <div>
-                            <label class="text-xs font-bold">Note Selection</label>
-                            <select name="note_selection" class="form-select">
-                                <option value="">-- Select Note Type --</option>
-                                <option value="BANK DETAILS FOLLOW UP WITH MEMBER/EMPLOYER">BANK DETAILS FOLLOW UP</option>
-                                <option value="CLAIM DOCUMENTS REQUESTED">DOCS REQUESTED</option>
-                                <option value="SUBMITTED VIA E-MAIL">SUBMITTED VIA EMAIL</option>
-                            </select>
+                <div style="margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 15px;">
+                    <h3 style="color: #38761d; font-weight: bold;">Add Claim Note</h3>
+                    <div style="background-color: #f9f9f9; padding: 15px; border: 1px solid #ccc; border-radius: 4px;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 10px;">
+                            <div>
+                                <label class="text-xs font-bold">Note Selection</label>
+                                <select name="note_selection" class="form-select">
+                                    <option value="">-- Select Note Type --</option>
+                                    <option value="BANK DETAILS FOLLOW UP WITH MEMBER/EMPLOYER">BANK DETAILS FOLLOW UP</option>
+                                    <option value="CLAIM DOCUMENTS REQUESTED">DOCS REQUESTED</option>
+                                    <option value="SUBMITTED VIA E-MAIL">SUBMITTED VIA EMAIL</option>
+                                </select>
+                            </div>
+                            <div><label class="text-xs font-bold">Attachment:</label><input type="file" name="claim_attachment" class="form-input"></div>
                         </div>
-                        <div><label class="text-xs font-bold">Attachment:</label><input type="file" name="claim_attachment" class="form-input"></div>
+                        <textarea name="note_description" id="note_description" rows="3" class="form-input" placeholder="Add details..."></textarea>
                     </div>
-                    <textarea name="note_description" id="note_description" rows="3" class="form-input" placeholder="Add details..."></textarea>
                 </div>
 
                 <div style="max-height: 150px; overflow-y: auto; margin-top: 15px; border: 1px solid #ddd; background: white;">
@@ -615,16 +633,17 @@
         }
         function closeModal() { document.getElementById('claimModal').style.display = 'none'; }
 
+        // TWO POT OPTION MANIPULATION HANDLER
         function toggleTwoPotLogic() {
             const type = document.getElementById('claim_type_select').value;
             const statusSelect = document.getElementById('claim_status_select');
             const paymentSelect = document.getElementById('payment_option_select');
             const isTwoPot = (type === 'Two Pot');
             
-            document.getElementById('div_mip_number').style.display = isTwoPot ? 'block' : 'none';
-            document.getElementById('div_claim_amount').style.display = isTwoPot ? 'block' : 'none';
-            document.getElementById('div_exit_reason').style.display = isTwoPot ? 'none' : 'block';
-            document.getElementById('pot_availability_section').style.display = isTwoPot ? 'none' : 'block';
+            if(document.getElementById('div_mip_number')) document.getElementById('div_mip_number').style.display = isTwoPot ? 'block' : 'none';
+            if(document.getElementById('div_claim_amount')) document.getElementById('div_claim_amount').style.display = isTwoPot ? 'block' : 'none';
+            if(document.getElementById('div_exit_reason')) document.getElementById('div_exit_reason').style.display = isTwoPot ? 'none' : 'block';
+            if(document.getElementById('pot_availability_section')) document.getElementById('pot_availability_section').style.display = isTwoPot ? 'none' : 'block';
 
             if (isTwoPot) {
                 updateOptions(statusSelect, twoPotStatuses);
@@ -636,10 +655,12 @@
         }
 
         function updateOptions(select, values) {
+            if(!select) return;
             select.innerHTML = '';
             values.forEach(v => { select.add(new Option(v, v)); });
         }
         function restoreOptions(select, originals) {
+            if(!select) return;
             select.innerHTML = '';
             originals.forEach(opt => select.add(opt.cloneNode(true)));
         }

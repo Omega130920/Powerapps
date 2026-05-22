@@ -20,6 +20,11 @@ class Globalacvv(models.Model):
     # --- NEW FIELD: Secondary Telephone ---
     tel_2 = models.CharField(db_column='TEL 2', max_length=50, null=True, blank=True)
 
+    # --- NEW FIELDS: Address, NPO Code & Bank Info ---
+    mg_address = models.CharField(db_column='MG ADDRESS', max_length=255, null=True, blank=True)
+    npo_code = models.CharField(db_column='NPO CODE', max_length=100, null=True, blank=True)
+    mg_bank_info = models.CharField(db_column='MG BANK INFO', max_length=255, null=True, blank=True)
+
     class Meta:
         managed = False  # Set to False because you manage the schema manually in MySQL
         db_table = 'global acvv' # Explicitly using the name with the space
