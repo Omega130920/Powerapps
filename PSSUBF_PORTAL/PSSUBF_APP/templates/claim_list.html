@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #d1e2c4 0%, #8fcf7f 100%); min-height: 100vh; }
         .glass-card { background: rgba(255, 255, 255, 0.25); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1); }
         .clean-input { background-color: #ffffff !important; border: 1px solid #d1d5db !important; transition: border-color 0.2s; }
@@ -16,6 +16,13 @@
         .overflow-x-auto::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 4px; }
         .history-row { background-color: rgba(254, 249, 195, 0.4); } 
         .highlight-field { background-color: #fef08a !important; font-weight: 700; color: #1f2937; border-color: #eab308 !important; }
+        
+        /* Print / PDF Generation View Styles */
+        @media print {
+            body > *:not(#pdfPrintTemplate) { display: none !important; }
+            #pdfPrintTemplate { display: block !important; background: white !important; color: #000 !important; padding: 0 !important; }
+            .no-print { display: none !important; }
+        }
     </style>
 </head>
 <body class="p-4 sm:p-8 text-gray-800">
@@ -159,7 +166,7 @@
                 <input type="hidden" id="calc_stipend" value="0">
                 <input type="hidden" id="calc_portfolio" value="0">
                 <input type="hidden" id="calc_cessation" value="">
-                <input type="hidden" id="pop_months" value="0">
+                <input type="hidden" id="raw_affordability_num" value="0">
 
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Member Number</label>
@@ -180,7 +187,7 @@
 
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Claim Type</label>
-                    <select name="claim_type" id="claim_type" onchange="calcAffordability()" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input">
+                    <select name="claim_type" id="claim_type" onchange="runCalculations()" required class="w-full p-2.5 border-2 border-green-600 rounded-md clean-input">
                         <option>Monthly Income</option>
                         <option>Terminations</option>
                         <option>Death Terminations</option>
@@ -213,7 +220,7 @@
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Amt Requested</label>
-                    <input type="number" step="0.01" id="amount_requested" name="amount_requested" onchange="calcAffordability()" class="w-full p-2.5 border rounded-md clean-input">
+                    <input type="number" step="0.01" id="amount_requested" name="amount_requested" oninput="calcAffordability()" class="w-full p-2.5 border rounded-md clean-input">
                 </div>
 
                 <div class="md:col-span-2">
@@ -242,7 +249,7 @@
 
                 <div class="md:col-span-4 mt-2">
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Supporting Documentation</label>
-                    <div class="relative border-2 border-dashed border-gray-300 bg-white rounded-xl p-8 flex flex-col items-center justify-center hover:border-green-500 transition-all group cursor-pointer">
+                    <div id="file_container" class="relative border-2 border-dashed border-gray-300 bg-white rounded-xl p-8 flex flex-col items-center justify-center hover:border-green-500 transition-all group cursor-pointer">
                         <input type="file" name="supporting_document" id="popup_file_input" onchange="updatePopupFileLabel(this)" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer">
                         <div class="flex items-center gap-3">
                             <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 group-hover:text-green-600 transition-colors"></i>
@@ -252,18 +259,87 @@
                             </div>
                         </div>
                     </div>
+                    <button type="button" id="remove_attachment_btn" onclick="triggerRemoveAttachment()" class="hidden mt-2 text-xs text-red-600 font-bold hover:underline">
+                        <i class="fas fa-trash-alt mr-1"></i> Remove existing attachment
+                    </button>
                 </div>
 
-                <div class="md:col-span-4 flex justify-end gap-3 pt-6 border-t mt-4">
-                    <button type="button" onclick="closeClaimModal()" class="px-8 py-2.5 bg-gray-400 text-white font-bold rounded-lg hover:bg-gray-500 transition">Cancel</button>
-                    <button type="submit" class="px-8 py-2.5 bg-green-700 text-white font-bold rounded-lg hover:bg-green-800 shadow-lg transition">Save Changes</button>
+                <div class="md:col-span-4 flex justify-between pt-6 border-t mt-4">
+                    <button type="button" id="deleteClaimBtn" onclick="deleteClaim()" class="hidden px-6 py-2.5 bg-red-100 text-red-700 font-bold rounded-lg hover:bg-red-200 transition">
+                        <i class="fas fa-trash mr-2"></i> Delete Claim
+                    </button>
+                    <div class="flex gap-3 ml-auto">
+                        <button type="button" id="generatePdfBtn" onclick="triggerLetterGeneration()" class="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition">
+                            <i class="fas fa-file-pdf mr-2"></i> Print Report
+                        </button>
+                        <button type="button" onclick="closeClaimModal()" class="px-8 py-2.5 bg-gray-400 text-white font-bold rounded-lg hover:bg-gray-500 transition">Cancel</button>
+                        <button type="submit" class="px-8 py-2.5 bg-green-700 text-white font-bold rounded-lg hover:bg-green-800 shadow-lg transition">Save Changes</button>
+                    </div>
                 </div>
             </form>
         </div>
     </div>
 
+    <div id="pdfPrintTemplate" class="hidden p-16 max-w-4xl mx-auto bg-white text-gray-900 border border-gray-200 shadow-sm font-sans">
+        <div class="flex justify-between items-start border-b-2 border-green-800 pb-6 mb-8">
+            <div>
+                <span class="text-4xl font-serif font-bold text-green-800 italic tracking-wide">futura</span>
+                <p class="text-xs text-gray-500 uppercase tracking-widest mt-1">Financial Services System</p>
+            </div>
+            <div class="text-right text-xs text-gray-500">
+                <p class="font-bold text-gray-800 text-sm">CLAIM ASSESSMENT DEPT</p>
+                <p>System Auto-Generated Notice</p>
+                <p id="pdf_current_date"></p>
+            </div>
+        </div>
+
+        <div class="mb-8">
+            <h2 class="text-xl font-bold uppercase text-red-700 tracking-tight mb-2">Notice of Claim Insufficiency</h2>
+            <p class="text-sm text-gray-600">This document serves as an official analytical breakdown of the requested benefit payout evaluation metrics.</p>
+        </div>
+
+        <div class="bg-gray-50 rounded-xl p-6 border border-gray-200 mb-8">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-4">Evaluation Demographics & Balances</h3>
+            <div class="grid grid-cols-2 gap-y-4 gap-x-8 text-sm">
+                <div>
+                    <span class="block text-xs font-semibold text-gray-400 uppercase">Member Number</span>
+                    <span class="font-bold text-gray-800" id="pdf_member_number">--</span>
+                </div>
+                <div>
+                    <span class="block text-xs font-semibold text-gray-400 uppercase">Beneficiary Name</span>
+                    <span class="font-bold text-gray-800" id="pdf_beneficiary_name">--</span>
+                </div>
+                <div>
+                    <span class="block text-xs font-semibold text-gray-400 uppercase">Amount Requested</span>
+                    <span class="font-mono font-bold text-red-600" id="pdf_amount_requested">R 0.00</span>
+                </div>
+                <div>
+                    <span class="block text-xs font-semibold text-gray-400 uppercase">Affordability Engine Margin</span>
+                    <span class="font-mono font-bold" id="pdf_affordability_result">R 0.00</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="border-l-4 border-red-600 bg-red-50 p-5 rounded-r-xl mb-12">
+            <div class="flex gap-3">
+                <i class="fas fa-exclamation-triangle text-red-700 text-lg mt-0.5"></i>
+                <div>
+                    <h4 class="font-bold text-red-800 text-sm uppercase">Application Status: Declined</h4>
+                    <p class="text-sm text-red-700 mt-1 leading-relaxed">
+                        Please note that the member claim <strong>cannot be approved due to insufficient funds</strong>. 
+                        The requested allocation balance exceeds the calculated long-term affordability parameters calculated inside the portfolio account engine logic.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="pt-8 border-t border-gray-200 flex justify-between items-center text-xs text-gray-400">
+            <p>© Futura Systems Automated Evaluation Engine</p>
+            <p class="italic">Confidential System Document</p>
+        </div>
+    </div>
+
     <script>
-        // SHARED UTILITY: Precision date logic matching Ad Hoc 
         function getYearMonthData(startDate, endDate) {
             let years = endDate.getFullYear() - startDate.getFullYear();
             let months = endDate.getMonth() - startDate.getMonth();
@@ -309,19 +385,37 @@
             });
         }
 
+        function triggerRemoveAttachment() {
+            document.getElementById('remove_attachment').value = "true";
+            document.getElementById('remove_attachment_btn').classList.add('hidden');
+            document.getElementById('popup_file_label').innerText = "Existing file marked for removal. Upload a new one to replace.";
+            document.getElementById('popup_file_label').style.color = "#dc2626";
+        }
+
+        function deleteClaim() {
+            const claimId = document.getElementById('claim_id').value;
+            if (confirm("Are you sure you want to permanently delete this claim?")) {
+                document.getElementById('formAction').value = "delete_claim_entry";
+                document.getElementById('claimForm').submit();
+            }
+        }
+
         function openClaimModal(claimId = null) {
             const modal = document.getElementById('claimModal');
             const form = document.getElementById('claimForm');
+            const deleteBtn = document.getElementById('deleteClaimBtn');
             modal.classList.remove('hidden');
 
-            // Reset dynamic file upload visual indicators upon modal display swap
             document.getElementById('popup_file_label').innerText = "Click to upload or drag and drop";
             document.getElementById('popup_file_label').style.color = "";
+            document.getElementById('remove_attachment').value = "false";
+            document.getElementById('remove_attachment_btn').classList.add('hidden');
 
             if (claimId) {
                 document.getElementById('modalTitle').innerText = "Update Claim Record";
                 document.getElementById('formAction').value = "update_claim_entry";
                 document.getElementById('claim_id').value = claimId;
+                deleteBtn.classList.remove('hidden');
 
                 fetch(`/get-claim-details/${claimId}/`)
                     .then(res => res.json())
@@ -345,14 +439,20 @@
                         document.getElementById('calc_portfolio').value = data.portfolio_value;
                         document.getElementById('calc_cessation').value = data.term_date || data.termination_date;
                         
+                        if (data.attachment_path) {
+                            document.getElementById('remove_attachment_btn').classList.remove('hidden');
+                        }
+
                         runCalculations();
                     });
             } else {
                 document.getElementById('modalTitle').innerText = "Create New Claim";
                 document.getElementById('formAction').value = "add_claim_entry";
                 document.getElementById('claim_id').value = "";
+                deleteBtn.classList.add('hidden');
                 form.reset();
                 document.getElementById('affordability_result').value = "Awaiting member data...";
+                document.getElementById('raw_affordability_num').value = "0";
             }
         }
 
@@ -366,33 +466,59 @@
         }
 
         function calcAffordability() {
+            const currentClaimType = document.getElementById('claim_type').value;
             const stipendVal = document.getElementById('calc_stipend').value;
             const portfolioVal = document.getElementById('calc_portfolio').value;
             const requested = parseFloat(document.getElementById('amount_requested').value) || 0;
             const cessationStr = document.getElementById('calc_cessation').value;
             const claimFormStr = document.getElementById('claim_form_date').value;
             const target = document.getElementById('affordability_result');
+            const hiddenRawNum = document.getElementById('raw_affordability_num');
             
             const stipend = parseFloat(stipendVal) || 0;
             const portfolio = parseFloat(portfolioVal) || 0;
 
-            if (!cessationStr || !claimFormStr) {
-                target.value = "Awaiting dates...";
-                return;
-            }
+            let result = 0;
 
-            // Logic matched exactly to Ad Hoc (discrete months)
-            const data = getYearMonthData(new Date(claimFormStr), new Date(cessationStr));
-            const totalMonths = data.totalMonths;
+            if (currentClaimType === "Terminations" || currentClaimType === "Death Terminations") {
+                result = portfolio - requested;
+            } else {
+                if (!cessationStr || !claimFormStr) {
+                    target.value = "Awaiting dates...";
+                    hiddenRawNum.value = "0";
+                    return;
+                }
+                const data = getYearMonthData(new Date(claimFormStr), new Date(cessationStr));
+                const totalMonths = data.totalMonths;
+                const totalLiability = (stipend * totalMonths);
+                result = portfolio - (totalLiability + requested);
+            }
             
-            const totalLiability = (stipend * totalMonths);
-            
-            // Always include requested (R) to match P - (Months * S + R)
-            const result = portfolio - (totalLiability + requested);
-            
+            // Note: Keeping standard calculation view but tracking the baseline value for the threshold rule logic
+            hiddenRawNum.value = result;
             const label = result >= 0 ? "(Surplus)" : "(Deficit)";
             target.value = 'R ' + result.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}) + ' ' + label;
             target.style.color = (result >= 0) ? '#059669' : '#dc2626';
+        }
+
+        function triggerLetterGeneration() {
+            const requestedAmount = parseFloat(document.getElementById('amount_requested').value) || 0;
+            const affordabilityAmt = parseFloat(document.getElementById('raw_affordability_num').value) || 0;
+            
+            // Check condition: Only generate the letter PDF if amount requested is higher than the Affordability Result margin
+            if (requestedAmount > affordabilityAmt) {
+                // Map interface strings directly into the template container object fields
+                document.getElementById('pdf_member_number').innerText = document.getElementById('membership_number').value || "N/A";
+                document.getElementById('pdf_beneficiary_name').innerText = document.getElementById('beneficiary_name').value || "N/A";
+                document.getElementById('pdf_amount_requested').innerText = 'R ' + requestedAmount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                document.getElementById('pdf_affordability_result').innerText = 'R ' + affordabilityAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                document.getElementById('pdf_current_date').innerText = new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' });
+                
+                // Open native browser print manager engine targeting print rules CSS block
+                window.print();
+            } else {
+                alert("Standard Report Notice: Claim metrics fall inside standard parameters. PDF letter only triggers when Requested Amount is greater than the Affordability Result balance.");
+            }
         }
 
         function closeClaimModal() { document.getElementById('claimModal').classList.add('hidden'); }
@@ -407,14 +533,11 @@
                         document.getElementById('beneficiary_name').value = data.beneficiary_name;
                         document.getElementById('beneficiary_dob').value = data.dob || "";
                         document.getElementById('termination_date').value = data.term_date || "";
-                        
                         document.getElementById('monthly_income').value = 'R ' + (parseFloat(data.stipened) || 0).toLocaleString();
                         document.getElementById('portfolio_value').value = data.total_fund_value;
-                        
                         document.getElementById('calc_stipend').value = data.stipened;
                         document.getElementById('calc_portfolio').value = data.total_fund_value;
                         document.getElementById('calc_cessation').value = data.term_date || "";
-                        
                         runCalculations();
                     } else {
                         document.getElementById('beneficiary_name').value = "";
@@ -423,12 +546,14 @@
                 });
         }
 
-        // 🟢 ADDED: JavaScript utility to catch input updates and display the clean string filename path
         function updatePopupFileLabel(inputInstance) {
             const label = document.getElementById('popup_file_label');
+            const removeBtn = document.getElementById('remove_attachment_btn');
             if (inputInstance.files && inputInstance.files.length > 0) {
                 label.innerText = "📄 Selected: " + inputInstance.files[0].name;
                 label.style.color = "#047857";
+                document.getElementById('remove_attachment').value = "false";
+                removeBtn.classList.add('hidden');
             } else {
                 label.innerText = "Click to upload or drag and drop";
                 label.style.color = "";

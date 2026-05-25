@@ -8,7 +8,7 @@ from time import timezone
 from django.shortcuts import render, get_object_or_404, redirect
 from django.conf import settings
 from django.contrib import messages
-from django.http import HttpResponse, Http404, JsonResponse
+from django.http import FileResponse, HttpResponse, Http404, JsonResponse
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 import logging
@@ -1309,6 +1309,54 @@ def get_beneficiary_data(request, membership_number):
     }
     return JsonResponse(data)
 
+import io
+import os
+from django.conf import settings
+from django.http import FileResponse
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib import messages
+from django.utils import timezone
+from dateutil.relativedelta import relativedelta
+from django.contrib.auth.decorators import login_required
+from pypdf import PdfReader, PdfWriter
+
+# --- Helper Function for PDF Generation ---
+def generate_excess_claim_pdf(claim):
+    template_path = os.path.join(settings.BASE_DIR, 'templates', 'claim_excess_template.pdf')
+    
+    if not os.path.exists(template_path):
+        raise FileNotFoundError(f"Template not found at {template_path}")
+        
+    reader = PdfReader(template_path)
+    writer = PdfWriter()
+    writer.add_page(reader.pages[0])
+    
+    # Map database fields to PDF form fields
+    writer.update_page_form_field_values(
+        writer.pages[0], {
+            "ref_no": claim.reference_no,
+            "member_name": str(claim.beneficiary_name),
+            "amt_requested": str(claim.amount_requested),
+            "fund_value": str(claim.portfolio_value),
+            "date": timezone.now().strftime('%Y-%m-%d')
+        }
+    )
+    
+    output_stream = io.BytesIO()
+    writer.write(output_stream)
+    output_stream.seek(0)
+    return output_stream
+
+# --- PDF Download View ---
+@login_required
+def download_claim_pdf(request, claim_id):
+    claim = get_object_or_404(ClaimList, id=claim_id)
+    pdf_file = generate_excess_claim_pdf(claim)
+    response = FileResponse(pdf_file, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="Excess_Claim_{claim.reference_no}.pdf"'
+    return response
+
+# --- Main Claims View ---
 @login_required
 def claim_list_view(request):
     """Main view for the full Claim Registry with Dynamic Age Calculation"""
@@ -1316,7 +1364,7 @@ def claim_list_view(request):
     def clean_numeric(val):
         if not val or str(val).lower() == 'undefined' or str(val).strip() == '':
             return 0
-        return str(val).replace('R', '').replace(',', '').replace('%', '').strip()
+        return float(str(val).replace('R', '').replace(',', '').replace('%', '').strip())
 
     if request.method == 'POST':
         action = request.POST.get('action')
@@ -1330,6 +1378,9 @@ def claim_list_view(request):
             agent_stamp = f"\n\n--- Managed by {request.user.username} on {timestamp} ---"
 
             if action == 'add_claim_entry':
+                amt_req = clean_numeric(request.POST.get('amount_requested'))
+                port_val = clean_numeric(request.POST.get('portfolio_value'))
+
                 new_claim = ClaimList(
                     beneficiary=member,
                     reference_no=f"CLM-{timezone.now().strftime('%Y%m%d%H%M')}",
@@ -1341,9 +1392,9 @@ def claim_list_view(request):
                     description=(request.POST.get('description') or "") + agent_stamp,
                     date_logged=request.POST.get('date_logged') or None,
                     status=request.POST.get('status', 'Created'),
-                    portfolio_value=clean_numeric(request.POST.get('portfolio_value')),
+                    portfolio_value=port_val,
                     portfolio_date=request.POST.get('portfolio_date') or None,
-                    amount_requested=clean_numeric(request.POST.get('amount_requested')),
+                    amount_requested=amt_req,
                     supporting_docs_attached=request.POST.get('supporting_docs_attached'),
                     monthly_income_payment=clean_numeric(request.POST.get('monthly_income')),
                     date_paid=request.POST.get('date_paid') or None,
@@ -1391,14 +1442,14 @@ def claim_list_view(request):
         except Exception as e:
             messages.error(request, f"Error: {str(e)}")
 
-    # Fetching logic with select_related optimization
+    # Fetching logic
     membership_number = request.GET.get('membership_number')
     claims = ClaimList.objects.all().select_related('beneficiary').order_by('-date_logged')
     
     if membership_number:
         claims = claims.filter(beneficiary__membership_number=membership_number)
 
-    # 🟢 DYNAMIC DISPLAY CALCULATION: Age at Claim
+    # DYNAMIC DISPLAY CALCULATION: Age at Claim
     for c in claims:
         if c.beneficiary and c.beneficiary.dob and c.date_logged:
             diff = relativedelta(c.date_logged, c.beneficiary.dob)
