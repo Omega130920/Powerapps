@@ -798,13 +798,14 @@ def beneficiary_list_view(request):
     # 1. Get all records from the database
     queryset = PssubfBeneficiary.objects.all().order_by('last_name')
 
-    # 1.5. SEARCH LOGIC (Fixes the broken search bar)
-    search_query = request.GET.get('search')  # Change 'search' to 'q' if your HTML input name="q"
+    # 1.5. SEARCH LOGIC (Global database execution)
+    search_query = request.GET.get('search')
     if search_query:
         queryset = queryset.filter(
             Q(first_name__icontains=search_query) |
             Q(last_name__icontains=search_query) |
-            Q(id_number__icontains=search_query)  # Add any other fields you want to search by
+            Q(id_number__icontains=search_query) |
+            Q(membership_number__icontains=search_query)  # Added so users can search by membership numbers too
         )
 
     # 2. Filter Logic (Status based on cessation_date)
@@ -815,6 +816,9 @@ def beneficiary_list_view(request):
         queryset = queryset.filter(cessation_date__lte=today)
     elif status_filter == 'active':
         queryset = queryset.filter(cessation_date__gt=today)
+
+    # 2.5. Capture total count before breaking the queryset up via pagination
+    total_count = queryset.count()
 
     # 3. Pagination (36 records per page)
     paginator = Paginator(queryset, 36)
@@ -842,8 +846,8 @@ def beneficiary_list_view(request):
         'page_obj': page_obj,
         'import_errors': import_errors,
         'current_status': status_filter,
-        'search_query': search_query,  # Added so you can keep the search term in the input box
-        'total_count': queryset.count()
+        'search_query': search_query,
+        'total_count': total_count
     })
 
 import os
