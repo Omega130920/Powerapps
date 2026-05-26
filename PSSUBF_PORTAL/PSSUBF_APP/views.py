@@ -1111,8 +1111,17 @@ def beneficiary_details_view(request, membership_number):
     claims = ClaimList.objects.filter(beneficiary__membership_number=membership_number).order_by('-date_logged')
     adhoc_records = AdHocList.objects.filter(beneficiary=member).order_by('-claim_form_date')
 
-    incoming_emails = PssubfDelegate.objects.filter(member_group_code=membership_number)
-    outgoing_emails = PssubfDirectEmail.objects.filter(membership_number=membership_number)
+    # LIVE PROTECTION SAFEGUARD: Look up incoming/delegated records by both group code AND tracking ID string to capture direct logs or manually linked entries
+    incoming_emails = PssubfDelegate.objects.filter(
+        Q(member_group_code=membership_number) | 
+        Q(email_id__icontains=membership_number)
+    )
+    
+    # LIVE PROTECTION SAFEGUARD: Check for outgoing entries by either numeric format or string version to defend against type mismatches on production database
+    outgoing_emails = PssubfDirectEmail.objects.filter(
+        Q(membership_number=membership_number) | 
+        Q(membership_number=str(membership_number).strip())
+    )
 
     combined_emails = []
     for e in incoming_emails:
