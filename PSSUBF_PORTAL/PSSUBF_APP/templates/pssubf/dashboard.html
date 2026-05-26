@@ -50,7 +50,6 @@
 
         .button-container {
             display: grid;
-            /* Updated to 4 columns to fit 8 buttons nicely */
             grid-template-columns: repeat(4, 1fr);
             gap: 25px;
             width: 100%;
@@ -129,7 +128,6 @@
         .badge.blue-badge { background-color: #42a5f5; }
         .badge.orange-badge { background-color: #ffa726; }
         .badge.dark-badge { background-color: #455a64; }
-        .badge.green-badge { background-color: #66bb6a; }
 
         /* --- LOGOUT & FOOTER --- */
         .logout-wrapper { position: absolute; top: 20px; right: 20px; }
@@ -168,7 +166,6 @@
 <body>
 
     <div class="logout-wrapper">
-        <!-- FIXED: Form-based logout to prevent CSRF rotation errors -->
         <form method="post" action="{% url 'logout' %}">
             {% csrf_token %}
             <button type="submit" class="logout-button">
@@ -213,13 +210,6 @@
             <span class="button-desc">General record tracking</span>
         </a>
 
-        <!--<a href="{% url 'affordability_dashboard' %}" class="button-block">
-            <i class="fas fa-calculator"></i>
-            <span class="button-text">Affordability Audit</span>
-            <span class="button-desc">Financial projections & risk</span>
-            <span id="badge-affordability-risk" class="badge red-badge" style="display:none;"></span>
-        </a>-->
-
         <a href="{% url 'pssubf_audit_logs' %}" class="button-block">
             <i class="fas fa-clipboard-list"></i>
             <span class="button-text">Email List</span>
@@ -246,7 +236,6 @@
 
     <script>
         function refreshDashboardStats() {
-            // FIXED: Updated path to include PSSUBF namespace if required by your URL conf
             fetch('/pssubf/dashboard-stats/') 
                 .then(response => {
                     if (!response.ok) throw new Error('Network response was not ok');
@@ -267,9 +256,7 @@
             badge.style.display = count > 0 ? 'flex' : 'none';
         }
         
-        // Initial call
         refreshDashboardStats();
-        // Refresh every 30 seconds
         setInterval(refreshDashboardStats, 30000);
     </script>
 </body>
