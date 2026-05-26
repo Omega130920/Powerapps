@@ -294,15 +294,18 @@
 </div>
 
 <script>
-    // Live Search Logic (Search within the current paginated view)
-    document.getElementById('memberSearch').addEventListener('input', function(e) {
-        const term = e.target.value.toLowerCase();
-        const rows = document.querySelectorAll('.member-row');
-        
-        rows.forEach(row => {
-            const text = row.innerText.toLowerCase();
-            row.style.display = text.includes(term) ? '' : 'none';
-        });
+    // Global Database Search (Triggers submission across all pages on Enter or field change)
+    const searchInputEl = document.getElementById('memberSearch');
+    
+    searchInputEl.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            this.form.submit();
+        }
+    });
+
+    searchInputEl.addEventListener('change', function() {
+        this.form.submit();
     });
 
     // Excel Export Logic
