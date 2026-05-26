@@ -798,15 +798,22 @@ def beneficiary_list_view(request):
     # 1. Get all records from the database
     queryset = PssubfBeneficiary.objects.all().order_by('last_name')
 
+    # 1.5. SEARCH LOGIC (Fixes the broken search bar)
+    search_query = request.GET.get('search')  # Change 'search' to 'q' if your HTML input name="q"
+    if search_query:
+        queryset = queryset.filter(
+            Q(first_name__icontains=search_query) |
+            Q(last_name__icontains=search_query) |
+            Q(id_number__icontains=search_query)  # Add any other fields you want to search by
+        )
+
     # 2. Filter Logic (Status based on cessation_date)
     status_filter = request.GET.get('status')
-    today = date.today()  # Live date for current calculation
+    today = date.today()
 
     if status_filter == 'expired':
-        # Members 18 and older (cessation date has passed or is today)
         queryset = queryset.filter(cessation_date__lte=today)
     elif status_filter == 'active':
-        # Members under 18 (cessation date is in the future)
         queryset = queryset.filter(cessation_date__gt=today)
 
     # 3. Pagination (36 records per page)
@@ -815,28 +822,15 @@ def beneficiary_list_view(request):
     page_obj = paginator.get_page(page_number)
 
     # 4. LIVE CALCULATION: Years and Months
-    # This loop runs only for the 36 records on the current page for performance
     for member in page_obj:
         if member.dob:
             birth = member.dob
-            
-            # Calculate total months difference
-            # Formula: (Years Diff * 12) + Months Diff
             total_months = (today.year - birth.year) * 12 + (today.month - birth.month)
-            
-            # Adjustment: If today's day of the month is earlier than the birth day, 
-            # the current month hasn't fully completed yet.
             if today.day < birth.day:
                 total_months -= 1
-            
-            # Prevent negative months for edge cases
             total_months = max(0, total_months)
-            
-            # Split total months into Years (Y) and remaining Months (M)
             years = total_months // 12
             months = total_months % 12
-            
-            # Format output: e.g., "19Y 03M"
             member.calculated_age = f"{years}Y {months:02d}M"
         else:
             member.calculated_age = "N/A"
@@ -848,6 +842,7 @@ def beneficiary_list_view(request):
         'page_obj': page_obj,
         'import_errors': import_errors,
         'current_status': status_filter,
+        'search_query': search_query,  # Added so you can keep the search term in the input box
         'total_count': queryset.count()
     })
 
