@@ -895,7 +895,7 @@ def beneficiary_details_view(request, membership_number):
                         snippet=f"Direct Email to {recipient}",
                         status='Sent',
                         received_timestamp=timezone.now(),
-                        member_group_code=membership_number
+                        # member_group_code=membership_number
                     )
 
                     PssubfAction.objects.create(
