@@ -236,7 +236,8 @@
 
     <script>
         function refreshDashboardStats() {
-            fetch('/pssubf/dashboard-stats/') 
+            // FIXED: Removed the /pssubf/ prefix so it points to the correct backend route
+            fetch('/dashboard-stats/') 
                 .then(response => {
                     if (!response.ok) throw new Error('Network response was not ok');
                     return response.json();
