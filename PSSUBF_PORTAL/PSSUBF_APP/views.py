@@ -43,14 +43,11 @@ def pssubf_switchboard(request):
     """
     return render(request, 'pssubf/dashboard.html')
 
-from django.db.models import Q
 
 @login_required
 def outlook_dashboard_view(request):
-    # Security Check
-    if request.user.username.lower() != 'omega' and not request.user.is_superuser:
-        messages.error(request, "Access restricted.")
-        return redirect('pssubf_switchboard')
+    # ACCESS GRANTED: Hardcoded username restriction and superuser-only blocks removed.
+    # Any user logged into an account can now open this dashboard cleanly.
 
     target_email = request.GET.get('email', 'your_default_email@domain.com')
     search_query = request.GET.get('q', '').strip().lower()
