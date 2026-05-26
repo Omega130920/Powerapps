@@ -206,26 +206,80 @@ def pssubf_action_view(request, email_id):
     """
     Agent Action View: Handles Notes, Metadata Updates, Completion, 
     and Email Replies while resolving broken inline images.
-    Now handles both Delegated tasks and Direct Portal communications.
-    """
     
-    # 1. RESOLVE TASK SOURCE (Fixes the 404 for DIRECT_ IDs)
-    # Check Delegations first
-    task = PssubfDelegate.objects.filter(email_id=email_id).first()
+    Dynamically routes system-generated tracking logs (PROFILE_MOD_, NOTE_, etc.)
+    by bypassing Graph API calls while rendering authentic database action responses,
+    history chains, and historical audit content.
+    """
     is_direct_entry = False
+    is_system_log = False
+    attachments = []
+    email_content = ""
+    email_subject = "(No Subject)"
+    
+    # --- 1. DETECT AND INTERCEPT ADMINISTRATIVE SYSTEM LOG STRINGS ---
+    if any(str(email_id).startswith(prefix) for prefix in ["PROFILE_MOD_", "PROFILE_", "NOTE_"]):
+        is_system_log = True
+        clean_numeric_id = str(email_id).replace("PROFILE_MOD_", "").replace("PROFILE_", "").replace("NOTE_", "")
+        
+        # Look into the action history ledger table to pull the earliest logged item for this ID
+        first_action_occurrence = PssubfAction.objects.filter(task_email_id=email_id).order_by('action_timestamp').first()
+        
+        # Build synthetic mock task wrapper context object to satisfy template layout elements safely
+        class VirtualSystemTask:
+            def __init__(self):
+                self.email_id = email_id
+                self.status = "System Log Reference"
+                self.email_category = "System Audit"
+                self.member_group_code = "N/A"
+                # Inherit subject line context from matching record if it exists
+                self.subject = f"System Log Activity Stream [Ref: #{clean_numeric_id}]"
+                self.snippet = first_action_occurrence.note_content if first_action_occurrence else f"Automated audit entry registered under Reference Key: {clean_numeric_id}."
+        
+        task = VirtualSystemTask()
+        email_subject = task.subject
+        
+        # Render the logged note/reply action content right into the primary detail content container block
+        if first_action_occurrence:
+            # Re-format carriage breaks nicely into readable paragraphs for html
+            formatted_snippet = first_action_occurrence.note_content.replace('\n', '<br>')
+            email_content = f"<div class='p-2' style='font-family: monospace; white-space: pre-wrap;'>{formatted_snippet}</div>"
+        else:
+            email_content = f"<p><strong>Internal Verification Ledger Panel</strong></p><p>{task.snippet}</p>"
 
-    if not task:
-        # If not in delegates, check the Inbox (for Direct entries)
-        task = PssubfInbox.objects.filter(email_id=email_id).first()
-        is_direct_entry = True
+    else:
+        # --- 2. STANDARD RUNTIME WORKFLOW: RESOLVE PHYSICAL DATA TASK SOURCE ---
+        task = PssubfDelegate.objects.filter(email_id=email_id).first()
 
-    if not task:
-        raise Http404("No record found for this ID in Delegations or Inbox.")
+        if not task:
+            task = PssubfInbox.objects.filter(email_id=email_id).first()
+            is_direct_entry = True
 
-    target_email = settings.OUTLOOK_EMAIL_ADDRESS 
+        if not task:
+            # Fallback check: If history logs exist for this un-prefixed record, build a fallback structure
+            if PssubfAction.objects.filter(task_email_id=email_id).exists():
+                class GenericTaskFallback:
+                    def __init__(self):
+                        self.email_id = email_id
+                        self.status = "Audit Line Only"
+                        self.email_category = "General Activity"
+                        self.member_group_code = "N/A"
+                        self.subject = f"Activity Tracking Log [ID: {email_id}]"
+                task = GenericTaskFallback()
+                email_subject = task.subject
+                email_content = "<p><strong>System Action Tracker</strong></p><p>Review full operations history data via the visual action ledger tracking pane layout below.</p>"
+                is_system_log = True
+            else:
+                raise Http404("No record found for this ID in Delegations, Inbox, or System History tables.")
+
+        target_email = settings.OUTLOOK_EMAIL_ADDRESS 
 
     # --- POST Logic ---
     if request.method == 'POST':
+        if is_system_log:
+            messages.error(request, "Modifying system baseline log entries directly is prohibited.")
+            return redirect('pssubf_action', email_id=email_id)
+
         action_type = request.POST.get('action_type')
 
         # 1. Update Metadata
@@ -314,7 +368,7 @@ def pssubf_action_view(request, email_id):
             if isinstance(response, dict) and 'error' in response:
                 messages.error(request, f"Email failed: {response.get('error')}")
             else:
-                audit_string = f"[{call_direction} | {call_method} | {call_type}]"
+                audit_string = "[Outbound | Email Reply Sent]"
                 
                 PssubfAction.objects.create(
                     task_email_id=email_id,
@@ -348,38 +402,34 @@ def pssubf_action_view(request, email_id):
 
         return redirect('pssubf_action', email_id=email_id)
 
-    # --- GET Logic ---
-    attachments = []
-    email_content = ""
-    email_subject = getattr(task, 'subject', '(No Subject)')
+    # --- 3. GET Logic: Only query Microsoft Graph API for non-system workflow IDs ---
+    if not is_system_log:
+        email_subject = getattr(task, 'subject', '(No Subject)')
+        if not str(email_id).startswith("DIRECT_"):
+            try:
+                email_data = OutlookGraphService._make_graph_request(f"messages/{email_id}", method='GET')
+                attachments = OutlookGraphService.fetch_attachments(target_email, email_id)
+                email_content = email_data.get('body', {}).get('content', 'Content unavailable.')
+                email_subject = email_data.get('subject', email_subject)
 
-    # Only request from Graph if it's NOT a direct portal entry
-    if not str(email_id).startswith("DIRECT_"):
-        try:
-            email_data = OutlookGraphService._make_graph_request(f"messages/{email_id}", method='GET')
-            attachments = OutlookGraphService.fetch_attachments(target_email, email_id)
-            email_content = email_data.get('body', {}).get('content', 'Content unavailable.')
-            email_subject = email_data.get('subject', email_subject)
+                # Inline Image Resolution
+                for att in attachments:
+                    if att.get('isInline') and att.get('contentId'):
+                        cid = att.get('contentId')
+                        raw = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
+                        if raw and isinstance(raw, dict) and 'contentBytes' in raw:
+                            base64_data = raw['contentBytes']
+                            content_type = att.get('contentType', 'image/png')
+                            data_url = f"data:{content_type};base64,{base64_data}"
+                            email_content = email_content.replace(f"cid:{cid}", data_url)
+                            att['contentBytes'] = base64_data
+            except Exception as e:
+                logger.error(f"Graph API Error: {e}")
+                email_content = "Could not retrieve email body from Outlook. This may be a local-only record."
+        else:
+            email_content = f"<p><strong>Internal Communication Record</strong></p><p>{getattr(task, 'snippet', 'No content available.')}</p>"
 
-            # Inline Image Resolution
-            for att in attachments:
-                if att.get('isInline') and att.get('contentId'):
-                    cid = att.get('contentId')
-                    raw = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
-                    if raw and isinstance(raw, dict) and 'contentBytes' in raw:
-                        base64_data = raw['contentBytes']
-                        content_type = att.get('contentType', 'image/png')
-                        data_url = f"data:{content_type};base64,{base64_data}"
-                        email_content = email_content.replace(f"cid:{cid}", data_url)
-                        att['contentBytes'] = base64_data
-        except Exception as e:
-            logger.error(f"Graph API Error: {e}")
-            email_content = "Could not retrieve email body from Outlook. This may be a local-only record."
-    else:
-        # Handle Direct Entry Display
-        email_content = f"<p><strong>Internal Communication Record</strong></p><p>{getattr(task, 'snippet', 'No content available.')}</p>"
-
-    # Fetch History
+    # Fetch complete historical ledger timeline (applies uniformly for tracking historical logs)
     history = PssubfAction.objects.filter(task_email_id=email_id).order_by('-action_timestamp')
 
     return render(request, 'pssubf/action_detail.html', {
@@ -389,10 +439,10 @@ def pssubf_action_view(request, email_id):
         'attachments': attachments,
         'history': history,
         'email_id': email_id,
-        'is_direct': is_direct_entry
+        'is_direct': is_direct_entry,
+        'is_system_log': is_system_log
     })
 
-import re # Add to imports
 
 @login_required
 def pssubf_view_thread(request, email_id):
@@ -402,18 +452,15 @@ def pssubf_view_thread(request, email_id):
     email_body = email_data.get('body', {}).get('content', '')
     attachments = OutlookGraphService.fetch_attachments(target_email, email_id)
 
-    # 🚀 FIX: Replace CID with Base64 for inline images
+    # Replace CID with Base64 for inline images
     for att in attachments:
-        # Check if it's an inline attachment with a Content-ID
         if att.get('isInline') and att.get('contentId'):
             cid = att.get('contentId')
-            # Fetch the raw content if not already present
             raw_data = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
             if raw_data and 'contentBytes' in raw_data:
                 base64_data = raw_data['contentBytes']
                 content_type = att.get('contentType', 'image/png')
                 
-                # Replace src="cid:..." with src="data:image/png;base64,..."
                 data_url = f"data:{content_type};base64,{base64_data}"
                 email_body = email_body.replace(f"cid:{cid}", data_url)
 
@@ -424,7 +471,7 @@ def pssubf_view_thread(request, email_id):
         'email_subject': email_data.get('subject', 'No Subject'),
         'sender_name': email_data.get('from', {}).get('emailAddress', {}).get('name', 'Unknown'),
         'sender_email': email_data.get('from', {}).get('emailAddress', {}).get('address', ''),
-        'email_body': email_body, # Now contains embedded images
+        'email_body': email_body,
         'attachments': attachments,
         'actions': actions
     })
@@ -523,6 +570,8 @@ def pssubf_restore_item(request, email_id):
     
     # 5. Redirect to the Dashboard so you can see it's back
     return redirect('pssubf_dashboard')
+
+logger = logging.getLogger(__name__)
 
 @login_required
 def pssubf_audit_logs(request):
@@ -1059,7 +1108,6 @@ def beneficiary_details_view(request, membership_number):
                     total_m = round((diff.years * 12) + diff.months + (diff.days / 30.44))
                     years_val = total_m / 12
 
-                # 🟢 ROBUST FILE STREAM FALLBACK CHECKER
                 file_payload = request.FILES.get('supporting_document')
                 if not file_payload and request.FILES:
                     file_payload = list(request.FILES.values())[0]
@@ -1081,7 +1129,6 @@ def beneficiary_details_view(request, membership_number):
                 calc_liability = total_months * stipend_val
                 surplus_calc = portfolio_val - (calc_liability + requested_amt)
                 
-                # 🟢 TRUNCATION SECURITY GUARANTEE: Trim value strings to fit the varchar(20) target safely
                 afford_string = f"R {surplus_calc:.2f}".strip()[:20]
 
                 AdHocList.objects.create(
@@ -1121,7 +1168,12 @@ def beneficiary_details_view(request, membership_number):
     )
 
     combined_emails = []
+    
+    # Track task email IDs linked to this user to capture replies seamlessly
+    associated_task_ids = set()
+
     for e in incoming_emails:
+        associated_task_ids.add(e.email_id)
         combined_emails.append({
             'email_id': e.email_id, 
             'agent': e.assigned_agent or "Unassigned",
@@ -1140,6 +1192,31 @@ def beneficiary_details_view(request, membership_number):
             'status': 'Sent',
             'type': 'OUTGOING'
         })
+
+    # 🟢 --- NEW: INCORPORATE SYSTEM TASK REPLIES ---
+    # Scans action tracking table for replies bound to any task associated with this member
+    if associated_task_ids:
+        replies = PssubfAction.objects.filter(
+            task_email_id__in=associated_task_ids, 
+            action_type="EMAIL_REPLY"
+        )
+        for r in replies:
+            # Safely isolate subject layout line out of saved audit trails if possible
+            display_subject = "Reply to Task Request"
+            if r.note_content and "Subject: " in r.note_content:
+                try:
+                    display_subject = r.note_content.split("Subject: ")[1].split("\n")[0]
+                except IndexError:  # 💡 Fixed: Standard built-in IndexError clears Pylance error
+                    pass
+
+            combined_emails.append({
+                'email_id': r.task_email_id,
+                'agent': r.action_user,
+                'subject': f"RE: {display_subject}",
+                'date': r.action_timestamp,
+                'status': 'Replied',
+                'type': 'OUTGOING'
+            })
 
     combined_emails.sort(key=lambda x: x['date'] if x['date'] else timezone.now(), reverse=True)
     
