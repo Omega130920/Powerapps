@@ -195,8 +195,13 @@
 
     <div class="controls-row">
         <div class="search-container">
-            <i class="bi bi-search" style="position: absolute; left: 15px; top: 15px; opacity: 0.5;"></i>
-            <input type="text" id="memberSearch" class="search-input" placeholder="Search current page...">
+            <form method="GET" action="." id="searchForm">
+                <i class="bi bi-search" style="position: absolute; left: 15px; top: 15px; opacity: 0.5;"></i>
+                <input type="text" id="memberSearch" name="search" value="{{ search_query|default:'' }}" class="search-input" placeholder="Search and press Enter...">
+                {% if current_status %}
+                    <input type="hidden" name="status" value="{{ current_status }}">
+                {% endif %}
+            </form>
         </div>
 
         <div class="filter-container">
@@ -207,6 +212,9 @@
                     <option value="expired" {% if current_status == 'expired' %}selected{% endif %}>Expired Members (18+)</option>
                 </select>
                 <input type="hidden" name="page" value="1">
+                {% if search_query %}
+                    <input type="hidden" name="search" value="{{ search_query }}">
+                {% endif %}
             </form>
         </div>
     </div>
@@ -259,12 +267,12 @@
             <ul class="pagination">
                 {% if page_obj.has_previous %}
                 <li class="page-item">
-                    <a class="page-link" href="?page=1&status={{ current_status|default:'all' }}" aria-label="First">
+                    <a class="page-link" href="?page=1&status={{ current_status|default:'all' }}&search={{ search_query|default:'' }}" aria-label="First">
                         <span aria-hidden="true">&laquo;&laquo;</span>
                     </a>
                 </li>
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}&status={{ current_status|default:'all' }}">Previous</a>
+                    <a class="page-link" href="?page={{ page_obj.previous_page_number }}&status={{ current_status|default:'all' }}&search={{ search_query|default:'' }}">Previous</a>
                 </li>
                 {% endif %}
 
@@ -272,10 +280,10 @@
 
                 {% if page_obj.has_next %}
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.next_page_number }}&status={{ current_status|default:'all' }}">Next</a>
+                    <a class="page-link" href="?page={{ page_obj.next_page_number }}&status={{ current_status|default:'all' }}&search={{ search_query|default:'' }}">Next</a>
                 </li>
                 <li class="page-item">
-                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}&status={{ current_status|default:'all' }}" aria-label="Last">
+                    <a class="page-link" href="?page={{ page_obj.paginator.num_pages }}&status={{ current_status|default:'all' }}&search={{ search_query|default:'' }}" aria-label="Last">
                         <span aria-hidden="true">&raquo;&raquo;</span>
                     </a>
                 </li>
@@ -300,7 +308,8 @@
     // Excel Export Logic
     function exportToExcel() {
         const status = document.querySelector('select[name="status"]').value;
-        const exportUrl = "{% url 'export_beneficiaries' %}?status=" + status;
+        const searchInput = document.getElementById('memberSearch').value;
+        const exportUrl = "{% url 'export_beneficiaries' %}?status=" + status + "&search=" + encodeURIComponent(searchInput);
         window.location.href = exportUrl;
     }
 </script>
