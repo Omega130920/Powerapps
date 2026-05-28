@@ -112,7 +112,7 @@
         }
         .edit-button:hover { background-color: #005a9c; transform: translateY(-1px); }
 
-        /* --- NEW: View Link Styling --- */
+        /* --- View Link Styling --- */
         .view-link {
             display: inline-block;
             margin-left: 10px;
@@ -124,6 +124,7 @@
             padding: 2px 8px;
             border-radius: 4px;
             transition: all 0.2s;
+            cursor: pointer;
         }
         .view-link:hover {
             background-color: var(--action-blue);
@@ -241,7 +242,7 @@
             padding: 15px;
             border-bottom: 1px solid #f1f5f9;
             font-size: 0.9rem;
-            vertical-align: top;
+            vertical-align: middle;
         }
 
         /* --- Note/Interaction Logging --- */
@@ -334,6 +335,22 @@
             transition: background 0.2s;
         }
         .attachment-link:hover { background: #e2e8f0; }
+
+        /* --- Mini Layout Checklists --- */
+        .inner-checklist-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #fafbfc;
+            margin: 10px 0;
+            border-radius: 6px;
+        }
+        .inner-checklist-table td {
+            padding: 8px 12px !important;
+            font-size: 0.85rem !important;
+            border-bottom: 1px dashed #e2e8f0 !important;
+        }
+        .text-yes { color: #2ecc71; font-weight: bold; }
+        .text-no { color: #e74c3c; font-weight: bold; }
 
     </style>
 </head>
@@ -617,6 +634,7 @@
                             <th>Role</th>
                             <th>Risk Score</th>
                             <th>Rating</th>
+                            <th>Action</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -627,6 +645,62 @@
                             <td>{{ person.role }}</td>
                             <td>{{ person.score }}</td>
                             <td><span class="risk-badge risk-{{ person.rating|lower }}">{{ person.rating }}</span></td>
+                            <td><a class="view-link" onclick="toggleRiskDetails('checklist_{{ forloop.counter }}')">Display Checklist</a></td>
+                        </tr>
+                        <tr id="checklist_{{ forloop.counter }}" style="display:none; background-color: #fafbfc;">
+                            <td colspan="6" style="padding: 15px 30px;">
+                                <h4 style="margin: 0 0 10px 0; color: var(--accent-green); font-size: 0.95rem;">Risk Assessment Detailed Answers</h4>
+                                <table class="inner-checklist-table">
+                                    <tr>
+                                        <td>Non-Facing client introduction</td>
+                                        <td style="text-align: right;">
+                                            <span class="{% if person.q_non_facing %}text-yes{% else %}text-no{% endif %}">
+                                                {% if person.q_non_facing %}YES (+50 Score){% else %}NO{% endif %}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>Client acting as representative of 3rd party</td>
+                                        <td style="text-align: right;">
+                                            <span class="{% if person.q_rep %}text-yes{% else %}text-no{% endif %}">
+                                                {% if person.q_rep %}YES (+10 Score){% else %}NO{% endif %}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>Domestic Prominent Influential Person (DIPP)</td>
+                                        <td style="text-align: right;">
+                                            <span class="{% if person.q_dipp %}text-yes{% else %}text-no{% endif %}">
+                                                {% if person.q_dipp %}YES (+100 Score){% else %}NO{% endif %}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>Foreign Prominent Public Official (FPPO)</td>
+                                        <td style="text-align: right;">
+                                            <span class="{% if person.q_fppo %}text-yes{% else %}text-no{% endif %}">
+                                                {% if person.q_fppo %}YES (+100 Score){% else %}NO{% endif %}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>Client appears on sanction list</td>
+                                        <td style="text-align: right;">
+                                            <span class="{% if person.q_sanction %}text-yes{% else %}text-no{% endif %}">
+                                                {% if person.q_sanction %}YES (+100 Score){% else %}NO{% endif %}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>Complex structure / Beneficial Ownership</td>
+                                        <td style="text-align: right;">
+                                            <span class="{% if person.q_complex %}text-yes{% else %}text-no{% endif %}">
+                                                {% if person.q_complex %}YES (+25 Score){% else %}NO{% endif %}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                </table>
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -781,6 +855,16 @@
             evt.currentTarget.classList.add("active");
         }
 
+        // Checklist Visibility Toggle Logic
+        function toggleRiskDetails(rowId) {
+            const element = document.getElementById(rowId);
+            if(element.style.display === "none") {
+                element.style.display = "table-row";
+            } else {
+                element.style.display = "none";
+            }
+        }
+
         // File Selection Preview
         document.getElementById('note_files').addEventListener('change', function() {
             const preview = document.getElementById('file_preview_list');
@@ -807,14 +891,12 @@
             btn.disabled = true;
             btn.innerText = "Saving Activity...";
 
-            // Use FormData to allow file uploads
             const formData = new FormData();
             formData.append('client_code', clientCode);
             formData.append('comm_type', commType);
             formData.append('note_type', noteType);
             formData.append('note_text', noteText);
             
-            // Append all files
             for (let i = 0; i < fileInput.files.length; i++) {
                 formData.append('note_files', fileInput.files[i]);
             }
@@ -823,7 +905,6 @@
                 method: "POST",
                 headers: {
                     "X-CSRFToken": "{{ csrf_token }}"
-                    // Content-Type must NOT be set manually when sending FormData
                 },
                 body: formData
             })
@@ -837,7 +918,6 @@
                     const noNotesMsg = document.getElementById('noNotesMsg');
                     if (noNotesMsg) noNotesMsg.remove();
 
-                    // Construct attachment links HTML for the new note
                     let attachmentHtml = '';
                     if (data.attachments && data.attachments.length > 0) {
                         attachmentHtml = '<div class="note-attachments">';
@@ -862,7 +942,6 @@
                     `;
                     container.insertAdjacentHTML('afterbegin', newNote);
                     
-                    // Reset form
                     document.getElementById('note_text').value = '';
                     document.getElementById('note_files').value = '';
                     document.getElementById('file_preview_list').innerHTML = '';

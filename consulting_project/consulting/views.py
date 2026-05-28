@@ -15,6 +15,9 @@ from django.utils import timezone
 from django.contrib.auth.decorators import login_required
 import pandas as pd
 
+from django.db.models import OuterRef, Subquery
+from django.db.models.functions import Trim
+
 # --- Consolidated Imports ---
 from .models import (
     ClientClient, 
@@ -133,8 +136,6 @@ def consulting_home(request):
     )
     return render(request, 'consulting/home.html', {'reminders': reminders})
 
-from django.db.models import OuterRef, Subquery
-from django.db.models.functions import Trim
 def client_list_view(request):
     """
     List view updated to include the most recent FICA Risk Rating
@@ -153,6 +154,7 @@ def client_list_view(request):
 
     return render(request, 'consulting/client_list.html', {'clients': clients})
 
+
 def client_info_view(request, client_code):
     """Detail view fetching ALL related FICA data including Risk Ratings."""
     client = get_object_or_404(
@@ -170,7 +172,26 @@ def client_info_view(request, client_code):
     fica_resp_person = client.ficaresponsibleperson_set.all().order_by('id')
     fica_directors = client.ficadirector_set.all().order_by('id')
     fica_owners = client.ficabeneficialowner_set.all().order_by('id')
-    risk_data = client.clientriskrating_set.all().order_by('id') 
+    
+    # Fetch base risk objects
+    raw_risk_data = client.clientriskrating_set.all().order_by('id') 
+    
+    # Map the database properties containing the "is_" prefix to the "q_" template field names
+    risk_data = []
+    for r in raw_risk_data:
+        risk_data.append({
+            'full_name': r.full_name,
+            'id_number': r.id_number,
+            'role': r.role,
+            'score': r.score,
+            'rating': r.rating,
+            'q_non_facing': r.is_non_facing,
+            'q_rep': r.is_representative,
+            'q_dipp': r.is_dipp,
+            'q_fppo': r.is_fppo,
+            'q_sanction': r.is_sanctioned,
+            'q_complex': r.is_complex_structure,
+        })
     
     physical_addr = fica_addresses.filter(address_type='physical').first()
     postal_addr = fica_addresses.filter(address_type='postal').first()
@@ -190,6 +211,7 @@ def client_info_view(request, client_code):
     }
     return render(request, 'consulting/client_info.html', context)
 
+
 @require_http_methods(["GET", "POST"])
 def edit_client_view(request, client_code):
     client = get_object_or_404(ClientClient, future_client_number=client_code)
@@ -208,7 +230,14 @@ def edit_client_view(request, client_code):
                 client.industry = data.get('industry')
                 client.status = data.get('status')
                 client.date_added = safe_parse_date(data.get('date'))
-                client.years_active = data.get('years')
+                
+                # Handling empty string safe check for years_active integer field
+                years_raw = data.get('years')
+                if years_raw and years_raw.strip() != '':
+                    client.years_active = int(years_raw)
+                else:
+                    client.years_active = None
+                    
                 client.employees = data.get('employees') or 0
                 
                 # Product & Agreement
@@ -467,6 +496,21 @@ def edit_client_view(request, client_code):
     fica_directors = FicaDirector.objects.filter(client=client)
     fica_owners = FicaBeneficialOwner.objects.filter(client=client)
 
+    # --- Fetch existing risk matrix data to prevent reset on edit screen reload ---
+    existing_risk_records = ClientRiskRating.objects.filter(client=client)
+    saved_risk_profiles = {}
+    for r in existing_risk_records:
+        saved_risk_profiles[r.full_name] = {
+            'score': r.score,
+            'rating': r.rating,
+            'non_facing': r.is_non_facing,
+            'rep': r.is_representative,
+            'dipp': r.is_dipp,
+            'fppo': r.is_fppo,
+            'sanction': r.is_sanctioned,
+            'complex': r.is_complex_structure,
+        }
+
     context = {
         'client': client,
         'client_contacts': contacts,
@@ -475,6 +519,7 @@ def edit_client_view(request, client_code):
         'fica_resp_person': fica_resp,
         'fica_directors': fica_directors,
         'fica_owners': fica_owners,
+        'saved_risk_profiles_json': json.dumps(saved_risk_profiles),
         'date_added_formatted': client.date_added.strftime('%d/%m/%Y') if client.date_added else '',
         'declaration_date_formatted': client.declaration_date.strftime('%d/%m/%Y') if client.declaration_date else '',
     }
