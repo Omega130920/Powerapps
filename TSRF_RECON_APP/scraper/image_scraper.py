@@ -4,7 +4,7 @@ import random  # Added for dynamic user-agent selection
 from io import BytesIO
 from PIL import Image, ImageChops
 from django.conf import settings
-from ddgs import DDGS
+from duckduckgo_search import DDGS
 import re  # Added for backup parsing mechanisms
 import urllib.parse  # Added to decode nested fallback image targets safely
 from concurrent.futures import ThreadPoolExecutor, as_completed

@@ -1327,6 +1327,17 @@
                 {% endwith %}
             </div>
 
+            { # --- 🚀 NEW CC & BCC FIELDS INSTALLED HERE --- #}
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="standalone_cc" style="font-weight: bold; display: block; margin-bottom: 5px;">Cc:</label>
+                <input type="text" id="standalone_cc" name="member_cc_email" placeholder="Enter Cc email addresses..." style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            </div>
+
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label for="standalone_bcc" style="font-weight: bold; display: block; margin-bottom: 5px;">Bcc:</label>
+                <input type="text" id="standalone_bcc" name="member_bcc_email" placeholder="Enter Bcc email addresses..." style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+            </div>
+
             <div class="form-group" style="margin-bottom: 15px;">
                 <label style="font-weight: bold; display: block; margin-bottom: 5px;">Subject:</label>
                 <input type="text" name="member_email_subject_reply" value="[MIP: {{ unity_record.A_Company_Code|default:unity_record.a_company_code }}] New Communication" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" required>
@@ -1361,7 +1372,7 @@
         </form>
     </div>
 
-    {# --- 🚀 NEW: FILTER & SEARCH SECTION --- #}
+    {# --- FILTER & SEARCH SECTION --- #}
     <div style="background-color: #e8f5e9; padding: 15px; border-radius: 8px; border: 1px solid #c8e6c9; margin-bottom: 15px; display: flex; gap: 15px; align-items: center;">
         <div style="flex: 2; position: relative;">
             <label style="font-size: 11px; font-weight: bold; color: #2e7d32; display: block; margin-bottom: 4px; text-transform: uppercase;">Search Logs</label>
@@ -1468,6 +1479,7 @@
                                 </a>
                                 <a href="{% url 'download_email_file' email_id=email.email_id %}" 
                                    class="action-btn" 
+                                   title="Download Sent .eml"
                                    title="Download Sent .eml"
                                    style="background-color: #0277bd; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 0.85em;">
                                      <i class="fas fa-download"></i> Download

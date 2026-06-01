@@ -304,7 +304,6 @@ def unity_list(request):
     }
     return render(request, 'unity_internal_app/unity_list.html', context)
 
-from django.db.models import Sum, Max, Q # Ensure Max is imported
 
 @login_required
 def unity_information(request: HttpRequest, company_code):
@@ -312,6 +311,7 @@ def unity_information(request: HttpRequest, company_code):
     Displays detailed information for a single record.
     UPDATED: Now handles multiple email attachments and manual credit creation/flagging.
     ENHANCED: Added financial summaries for Manual Credits and Claims.
+    ADDED CC/BCC HANDLING: Safely parses and transmits CC and BCC arrays.
     """
     from .models import (
         EmailDelegation, DelegationTransactionLog, UnityNotes, 
@@ -568,18 +568,26 @@ def unity_information(request: HttpRequest, company_code):
         if request.POST.get('email_submission_action') == 'send_email_and_log' or request.POST.get('action') == 'send_outgoing_member_note':
             subject = request.POST.get('member_email_subject_reply', 'Claim Update')
             recipient = request.POST.get('member_recipient_email')
+            
+            # Capturing CC and BCC input parameters seamlessly
+            cc_recipients = request.POST.get('member_cc_email', '')
+            bcc_recipients = request.POST.get('member_bcc_email', '')
+            
             email_body_html = request.POST.get('email_body_html_content')
             action_note_val = request.POST.get('action_notes', 'Email Composed')
             
             attachments = request.FILES.getlist('attachments')
 
             if recipient and email_body_html:
-                from .services import OutlookGraphService 
+                # 🚀 FIX: Removed broken inline import. Utilizing top-level valid import string mapping.
                 response = OutlookGraphService.send_outlook_email(
-                    settings.OUTLOOK_EMAIL_ADDRESS, recipient, subject, email_body_html, 'HTML', attachments=attachments
+                    settings.OUTLOOK_EMAIL_ADDRESS, recipient, subject, email_body_html, 'HTML', 
+                    attachments=attachments,
+                    cc_email=cc_recipients,    
+                    bcc_email=bcc_recipients   
                 )
                 if response.get('success'):
-                    # 🚀 ENHANCED: Prettier note entry for email logs
+                    # Prettier note entry for email logs
                     attachment_count = len(attachments)
                     attach_string = f" ({attachment_count} files)" if attachment_count > 0 else ""
                     
@@ -590,14 +598,14 @@ def unity_information(request: HttpRequest, company_code):
                         communication_type='Sent Email', 
                         action_notes=action_note_val[:90], 
                         attached_email_id=response.get('id', ''), 
-                        notes=f"To: {recipient}\nSubject: {subject}\nAttachments: {attach_string}\n{email_body_html}"
+                        notes=f"To: {recipient}\nCC: {cc_recipients}\nBCC: {bcc_recipients}\nSubject: {subject}\nAttachments: {attach_string}\n{email_body_html}"
                     )
                     messages.success(request, f"Email sent with {attachment_count} attachment(s)!")
                 else: 
                     messages.error(request, f"Graph API Error: {response.get('error')}")
             return redirect(f"{reverse('unity_information', kwargs={'company_code': company_code})}#email-log")
 
-        # 🚀 Action: Create Manual Credit
+        # Action: Create Manual Credit
         elif request.POST.get('action') == 'create_manual_credit':
             try:
                 amount = request.POST.get('amount', '0.00')
@@ -657,7 +665,6 @@ def unity_information(request: HttpRequest, company_code):
         'company_claims': company_claims, 
         'available_surplus': available_surplus_value, 
         'my_delegated_emails': my_delegated_emails,
-        # 🚀 NEW: Context summaries
         'manual_credits_total': manual_credits_total,
         'total_claims_value': total_claims_value,
     }
@@ -2704,12 +2711,10 @@ TOLERANCE = Decimal('0.00001')
 def global_history_overview(request):
     """
     Renders a high-level overview of ALL Reconciled Bill History.
-    UPDATED: 
-    1. Only shows reconciled bills (is_reconciled=True).
-    2. Excludes empty/placeholder bills (0 members or 0 amount).
     """
     from decimal import Decimal
     from collections import defaultdict
+    from datetime import datetime, date # Ensure date is imported
     
     start_date_str = request.GET.get('start_date')
     end_date_str = request.GET.get('end_date')
@@ -2730,8 +2735,6 @@ def global_history_overview(request):
     filtered_bill_ids = set()
 
     # --- 1. Base Query with Strict Filters ---
-    # We apply the filters here first to ensure we only look for settled IDs 
-    # belonging to "Valid" reconciled bills.
     base_bills = UnityBill.objects.filter(
         is_reconciled=True
     ).exclude(
@@ -2742,7 +2745,6 @@ def global_history_overview(request):
 
     # --- 2. Determine Bill IDs to Display (Filtering by Date) ---
     if filter_start_date or filter_end_date:
-        # 1A. Filter by Cash Settlement Date
         where_conditions_cash = []
         sql_args_cash = []
         if filter_start_date:
@@ -2763,7 +2765,6 @@ def global_history_overview(request):
         except Exception as e:
             messages.error(request, f"Database Error during cash filter: {e}")
             
-        # 1B. Filter by Journal Entry Date
         journal_queryset = JournalEntry.objects.all()
         if filter_start_date:
             journal_queryset = journal_queryset.filter(allocation_date__gte=filter_start_date)
@@ -2772,13 +2773,10 @@ def global_history_overview(request):
         journal_ids = journal_queryset.values_list('target_bill_id', flat=True).distinct()
         filtered_bill_ids.update(journal_ids)
         
-        # Apply the found IDs to our base strictly-filtered queryset
         all_bills_queryset = base_bills.filter(id__in=list(filtered_bill_ids))
     else:
-        # No date filter: Show all strictly-filtered reconciled bills
         all_bills_queryset = base_bills
 
-    # Prefetch data
     all_bills = list(all_bills_queryset.order_by('-A_CCDatesMonth', 'C_Company_Code'))
     final_bill_ids = [bill.id for bill in all_bills]
     
@@ -2789,7 +2787,6 @@ def global_history_overview(request):
         T2_TABLE = 'reconned_bank'
         T3_TABLE = 'importbank'
 
-        # 3A. Cash Deposits
         sql_query_cash = f"""
         SELECT T1.unity_bill_source_id, T3.DATE, T1.settled_amount
         FROM {T1_TABLE} T1
@@ -2802,10 +2799,9 @@ def global_history_overview(request):
         with connection.cursor() as cursor:
             cursor.execute(sql_query_cash, final_bill_ids)
             for row in cursor.fetchall():
-                if row[1]: # Only if deposit_date exists
+                if row[1]:
                     deposits_by_bill[row[0]].append({'date': row[1], 'amount': row[2], 'type': 'Cash'})
             
-        # 3B. Journal Entries
         journal_queryset = JournalEntry.objects.filter(target_bill__in=final_bill_ids)
         for je in journal_queryset:
             deposits_by_bill[je.target_bill_id].append({
@@ -2814,7 +2810,6 @@ def global_history_overview(request):
                 'type': 'Journal',
             })
             
-        # 3C. Credits
         credit_notes_agg = BillSettlement.objects.filter(
             unity_bill_source_id__in=final_bill_ids,
             source_credit_note_id__isnull=False
@@ -2827,6 +2822,9 @@ def global_history_overview(request):
             cash_journal_settled = sum((d['amount'] for d in deposits), start=ZERO_DECIMAL)
             credit_settled = credits_map.get(bill.id, ZERO_DECIMAL)
             
+            # Find latest deposit date for sorting
+            latest_date = max([d['date'] for d in deposits] + [bill.A_CCDatesMonth or date(1900, 1, 1)])
+            
             final_records.append({
                 'bill': bill,
                 'deposits': deposits,
@@ -2834,7 +2832,11 @@ def global_history_overview(request):
                 'status_class': 'badge-success',
                 'is_settled': True,
                 'total_settled': cash_journal_settled + credit_settled,
+                'latest_date': latest_date, # For sorting
             })
+
+    # 🚀 SORTING LOGIC: Newest reconciliation date first
+    final_records.sort(key=lambda x: x['latest_date'], reverse=True)
 
     context = {
         'bill_records': final_records,
@@ -2959,8 +2961,8 @@ def confirmations_view(request):
                     
                     # 🚀 SAFE REFERENCE LOOKUP 🚀
                     source['bank_ref'] = getattr(bank_line, 'statement_reference', 
-                                         getattr(bank_line, 'reference', 
-                                         getattr(bank_line, 'description', '-')))
+                                             getattr(bank_line, 'reference', 
+                                             getattr(bank_line, 'description', '-')))
                 
                 elif settlement.source_credit_note_id:
                     try:
@@ -3003,6 +3005,9 @@ def confirmations_view(request):
                 'source_details': source_details,
             })
 
+        # --- SORTING LOGIC: Sort by confirmed_date (Newest first) ---
+        confirmation_data.sort(key=lambda x: x['confirmed_date'] if x['confirmed_date'] else date(1900, 1, 1), reverse=True)
+
         # --- EXCEL EXPORT ---
         if request.GET.get('export_excel'):
             import openpyxl
@@ -3038,8 +3043,6 @@ def confirmations_view(request):
                     ws.append(bill_common + ['', '', '', '', '']) 
                 else:
                     for index, s in enumerate(sources):
-                        # Column J to N
-                        # s['comment'] here is pulling from 'settlement_note'
                         bank_cols = [s['date'], s['bank_total'], s['amount'], s['comment'], s['bank_ref']]
                         if index == 0:
                             ws.append(bill_common + bank_cols)
@@ -3071,11 +3074,6 @@ def admin_billing_view(request):
     """
     Displays a raw, line-by-line list of bills ready for Admin Billing confirmation.
     Calculates a 0.3% Admin Fee per bill line based on monthly salary.
-    
-    UPDATED: 
-    1. Only shows reconciled bills (is_reconciled=True).
-    2. Strictly excludes bills with 0 members or R0.00 schedule amount.
-    3. Updated fee calculation to 0.003 (0.3%).
     """
     from decimal import Decimal
     from datetime import datetime
@@ -3083,14 +3081,8 @@ def admin_billing_view(request):
     filter_start_date = request.GET.get('start_date')
     filter_end_date = request.GET.get('end_date')
 
-    # Base Query: Order by CC Dates Month, then by Company Code
-    bills_queryset = UnityBill.objects.all().order_by('-A_CCDatesMonth', 'C_Company_Code')
-    
-    # --- UPDATED FILTERS ---
-    # 1. Must be Reconciled
-    # 2. Exclude bills with 0 members (prevents N/A rows)
-    # 3. Exclude bills with 0.00 schedule (prevents zero-fee rows)
-    bills_queryset = bills_queryset.filter(
+    # Base Query
+    bills_queryset = UnityBill.objects.all().filter(
         is_reconciled=True
     ).exclude(
         E_Active_Members=0
@@ -3115,21 +3107,19 @@ def admin_billing_view(request):
     final_bill_data = []
     
     for bill in bills_queryset:
-        # Since we excluded 0.00 above, we know schedule_amount will be a valid positive number
         schedule_amount = bill.H_Schedule_Amount or Decimal('0.00')
         active_members = bill.E_Active_Members or 0 
         
-        # 🚀 NEW: Calculate 0.3% Admin Fee (0.003) 🚀
+        # 🚀 Admin Fee calculation (0.3%)
         admin_fee = schedule_amount * Decimal('0.003')
         
-        # Find the FIRST settlement record for metadata (Posted Date/User)
+        # Find the FIRST settlement record for metadata
         first_settlement = BillSettlement.objects.filter(
             unity_bill_source_id=bill.pk
         ).order_by('settlement_date').first()
         
         posted_date = first_settlement.settlement_date if first_settlement else None
         
-        # Get the username of the person who finalized the recon
         posted_user = "N/A"
         if first_settlement and first_settlement.confirmed_by:
             posted_user = first_settlement.confirmed_by.username
@@ -3146,6 +3136,10 @@ def admin_billing_view(request):
             'posted_date': posted_date,
             'posted_user': posted_user, 
         })
+
+    # 🚀 SORTING LOGIC: Sort by posted_date (Newest first). 
+    # Using datetime.min as a fallback for records without a date.
+    final_bill_data.sort(key=lambda x: x['posted_date'] if x['posted_date'] else datetime.min, reverse=True)
 
     context = {
         'bill_records': final_bill_data,

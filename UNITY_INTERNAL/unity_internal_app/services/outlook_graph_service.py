@@ -76,7 +76,7 @@ class OutlookGraphService:
     @staticmethod
     def sync_to_local_inbox(messages_data):
         """
-        Saves or updates emails into the local unmanaged MySQL table 'unity_internal_inbox'.
+        saves or updates emails into the local unmanaged MySQL table 'unity_internal_inbox'.
         """
         from ..models import OutlookInbox 
         
@@ -127,10 +127,10 @@ class OutlookGraphService:
         return response
 
     @staticmethod
-    def send_outlook_email(target_email, recipient_email, subject, body_content, content_type='HTML', attachments=None, cc_email=None):
+    def send_outlook_email(target_email, recipient_email, subject, body_content, content_type='HTML', attachments=None, cc_email=None, bcc_email=None):
         """
         Sends an email via Microsoft Graph and retrieves the newly created ID 
-        from Sent Items. Now supports MULTIPLE file attachments and optional CC.
+        from Sent Items. Now supports MULTIPLE file attachments alongside optional CC and BCC fields.
         """
         email_data = {
             "message": {
@@ -146,17 +146,26 @@ class OutlookGraphService:
                         }
                     }
                 ],
-                "ccRecipients": [], # Initialize empty CC list
+                "ccRecipients": [], 
+                "bccRecipients": [], 
                 "attachments": [] 
             },
             "saveToSentItems": "true" 
         }
 
-        # 🚀 ADDED: Logic to handle CC recipient if provided
+        # Logic to handle CC recipient if provided
         if cc_email:
             email_data["message"]["ccRecipients"].append({
                 "emailAddress": {
                     "address": cc_email
+                }
+            })
+
+        # Logic to handle BCC recipient if provided
+        if bcc_email:
+            email_data["message"]["bccRecipients"].append({
+                "emailAddress": {
+                    "address": bcc_email
                 }
             })
 
@@ -179,6 +188,7 @@ class OutlookGraphService:
                     logger.error(f"Failed to package attachment '{getattr(file, 'name', 'Unknown')}': {e}")
         
         endpoint = "sendMail"
+        # 🚀 FIX: Removed the double assignment typo here ('FileService =')
         send_res = OutlookGraphService._make_graph_request(endpoint, target_email, method='POST', data=email_data)
         
         if isinstance(send_res, dict) and send_res.get('success') is True:
