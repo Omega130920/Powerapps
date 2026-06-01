@@ -36,12 +36,14 @@ if os.getenv('DJANGO_ENV', 'development') == 'development' or DEBUG:
 # Application definition
 INSTALLED_APPS = [
     'tsrf_recon', 
+    'scraper',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    
 ]
 
 MIDDLEWARE = [
@@ -146,3 +148,8 @@ GRAPH_SCOPES = [
 # OUTLOOK_CLIENT_ID = MSGRAPH_CLIENT_ID 
 # OUTLOOK_CLIENT_SECRET = MSGRAPH_CLIENT_SECRET
 # OUTLOOK_TENANT_ID = MSGRAPH_TENANT_ID
+
+# ==============================================================================
+# 🖼️ AUTOMATED PLANOGRAM SCAPER IMAGE SETTINGS
+# ==============================================================================
+PLANOGRAM_IMG_DIR = BASE_DIR / 'media' / 'planogram_products'

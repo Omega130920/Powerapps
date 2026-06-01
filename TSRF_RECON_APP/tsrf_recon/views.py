@@ -59,6 +59,12 @@ def login_view(request):
             user = authenticate(username=username, password=password)
             if user is not None:
                 login(request, user)
+                
+                # --- INTERCEPT DOTGRAM AND SEND TO PLANOGRAM APP ---
+                if username == 'DotGram@26':
+                    return redirect('scraper_home')  # This points to the /planogram/ path
+                
+                # Regular users continue to the normal TSRF system
                 return redirect('dashboard')
             else:
                 messages.error(request, "Invalid username or password.")

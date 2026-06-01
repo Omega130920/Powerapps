@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planogram Asset Manager // CORE_SYSTEM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;800;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    
+    <style>
+        .font-cyber { font-family: 'Orbitron', sans-serif; }
+        .font-mono-tech { font-family: 'Share Tech Mono', monospace; }
+        
+        /* Cyberpunk diagonal clipping mask */
+        .clip-cyber {
+            clip-path: polygon(0 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%);
+        }
+        .clip-cyber-sm {
+            clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));
+        }
+
+        /* Subtle neon glows on light background */
+        .glow-cyan { filter: drop-shadow(0 0 6px rgba(6, 182, 212, 0.4)); }
+        .glow-pink { filter: drop-shadow(0 0 6px rgba(236, 72, 153, 0.4)); }
+        
+        /* Moving scanner line simulation behind the app */
+        .bg-grid-lines {
+            background-size: 30px 30px;
+            background-image: linear-gradient(to right, rgba(6, 182, 212, 0.05) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(6, 182, 212, 0.05) 1px, transparent 1px);
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans min-h-screen bg-grid-lines relative selection:bg-cyan-500 selection:text-white">
+
+    <div class="w-full bg-cyan-500 h-1 flex justify-between overflow-hidden">
+        <div class="w-1/3 bg-pink-500 h-full animate-pulse"></div>
+        <div class="w-1/12 bg-yellow-400 h-full"></div>
+    </div>
+
+    <div class="min-h-screen flex flex-col justify-between">
+        <nav class="border-b-2 border-cyan-400 bg-white/80 backdrop-blur-md p-4 shadow-sm relative">
+            <div class="absolute top-0 right-12 text-[9px] font-mono-tech text-cyan-500 tracking-widest uppercase">
+                SYS_STATUS: ONLINE // AUTH_LEVEL_01
+            </div>
+            <div class="container mx-auto flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <span class="text-pink-500 font-black text-xl animate-pulse">⚡</span>
+                    <a href="{% url 'scraper_home' %}">
+                        <h1 class="text-xl font-black tracking-tighter text-slate-900 font-cyber uppercase hover:opacity-80 transition-opacity">
+                            PnP <span class="text-cyan-500">PLANOGRAM</span> <span class="text-xs text-pink-500 font-mono-tech bg-pink-50 border border-pink-200 px-1">STUDIO_V2.6</span>
+                        </h1>
+                    </a>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="hidden sm:block text-right font-mono-tech text-xs text-slate-500">
+                        <div>NET_PORT: <span class="text-emerald-600 font-bold">8000</span></div>
+                        <div>HOST: 127.0.0.1</div>
+                    </div>
+                    <a href="{% url 'logout' %}" class="text-sm font-cyber bg-slate-900 text-cyan-400 hover:text-pink-500 px-3 py-1 font-bold clip-cyber-sm glow-cyan border-l-2 border-pink-500 transition-colors uppercase tracking-wider">
+                        Logout [X]
+                    </a>
+                </div>
+            </div>
+        </nav>
+
+        <main class="flex-grow container mx-auto px-4 py-10 max-w-4xl z-10">
+            
+            <div class="text-center mb-12 relative p-6 bg-white border-2 border-slate-900 clip-cyber shadow-[6px_6px_0px_0px_rgba(6,182,212,1)]">
+                <div class="absolute top-0 left-0 w-3 h-3 border-t-2 border-l-2 border-pink-500"></div>
+                <div class="absolute bottom-4 right-0 w-4 h-1 bg-yellow-400"></div>
+                
+                <span class="text-[10px] font-mono-tech text-pink-500 tracking-widest uppercase block mb-1 font-bold">
+                    // INITIALISING DATA ACQUISITION PROTOCOLS //
+                </span>
+                <h2 class="text-3xl md:text-5xl font-black text-slate-900 mb-4 font-cyber uppercase tracking-tight">
+                    ASSET CENTRAL <span class="text-transparent bg-clip-text bg-gradient-to-r from-cyan-500 to-pink-500">MATRIX</span>
+                </h2>
+                <div class="w-24 h-1 bg-cyan-500 mx-auto mb-4"></div>
+                <p class="text-sm md:text-base text-slate-600 font-mono-tech max-w-2xl mx-auto uppercase">
+                
+                </p>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-8 mt-4">
+                
+                <div class="bg-white p-6 border-2 border-slate-950 flex flex-col justify-between relative clip-cyber shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] hover:shadow-[4px_4px_0px_0px_rgba(236,72,153,1)] transition-all group">
+                    <div class="absolute top-0 right-0 bg-cyan-400 text-slate-900 text-[9px] font-mono-tech px-2 py-0.5 uppercase tracking-wider font-bold">
+                        MODULE_01 // INBOUND
+                    </div>
+                    
+                    <div class="mb-6">
+                        <div class="text-xs font-mono-tech text-cyan-600 font-bold mb-1">// BATCH_PARSER_ENG</div>
+                        <h3 class="text-xl font-black text-slate-900 mb-2 font-cyber uppercase tracking-tight group-hover:text-cyan-600 transition-colors">
+                            BULK SOURCING
+                        </h3>
+                        <p class="text-slate-600 font-mono-tech text-xs leading-relaxed uppercase">
+                            Inject array matrices of barcodes and data descriptions directly from spreadsheet frameworks to trigger multi-threaded pipeline media scrapers.
+                        </p>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <a href="{% url 'source' %}" class="block text-center bg-slate-900 hover:bg-cyan-500 text-white hover:text-slate-950 font-cyber font-bold text-xs py-3 px-4 transition-all duration-200 uppercase tracking-wider border-b-4 border-cyan-400 clip-cyber-sm glow-cyan">
+                            Execute Batch Download ->
+                        </a>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 border-2 border-slate-950 flex flex-col justify-between relative clip-cyber shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] hover:shadow-[4px_4px_0px_0px_rgba(6,182,212,1)] transition-all group">
+                    <div class="absolute top-0 right-0 bg-pink-500 text-white text-[9px] font-mono-tech px-2 py-0.5 uppercase tracking-wider font-bold">
+                        MODULE_02 // STORAGE
+                    </div>
+                    
+                    <div class="mb-6">
+                        <div class="text-xs font-mono-tech text-pink-500 font-bold mb-1">// FS_STORAGE_CHECK</div>
+                        <h3 class="text-xl font-black text-slate-900 mb-2 font-cyber uppercase tracking-tight group-hover:text-pink-500 transition-colors">
+                            MEDIA STORAGE
+                        </h3>
+                        <p class="text-slate-600 font-mono-tech text-xs leading-relaxed uppercase">
+                            Audit compiled asset directories inside <span class="bg-slate-100 text-pink-600 px-1 text-[11px] font-bold">/media/</span> maps to review automated image aspect crops and bounding containers.
+                        </p>
+                    </div>
+                    
+                    <div class="mt-4">
+                        <a href="{% url 'media_root_explorer' %}" class="block text-center bg-white hover:bg-slate-950 text-slate-900 hover:text-pink-400 font-cyber font-bold text-xs py-3 px-4 transition-all duration-200 uppercase tracking-wider border-2 border-slate-900 hover:border-pink-500 clip-cyber-sm glow-pink">
+                            Inspect Media Directories //
+                        </a>
+                    </div>
+                </div>
+
+            </div>
+
+            <div class="mt-12 flex justify-between items-center font-mono-tech text-[11px] text-slate-400 border-t border-slate-200 pt-4">
+                <div>SYS_NODE_LOC: CAPE_TOWN_CLUSTER</div>
+                <div class="animate-pulse text-cyan-500">● CORE_STABLE</div>
+            </div>
+            
+        </main>
+
+        <footer class="bg-slate-900 text-slate-400 text-xs py-3 font-mono-tech tracking-widest uppercase border-t-2 border-pink-500">
+            <div class="container mx-auto px-4 flex flex-col sm:flex-row justify-between items-center gap-2">
+                <div>[ SECURITY STATUS: OPEN DEBUG MODE ]</div>
+                <div class="text-slate-500 text-[10px]">DESIGNATION: PnP_PLANOGRAM_INTERFACE_TERMINAL</div>
+            </div>
+        </footer>
+    </div>
+
+</body>
+</html>
