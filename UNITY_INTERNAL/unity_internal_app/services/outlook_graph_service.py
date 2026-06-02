@@ -130,7 +130,7 @@ class OutlookGraphService:
     def send_outlook_email(target_email, recipient_email, subject, body_content, content_type='HTML', attachments=None, cc_email=None, bcc_email=None):
         """
         Sends an email via Microsoft Graph and retrieves the newly created ID 
-        from Sent Items. Now supports MULTIPLE file attachments alongside optional CC and BCC fields.
+        from Sent Items. Fully supports comma/semicolon multi-address string parsing for CC and BCC.
         """
         email_data = {
             "message": {
@@ -142,7 +142,7 @@ class OutlookGraphService:
                 "toRecipients": [
                     {
                         "emailAddress": {
-                            "address": recipient_email
+                            "address": recipient_email.strip()
                         }
                     }
                 ],
@@ -153,21 +153,31 @@ class OutlookGraphService:
             "saveToSentItems": "true" 
         }
 
-        # Logic to handle CC recipient if provided
+        # 🚀 ROBUST PARSING SAFETY GUARD FOR CC RECIPIENTS
         if cc_email:
-            email_data["message"]["ccRecipients"].append({
-                "emailAddress": {
-                    "address": cc_email
-                }
-            })
+            # Replace commas with semicolons to uniform split constraints
+            normalized_cc = str(cc_email).replace(',', ';')
+            cc_list = [addr.strip() for addr in normalized_cc.split(';') if addr.strip()]
+            
+            for address in cc_list:
+                email_data["message"]["ccRecipients"].append({
+                    "emailAddress": {
+                        "address": address
+                    }
+                })
 
-        # Logic to handle BCC recipient if provided
+        # 🚀 ROBUST PARSING SAFETY GUARD FOR BCC RECIPIENTS
         if bcc_email:
-            email_data["message"]["bccRecipients"].append({
-                "emailAddress": {
-                    "address": bcc_email
-                }
-            })
+            # Replace commas with semicolons to uniform split constraints
+            normalized_bcc = str(bcc_email).replace(',', ';')
+            bcc_list = [addr.strip() for addr in normalized_bcc.split(';') if addr.strip()]
+            
+            for address in bcc_list:
+                email_data["message"]["bccRecipients"].append({
+                    "emailAddress": {
+                        "address": address
+                    }
+                })
 
         # Process multiple attachments if they exist
         if attachments:
@@ -188,7 +198,6 @@ class OutlookGraphService:
                     logger.error(f"Failed to package attachment '{getattr(file, 'name', 'Unknown')}': {e}")
         
         endpoint = "sendMail"
-        # 🚀 FIX: Removed the double assignment typo here ('FileService =')
         send_res = OutlookGraphService._make_graph_request(endpoint, target_email, method='POST', data=email_data)
         
         if isinstance(send_res, dict) and send_res.get('success') is True:

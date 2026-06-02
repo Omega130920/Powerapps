@@ -226,6 +226,17 @@
                             <label class="form-label">Recipient:</label>
                             <input type="email" class="form-control" name="reply_recipient" value="{{ email.from.emailAddress.address }}" required>
                         </div>
+                        
+                        {# --- 🚀 ADDED CC & BCC ROW TARGETS FOR LIVE CAPTURE --- #}
+                        <div class="form-group">
+                            <label class="form-label">Cc:</label>
+                            <input type="text" class="form-control" name="member_cc_email" placeholder="Enter Cc email addresses...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Bcc:</label>
+                            <input type="text" class="form-control" name="member_bcc_email" placeholder="Enter Bcc email addresses...">
+                        </div>
+
                         <div class="form-group">
                             <label class="form-label">Subject:</label>
                             <input type="text" class="form-control" name="reply_subject" value="RE: {{ email.subject }}" required>

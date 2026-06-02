@@ -1504,7 +1504,7 @@
             <input type="hidden" name="action" value="send_direct_email"> 
             <input type="hidden" name="email_body_html_content" id="direct_email_body_html_content">
             
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+            <div style="display: flex; flex-direction: column; gap: 15px; margin-bottom: 15px;">
                 <div class="form-group">
                     <label for="direct_member_recipient_email" style="font-weight: bold; display: block; margin-bottom: 5px; color: #333;">To:</label>
                     <input type="email" id="direct_member_recipient_email" name="recipient_email" 
@@ -1513,10 +1513,19 @@
                         required
                         style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 5px; box-sizing: border-box;">
                 </div>
+                
+                { # --- 🚀 UPDATED: Changed name variable key from 'cc_email' to 'member_cc_email' --- #}
                 <div class="form-group">
                     <label for="direct_member_cc_email" style="font-weight: bold; display: block; margin-bottom: 5px; color: #333;">Cc (Optional):</label>
-                    <input type="text" id="direct_member_cc_email" name="cc_email" 
-                        placeholder="comma separated emails"
+                    <input type="text" id="direct_member_cc_email" name="member_cc_email" 
+                        placeholder="comma or semicolon separated emails"
+                        style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 5px; box-sizing: border-box;">
+                </div>
+
+                <div class="form-group">
+                    <label for="direct_member_bcc_email" style="font-weight: bold; display: block; margin-bottom: 5px; color: #333;">Bcc (Optional):</label>
+                    <input type="text" id="direct_member_bcc_email" name="member_bcc_email" 
+                        placeholder="comma or semicolon separated emails"
                         style="width: 100%; padding: 10px; border: 1px solid #cbd5e0; border-radius: 5px; box-sizing: border-box;">
                 </div>
             </div>

@@ -64,31 +64,59 @@ class OutlookGraphService:
         return OutlookGraphService._make_graph_request(endpoint)
 
     @staticmethod
-    def send_outlook_email(recipient, subject, body_html, attachments=None):
+    def send_outlook_email(target_email=None, recipient_email=None, subject=None, body_content=None, content_type='HTML', attachments=None, cc_email=None, bcc_email=None):
         """
         CRM_UNITY: Sends directly and MUST return the real Microsoft Message ID.
+        Fully updated to handle positional/keyword variables, multi-recipient arrays, and multi-file mapping arrays.
         """
         endpoint = "sendMail"
         
+        # Fallback security check for overlapping parameter signatures between modules
+        final_recipient = recipient_email if recipient_email else None
+        final_body = body_content if body_content else None
+
         # 1. Prepare the email payload
         message_dict = {
             "subject": subject,
-            "body": {"contentType": "HTML", "content": body_html},
-            "toRecipients": [{"emailAddress": {"address": recipient.strip()}}],
+            "body": {"contentType": content_type, "content": final_body},
+            "toRecipients": [{"emailAddress": {"address": final_recipient.strip()}}],
+            "ccRecipients": [],
+            "bccRecipients": [],
             "attachments": []
         }
+
+        # 🚀 ROBUST PARSING SAFETY GUARD FOR CC RECIPIENTS
+        if cc_email:
+            normalized_cc = str(cc_email).replace(',', ';')
+            cc_list = [addr.strip() for addr in normalized_cc.split(';') if addr.strip()]
+            for address in cc_list:
+                message_dict["ccRecipients"].append({
+                    "emailAddress": {"address": address}
+                })
+
+        # 🚀 ROBUST PARSING SAFETY GUARD FOR BCC RECIPIENTS
+        if bcc_email:
+            normalized_bcc = str(bcc_email).replace(',', ';')
+            bcc_list = [addr.strip() for addr in normalized_bcc.split(';') if addr.strip()]
+            for address in bcc_list:
+                message_dict["bccRecipients"].append({
+                    "emailAddress": {"address": address}
+                })
 
         # Handle Attachments
         if attachments:
             for f in attachments:
-                f.seek(0)
-                encoded_content = base64.b64encode(f.read()).decode('utf-8')
-                message_dict["attachments"].append({
-                    "@odata.type": "#microsoft.graph.fileAttachment",
-                    "name": f.name,
-                    "contentType": getattr(f, 'content_type', 'application/octet-stream'),
-                    "contentBytes": encoded_content
-                })
+                try:
+                    f.seek(0)
+                    encoded_content = base64.b64encode(f.read()).decode('utf-8')
+                    message_dict["attachments"].append({
+                        "@odata.type": "#microsoft.graph.fileAttachment",
+                        "name": f.name,
+                        "contentType": getattr(f, 'content_type', 'application/octet-stream'),
+                        "contentBytes": encoded_content
+                    })
+                except Exception as attachment_err:
+                    logger.error(f"Failed to encode file for Microsoft transmission array payload: {attachment_err}")
 
         payload = {"message": message_dict, "saveToSentItems": "true"}
 
@@ -108,12 +136,13 @@ class OutlookGraphService:
             sent_check = OutlookGraphService._make_graph_request(sent_endpoint, method='GET')
             
             if sent_check and 'value' in sent_check and len(sent_check['value']) > 0:
-                # This is the real AAMk... ID
                 message_id = sent_check['value'][0]['id'] 
                 
+                # 🚀 ALIGNED KEYS: Returns both 'id' and 'outlook_id' keys to safely satisfy both views modules
                 return {
                     'success': True, 
-                    'outlook_id': message_id  # <--- This is what you wanted!
+                    'id': message_id,
+                    'outlook_id': message_id
                 }
             else:
                 return {'success': False, 'error': 'Email sent but could not locate ID in Sent Items.'}
@@ -126,7 +155,7 @@ class OutlookGraphService:
         """Metadata for all attachments."""
         endpoint = f"messages/{message_id}/attachments"
         response = OutlookGraphService._make_graph_request(endpoint, method='GET')
-        return response.get('value', [])
+        return response.get('value', []) if isinstance(response, dict) else []
     
     @staticmethod
     def get_attachment_raw(target_email, message_id, attachment_id):

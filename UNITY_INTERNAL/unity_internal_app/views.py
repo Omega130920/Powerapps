@@ -3674,7 +3674,7 @@ def outlook_dashboard_view(request):
         'sort_order': sort_order
     }
     
-    inbox_data = OutlookGraphService.fetch_inbox_messages(target_email, top_count=50) 
+    inbox_data = OutlookGraphService.fetch_inbox_messages(target_email, top_count=100) 
     
     if 'error' not in inbox_data:
         all_emails = inbox_data.get('value', [])
@@ -3864,7 +3864,7 @@ def outlook_delegated_box(request):
 def outlook_delegated_action(request, delegation_id):
     """
     Handles Notes, Replies, Metadata Updates, RESTORATION, and COMPLETION.
-    Updated to support MULTIPLE file attachments with replies.
+    Updated to support MULTIPLE file attachments with replies, parsing robust CC/BCC inputs.
     """
     delegation = get_object_or_404(EmailDelegation, pk=delegation_id)
     
@@ -3933,7 +3933,7 @@ def outlook_delegated_action(request, delegation_id):
                 messages.error(request, message)
             return redirect('outlook_delegated_action', delegation_id=delegation_id)
         
-        # --- 5. HANDLE REPLY/SEND EMAIL (MULTIPLE ATTACHMENT SUPPORT) ---
+        # --- 5. HANDLE REPLY/SEND EMAIL (MULTIPLE ATTACHMENT, CC & BCC PARSING) ---
         elif 'reply_recipient' in request.POST:
             recipient = request.POST.get('reply_recipient')
             raw_subject = request.POST.get('reply_subject')
@@ -3941,32 +3941,39 @@ def outlook_delegated_action(request, delegation_id):
             body_html = request.POST.get('reply_body')
             action_destination = request.POST.get('action_notes', 'EMAIL_REPLY')
             
-            log_type = request.POST.get('email_log_type', 'REPLY') 
+            # 🚀 ROBUST VALUE CAPTURE MATCHING HTML INPUT NAMES
+            cc_recipients = request.POST.get('member_cc_email', '')
+            bcc_recipients = request.POST.get('member_bcc_email', '')
             
-            # 🚀 UPDATED: Capture a list of files instead of a single file
+            log_type = request.POST.get('email_log_type', 'REPLY') 
             reply_files = request.FILES.getlist('reply_files')
 
-            # Pass the list of files to the service
+            # Pass the list of files to the service with exact keyword naming parameters
             response = OutlookGraphService.send_outlook_email(
-                target_email, 
-                recipient, 
-                subject, 
-                body_html,
-                attachments=reply_files  # Pass the full list
+                target_email=target_email, 
+                recipient_email=recipient, 
+                subject=subject, 
+                body_content=body_html,
+                content_type='HTML',
+                attachments=reply_files,
+                cc_email=cc_recipients,    # 🚀 Mapped explicitly to pass parsing checks
+                bcc_email=bcc_recipients   # 🚀 Mapped explicitly to pass parsing checks
             )
             
             if response.get('success'):
                 final_action_type = 'REPLIED' if log_type == 'REPLY' else action_destination
                 
+                # Format an audit trace tracking line for transaction records
+                tracking_metadata = f"{subject} | CC: {cc_recipients or 'None'} | BCC: {bcc_recipients or 'None'}"
+                
                 log_delegation_transaction(
                     delegation_id, 
                     request.user, 
-                    subject, 
+                    tracking_metadata, 
                     recipient, 
                     action_type=final_action_type 
                 )
                 
-                # Provide better feedback on the number of files sent
                 file_count = len(reply_files)
                 messages.success(request, f"Reply sent successfully with {file_count} attachment(s).")
             else:

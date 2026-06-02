@@ -389,11 +389,22 @@
                         <input type="hidden" name="action_type" value="send_response">
                         <input type="hidden" name="email_html_content" id="email_body_reply_hidden">
                         
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px;">
                             <div>
                                 <label class="form-label">Recipient:</label>
                                 <input type="email" name="recipient" value="{{ task.sender_email|default:task.sender }}" class="form-control" required>
                             </div>
+
+                            { # --- 🚀 ADDED: Cc & Bcc FIELD ROW HOOKS --- #}
+                            <div>
+                                <label class="form-label">Cc:</label>
+                                <input type="text" name="member_cc_email" placeholder="comma or semicolon separated emails" class="form-control">
+                            </div>
+                            <div>
+                                <label class="form-label">Bcc:</label>
+                                <input type="text" name="member_bcc_email" placeholder="comma or semicolon separated emails" class="form-control">
+                            </div>
+
                             <div>
                                 <label class="form-label">Action Log Type:</label>
                                 <select name="action_log_type" class="form-control" required>
@@ -423,7 +434,7 @@
                             </small>
                         </div>
                         
-                        <label class="form-label">Email Body:</label>
+                        <label class="form-label" style="margin-top: 10px;">Email Body:</label>
                         <div id="email_editor" style="min-height: 200px; border: 1px solid #ccc; padding: 10px; border-radius: 4px;" contenteditable="true">
                             <p>Dear Client,</p><br><p>[Your message here]</p>
                         </div>

@@ -613,7 +613,7 @@ def member_information(request, member_group_code):
         else:
             messages.error(request, "Database record exists, but no file is attached.")
 
-    # 🟢 UPDATED: FUZZY SEARCH DOWNLOAD LOGIC FOR NOTES ATTACHMENTS
+    # FUZZY SEARCH DOWNLOAD LOGIC FOR NOTES ATTACHMENTS
     target_param = request.GET.get('download_note_file') or request.GET.get('file')
     
     if request.method == 'GET' and target_param:
@@ -688,12 +688,25 @@ def member_information(request, member_group_code):
             attachments = request.FILES.getlist('attachments')
             action_log_type = request.POST.get('action_notes_email', 'Direct Email Sent')
 
+            # 🚀 ADDED: Capturing CC and BCC from the incoming front-end payload form values
+            cc_recipients = request.POST.get('member_cc_email', '')
+            bcc_recipients = request.POST.get('member_bcc_email', '')
+
+            # 🚀 UPDATED: Invoking service method matching your exact positional structure and variable bindings
             response = OutlookGraphService.send_outlook_email(
-                recipient=recipient, subject=subject, body_html=body_content, attachments=attachments
+                target_email=settings.OUTLOOK_EMAIL_ADDRESS,
+                recipient_email=recipient,
+                subject=subject,
+                body_content=body_content,
+                content_type='HTML',
+                attachments=attachments,
+                cc_email=cc_recipients,    # 🚀 Routed safely
+                bcc_email=bcc_recipients   # 🚀 Routed safely
             )
 
             if response.get('success'):
-                real_outlook_id = response.get('outlook_id', 'MANUAL_SEND_SUCCESS')
+                real_outlook_id = response.get('id', 'MANUAL_SEND_SUCCESS')
+                
                 DirectEmailLog.objects.create(
                     member_group_code=member_group_code,
                     subject=subject,
@@ -704,9 +717,14 @@ def member_information(request, member_group_code):
                     sent_at=timezone.now(),
                     action_type=action_log_type
                 )
+                
+                # Format tracing values inside local historical interaction ledgers
+                attachment_count = len(attachments)
+                attach_string = f" ({attachment_count} files)" if attachment_count > 0 else ""
+                
                 ClientNotes.objects.create(
                     related_member_group_code=member_group_code,
-                    notes=f"Email Sent: {subject}",
+                    notes=f"To: {recipient}\nCC: {cc_recipients}\nBCC: {bcc_recipients}\nSubject: {subject}\nAttachments: {attach_string}\n{body_content}",
                     communication_type='Sent E-mail',
                     action_notes=action_log_type,
                     user=user_display,
@@ -755,7 +773,7 @@ def member_information(request, member_group_code):
         'communications_info': CommunicationsPerson.objects.filter(member_group_code=member_group_code).first(),
         'hr_info': HumanResources.objects.filter(member_group_code=member_group_code).first(),
         'section13a_info': Section13a.objects.filter(member_group_code=member_group_code).first(),
-        'medical_info': MedicalCorrespondence.objects.filter(member_group_code=member_group_code).first(), # 🟢 Added
+        'medical_info': MedicalCorrespondence.objects.filter(member_group_code=member_group_code).first(),
     }
 
     combined_email_log = []
@@ -1155,26 +1173,40 @@ def delegate_action_view(request, email_id):
                 body_html = request.POST.get('email_html_content')
                 action_log_type = request.POST.get('action_log_type', 'General Feedback')
 
+                # 🚀 ADDED: Capturing CC and BCC from the front-end form fields
+                cc_recipients = request.POST.get('member_cc_email', '')
+                bcc_recipients = request.POST.get('member_bcc_email', '')
+
                 if recipient and subject and body_html:
-                    result = OutlookGraphService.send_outlook_email(recipient, subject, body_html)
+                    # 🚀 UPDATED: Invoking service method matching your exact positional structure and variable bindings
+                    result = OutlookGraphService.send_outlook_email(
+                        target_email=target_email,
+                        recipient_email=recipient,
+                        subject=subject,
+                        body_content=body_html,
+                        content_type='HTML',
+                        attachments=None, # Main workflow captures standalone files if needed
+                        cc_email=cc_recipients,    
+                        bcc_email=bcc_recipients   
+                    )
                     
                     if result.get('success') or result == {}:
-                        # A. Log to ClientNotes (For Web view and detail tracking)
+                        # Log to ClientNotes (For Web view and detail tracking)
                         ClientNotes.objects.create(
                             related_member_group_code=task.member_group_code,
-                            notes=f"Email Sent (Delegated): {subject}",
+                            notes=f"To: {recipient}\nCC: {cc_recipients}\nBCC: {bcc_recipients}\nSubject: {subject}\n{body_html}",
                             communication_type="Delegated: Sent Email (Reply)",
                             action_notes=action_log_type, 
                             user=user_display,
                             date=timezone.now()
                         )
 
-                        # B. Log to internal audit table (For the 'Reply Sent (Thread)' Excel row)
+                        # Log to internal audit table (For the 'Reply Sent (Thread)' Excel row)
                         CrmDelegateAction.objects.create(
                             task_email_id=email_id,
                             action_type='REPLY_SENT',
                             action_user=user_display,
-                            note_content=action_log_type, # 🟢 dropdown value saved here
+                            note_content=f"{action_log_type} | CC: {cc_recipients} | BCC: {bcc_recipients}", 
                             related_subject=subject
                         )
                         
