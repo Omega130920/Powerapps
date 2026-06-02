@@ -1025,6 +1025,7 @@ def delegate_action_view(request, email_id):
     """
     Detailed view for a specific task in CRM_UNITY.
     Captures 'source' to handle conditional 'Back' button logic.
+    Supports multi-file output arrays for delegated reply updates.
     """
     task = get_object_or_404(CrmDelegateTo, email_id=email_id)
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
@@ -1173,28 +1174,34 @@ def delegate_action_view(request, email_id):
                 body_html = request.POST.get('email_html_content')
                 action_log_type = request.POST.get('action_log_type', 'General Feedback')
 
-                # 🚀 ADDED: Capturing CC and BCC from the front-end form fields
                 cc_recipients = request.POST.get('member_cc_email', '')
                 bcc_recipients = request.POST.get('member_bcc_email', '')
+                
+                # 🚀 ADDED: Capturing multiple file uploads from multipart payload stream list
+                uploaded_files = request.FILES.getlist('attachments')
 
                 if recipient and subject and body_html:
-                    # 🚀 UPDATED: Invoking service method matching your exact positional structure and variable bindings
+                    # 🚀 UPDATED: Forward attachments payload variable list straight to graph engine
                     result = OutlookGraphService.send_outlook_email(
                         target_email=target_email,
                         recipient_email=recipient,
                         subject=subject,
                         body_content=body_html,
                         content_type='HTML',
-                        attachments=None, # Main workflow captures standalone files if needed
+                        attachments=uploaded_files, # Now passing files correctly
                         cc_email=cc_recipients,    
                         bcc_email=bcc_recipients   
                     )
                     
                     if result.get('success') or result == {}:
+                        # Calculate footprint values for historical traceability notes
+                        file_count = len(uploaded_files)
+                        attachments_footprint = f" ({file_count} files attached)" if file_count > 0 else ""
+                        
                         # Log to ClientNotes (For Web view and detail tracking)
                         ClientNotes.objects.create(
                             related_member_group_code=task.member_group_code,
-                            notes=f"To: {recipient}\nCC: {cc_recipients}\nBCC: {bcc_recipients}\nSubject: {subject}\n{body_html}",
+                            notes=f"To: {recipient}\nCC: {cc_recipients}\nBCC: {bcc_recipients}\nSubject: {subject}{attachments_footprint}\n{body_html}",
                             communication_type="Delegated: Sent Email (Reply)",
                             action_notes=action_log_type, 
                             user=user_display,
@@ -1206,7 +1213,7 @@ def delegate_action_view(request, email_id):
                             task_email_id=email_id,
                             action_type='REPLY_SENT',
                             action_user=user_display,
-                            note_content=f"{action_log_type} | CC: {cc_recipients} | BCC: {bcc_recipients}", 
+                            note_content=f"{action_log_type} | CC: {cc_recipients} | BCC: {bcc_recipients}{attachments_footprint}", 
                             related_subject=subject
                         )
                         

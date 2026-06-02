@@ -384,7 +384,7 @@
                     <i class="fas fa-chevron-down toggle-icon"></i>
                 </button>
                 <div class="collapse-content" id="collapseEmail">
-                    <form method="POST" action="{% url 'delegate_action' email_id=task.email_id %}" id="email_response_form">
+                    <form method="POST" action="{% url 'delegate_action' email_id=task.email_id %}" id="email_response_form" enctype="multipart/form-data">
                         {% csrf_token %}
                         <input type="hidden" name="action_type" value="send_response">
                         <input type="hidden" name="email_html_content" id="email_body_reply_hidden">
@@ -395,7 +395,6 @@
                                 <input type="email" name="recipient" value="{{ task.sender_email|default:task.sender }}" class="form-control" required>
                             </div>
 
-                            { # --- 🚀 ADDED: Cc & Bcc FIELD ROW HOOKS --- #}
                             <div>
                                 <label class="form-label">Cc:</label>
                                 <input type="text" name="member_cc_email" placeholder="comma or semicolon separated emails" class="form-control">
@@ -437,6 +436,14 @@
                         <label class="form-label" style="margin-top: 10px;">Email Body:</label>
                         <div id="email_editor" style="min-height: 200px; border: 1px solid #ccc; padding: 10px; border-radius: 4px;" contenteditable="true">
                             <p>Dear Client,</p><br><p>[Your message here]</p>
+                        </div>
+
+                        <div class="form-group" style="margin-top: 15px; margin-bottom: 20px;">
+                            <label for="attachments" style="font-weight: bold; display: block; margin-bottom: 5px; color: #333; font-size: 12px;">Attachments:</label>
+                            <div class="file-upload-wrapper" style="padding: 15px; border: 2px dashed #1e88e5; border-radius: 6px; background-color: #fff; text-align: center;">
+                                <input type="file" id="direct_attachments" name="attachments" multiple style="cursor: pointer; font-size: 13px;">
+                                <p style="margin: 8px 0 0 0; color: #666; font-size: 12px;">Files attached here will be packaged into the Graph API outbound transmission data stream matrix.</p>
+                            </div>
                         </div>
                         
                         <button type="submit" class="custom-btn btn-primary" style="width: 100%; margin-top: 15px;">
