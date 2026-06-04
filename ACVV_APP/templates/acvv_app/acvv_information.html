@@ -392,8 +392,8 @@
             <form method="POST">
                 {% csrf_token %}
                 <div class="mb-4">
-                    <label class="block text-sm font-bold mb-1">Email Address</label>
-                    <input type="email" name="new_email" value="{{ acvv_record.mg_email_address }}" class="form-input">
+                    <label class="block text-sm font-bold mb-1">Email Address <span class="text-xs text-gray-500 font-normal">(Use commas to separate multiple emails)</span></label>
+                    <input type="text" name="new_email" value="{{ acvv_record.mg_email_address }}" class="form-input">
                 </div>
                 <div class="mb-4">
                     <label class="block text-sm font-bold mb-1">Tel 1</label>

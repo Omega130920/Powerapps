@@ -107,6 +107,18 @@ body {
         <p>Total Tasks: <strong>{{ tasks|length }}</strong></p>
     </div>
 
+    {% if messages %}
+        <div style="margin-bottom: 20px;">
+            {% for message in messages %}
+                <div style="padding: 15px; border-radius: 6px; font-weight: bold; 
+                    {% if message.tags == 'error' %} background-color: #fce4e4; color: #c62828; border: 1px solid #f1aeb5;
+                    {% elif message.tags == 'success' %} background-color: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7;
+                    {% else %} background-color: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb; {% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
     {% if tasks %}
     <table class="task-table">
         <thead>
@@ -162,7 +174,7 @@ body {
 <script>
     // Refresh page every 60 seconds to keep task list current
     setTimeout(function(){
-       window.location.reload();
+        window.location.reload();
     }, 60000);
 </script>
 

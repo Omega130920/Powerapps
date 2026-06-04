@@ -555,9 +555,14 @@ def acvv_information(request, mip_names):
                 messages.success(request, "PDF added.")
                 return redirect(f'/acvv-records/{acvv_record.mip_names}/#pdf-upload')
 
-        # 3. Handle Contact Info Update (NEW FIELDS ADDED)
+        # 3. Handle Contact Info Update (UPDATED: Sanitized Email Input)
         elif 'update_contact_info' in request.POST:
-            acvv_record.mg_email_address = request.POST.get('new_email')
+            # Normalize email input to handle multiple addresses entered with commas or semicolons
+            raw_emails = request.POST.get('new_email', '')
+            # Clean: Replace ; with , then split, strip whitespace, and rejoin with comma
+            email_list = [e.strip() for e in raw_emails.replace(';', ',').split(',') if e.strip()]
+            acvv_record.mg_email_address = ",".join(email_list)
+            
             acvv_record.tel = request.POST.get('new_tel')
             acvv_record.tel_2 = request.POST.get('new_tel_2')
             
@@ -1625,19 +1630,24 @@ def export_reconciliation_worksheet(request, date_str):
 
     acvv_member_sub = Globalacvv.objects.filter(mip_names=OuterRef('mg_name')).values('member')[:1]
     acvv_notes_sub = Globalacvv.objects.filter(mip_names=OuterRef('mg_name')).values('notes')[:1]
+    # --- ADDED: Subquery to fetch the email address from Globalacvv ---
+    acvv_email_sub = Globalacvv.objects.filter(mip_names=OuterRef('mg_name')).values('mg_email_address')[:1]
 
     records = ReconciliationWorksheet.objects.filter(fiscal_month=fiscal_date).annotate(
         acvv_member_count=Subquery(acvv_member_sub),
         master_start_date=Subquery(acvv_notes_sub),
-        last_reconciled_ws=Subquery(last_ws_recon_sub)
+        last_reconciled_ws=Subquery(last_ws_recon_sub),
+        # --- ADDED: Annotate the email address onto the record ---
+        acvv_email_address=Subquery(acvv_email_sub)
     )
     
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = f"Recon {fiscal_date.strftime('%b %Y')}"
     
+    # --- ADDED: "Email Address" to the headers list ---
     headers = [
-        "MG Name", "MG Code", "Company Status", "Payment Method", 
+        "MG Name", "MG Code", "Email Address", "Company Status", "Payment Method", 
         "Last Fiscal Reconciled", "Arrears", "Member Count Reconciled", 
         "Contribution Amount Reconciled", "Reconciled Status", 
         "Date Schedule Received", "Date Confirmed on Step", "Debit order date"
@@ -1663,8 +1673,9 @@ def export_reconciliation_worksheet(request, date_str):
         else:
             display_recon = "No Data"
 
+        # --- ADDED: r.acvv_email_address to the row output ---
         ws.append([
-            r.mg_name, r.mg_code, display_status, r.payment_method,
+            r.mg_name, r.mg_code, r.acvv_email_address, display_status, r.payment_method,
             display_recon, r.arrears,
             r.member_count_reconciled or r.acvv_member_count,
             r.contribution_amount_reconciled, r.reconciled_status,
