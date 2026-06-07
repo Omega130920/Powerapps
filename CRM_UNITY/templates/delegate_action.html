@@ -28,6 +28,31 @@
         .card-header-primary { background-color: #007bff; color: white; padding: 12px 15px; font-weight: bold; display: flex; align-items: center; gap: 10px; }
         .card-header-dark { background-color: #343a40; color: white; padding: 12px 15px; font-weight: bold; display: flex; align-items: center; gap: 10px; }
         .card-body-content { padding: 15px; }
+
+        /* --- MATCHING EMAIL THREAD CARD STYLES --- */
+        .email-thread-card {
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-left: 5px solid rgb(105, 187, 85);
+            overflow: hidden;
+        }
+        .card-header-main {
+            padding: 15px 20px;
+            background-color: #fafafa;
+            border-bottom: 1px solid #eee;
+        }
+        .card-header-main h3 { margin: 0 0 5px 0; color: rgb(105, 187, 85); font-size: 1.1em; font-weight: bold; }
+        .card-body-scrollable {
+            padding: 20px;
+            line-height: 1.7;
+            max-height: 450px; 
+            overflow-y: auto;
+            background: #fff;
+            font-size: 14px;
+        }
         
         /* --- Status & Header --- */
         .task-header h1 { font-size: 22px; margin: 0 0 10px 0; color: #1e88e5; border-bottom: 2px solid #81c784; padding-bottom: 5px;}
@@ -334,22 +359,18 @@
 
     <div class="main-grid">
         <div class="left-column">
-            <div class="custom-card">
-                <div class="card-header-primary">
-                    <i class="fas fa-envelope-open"></i> Original Message Detail
+            
+            <div class="email-thread-card">
+                <div class="card-header-main">
+                    <h3>Original Communication Content</h3>
+                    <div style="font-size: 13px; color: #666;">
+                        <strong>Sender:</strong> {{ task.sender_email|default:task.sender }} <br>
+                        <strong>Arrival:</strong> {{ task.received_timestamp|date:"d M Y, H:i" }}
+                    </div>
                 </div>
-                <div class="card-body-content">
-                    <div style="border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px;">
-                        <small>From: <strong>{{ task.sender_email|default:task.sender }}</strong></small><br>
-                        <small>Received: {{ task.received_timestamp|date:"Y-m-d H:i" }}</small>
-                    </div>
-                    <div style="background: #f9f9f9; border: 1px solid #ddd; padding: 15px; max-height: 550px; overflow-y: auto; border-radius: 4px;">
-                        {% if task.email_body_html %}
-                            {{ task.email_body_html|safe }}
-                        {% else %}
-                            <pre style="white-space: pre-wrap; font-family: sans-serif; font-size: 13px;">{{ task.snippet|default:"No content available." }}</pre>
-                        {% endif %}
-                    </div>
+                
+                <div class="card-body-content card-body-scrollable">
+                    {{ email_body|safe }}
                 </div>
 
                 {% if attachments %}

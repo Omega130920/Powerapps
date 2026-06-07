@@ -1174,7 +1174,7 @@ def bankline_recon(request, record_id):
                 recon_segment.recon_status = 'Unreconciled - Bulk Split'
                 recon_segment.review_note = 'BULK'
             else:
-                recon_segment.recon_status = 'Unreconciled - Assigned'
+                recon_segment.recon_status = 'Reconciled - Assigned'
                 
             recon_segment.save()
             

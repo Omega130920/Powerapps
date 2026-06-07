@@ -69,6 +69,15 @@ def login_view(request):
     form = AuthenticationForm()
     return render(request, 'login.html', {'form': form})
 
+from acvv.services.outlook_graph_service import OutlookGraphService
+
+@login_required
+def test_graph_access(request):
+    # This calls the root level without looking into a specific email item
+    # It checks if the app can even "talk" to the mailbox at all
+    response = OutlookGraphService.fetch_outlook_data("mailFolders", settings.OUTLOOK_EMAIL_ADDRESS)
+    return HttpResponse(str(response))
+
 @login_required
 def dashboard(request):
     username = request.user.username
@@ -370,7 +379,6 @@ def outlook_delegated_action(request, delegation_id):
     else:
         # 🔑 SAFELY WRAP OUTLOOK MICROSOFT LIVE API CALLS IN EXCEPTION TRY BLOCKS
         try:
-            # FIX: Used new fetch_outlook_data instead of send_outlook_email for GET requests
             email_data = OutlookGraphService.fetch_outlook_data(f"messages/{delegation.email_id}", target_email)
             
             is_404_error = False
@@ -393,7 +401,9 @@ def outlook_delegated_action(request, delegation_id):
 
         except Exception as graph_error:
             if "ErrorItemNotFound" in str(graph_error) or "404" in str(graph_error):
-                messages.warning(request, "This email could not be found in Outlook. It may have been moved, deleted, or archived.")
+                # 🚀 ADDED: PURGE THE BROKEN RECORD TO STOP THE REDIRECT LOOP
+                delegation.delete()
+                messages.warning(request, "This email could not be found (moved or deleted). Task removed from your list.")
                 return redirect('outlook_delegated_box')
             else:
                 raise graph_error

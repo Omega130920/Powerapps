@@ -304,6 +304,11 @@
                             <label style="font-weight: bold; display: block; margin-bottom: 5px;">Email Body:</label>
                             <textarea id="member_email_body_editor" name="member_email_body_editor" class="form-input" rows="6" style="width: 100%;">Dear Sir/Madam,&#10;&#10;Kind regards,&#10;{{ request.user.username }}</textarea>
                         </div>
+                        <!-- 🚀 ADDED: File Attachment Field 🚀 -->
+                        <div class="form-group" style="margin-bottom: 15px;">
+                            <label style="font-weight: bold; display: block; margin-bottom: 5px;">Attachments:</label>
+                            <input type="file" name="email_attachments" multiple style="width: 100%; padding: 8px; border: 1px dashed #ff9800; border-radius: 4px; background: #fff;">
+                        </div>
                         <div style="text-align: right;">
                             <button type="button" class="cancel-btn" onclick="toggleEmailForm()" style="font-size: 12px; margin-right: 10px;">Hide Email Form</button>
                             <button type="submit" name="email_submission_action" value="send_email_and_log" style="padding: 8px 15px; background-color: #f7931e; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer;">Send Email & Save Claim</button>

@@ -1035,6 +1035,19 @@ def delegate_action_view(request, email_id):
     
     action_history = CrmDelegateAction.objects.filter(task_email_id=email_id).order_by('-action_timestamp')
 
+    # ==========================================
+    # 🚀 UNIFIED: FETCH FULL TRAIL FROM OUTLOOK LIVE
+    # ==========================================
+    endpoint = f"messages/{email_id}"
+    email_data = OutlookGraphService._make_graph_request(endpoint, method='GET')
+
+    if not isinstance(email_data, dict) or 'error' in email_data:
+        # Fallback to local task data if API call returns an error or fails
+        email_body = task.email_body_html if hasattr(task, 'email_body_html') and task.email_body_html else task.snippet
+    else:
+        # Pull rich HTML content value straight from the live outlook data map stream
+        email_body = email_data.get('body', {}).get('content', task.snippet)
+
     # --- 🚀 FETCH ATTACHMENT METADATA & IMAGE BYTES ---
     attachments_list = []
     try:
@@ -1176,29 +1189,24 @@ def delegate_action_view(request, email_id):
 
                 cc_recipients = request.POST.get('member_cc_email', '')
                 bcc_recipients = request.POST.get('member_bcc_email', '')
-                
-                # 🚀 ADDED: Capturing multiple file uploads from multipart payload stream list
                 uploaded_files = request.FILES.getlist('attachments')
 
                 if recipient and subject and body_html:
-                    # 🚀 UPDATED: Forward attachments payload variable list straight to graph engine
                     result = OutlookGraphService.send_outlook_email(
                         target_email=target_email,
                         recipient_email=recipient,
                         subject=subject,
                         body_content=body_html,
                         content_type='HTML',
-                        attachments=uploaded_files, # Now passing files correctly
+                        attachments=uploaded_files,
                         cc_email=cc_recipients,    
                         bcc_email=bcc_recipients   
                     )
                     
                     if result.get('success') or result == {}:
-                        # Calculate footprint values for historical traceability notes
                         file_count = len(uploaded_files)
                         attachments_footprint = f" ({file_count} files attached)" if file_count > 0 else ""
                         
-                        # Log to ClientNotes (For Web view and detail tracking)
                         ClientNotes.objects.create(
                             related_member_group_code=task.member_group_code,
                             notes=f"To: {recipient}\nCC: {cc_recipients}\nBCC: {bcc_recipients}\nSubject: {subject}{attachments_footprint}\n{body_html}",
@@ -1208,7 +1216,6 @@ def delegate_action_view(request, email_id):
                             date=timezone.now()
                         )
 
-                        # Log to internal audit table (For the 'Reply Sent (Thread)' Excel row)
                         CrmDelegateAction.objects.create(
                             task_email_id=email_id,
                             action_type='REPLY_SENT',
@@ -1232,6 +1239,7 @@ def delegate_action_view(request, email_id):
         'email_id': email_id,
         'attachments': attachments_list,
         'source': source,
+        'email_body': email_body,  # 🚀 PASSED: Full unified live HTML trail match variable
     })
 
 from django.db.models import Count
