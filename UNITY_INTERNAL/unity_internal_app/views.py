@@ -5304,9 +5304,7 @@ def download_email_file(request, email_id):
 @transaction.atomic
 def create_manual_credit(request):
     """
-    Handles manual 'Overs' credit creation from the modal.
-    🚀 FIX: Stores 'bank_deposit_amount' as the permanent original reference.
-    🚀 FIX: Sets 'note_selection' to 'MANUAL' for proper badge display.
+    Handles manual 'Overs' credit creation and notifies the approval team.
     """
     if request.method == 'POST':
         company_code = request.POST.get('company_code')
@@ -5315,6 +5313,9 @@ def create_manual_credit(request):
         bank_fiscal = request.POST.get('bank_fiscal')
         date_identified = request.POST.get('date_identified')
         agent_input = request.POST.get('agent_name')
+        
+        # 🚀 Capture attachments from the form 🚀
+        attachments = request.FILES.getlist('email_attachments')
 
         try:
             amount = Decimal(amount_input)
@@ -5325,28 +5326,52 @@ def create_manual_credit(request):
             messages.error(request, "Please provide Company Code and a valid Amount.")
             return redirect('credit_note_list')
 
-        # Create the record in credit_note table
+        # Create the record
         new_credit = CreditNote.objects.create(
             member_group_code=company_code,
-            schedule_amount=amount,           # Current Balance
-            bank_deposit_amount=amount,       # 🚀 PERMANENT ORIGINAL REFERENCE 🚀
-            requested_amount=Decimal('0.00'), # Initial used amount is zero
+            schedule_amount=amount,
+            bank_deposit_amount=amount,
+            requested_amount=Decimal('0.00'),
             bank_stmt_date=parse_date(deposit_date),
             fiscal_date=parse_date(bank_fiscal),
             date_identified=parse_date(date_identified),
             processed_by=agent_input or request.user.username,
             processed_date=timezone.now(),
-            note_selection='MANUAL',          # 🚀 Sets to MANUAL for blue badge 🚀
+            note_selection='MANUAL',
             link_request_reason='Overs credit line',
             credit_link_status='Pending'
         )
 
+        # Send notifications
         try:
             subject = f"APPROVAL REQUIRED: Manual Overs Credit - {company_code}"
-            body = f"A manual overs credit of R{amount} has been created for {company_code}."
-            OutlookGraphService.send_outlook_email(settings.OUTLOOK_EMAIL_ADDRESS, "omega@example.com", subject, body, 'TEXT')
-        except Exception:
-            pass 
+            body = (
+                f"A new manual overs credit has been created and requires approval.\n\n"
+                f"DETAILS:\n"
+                f"---------------------------\n"
+                f"Company Code: {company_code}\n"
+                f"Amount: R {amount:,.2f}\n"
+                f"Deposit Date: {deposit_date}\n"
+                f"Bank Fiscal Date: {bank_fiscal}\n"
+                f"Date Identified: {date_identified}\n"
+                f"Captured By: {agent_input or request.user.username}\n"
+                f"---------------------------\n\n"
+                f"Please log in to the system to approve this credit."
+            )
+            
+            approvers = ["lorraine@futurasa.co.za", "samantha@futurasa.co.za", "luanoveck@gmail.com"]
+            
+            for email in approvers:
+                OutlookGraphService.send_outlook_email(
+                    target_email=settings.OUTLOOK_EMAIL_ADDRESS, 
+                    recipient_email=email, 
+                    subject=subject, 
+                    body_content=body, 
+                    content_type='TEXT',
+                    attachments=attachments # 🚀 Passed the attachments here 🚀
+                )
+        except Exception as e:
+            logger.error(f"Approval notification failed: {e}")
 
         messages.success(request, f"Manual credit for {company_code} created. Awaiting approval.")
         return redirect('credit_note_list')

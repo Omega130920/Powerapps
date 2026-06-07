@@ -13,8 +13,6 @@
         thead th { background-color: #43a047; color: white; padding: 12px; text-align: left; }
         tbody td { padding: 10px 12px; border-bottom: 1px solid #aed581; }
 
-        /* --- UPDATED TOGGLE LOGIC --- */
-        /* Only 'Approved' rows are hidden by default now */
         tr.approved-row { display: none; }
         table.show-hidden tr.approved-row { display: table-row; }
         table.show-hidden tr.approved-row td { background-color: #e8f5e9; opacity: 0.8; }
@@ -23,27 +21,9 @@
         .status-pending { background-color: #fff3e0; color: #e65100; }
         .status-approved { background-color: #e8f5e9; color: #2e7d32; }
 
-        /* --- OVERS SOURCE STYLING --- */
-        .source-overs { 
-            background-color: #fff9c4; 
-            color: #f57f17; 
-            border: 1px solid #fbc02d; 
-            padding: 2px 6px; 
-            border-radius: 4px; 
-            font-size: 0.75em; 
-            text-transform: uppercase;
-            font-weight: bold;
-        }
-        .source-import { 
-            background-color: #e1f5fe; 
-            color: #01579b; 
-            padding: 2px 6px; 
-            border-radius: 4px; 
-            font-size: 0.75em; 
-            text-transform: uppercase;
-        }
+        .source-overs { background-color: #fff9c4; color: #f57f17; border: 1px solid #fbc02d; padding: 2px 6px; border-radius: 4px; font-size: 0.75em; text-transform: uppercase; font-weight: bold; }
+        .source-import { background-color: #e1f5fe; color: #01579b; padding: 2px 6px; border-radius: 4px; font-size: 0.75em; text-transform: uppercase; }
 
-        /* --- MODAL POPUP STYLING --- */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); }
         .modal-content { background-color: white; margin: 8% auto; padding: 25px; border-radius: 8px; width: 550px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
         .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 15px; margin-bottom: 15px; }
@@ -81,12 +61,7 @@
     <table id="creditNoteTable">
         <thead>
             <tr>
-                <th>ID</th>
-                <th>Source</th>
-                <th>Member Group</th>
-                <th>Available Balance</th>
-                <th>Status</th>
-                <th>Action</th>
+                <th>ID</th><th>Source</th><th>Member Group</th><th>Available Balance</th><th>Status</th><th>Action</th>
             </tr>
         </thead>
         <tbody>
@@ -113,10 +88,7 @@
                 </td>
                 <td>
                     {% if note.credit_link_status == 'Unlinked' %}
-                        <a href="{% url 'assign_fiscal_date' note_id=note.id %}" 
-                           style="padding: 5px 10px; background-color: #2196F3; color: white; border-radius: 3px; text-decoration: none; font-size: 0.9em;">
-                            Request Link
-                        </a>
+                        <a href="{% url 'assign_fiscal_date' note_id=note.id %}" style="padding: 5px 10px; background-color: #2196F3; color: white; border-radius: 3px; text-decoration: none; font-size: 0.9em;">Request Link</a>
                     {% elif note.credit_link_status == 'Pending' %}
                         <span style="color: #e65100; font-style: italic; font-size: 0.85em;">Awaiting Manager</span>
                     {% else %}
@@ -137,7 +109,7 @@
             <h3 style="margin:0; color: #1b5e20;">Create Manual Overs Credit</h3>
             <button class="btn-close" onclick="closeModal()">&times;</button>
         </div>
-        <form action="{% url 'create_manual_credit' %}" method="POST">
+        <form action="{% url 'create_manual_credit' %}" method="POST" enctype="multipart/form-data">
             {% csrf_token %}
             <div class="form-grid">
                 <div class="form-group full-width">
@@ -168,6 +140,10 @@
                     <label>Date Identified</label>
                     <input type="date" name="date_identified">
                 </div>
+                <div class="form-group full-width">
+                    <label>Supporting Documents</label>
+                    <input type="file" name="email_attachments" multiple class="form-input" style="padding: 5px;">
+                </div>
                 <div class="full-width">
                     <button type="submit" class="btn-save">Save & Send for Approval</button>
                 </div>
@@ -185,20 +161,11 @@
             table.classList.remove('show-hidden');
         }
     }
-
-    function openModal() {
-        document.getElementById('manualCreditModal').style.display = 'block';
-    }
-
-    function closeModal() {
-        document.getElementById('manualCreditModal').style.display = 'none';
-    }
-
+    function openModal() { document.getElementById('manualCreditModal').style.display = 'block'; }
+    function closeModal() { document.getElementById('manualCreditModal').style.display = 'none'; }
     window.onclick = function(event) {
         let modal = document.getElementById('manualCreditModal');
-        if (event.target == modal) {
-            closeModal();
-        }
+        if (event.target == modal) closeModal();
     }
 </script>
 </body>
