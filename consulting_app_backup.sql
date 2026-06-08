@@ -216,7 +216,7 @@ CREATE TABLE `claims_claims` (
   `created_date` date NOT NULL,
   `initial_notes` text,
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -225,7 +225,7 @@ CREATE TABLE `claims_claims` (
 
 LOCK TABLES `claims_claims` WRITE;
 /*!40000 ALTER TABLE `claims_claims` DISABLE KEYS */;
-INSERT INTO `claims_claims` VALUES (1,'dsgs','sdgsdgs','sdgsdgs','sgdgsd','sdgsdgs','sgsgsd','Alan Gray','Funeral - main member','Stephan de Waal','Initial Submission','Pending','2025-12-08',''),(2,'Apple','Apple','Apple','','','','','','','Initial Submission','Pending','2026-02-12',NULL),(3,'Apple','Apple','Apple','Apple','Apple','Apple','Sanlam','Funeral - main member','Stephan de Waal','Initial Submission','Pending','2026-02-12','Apple'),(4,'Testing','Test','ing','123456789','Testing (1)','Test','Momentum','Normal Withdrawal','Awie de Swardt','Initial Submission','Pending','2026-04-27','');
+INSERT INTO `claims_claims` VALUES (1,'dsgs','sdgsdgs','sdgsdgs','sgdgsd','sdgsdgs','sgsgsd','Alan Gray','Funeral - main member','Stephan de Waal','Initial Submission','Pending','2025-12-08',''),(2,'Apple','Apple','Apple','','','','','','','Initial Submission','Pending','2026-02-12',NULL),(3,'Apple','Apple','Apple','Apple','Apple','Apple','Sanlam','Funeral - main member','Stephan de Waal','Initial Submission','Pending','2026-02-12','Apple'),(4,'Testing','Test','ing','123456789','Testing (1)','Test','Momentum','Normal Withdrawal','Awie de Swardt','Initial Submission','Pending','2026-04-27',''),(5,'1236','hhhh','sdfghjk','vbnjk','sdgsdgs','sgsgsd','Momentum','Funeral - spouse','MariDa Botha','Initial Submission','Pending','2026-06-08','HELLO THERE');
 /*!40000 ALTER TABLE `claims_claims` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -317,7 +317,7 @@ CREATE TABLE `client_client` (
 
 LOCK TABLES `client_client` WRITE;
 /*!40000 ALTER TABLE `client_client` DISABLE KEYS */;
-INSERT INTO `client_client` VALUES (1,'FUT00001','','','','2025-11-10',2,1,'Individual Client',0,'Services','Sanlam','SUF Standard','Sanlam','N/A',0,NULL,NULL,0,NULL,NULL,0,NULL,NULL,0.00,'Low',0,0,NULL,'NEWNEW','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL,NULL),(6,'FUT00002','Marida Botha','Logistics','Active','2025-11-10',10,200,'Individual Client',0,'PMG','Sanlam','SUF Standard','Sanlam','',0,NULL,NULL,0,NULL,NULL,0,NULL,NULL,0.00,'Low',0,0,NULL,'Re-Find Market','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL,NULL),(7,'FUT00003','Awie de Swardt','Agricultural','Active','2025-11-10',10,200,'',0,'PMG','Sanlam','SUF Standard','Sanlam','',0,NULL,NULL,0,NULL,NULL,0,NULL,NULL,0.00,'Low',0,0,NULL,'Re-Find Market','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL,NULL),(8,'FUT00004','','','','2025-11-10',10,1,'',0,'','','','','',1,'docs/consulting/PSSUBF.xlsx',NULL,0,'',NULL,1,'',NULL,0.00,'High',0,0,NULL,'ajkl','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,'',NULL),(9,'FUT00005','','Retail','Active','2025-11-10',1,1,'',0,'','','','','',0,NULL,NULL,0,NULL,NULL,0,NULL,NULL,0.00,'Low',0,0,NULL,'qwertyuiop','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL,NULL),(10,'FUT00006','','Agricultural','Active','2025-11-10',1,1,'Individual Client',0,'Services','Sanlam','SUF Standard','Sanlam','',0,NULL,NULL,1,NULL,NULL,0,NULL,NULL,0.00,'Low',0,0,NULL,'Phase 3 ','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL,NULL),(11,'FUT00007','','Logistics','Active','2025-11-10',1,1,'',0,'','','','','',0,NULL,NULL,0,NULL,NULL,0,NULL,NULL,0.00,'Low',0,0,NULL,'ZeroSpark','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL,NULL),(12,'FUT00008','MARIDA BOTHA','Agricultural','Section 14','2025-11-10',1,2,'Fund',0,'Octofin','Momentum','SUF Comprehensive','Momentum','',1,'bank_line(1) (1).csv',NULL,0,'Old app views.py.txt',NULL,0,NULL,NULL,0.00,'Low',0,0,NULL,'testing','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL,NULL),(13,'FUT00009','','','',NULL,2,0,'',0,'','','','','',0,'',NULL,0,'',NULL,0,'',NULL,0.00,'Low',0,0,NULL,'jj','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,'',NULL),(14,'FUT00010','','','',NULL,NULL,0,'',0,'','','','','',0,'',NULL,0,'',NULL,0,'',NULL,0.00,'High',0,0,NULL,'','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,'',NULL),(15,'FUT00011','','','',NULL,NULL,0,'',0,'','','','','',1,'docs/consulting/Email_Tasks_20260520.xlsx',NULL,1,'docs/sla/Email_Tasks_20260520_1.xlsx',NULL,1,'docs/third_party/NEW_BANK_LINE_UPDATE.xlsx',NULL,0.00,'High',0,0,NULL,'',NULL,NULL,NULL,'','','',NULL,'',NULL),(16,'FUT00012','','','',NULL,2,0,'',0,'','','','','',0,'',NULL,0,'',NULL,0,'',NULL,0.00,'Low',0,0,NULL,'dfghjkl;',NULL,NULL,NULL,'','','',NULL,'',NULL),(19,'FUT00013','MERRIL FENNESSY','Agricultural','Section 14','2025-11-10',2,3,'Fund',0,'AdviceWorx','Sanlam','SUF Standard','Old Mutual','N/A',0,'',NULL,0,'',NULL,0,'',NULL,0.00,'High',0,0,NULL,'Re-Find Market123','Employer / Pension Fund','Employee Pension Fund','Payroll',NULL,NULL,NULL,NULL,'',NULL);
+INSERT INTO `client_client` VALUES (1,'FUT00001','','','','2025-11-10',2,1,'Individual Client',0,'Services','Sanlam','SUF Standard','Sanlam','N/A',0,NULL,NULL,0,NULL,NULL,0,NULL,NULL,0.00,'Low',0,0,NULL,'NEWNEW','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL,NULL),(6,'FUT00002','Marida Botha','Logistics','Active','2025-11-10',10,200,'Individual Client',0,'PMG','Sanlam','SUF Standard','Sanlam','',0,NULL,NULL,0,NULL,NULL,0,NULL,NULL,0.00,'Low',0,0,NULL,'Re-Find Market','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL,NULL),(7,'FUT00003','Awie de Swardt','Agricultural','Active','2025-11-10',10,200,'',0,'PMG','Sanlam','SUF Standard','Sanlam','',0,NULL,NULL,0,NULL,NULL,0,NULL,NULL,0.00,'Low',0,0,NULL,'Re-Find Market','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL,NULL),(8,'FUT00004','','','','2025-11-10',10,1,'',0,'','','','','',1,'docs/consulting/PSSUBF.xlsx',NULL,0,'',NULL,1,'',NULL,0.00,'High',0,0,NULL,'ajkl','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,'',NULL);
 /*!40000 ALTER TABLE `client_client` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -347,7 +347,7 @@ CREATE TABLE `client_contact` (
   PRIMARY KEY (`id`),
   KEY `client_id` (`client_id`),
   CONSTRAINT `client_contact_ibfk_1` FOREIGN KEY (`client_id`) REFERENCES `client_client` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=21 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=24 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -479,7 +479,7 @@ CREATE TABLE `client_reminders` (
 
 LOCK TABLES `client_reminders` WRITE;
 /*!40000 ALTER TABLE `client_reminders` DISABLE KEYS */;
-INSERT INTO `client_reminders` VALUES (1,1,'sdg','adsf','2026-01-05',NULL,1,1,'2026-01-05 13:32:51'),(2,1,'asf','sdf','2026-01-05',NULL,1,1,'2026-01-05 13:33:05'),(3,1,'Birthday','Birtday','2026-01-06',NULL,1,0,'2026-01-05 13:36:20'),(4,1,'Bath day','Taking the bath','2026-01-05',NULL,1,1,'2026-01-05 13:44:38'),(5,8,'Meeting','Client meeting','2026-01-29','09:00:00',1,1,'2026-01-29 09:45:31'),(6,1,'testing','testing (1)','2026-04-27','12:00:00',1,1,'2026-04-27 20:19:47'),(7,8,'ghghghghgh','','2026-06-08','09:00:00',1,0,'2026-06-08 19:44:46');
+INSERT INTO `client_reminders` VALUES (1,1,'sdg','adsf','2026-01-05',NULL,1,1,'2026-01-05 13:32:51'),(2,1,'asf','sdf','2026-01-05',NULL,1,1,'2026-01-05 13:33:05'),(3,1,'Birthday','Birtday','2026-01-06',NULL,1,0,'2026-01-05 13:36:20'),(4,1,'Bath day','Taking the bath','2026-01-05',NULL,1,1,'2026-01-05 13:44:38'),(5,8,'Meeting','Client meeting','2026-01-29','09:00:00',1,1,'2026-01-29 09:45:31'),(6,1,'testing','testing (1)','2026-04-27','12:00:00',1,1,'2026-04-27 20:19:47'),(7,8,'ghghghghgh','','2026-06-08','09:00:00',1,1,'2026-06-08 19:44:46');
 /*!40000 ALTER TABLE `client_reminders` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -691,7 +691,7 @@ CREATE TABLE `fica_address` (
   PRIMARY KEY (`id`),
   KEY `client_id` (`client_id`),
   CONSTRAINT `fica_address_ibfk_1` FOREIGN KEY (`client_id`) REFERENCES `client_client` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=38 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=41 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -835,7 +835,7 @@ CREATE TABLE `fica_responsibleperson` (
   PRIMARY KEY (`id`),
   KEY `client_id` (`client_id`),
   CONSTRAINT `fica_responsibleperson_ibfk_1` FOREIGN KEY (`client_id`) REFERENCES `client_client` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -961,4 +961,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-06-08 21:51:13
+-- Dump completed on 2026-06-08 22:23:23
