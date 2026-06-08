@@ -39,7 +39,7 @@ from .models import (
 )
 
 # --- Constants ---
-CONSULTANTS = ['Awie de Swardt', 'MariDa Botha', 'Stephan de Waal', 'Merril Fennesy']
+CONSULTANTS = ['Awie de Swardt', 'Marida Botha', 'Stephan de Waal', 'Merril Fennesy']
 CLAIM_TYPES = [
     'Funeral - main member', 'Funeral - spouse', 'Funeral - child', 'Funeral - family',
     'Normal Withdrawal', 'Divorce', 'Disability', 'Temporary Disability', 'Death', 'Retirement'

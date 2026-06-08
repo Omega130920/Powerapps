@@ -253,9 +253,6 @@
                             <td>{{ claim.insurer }}</td>
                             <td>{{ claim.claim_type }}</td>
                             <td class="note-col" title="{{ claim.last_action|default:claim.initial_notes }}">
-                                {% if claim.last_action %}
-                                    <span class="text-blue-600 font-bold">[{{ claim.last_action }}]</span>
-                                {% endif %}
                                 {{ claim.initial_notes|default:"No updates" }}
                             </td>
                             <td>{{ claim.consultant }}</td>
