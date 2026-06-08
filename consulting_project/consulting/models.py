@@ -197,17 +197,22 @@ class FicaDirector(models.Model):
     contact_number = models.CharField(max_length=50, null=True, blank=True)
     email_address = models.CharField(max_length=100, null=True, blank=True)
     
-    # Addresses
+    # Physical Address
     phys_line1 = models.CharField(max_length=150)
     phys_line2 = models.CharField(max_length=150, null=True, blank=True)
     phys_province = models.CharField(max_length=50, null=True, blank=True)
     phys_city = models.CharField(max_length=100, null=True, blank=True)
     phys_suburb = models.CharField(max_length=100, null=True, blank=True)
     phys_code = models.CharField(max_length=20, null=True, blank=True)
+    
+    # Postal Address
     postal_same_as_phys = models.BooleanField(default=True)
     postal_line1 = models.CharField(max_length=150, null=True, blank=True)
     postal_line2 = models.CharField(max_length=150, null=True, blank=True)
     postal_province = models.CharField(max_length=50, null=True, blank=True)
+    postal_city = models.CharField(max_length=100, null=True, blank=True)
+    postal_suburb = models.CharField(max_length=100, null=True, blank=True)
+    postal_code = models.CharField(max_length=20, null=True, blank=True)
 
     # Document Uploads
     proof_addr_file = models.CharField(max_length=255, null=True, blank=True)
@@ -250,10 +255,16 @@ class FicaBeneficialOwner(models.Model):
     phys_city = models.CharField(max_length=100, null=True, blank=True)
     phys_suburb = models.CharField(max_length=100, null=True, blank=True)
     phys_code = models.CharField(max_length=20, null=True, blank=True)
+    
+    # Postal Address
     postal_same_as_phys = models.BooleanField(default=True)
     postal_line1 = models.CharField(max_length=150, null=True, blank=True)
     postal_line2 = models.CharField(max_length=150, null=True, blank=True)
     postal_province = models.CharField(max_length=50, null=True, blank=True)
+    # NEW FIELDS ADDED
+    postal_city = models.CharField(max_length=100, null=True, blank=True)
+    postal_suburb = models.CharField(max_length=100, null=True, blank=True)
+    postal_code = models.CharField(max_length=20, null=True, blank=True)
 
     # Document Uploads
     proof_addr_file = models.CharField(max_length=255, null=True, blank=True)

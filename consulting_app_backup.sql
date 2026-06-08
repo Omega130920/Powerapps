@@ -317,7 +317,7 @@ CREATE TABLE `client_client` (
 
 LOCK TABLES `client_client` WRITE;
 /*!40000 ALTER TABLE `client_client` DISABLE KEYS */;
-INSERT INTO `client_client` VALUES (1,'FUT00001','','','','2025-11-10',2,1,'Individual Client',0,'Services','Sanlam','SUF Standard','Sanlam','N/A',0,NULL,NULL,0,NULL,NULL,0,NULL,NULL,0.00,'Low',0,0,NULL,'NEWNEW','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL,NULL),(6,'FUT00002','Marida Botha','Logistics','Active','2025-11-10',10,200,'Individual Client',0,'PMG','Sanlam','SUF Standard','Sanlam','',0,NULL,NULL,0,NULL,NULL,0,NULL,NULL,0.00,'Low',0,0,NULL,'Re-Find Market','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL,NULL),(7,'FUT00003','Awie de Swardt','Agricultural','Active','2025-11-10',10,200,'',0,'PMG','Sanlam','SUF Standard','Sanlam','',0,NULL,NULL,0,NULL,NULL,0,NULL,NULL,0.00,'Low',0,0,NULL,'Re-Find Market','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL,NULL),(8,'FUT00004','','','','2025-11-10',10,1,'',0,'','','','','',1,'docs/consulting/PSSUBF.xlsx',NULL,0,'',NULL,1,'',NULL,0.00,'High',0,0,NULL,'ajkl','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,'',NULL);
+INSERT INTO `client_client` VALUES (1,'FUT00001','','','','2025-11-10',2,1,'Individual Client',0,'Services','Sanlam','SUF Standard','Sanlam','N/A',0,NULL,NULL,0,NULL,NULL,0,NULL,NULL,0.00,'Low',0,0,NULL,'NEWNEW','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL,NULL),(6,'FUT00002','Marida Botha','Logistics','Active','2025-11-10',10,200,'Individual Client',0,'PMG','Sanlam','SUF Standard','Sanlam','',0,NULL,NULL,0,NULL,NULL,0,NULL,NULL,0.00,'Low',0,0,NULL,'Re-Find Market','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL,NULL),(7,'FUT00003','Awie de Swardt','Agricultural','Active','2025-11-10',10,200,'',0,'PMG','Sanlam','SUF Standard','Sanlam','',0,NULL,NULL,0,NULL,NULL,0,NULL,NULL,0.00,'Low',0,0,NULL,'Re-Find Market','Employer / Pension Fund','Employee Pension Fund','Payroll','','','',NULL,NULL,NULL),(8,'FUT00004','','','','2025-11-10',10,1,'',0,'','','','','',1,'docs/consulting/image034_1.png',NULL,0,'docs/sla/image030.png',NULL,1,'docs/third_party/image029.png',NULL,0.00,'Low',0,0,NULL,'ajkl',NULL,NULL,NULL,'','','',NULL,'',NULL);
 /*!40000 ALTER TABLE `client_client` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -517,7 +517,7 @@ CREATE TABLE `client_risk_rating` (
 
 LOCK TABLES `client_risk_rating` WRITE;
 /*!40000 ALTER TABLE `client_risk_rating` DISABLE KEYS */;
-INSERT INTO `client_risk_rating` VALUES (17,14,'Responsible Person #1',NULL,'Responsible Person',275,'High',1,0,0,1,1,1,'2026-05-28 19:26:42'),(18,14,'Director #1',NULL,'Director',185,'High',1,1,0,0,1,1,'2026-05-28 19:26:42'),(19,14,'Owner #1',NULL,'Owner',125,'High',0,0,1,0,0,1,'2026-05-28 19:26:42'),(20,8,'Responsible Person #1',NULL,'Responsible Person',110,'High',0,1,1,0,0,0,'2026-05-28 19:53:24'),(21,8,'Director #1',NULL,'Director',200,'High',0,0,1,1,0,0,'2026-05-28 19:53:24'),(22,8,'Owner #1',NULL,'Owner',200,'High',0,0,0,1,1,0,'2026-05-28 19:53:24'),(23,15,'Responsible Person #1',NULL,'Responsible Person',100,'High',0,0,1,0,0,0,'2026-05-30 16:26:24'),(24,15,'Director #1',NULL,'Director',10,'Low',0,1,0,0,0,0,'2026-05-30 16:26:24'),(25,15,'Owner #1',NULL,'Owner',60,'Medium',1,1,0,0,0,0,'2026-05-30 16:26:24'),(26,19,'hhhh sdfghjk','9510245212088','Responsible Person',110,'High',0,1,0,0,0,0,'2026-06-08 19:10:25'),(27,19,'luano sdfghjk','9510245212088','Director',110,'High',0,1,0,1,0,0,'2026-06-08 19:10:25'),(28,19,'luano','9510245212088','Owner',110,'High',0,1,1,0,0,0,'2026-06-08 19:10:25');
+INSERT INTO `client_risk_rating` VALUES (17,14,'Responsible Person #1',NULL,'Responsible Person',275,'High',1,0,0,1,1,1,'2026-05-28 19:26:42'),(18,14,'Director #1',NULL,'Director',185,'High',1,1,0,0,1,1,'2026-05-28 19:26:42'),(19,14,'Owner #1',NULL,'Owner',125,'High',0,0,1,0,0,1,'2026-05-28 19:26:42'),(23,15,'Responsible Person #1',NULL,'Responsible Person',100,'High',0,0,1,0,0,0,'2026-05-30 16:26:24'),(24,15,'Director #1',NULL,'Director',10,'Low',0,1,0,0,0,0,'2026-05-30 16:26:24'),(25,15,'Owner #1',NULL,'Owner',60,'Medium',1,1,0,0,0,0,'2026-05-30 16:26:24'),(26,19,'hhhh sdfghjk','9510245212088','Responsible Person',110,'High',0,1,0,0,0,0,'2026-06-08 19:10:25'),(27,19,'luano sdfghjk','9510245212088','Director',110,'High',0,1,0,1,0,0,'2026-06-08 19:10:25'),(28,19,'luano','9510245212088','Owner',110,'High',0,1,1,0,0,0,'2026-06-08 19:10:25');
 /*!40000 ALTER TABLE `client_risk_rating` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -691,7 +691,7 @@ CREATE TABLE `fica_address` (
   PRIMARY KEY (`id`),
   KEY `client_id` (`client_id`),
   CONSTRAINT `fica_address_ibfk_1` FOREIGN KEY (`client_id`) REFERENCES `client_client` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=41 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=42 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -700,7 +700,7 @@ CREATE TABLE `fica_address` (
 
 LOCK TABLES `fica_address` WRITE;
 /*!40000 ALTER TABLE `fica_address` DISABLE KEYS */;
-INSERT INTO `fica_address` VALUES (1,1,'physical','','','','','',''),(5,6,'physical','44 Minuet Ridge','','Western Cape','Cape Town','Durbanville','7440'),(6,7,'physical','','','','','',''),(10,11,'physical','','','','','',''),(12,9,'physical','','','','','',''),(15,10,'physical','44 Minuet Ridge','','Western Cape','Cape Town','Durbanville','7440'),(19,12,'physical','','','','','',''),(26,14,'physical','','','','','',''),(27,13,'physical','','','','','',''),(28,8,'physical','','','','','',''),(32,15,'physical','44 Minuet Ridge','','','Cape Town','','7440'),(34,16,'physical','44 Minuet Ridge','','','Cape Town','','7440'),(37,19,'physical','44 Minuet Ridge','44 Minuet Ridge','Western Cap','Cape Town',NULL,'7440');
+INSERT INTO `fica_address` VALUES (1,1,'physical','','','','','',''),(5,6,'physical','44 Minuet Ridge','','Western Cape','Cape Town','Durbanville','7440'),(6,7,'physical','','','','','',''),(10,11,'physical','','','','','',''),(12,9,'physical','','','','','',''),(15,10,'physical','44 Minuet Ridge','','Western Cape','Cape Town','Durbanville','7440'),(19,12,'physical','','','','','',''),(26,14,'physical','','','','','',''),(27,13,'physical','','','','','',''),(32,15,'physical','44 Minuet Ridge','','','Cape Town','','7440'),(34,16,'physical','44 Minuet Ridge','','','Cape Town','','7440'),(37,19,'physical','44 Minuet Ridge','44 Minuet Ridge','Western Cap','Cape Town',NULL,'7440'),(41,8,'physical','','','','','','');
 /*!40000 ALTER TABLE `fica_address` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -740,6 +740,9 @@ CREATE TABLE `fica_beneficialowner` (
   `ppo_reason` text,
   `is_kca` tinyint(1) DEFAULT '0',
   `kca_reason` text,
+  `postal_city` varchar(100) DEFAULT NULL,
+  `postal_suburb` varchar(100) DEFAULT NULL,
+  `postal_code` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `client_id` (`client_id`),
   CONSTRAINT `fica_beneficialowner_ibfk_1` FOREIGN KEY (`client_id`) REFERENCES `client_client` (`id`)
@@ -752,7 +755,7 @@ CREATE TABLE `fica_beneficialowner` (
 
 LOCK TABLES `fica_beneficialowner` WRITE;
 /*!40000 ALTER TABLE `fica_beneficialowner` DISABLE KEYS */;
-INSERT INTO `fica_beneficialowner` VALUES (1,19,'luano','','','9510245212088','','luanoveck@gmail.com','44 Minuet Ridge',NULL,NULL,NULL,NULL,NULL,1,NULL,NULL,NULL,NULL,NULL,0,NULL,0,NULL,0,NULL,0,NULL);
+INSERT INTO `fica_beneficialowner` VALUES (1,19,'luano','','','9510245212088','','luanoveck@gmail.com','44 Minuet Ridge',NULL,NULL,NULL,NULL,NULL,1,NULL,NULL,NULL,NULL,NULL,0,NULL,0,NULL,0,NULL,0,NULL,NULL,NULL,NULL);
 /*!40000 ALTER TABLE `fica_beneficialowner` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -792,6 +795,9 @@ CREATE TABLE `fica_director` (
   `ppo_reason` text,
   `is_kca` tinyint(1) DEFAULT '0',
   `kca_reason` text,
+  `postal_city` varchar(100) DEFAULT NULL,
+  `postal_suburb` varchar(100) DEFAULT NULL,
+  `postal_code` varchar(20) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `client_id` (`client_id`),
   CONSTRAINT `fica_director_ibfk_1` FOREIGN KEY (`client_id`) REFERENCES `client_client` (`id`)
@@ -804,7 +810,7 @@ CREATE TABLE `fica_director` (
 
 LOCK TABLES `fica_director` WRITE;
 /*!40000 ALTER TABLE `fica_director` DISABLE KEYS */;
-INSERT INTO `fica_director` VALUES (1,6,'luano','van Eck','','','0833803942','luanoveck@gmail.com','44 Minuet Ridge','','','Cape Town','','7440',1,NULL,NULL,NULL,NULL,NULL,0,NULL,0,NULL,0,NULL,0,NULL),(2,19,'luano','sdfghjk','luanoveck@gmail.com','9510245212088','xcvbnm','luanoveck@gmail.com','44 Minuet Ridge',NULL,NULL,NULL,NULL,NULL,1,NULL,NULL,NULL,NULL,NULL,0,NULL,0,NULL,0,NULL,0,NULL);
+INSERT INTO `fica_director` VALUES (1,6,'luano','van Eck','','','0833803942','luanoveck@gmail.com','44 Minuet Ridge','','','Cape Town','','7440',1,NULL,NULL,NULL,NULL,NULL,0,NULL,0,NULL,0,NULL,0,NULL,NULL,NULL,NULL),(2,19,'luano','sdfghjk','luanoveck@gmail.com','9510245212088','xcvbnm','luanoveck@gmail.com','44 Minuet Ridge',NULL,NULL,NULL,NULL,NULL,1,NULL,NULL,NULL,NULL,NULL,0,NULL,0,NULL,0,NULL,0,NULL,NULL,NULL,NULL);
 /*!40000 ALTER TABLE `fica_director` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -961,4 +967,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-06-08 22:23:23
+-- Dump completed on 2026-06-08 22:29:53
