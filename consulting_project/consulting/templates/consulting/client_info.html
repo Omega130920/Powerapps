@@ -603,13 +603,35 @@
         </div> 
         
         <div id="tab4" class="tab-content">
-            <h2>Standard Directory Structure</h2>
-            <div class="folder-list-container">
-                <p style="color: #777; margin-bottom: 25px; font-size: 0.95rem;">Automated folder structure for SharePoint synchronization and local record keeping.</p>
-                <ul class="folder-list">
-                    <li>Agendas</li><li>Benefit Statements</li><li>Claims</li><li>Commission</li><li>Appointment Letters</li><li>Conversion Options</li><li>FICA Documents</li><li>Forms</li><li>HR Manual</li><li>Implementation</li><li>Investments</li><li>Logo</li><li>Medicals</li><li>Member Guide</li><li>Minutes</li><li>Newsletters</li><li>Presentations</li><li>Rebroke</li><li>Record of Advice</li><li>Resolutions</li><li>Revisions</li><li>Rules & Amendments</li><li>Section 14 Docs</li><li>Service Agreements</li><li>3rd Party Contact</li><li>Transfer Details</li><li>Two-Pot</li><li>Welcome Letters</li><li>Year Planner</li>
-                </ul>
-            </div>
+            <h2>Client Documents</h2>
+            <p style="color: #777; margin-bottom: 25px; font-size: 0.95rem;">Upload and categorize files for this client.</p>
+
+            <form method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+                <table id="document-table" style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid #edf2f7; text-align: left;">
+                            <th style="padding: 10px;">Name</th>
+                            <th style="padding: 10px;">Date Created</th>
+                            <th style="padding: 10px;">File</th>
+                            <th style="padding: 10px;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="document-rows">
+                        {% for doc in client_documents %}
+                        <tr>
+                            <td style="padding: 10px;">{{ doc.document_name }}</td>
+                            <td style="padding: 10px;">{{ doc.date_created }}</td>
+                            <td style="padding: 10px;"><a href="{{ doc.file.url }}" target="_blank">View File</a></td>
+                            <td style="padding: 10px;">-</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <button type="button" onclick="addDocumentRow()" style="padding: 8px 15px; cursor: pointer;">+ Add New Row</button>
+                <button type="submit" name="upload_docs" style="padding: 8px 15px; cursor: pointer; background: var(--primary-green); color: white; border: none;">Save All Files</button>
+            </form>
         </div>
 
         <div id="tab5" class="tab-content">
@@ -843,8 +865,23 @@
 
     </div>
 
-    <script>
-        // Tab switching logic
+<script>
+        // --- Dynamic Document Row Logic ---
+        let docIdx = 0;
+        function addDocumentRow() {
+            const container = document.getElementById('document-rows');
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td style="padding: 10px;"><input type="text" name="doc_name_${docIdx}" placeholder="File Name" required></td>
+                <td style="padding: 10px;"><input type="date" name="doc_date_${docIdx}" required></td>
+                <td style="padding: 10px;"><input type="file" name="doc_file_${docIdx}" required></td>
+                <td style="padding: 10px;"><button type="button" onclick="this.parentElement.parentElement.remove()">Remove</button></td>
+            `;
+            container.appendChild(row);
+            docIdx++;
+        }
+
+        // --- Tab switching logic ---
         function openTab(evt, tabName) {
             let tabContent = document.getElementsByClassName("tab-content");
             for (let i = 0; i < tabContent.length; i++) { tabContent[i].style.display = "none"; tabContent[i].classList.remove("active"); }
@@ -855,7 +892,7 @@
             evt.currentTarget.classList.add("active");
         }
 
-        // Checklist Visibility Toggle Logic
+        // --- Checklist Visibility Toggle Logic ---
         function toggleRiskDetails(rowId) {
             const element = document.getElementById(rowId);
             if(element.style.display === "none") {
@@ -865,7 +902,7 @@
             }
         }
 
-        // File Selection Preview
+        // --- File Selection Preview ---
         document.getElementById('note_files').addEventListener('change', function() {
             const preview = document.getElementById('file_preview_list');
             preview.innerHTML = '';
@@ -874,7 +911,7 @@
             }
         });
 
-        // FormData Note Posting Logic (Handles Multiple Attachments)
+        // --- FormData Note Posting Logic (Handles Multiple Attachments) ---
         document.getElementById('submitNoteBtn').addEventListener('click', function() {
             const btn = this;
             const clientCode = "{{ client.future_client_number }}";

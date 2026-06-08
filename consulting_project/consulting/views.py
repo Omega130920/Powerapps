@@ -21,7 +21,8 @@ from django.db.models.functions import Trim
 # --- Consolidated Imports ---
 from .models import (
     ClientClient, 
-    ClientContact, 
+    ClientContact,
+    ClientDocument, 
     ClientInteractionNote, 
     ClientReminder,
     FSCASanctionList,
@@ -38,7 +39,7 @@ from .models import (
 )
 
 # --- Constants ---
-CONSULTANTS = ['Awie de Swardt', 'Marika Botha', 'Stephan de Waal', 'Merri Fennesy']
+CONSULTANTS = ['Awie de Swardt', 'MariDa Botha', 'Stephan de Waal', 'Merril Fennesy']
 CLAIM_TYPES = [
     'Funeral - main member', 'Funeral - spouse', 'Funeral - child', 'Funeral - family',
     'Normal Withdrawal', 'Divorce', 'Disability', 'Temporary Disability', 'Death', 'Retirement'
@@ -155,17 +156,46 @@ def client_list_view(request):
     return render(request, 'consulting/client_list.html', {'clients': clients})
 
 
+from django.core.files.storage import default_storage
+# Make sure your imports include ClientDocument
+# from .models import ..., ClientDocument
+
 def client_info_view(request, client_code):
-    """Detail view fetching ALL related FICA data including Risk Ratings."""
+    """Detail view fetching ALL related FICA data and handling document uploads."""
+    
+    # 1. Fetch the client first
     client = get_object_or_404(
         ClientClient.objects.prefetch_related(
             'clientcontact_set', 'ficaaddress_set', 'ficadirector_set', 
             'ficabeneficialowner_set', 'ficaresponsibleperson_set',
-            'clientriskrating_set' 
+            'clientriskrating_set', 'clientdocument_set' 
         ), 
         future_client_number=client_code
     )
-    
+
+    # 2. Handle File Uploads (New Logic)
+    if request.method == 'POST' and 'upload_docs' in request.POST:
+        doc_idx = 0
+        # Loop through dynamic file inputs sent from the form
+        while f'doc_name_{doc_idx}' in request.POST:
+            file_key = f'doc_file_{doc_idx}'
+            if file_key in request.FILES:
+                file_obj = request.FILES[file_key]
+                # Save physical file to storage
+                saved_path = default_storage.save(f'client_docs/{file_obj.name}', file_obj)
+                
+                # Save record to database
+                ClientDocument.objects.create(
+                    client=client,
+                    document_name=request.POST.get(f'doc_name_{doc_idx}'),
+                    date_created=request.POST.get(f'doc_date_{doc_idx}'),
+                    file=saved_path
+                )
+            doc_idx += 1
+        # Reload the page to show the new list
+        return redirect('client_info', client_code=client_code)
+
+    # 3. Existing View Logic
     client_notes = ClientInteractionNote.objects.filter(client=client).order_by('-created_at')
     client_contacts = client.clientcontact_set.all().order_by('id')
     fica_addresses = client.ficaaddress_set.all().order_by('id')
@@ -176,7 +206,7 @@ def client_info_view(request, client_code):
     # Fetch base risk objects
     raw_risk_data = client.clientriskrating_set.all().order_by('id') 
     
-    # Map the database properties containing the "is_" prefix to the "q_" template field names
+    # Map the database properties
     risk_data = []
     for r in raw_risk_data:
         risk_data.append({
@@ -198,6 +228,7 @@ def client_info_view(request, client_code):
 
     context = {
         'client': client,
+        'client_documents': client.clientdocument_set.all(), # Passed to HTML for listing
         'client_notes': client_notes,
         'client_contacts': client_contacts,
         'physical_addr': physical_addr,
@@ -542,6 +573,8 @@ def add_client_view(request):
         print("--- DEBUG: POST Request Received ---")
         data = request.POST
         files = request.FILES
+        
+        # NOTE: Make sure get_next_client_number() and safe_parse_date() are defined in this file
         client_code = data.get('client_number', get_next_client_number())
         
         try:
@@ -549,19 +582,18 @@ def add_client_view(request):
             def upload_file(key):
                 if key in files:
                     uploaded_file = files[key]
-                    # Physically writes to media folder
                     saved_name = default_storage.save(uploaded_file.name, uploaded_file)
                     print(f"DEBUG: Physically saved {saved_name} to media folder.")
                     return saved_name
                 return None
 
-            # Pre-save the files
+            # Pre-save the primary files
             saved_letter = upload_file('consulting_letter_file')
             saved_sla = upload_file('sla_file')
             saved_third_party = upload_file('third_party_doc_file')
 
             with transaction.atomic():
-                # 2. Create the Client using the names we got from default_storage
+                # 2. Create the main Client instance
                 client = ClientClient.objects.create(
                     future_client_number=client_code, 
                     client_name=data.get('client_name'),
@@ -598,7 +630,7 @@ def add_client_view(request):
                     source_of_funds=data.get('source_funds', 'Payroll')
                 )
 
-                # 3. Create Physical Address
+                # 3. Create Business Physical Address
                 FicaAddress.objects.create(
                     client=client, 
                     address_type='physical', 
@@ -609,22 +641,87 @@ def add_client_view(request):
                     postal_code=data.get('physical_code')
                 )
 
-                # 4. Save Risk Ratings with Automated Sanction Check
-                # This loop processes Directors and Owners synced into Step 7
+                # 4. Save Dynamic Contact Persons (Mapping to ClientContact model)
+                contact_idx = 0
+                while f'contact-name-{contact_idx}' in data:
+                    ClientContact.objects.create(
+                        client=client,
+                        name=data.get(f'contact-name-{contact_idx}'),
+                        surname=data.get(f'contact-surname-{contact_idx}'),
+                        job_title=data.get(f'contact-job_title-{contact_idx}'),
+                        email=data.get(f'contact-email-{contact_idx}'),
+                        cell_no=data.get(f'contact-cell-{contact_idx}'),
+                        landline=data.get(f'contact-landline-{contact_idx}'),
+                        birthday=data.get(f'contact-birthday-{contact_idx}'),
+                        interests=data.get(f'contact-interests-{contact_idx}'),
+                        notes=data.get(f'contact-notes-{contact_idx}')
+                    )
+                    contact_idx += 1
+
+                # 5. Save Dynamic Directors (Mapping to FicaDirector model)
+                dir_idx = 0
+                while f'dir_name_{dir_idx}' in data:
+                    FicaDirector.objects.create(
+                        client=client,
+                        name=data.get(f'dir_name_{dir_idx}'),
+                        surname=data.get(f'dir_surname_{dir_idx}'),
+                        contact_number=data.get(f'dir_contact_{dir_idx}'),
+                        email_address=data.get(f'dir_email_{dir_idx}'),
+                        id_number=data.get(f'dir_id_{dir_idx}'),
+                        designation=data.get(f'dir_designation_{dir_idx}'),
+                        phys_line1=data.get(f'dir_phys_line1_{dir_idx}', '')
+                    )
+                    dir_idx += 1
+
+                # 6. Save Dynamic Beneficial Owners (Mapping to FicaBeneficialOwner model)
+                owner_idx = 0
+                while f'owner_name_{owner_idx}' in data:
+                    FicaBeneficialOwner.objects.create(
+                        client=client,
+                        name=data.get(f'owner_name_{owner_idx}'),
+                        surname=data.get(f'owner_surname_{owner_idx}'),
+                        contact_number=data.get(f'owner_cell_{owner_idx}'),
+                        email_address=data.get(f'owner_email_{owner_idx}'),
+                        id_number=data.get(f'owner_id_{owner_idx}'),
+                        designation=data.get(f'owner_designation_{owner_idx}'),
+                        phys_line1=data.get(f'owner_phys_line1_{owner_idx}', '')
+                    )
+                    owner_idx += 1
+
+                # 7. Save Responsible Persons (Mapping to FicaResponsiblePerson model)
+                # First one without index
+                if data.get('resp_name'):
+                    FicaResponsiblePerson.objects.create(
+                        client=client,
+                        name=data.get('resp_name'),
+                        surname=data.get('resp_surname'),
+                        designation=data.get('resp_designation'),
+                        contact_number=data.get('resp_contact'),
+                        id_number=data.get('resp_id'),
+                        email_address=data.get('resp_email')
+                    )
+                
+                resp_idx = 1
+                while f'resp_name_{resp_idx}' in data:
+                    FicaResponsiblePerson.objects.create(
+                        client=client,
+                        name=data.get(f'resp_name_{resp_idx}'),
+                        surname=data.get(f'resp_surname_{resp_idx}'),
+                        designation=data.get(f'resp_designation_{resp_idx}'),
+                        contact_number=data.get(f'resp_contact_{resp_idx}'),
+                        id_number=data.get(f'resp_id_{resp_idx}'),
+                        email_address=data.get(f'resp_email_{resp_idx}')
+                    )
+                    resp_idx += 1
+
+                # 8. Save Risk Ratings
                 risk_indices = request.POST.getlist('risk_person_index')
                 for idx in risk_indices:
-                    # Retrieve the ID number provided for this specific person
                     person_id = data.get(f'risk_id_number_{idx}')
-                    
-                    # Perform the numeric match against the unmanaged FSCA Sanction List
-                    # Logic: Strips non-digits from both input and DB for a clean match
                     is_on_sanction_list = FSCASanctionList.is_id_sanctioned(person_id)
-                    
-                    # Default values from the form submission
                     score_to_save = int(data.get(f'risk_score_{idx}', 0))
                     rating_to_save = data.get(f'risk_rating_{idx}', 'Low')
                     
-                    # OVERRIDE: If matched on Sanction List, force to High Risk
                     if is_on_sanction_list:
                         score_to_save = 100
                         rating_to_save = 'High'
@@ -644,14 +741,12 @@ def add_client_view(request):
                         is_complex_structure=(data.get(f'q_complex_{idx}') == 'true')
                     )
 
-            print(f"DEBUG: Transaction complete for {client_code}.")
             messages.success(request, f"Successfully added {client_code}")
             return redirect('client_info', client_code=client_code) 
 
         except Exception as e:
-            print(f"--- ERROR: {e} ---")
             traceback.print_exc()
-            messages.error(request, f"Database/File Error: {e}")
+            messages.error(request, f"Database Error: {e}")
             
     return render(request, 'consulting/add_new_client.html', {'client_number': get_next_client_number()})
 # ------------------------------------------------------
@@ -675,7 +770,8 @@ def log_lead_note_view(request, lead_id):
             note_content = request.POST.get('note_content')
             if not note_content:
                 messages.error(request, "Note content cannot be empty.")
-                return redirect(f'/leads/{lead_id}/info/#tab2')
+                # UPDATED: Added /consulting/ prefix
+                return redirect(f'/consulting/leads/{lead_id}/info/#tab2')
             
             timestamp = dt.datetime.now().strftime('%Y-%m-%d %H:%M')
             new_note_entry = f"\n\n--- LOGGED: {timestamp} ---\nBY: {lead.assigned_to}\nNOTES:\n{note_content}"
@@ -686,7 +782,8 @@ def log_lead_note_view(request, lead_id):
             messages.success(request, "Note logged successfully.")
     except Exception as e:
         messages.error(request, f"Error: {e}")
-    return redirect(f'/leads/{lead_id}/info/#tab2')
+    # UPDATED: Added /consulting/ prefix
+    return redirect(f'/consulting/leads/{lead_id}/info/#tab2')
 
 @csrf_exempt 
 def add_new_lead_view(request):
@@ -718,6 +815,7 @@ def add_new_lead_view(request):
                 assigned_to=request.POST.get('assigned_to', 'Unassigned')
             )
             messages.success(request, "Lead created successfully!")
+            # Note: lead_list is already pointing to /consulting/leads/
             return redirect('lead_list')
         except Exception as e:
             return render(request, 'consulting/add_new_lead.html', {

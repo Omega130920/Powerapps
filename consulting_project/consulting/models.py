@@ -532,3 +532,14 @@ class FSCASanctionList(models.Model):
             where=["REGEXP_REPLACE(IndividualDocument, '[^0-9]', '') = %s"],
             params=[clean_id]
         ).exists()
+        
+class ClientDocument(models.Model):
+    client = models.ForeignKey(ClientClient, on_delete=models.CASCADE, db_column='client_id')
+    document_name = models.CharField(max_length=255)
+    date_created = models.DateField()
+    file = models.FileField(upload_to='client_docs/')
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = 'client_documents'

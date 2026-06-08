@@ -22,6 +22,7 @@ urlpatterns = [
     path('leads/', views.lead_list_view, name='lead_list'),
     path('leads/add/', views.add_new_lead_view, name='add_new_lead'),
     path('leads/<int:lead_id>/info/', views.lead_info_view, name='lead_info'),
+    path('leads/<int:lead_id>/log_note/', views.log_lead_note_view, name='log_lead_note'), # Added this
     path('leads/<int:lead_id>/edit/', views.lead_edit_view, name='edit_lead'),
     
     # Path for logging a new note/follow-up
@@ -53,4 +54,5 @@ urlpatterns = [
     path('export-fica-info/', views.export_fica_information_view, name='export_fica_info'),
     path('compliance/fsca-import/', views.import_fsca_list, name='import_fsca_list'),
     path('compliance/fsca-list/', views.fsca_list_view, name='fsca_list_view'),
+    path('compliance/check-sanction/', views.check_sanction_status, name='check_sanction_status'),
 ]
