@@ -65,7 +65,6 @@
 
         .return-button:hover { background-color: #66bb6a; }
 
-        /* Darker green for Export and Add actions */
         .export-button {
             background-color: #1b5e20;
         }
@@ -118,7 +117,7 @@
             border-radius: 8px;
             border: 1px solid #c3e6cb;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            display: none; /* Hidden by default */
+            display: none;
         }
 
         .grid-form {
@@ -143,7 +142,6 @@
             box-sizing: border-box;
         }
 
-        /* --- MODAL OVERLAY STYLES --- */
         .modal-overlay {
             display: none;
             position: fixed;
@@ -189,7 +187,6 @@
         </div>
     </div>
 
-    {# --- System Messages --- #}
     {% if messages %}
         <div style="margin-bottom: 15px;">
         {% for message in messages %}
@@ -277,7 +274,10 @@
                 </div>
                 <div class="input-group">
                     <label>Reason</label>
-                    <input type="text" name="reason" class="input-field">
+                    <input type="text" name="reason" class="input-field" list="reason-list" placeholder="Select or type reason...">
+                    <datalist id="reason-list">
+                        <option value="Temp No Risk Cost">
+                    </datalist>
                 </div>
                 <div class="input-group">
                     <label>BIS From Date</label>
@@ -335,7 +335,10 @@
                 </div>
                 <div class="input-group">
                     <label>Reason</label>
-                    <input type="text" name="reason" id="edit_reason" class="input-field">
+                    <input type="text" name="reason" id="edit_reason" class="input-field" list="edit-reason-list">
+                    <datalist id="edit-reason-list">
+                        <option value="Temp No Risk Cost">
+                    </datalist>
                 </div>
                 <div class="input-group">
                     <label>BIS From Date</label>

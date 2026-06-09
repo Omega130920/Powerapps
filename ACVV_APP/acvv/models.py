@@ -17,10 +17,18 @@ class Globalacvv(models.Model):
     # Primary Telephone
     tel = models.CharField(db_column='TEL', max_length=50, null=True, blank=True)
     
-    # --- NEW FIELD: Secondary Telephone ---
+    # Secondary Telephone
     tel_2 = models.CharField(db_column='TEL 2', max_length=50, null=True, blank=True)
 
-    # --- NEW FIELDS: Address, NPO Code & Bank Info ---
+    # --- NEW BANK & EMPLOYER CONTACT FIELDS ---
+    bank = models.CharField(db_column='BANK', max_length=255, null=True, blank=True)
+    branch = models.CharField(db_column='BRANCH', max_length=255, null=True, blank=True)
+    account_number = models.CharField(db_column='ACCOUNT NUMBER', max_length=255, null=True, blank=True)
+    account_name = models.CharField(db_column='ACCOUNT NAME', max_length=255, null=True, blank=True)
+    account_type = models.CharField(db_column='ACCOUNT TYPE', max_length=255, null=True, blank=True)
+    employer_contacts = models.CharField(db_column='EMPLOYER CONTACTS', max_length=255, null=True, blank=True)
+
+    # Address, NPO Code & Bank Info
     mg_address = models.CharField(db_column='MG ADDRESS', max_length=255, null=True, blank=True)
     npo_code = models.CharField(db_column='NPO CODE', max_length=100, null=True, blank=True)
     mg_bank_info = models.CharField(db_column='MG BANK INFO', max_length=255, null=True, blank=True)
@@ -296,6 +304,8 @@ class ReconciliationWorksheet(models.Model):
     class Meta:
         managed = False # Remember to update your SQL table manually if managed=False
         db_table = 'reconciliation_worksheet'
+        # Ensures the database treats the combination of mg_code and fiscal_month as unique
+        unique_together = (('mg_code', 'fiscal_month'),)
 
     def __str__(self):
         return f"{self.mg_code} - {self.fiscal_month}"

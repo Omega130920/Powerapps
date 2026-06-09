@@ -11,6 +11,9 @@ urlpatterns = [
 
     # --- ACVV App Paths (Existing) ---
     path('acvv-records/', views.acvv_list, name='acvv_list'),
+    
+    # 🔑 FIX: Moved static import path above the dynamic <str:mip_names> catch-all route
+    path('acvv-records/import/', views.import_acvv_csv, name='import_acvv_csv'),
     path('acvv-records/<str:mip_names>/', views.acvv_information, name='acvv_information'),
     
     # --- Outlook DELEGATOR Paths (Inbox & Assignment) ---
@@ -67,10 +70,12 @@ urlpatterns = [
     path('outlook/export-tasks/', views.export_email_tasks_excel, name='export_email_tasks_excel'),
     path('outlook/attachment/download/<int:delegation_id>/<str:attachment_id>/', 
      views.download_outlook_attachment, name='download_outlook_attachment'),
+    
     # SLA Report View
     path('sla-report/', views.acvv_sla_report_view, name='acvv_sla_report'),
 
     # Excel Export for SLA (Note: This is handled via GET params in the view, 
     # but having a named URL is good practice for reverse lookups)
     path('sla-report/export/', views.acvv_sla_report_view, name='export_acvv_sla'),
+    path('reconciliation/import/', views.import_reconciliation_csv, name='import_reconciliation_csv'),
 ]

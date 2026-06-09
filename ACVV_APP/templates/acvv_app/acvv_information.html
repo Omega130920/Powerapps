@@ -69,11 +69,18 @@
                         <tr><th>Member Group Code</th><td>{{ acvv_record.branch_code|default:"-" }}</td></tr>
                         <tr><th>Member</th><td>{{ acvv_record.member|default:"0" }}</td></tr>
                         <tr><th>Contribution Amount</th><td>{{ acvv_record.contribution_amount|default:"0.00" }}</td></tr>
-                        <tr><th>Bank info Upload</th><td>{{ acvv_record.bank_info_upload|default:"No info" }}</td></tr>
+                        
+                        {# --- UPDATED BANK FIELDS --- #}
+                        <tr><th>Bank</th><td>{{ acvv_record.bank|default:"-" }}</td></tr>
+                        <tr><th>Branch</th><td>{{ acvv_record.branch|default:"-" }}</td></tr>
+                        <tr><th>Account Number</th><td>{{ acvv_record.account_number|default:"-" }}</td></tr>
+                        <tr><th>Account Name</th><td>{{ acvv_record.account_name|default:"-" }}</td></tr>
+                        <tr><th>Account Type</th><td>{{ acvv_record.account_type|default:"-" }}</td></tr>
+                        <tr><th>Employer Contacts</th><td>{{ acvv_record.employer_contacts|default:"-" }}</td></tr>
+                        
                         <tr><th>Email Address</th><td>{{ acvv_record.mg_email_address|default:"-" }}</td></tr>
                         <tr><th>Tel 1</th><td>{{ acvv_record.tel|default:"-" }}</td></tr>
                         <tr><th>Tel 2</th><td>{{ acvv_record.tel_2|default:"-" }}</td></tr>
-                        {# --- NEW VALUE TRACKING PROPERTIES DISPLAYED EXTRACTSED BELOW --- #}
                         <tr><th>MG Address</th><td>{{ acvv_record.mg_address|default:"-" }}</td></tr>
                         <tr><th>NPO Code</th><td>{{ acvv_record.npo_code|default:"-" }}</td></tr>
                         <tr><th>MG Bank Info</th><td>{{ acvv_record.mg_bank_info|default:"-" }}</td></tr>
@@ -387,7 +394,7 @@
     </div>
 
     <div id="contactModal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-content" style="max-width: 600px;">
             <h2 style="color: #1b5e20; border-bottom: 2px solid #aed581; padding-bottom: 10px; margin-top: 0;">Edit Contact Information</h2>
             <form method="POST">
                 {% csrf_token %}
@@ -395,15 +402,52 @@
                     <label class="block text-sm font-bold mb-1">Email Address <span class="text-xs text-gray-500 font-normal">(Use commas to separate multiple emails)</span></label>
                     <input type="text" name="new_email" value="{{ acvv_record.mg_email_address }}" class="form-input">
                 </div>
-                <div class="mb-4">
-                    <label class="block text-sm font-bold mb-1">Tel 1</label>
-                    <input type="text" name="new_tel" value="{{ acvv_record.tel }}" class="form-input">
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <label class="block text-sm font-bold mb-1">Tel 1</label>
+                        <input type="text" name="new_tel" value="{{ acvv_record.tel }}" class="form-input">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold mb-1">Tel 2</label>
+                        <input type="text" name="new_tel_2" value="{{ acvv_record.tel_2 }}" class="form-input">
+                    </div>
                 </div>
-                <div class="mb-4">
-                    <label class="block text-sm font-bold mb-1">Tel 2</label>
-                    <input type="text" name="new_tel_2" value="{{ acvv_record.tel_2 }}" class="form-input">
+
+                {# --- NEW BANK/CONTACT FORM FIELDS FOR EDITS --- #}
+                <h3 style="color: #1b5e20; margin-top: 15px; margin-bottom: 10px; font-weight: bold; border-bottom: 1px solid #eee; padding-bottom: 5px;">Bank & Additional Details</h3>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <label class="block text-sm font-bold mb-1">Bank</label>
+                        <input type="text" name="new_bank" value="{{ acvv_record.bank|default:'' }}" class="form-input">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold mb-1">Branch</label>
+                        <input type="text" name="new_branch" value="{{ acvv_record.branch|default:'' }}" class="form-input">
+                    </div>
                 </div>
-                {# --- NEW FORM FIELDS FOR EDITS ADDED BELOW --- #}
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <label class="block text-sm font-bold mb-1">Account Number</label>
+                        <input type="text" name="new_account_number" value="{{ acvv_record.account_number|default:'' }}" class="form-input">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold mb-1">Account Name</label>
+                        <input type="text" name="new_account_name" value="{{ acvv_record.account_name|default:'' }}" class="form-input">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold mb-1">Account Type</label>
+                        <input type="text" name="new_account_type" value="{{ acvv_record.account_type|default:'' }}" class="form-input">
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-bold mb-1">Employer Contacts</label>
+                    <input type="text" name="new_employer_contacts" value="{{ acvv_record.employer_contacts|default:'' }}" class="form-input">
+                </div>
+
                 <div class="mb-4">
                     <label class="block text-sm font-bold mb-1">MG Address</label>
                     <input type="text" name="new_mg_address" value="{{ acvv_record.mg_address|default:'' }}" class="form-input">

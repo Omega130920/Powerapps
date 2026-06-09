@@ -262,13 +262,11 @@ def edit_client_view(request, client_code):
                 client.status = data.get('status')
                 client.date_added = safe_parse_date(data.get('date'))
                 
-                # Handling empty string safe check for years_active integer field
                 years_raw = data.get('years')
                 if years_raw and years_raw.strip() != '':
                     client.years_active = int(years_raw)
                 else:
                     client.years_active = None
-                    
                 client.employees = data.get('employees') or 0
                 
                 # Product & Agreement
@@ -307,13 +305,16 @@ def edit_client_view(request, client_code):
                 client.declaration_delegation = data.get('declaration_delegation')
                 client.declaration_date = safe_parse_date(data.get('declaration_date'))
 
-                # --- Core File Uploads ---
-                if 'consulting_letter_file' in files: client.consulting_letter_file = files['consulting_letter_file']
-                if 'sla_file' in files: client.sla_file = files['sla_file']
-                if 'third_party_doc_file' in files: client.third_party_doc_file = files['third_party_doc_file']
-                if 'reg_docs' in files: client.reg_docs_file = files['reg_docs']
-                if 'proof_address' in files: client.proof_address_file = files['proof_address']
-                if 'signed_form_upload' in files: client.signed_form_upload = files['signed_form_upload']
+                # --- INLINED FILE UPLOADS (Removed helper dependency) ---
+                for key, file_obj in files.items():
+                    clean_name = file_obj.name.replace(" ", "_")
+                    path = default_storage.save(clean_name, file_obj)
+                    if key == 'consulting_letter_file': client.consulting_letter_file = path
+                    elif key == 'sla_file': client.sla_file = path
+                    elif key == 'third_party_doc_file': client.third_party_doc_file = path
+                    elif key == 'reg_docs': client.reg_docs_file = path
+                    elif key == 'proof_address': client.proof_address_file = path
+                    elif key == 'signed_form_upload': client.signed_form_upload = path
 
                 client.save()
 
@@ -322,29 +323,19 @@ def edit_client_view(request, client_code):
                 # ============================================
                 FicaAddress.objects.filter(client=client).delete()
 
-                # Physical Address
                 FicaAddress.objects.create(
-                    client=client,
-                    address_type='physical',
-                    line1=data.get('physical_line1'),
-                    line2=data.get('physical_line2'),
-                    city=data.get('physical_city'),
-                    province=data.get('physical_province'),
-                    suburb=data.get('physical_suburb'),
-                    postal_code=data.get('physical_code')
+                    client=client, address_type='physical',
+                    line1=data.get('physical_line1'), line2=data.get('physical_line2'),
+                    city=data.get('physical_city'), province=data.get('physical_province'),
+                    suburb=data.get('physical_suburb'), postal_code=data.get('physical_code')
                 )
 
-                # Postal Address (Only if NOT "Same as physical")
                 if not data.get('same_as_physical'):
                     FicaAddress.objects.create(
-                        client=client,
-                        address_type='postal',
-                        line1=data.get('postal_line1'),
-                        line2=data.get('postal_line2'),
-                        city=data.get('postal_city'),
-                        province=data.get('postal_province'),
-                        suburb=data.get('postal_suburb'),
-                        postal_code=data.get('postal_code')
+                        client=client, address_type='postal',
+                        line1=data.get('postal_line1'), line2=data.get('postal_line2'),
+                        city=data.get('postal_city'), province=data.get('postal_province'),
+                        suburb=data.get('postal_suburb'), postal_code=data.get('postal_code')
                     )
 
                 # ============================================
@@ -359,22 +350,13 @@ def edit_client_view(request, client_code):
                 contacts_data = parse_repeating_data(request, 'contact', contact_fields)
                 
                 for c in contacts_data:
-                    if c['name']: 
+                    if c.get('name'): 
                         ClientContact.objects.create(
-                            client=client,
-                            name=c['name'],
-                            surname=c['surname'],
-                            job_title=c['job_title'],
-                            email=c['email'],
-                            cell_no=c['cell'],
-                            landline=c['landline'],
-                            birthday=c['birthday'],
-                            interests=c['interests'],
-                            notes=c['notes'],
-                            physical_address=c['phys_line1'],
-                            city_town=c['phys_city'],
-                            province=c['phys_province'],
-                            postal_address=c['postal_line1']
+                            client=client, name=c['name'], surname=c['surname'],
+                            job_title=c['job_title'], email=c['email'], cell_no=c['cell'], 
+                            landline=c['landline'], birthday=c['birthday'], interests=c['interests'], 
+                            notes=c['notes'], physical_address=c['phys_line1'],
+                            city_town=c['phys_city'], province=c['phys_province'], postal_address=c['postal_line1']
                         )
 
                 # ============================================
@@ -389,28 +371,19 @@ def edit_client_view(request, client_code):
                 resp_data = parse_repeating_data(request, 'resp', resp_fields, resp_files)
                 
                 for r in resp_data:
-                    if r['name']:
+                    if r.get('name'):
                         new_resp = FicaResponsiblePerson(
-                            client=client,
-                            name=r['name'],
-                            surname=r['surname'],
-                            designation=r['designation'],
-                            contact_number=r['contact'],
-                            email_address=r['email'],
-                            id_number=r['id_num'],
-                            resp_line1=r['line1'],
-                            resp_line2=r['line2'],
-                            resp_city=r['city'],
-                            resp_province=r['province'],
-                            resp_suburb=r['suburb'],
-                            resp_code=r['code']
+                            client=client, name=r['name'], surname=r['surname'], designation=r['designation'],
+                            contact_number=r['contact'], email_address=r['email'], id_number=r['id_num'],
+                            resp_line1=r['line1'], resp_line2=r['line2'], resp_city=r['city'],
+                            resp_province=r['province'], resp_suburb=r['suburb'], resp_code=r['code']
                         )
                         if 'circular_upload' in r: new_resp.circular_upload_file = r['circular_upload']
                         if 'doc_signed_upload' in r: new_resp.doc_signed_upload_file = r['doc_signed_upload']
                         new_resp.save()
 
                 # ============================================
-                # 5. DIRECTORS & RISK RATINGS
+                # 5. DIRECTORS
                 # ============================================
                 FicaDirector.objects.filter(client=client).delete()
                 
@@ -425,30 +398,22 @@ def edit_client_view(request, client_code):
                 dir_data = parse_repeating_data(request, 'dir', dir_fields, dir_files)
                 
                 for d in dir_data:
-                    if d['name']:
+                    if d.get('name'):
                         new_dir = FicaDirector(
-                            client=client,
-                            name=d['name'],
-                            surname=d['surname'],
-                            contact_number=d['contact'],
-                            email_address=d['email'],
-                            id_number=d['id'],
-                            designation=d['designation'],
-                            
+                            client=client, name=d['name'], surname=d['surname'],
+                            contact_number=d['contact'], email_address=d['email'],
+                            id_number=d['id'], designation=d['designation'],
                             phys_line1=d['phys_line1'], phys_line2=d['phys_line2'],
                             phys_city=d['phys_city'], phys_province=d['phys_province'],
                             phys_suburb=d['phys_suburb'], phys_code=d['phys_code'],
-
                             postal_line1=d['postal_line1'], postal_line2=d['postal_line2'],
                             postal_city=d['postal_city'], postal_province=d['postal_province'],
                             postal_suburb=d['postal_suburb'], postal_code=d['postal_code'],
-
                             is_pep=(d.get('pep_q') == True), pep_reason=d.get('pep_reason'),
                             is_pip=(d.get('pip_q') == True), pip_reason=d.get('pip_reason'),
                             is_ppo=(d.get('ppo_q') == True), ppo_reason=d.get('ppo_reason'),
                             is_kca=(d.get('kca_q') == True), kca_reason=d.get('kca_reason'),
                         )
-
                         if 'proof_addr' in d: new_dir.proof_addr_file = d['proof_addr']
                         if 'id_copy' in d: new_dir.id_copy_file = d['id_copy']
                         new_dir.save()
@@ -464,30 +429,24 @@ def edit_client_view(request, client_code):
                 owner_data = parse_repeating_data(request, 'owner', owner_fields, owner_files)
                 
                 for o in owner_data:
-                    if o['name']:
+                    if o.get('name'):
+                        # FALLBACK Logic: If 'contact' is empty, look for 'phone' or 'cell'
+                        val = o.get('contact') or o.get('phone') or o.get('cell')
                         new_owner = FicaBeneficialOwner(
-                            client=client,
-                            name=o['name'],
-                            surname=o['surname'],
-                            contact_number=o['contact'],
-                            email_address=o['email'],
-                            id_number=o['id'],
-                            designation=o['designation'],
-                            
-                            phys_line1=o['phys_line1'], phys_line2=o['phys_line2'],
-                            phys_city=o['phys_city'], phys_province=o['phys_province'],
-                            phys_suburb=o['phys_suburb'], phys_code=o['phys_code'],
-
-                            postal_line1=o['postal_line1'], postal_line2=o['postal_line2'],
-                            postal_city=o['postal_city'], postal_province=o['postal_province'],
-                            postal_suburb=o['postal_suburb'], postal_code=o['postal_code'],
-
+                            client=client, name=o.get('name'), surname=o.get('surname'),
+                            contact_number=val, email_address=o.get('email'),
+                            id_number=o.get('id'), designation=o.get('designation'),
+                            phys_line1=o.get('phys_line1'), phys_line2=o.get('phys_line2'),
+                            phys_city=o.get('phys_city'), phys_province=o.get('phys_province'),
+                            phys_suburb=o.get('phys_suburb'), phys_code=o.get('phys_code'),
+                            postal_line1=o.get('postal_line1'), postal_line2=o.get('postal_line2'),
+                            postal_city=o.get('postal_city'), postal_province=o.get('postal_province'),
+                            postal_suburb=o.get('postal_suburb'), postal_code=o.get('postal_code'),
                             is_pep=(o.get('pep_q') == True), pep_reason=o.get('pep_reason'),
                             is_pip=(o.get('pip_q') == True), pip_reason=o.get('pip_reason'),
                             is_ppo=(o.get('ppo_q') == True), ppo_reason=o.get('ppo_reason'),
                             is_kca=(o.get('kca_q') == True), kca_reason=o.get('kca_reason'),
                         )
-
                         if 'proof_addr' in o: new_owner.proof_addr_file = o['proof_addr']
                         if 'id_copy' in o: new_owner.id_copy_file = o['id_copy']
                         new_owner.save()
@@ -527,19 +486,13 @@ def edit_client_view(request, client_code):
     fica_directors = FicaDirector.objects.filter(client=client)
     fica_owners = FicaBeneficialOwner.objects.filter(client=client)
 
-    # --- Fetch existing risk matrix data to prevent reset on edit screen reload ---
     existing_risk_records = ClientRiskRating.objects.filter(client=client)
     saved_risk_profiles = {}
     for r in existing_risk_records:
         saved_risk_profiles[r.full_name] = {
-            'score': r.score,
-            'rating': r.rating,
-            'non_facing': r.is_non_facing,
-            'rep': r.is_representative,
-            'dipp': r.is_dipp,
-            'fppo': r.is_fppo,
-            'sanction': r.is_sanctioned,
-            'complex': r.is_complex_structure,
+            'score': r.score, 'rating': r.rating, 'non_facing': r.is_non_facing,
+            'rep': r.is_representative, 'dipp': r.is_dipp, 'fppo': r.is_fppo,
+            'sanction': r.is_sanctioned, 'complex': r.is_complex_structure,
         }
 
     context = {
@@ -556,16 +509,6 @@ def edit_client_view(request, client_code):
     }
     
     return render(request, 'consulting/edit_client.html', context)
-
-from django.core.files.storage import default_storage
-
-def handle_file_upload(file_key):
-    if file_key in files:
-        uploaded_file = files[file_key]
-        # Clean the filename: replace spaces with underscores
-        clean_name = uploaded_file.name.replace(" ", "_")
-        return default_storage.save(clean_name, uploaded_file)
-    return None
 
 @require_http_methods(["GET", "POST"])
 def add_client_view(request):

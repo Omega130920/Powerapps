@@ -27,6 +27,15 @@ class ClientClient(models.Model):
     insurer = models.CharField(max_length=50, null=True, blank=True)
     assets = models.TextField(null=True, blank=True)
     
+    # --- ADDED FIELDS FOR EDIT VIEW ---
+    company_type = models.CharField(max_length=100, null=True, blank=True)
+    company_registration_number = models.CharField(max_length=100, null=True, blank=True)
+    contact_number1 = models.CharField(max_length=50, null=True, blank=True)
+    contact_number2 = models.CharField(max_length=50, null=True, blank=True)
+    contact_email1 = models.CharField(max_length=100, null=True, blank=True)
+    benefit_note = models.TextField(null=True, blank=True)
+    # ----------------------------------
+
     # Updated Document Fields with Upload Timestamps (Requirement 12.6)
     consulting_letter_status = models.BooleanField(default=False)
     consulting_letter_file = models.FileField(upload_to='docs/consulting/', null=True, blank=True)
@@ -41,11 +50,11 @@ class ClientClient(models.Model):
     third_party_doc_upload_date = models.DateTimeField(null=True, blank=True)
 
     # FICA Tracking & Compliance (Requirement 12.5)
-    fica_verified = models.BooleanField(default=False) # The "Verified" column
-    fica_verification_date = models.DateField(null=True, blank=True) # Used to calculate next follow up
+    fica_verified = models.BooleanField(default=False) 
+    fica_verification_date = models.DateField(null=True, blank=True) 
     fica_dd_completed = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
     bulk_email_status = models.BooleanField(default=False)
-    risk_rating = models.CharField(max_length=20, default='Low') # Low, Medium, High
+    risk_rating = models.CharField(max_length=20, default='Low') 
 
     # FICA Step 7: Transaction Information
     nature_of_relationship = models.CharField(max_length=100, default='Employer / Pension Fund')
@@ -61,7 +70,7 @@ class ClientClient(models.Model):
     signed_form_upload_date = models.DateTimeField(null=True, blank=True)
 
     class Meta:
-        managed = False  
+        managed = False 
         db_table = 'client_client'
         verbose_name = 'Client'
         verbose_name_plural = 'Clients'

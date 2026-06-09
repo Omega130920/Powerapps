@@ -1,4 +1,5 @@
 import base64
+import csv
 import os
 import re
 import logging
@@ -25,6 +26,7 @@ from django.core.files.storage import FileSystemStorage
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 
 # Third-Party Imports
+import pandas as pd
 import requests
 import openpyxl
 from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
@@ -515,7 +517,8 @@ def acvv_list(request):
 def acvv_information(request, mip_names):
     """
     Detailed view for a specific ACVV record with unified logging.
-    Includes support for TEL, TEL 2, MG ADDRESS, NPO CODE, and MG BANK INFO from the Globalacvv model.
+    Includes support for TEL, TEL 2, MG ADDRESS, NPO CODE, MG BANK INFO, 
+    and the new BANK & EMPLOYER CONTACT fields from the Globalacvv model.
     """
     # 🔑 FIX: Look up the record by matching either 'mip_names' OR 'branch_code' 
     # to handle code-based routing links safely without throwing a 404.
@@ -565,7 +568,7 @@ def acvv_information(request, mip_names):
                 messages.success(request, "PDF added.")
                 return redirect(f'/acvv-records/{acvv_record.mip_names}/#pdf-upload')
 
-        # 3. Handle Contact Info Update (UPDATED: Sanitized Email Input)
+        # 3. Handle Contact Info Update (UPDATED: Sanitized Email Input & New Bank Fields)
         elif 'update_contact_info' in request.POST:
             # Normalize email input to handle multiple addresses entered with commas or semicolons
             raw_emails = request.POST.get('new_email', '')
@@ -576,7 +579,15 @@ def acvv_information(request, mip_names):
             acvv_record.tel = request.POST.get('new_tel')
             acvv_record.tel_2 = request.POST.get('new_tel_2')
             
-            # --- EXTRACT AND SAVE THE NEW ASSIGNED DATA ATTRIBUTES HERE ---
+            # --- EXTRACT AND SAVE THE NEW BANK & CONTACT DATA HERE ---
+            acvv_record.bank = request.POST.get('new_bank')
+            acvv_record.branch = request.POST.get('new_branch')
+            acvv_record.account_number = request.POST.get('new_account_number')
+            acvv_record.account_name = request.POST.get('new_account_name')
+            acvv_record.account_type = request.POST.get('new_account_type')
+            acvv_record.employer_contacts = request.POST.get('new_employer_contacts')
+            
+            # --- EXTRACT AND SAVE THE EXISTING ADDITIONAL DATA ATTRIBUTES HERE ---
             acvv_record.mg_address = request.POST.get('new_mg_address')
             acvv_record.npo_code = request.POST.get('new_npo_code')
             acvv_record.mg_bank_info = request.POST.get('new_mg_bank_info')
@@ -608,7 +619,7 @@ def acvv_information(request, mip_names):
             except Exception:
                 pass
 
-    # --- 2. ADDED: FETCH AND MAP REMARKS CONTENT FROM DELEGATION_NOTE TABLE ---
+    # --- 2. FETCH AND MAP REMARKS CONTENT FROM DELEGATION_NOTE TABLE ---
     delegation_ids = delegated_logs.values_list('id', flat=True)
     
     raw_delegation_notes = DelegationNote.objects.filter(
@@ -1491,10 +1502,8 @@ def reconciliation_worksheet(request):
     else:
         current_fiscal = last_month_date
 
-    # 2. HANDLE POST ACTIONS
+    # 2. HANDLE POST ACTIONS (Save/Close/Reopen)
     if request.method == 'POST':
-        
-        # ACTION: SAVE CHANGES (Allowed for ALL logged-in users)
         if 'save_changes' in request.POST:
             row_ids = {key.split('_')[2] for key in request.POST.keys() if key.startswith('recon_status_')}
             for row_id in row_ids:
@@ -1515,113 +1524,109 @@ def reconciliation_worksheet(request):
                     row_obj.save()
             messages.success(request, "Progress saved successfully.")
 
-        # ACTION: CLOSE MONTH (SUPERUSER ONLY)
         elif 'close_month' in request.POST:
             if not request.user.is_superuser:
                 messages.error(request, "Permission Denied: Only Superusers can finalize a month.")
             else:
-                records_to_close = ReconciliationWorksheet.objects.filter(
-                    fiscal_month__year=current_fiscal.year, 
-                    fiscal_month__month=current_fiscal.month
-                )
-                if records_to_close.exists():
-                    for rec in records_to_close:
-                        if rec.reconciled_status == 'Reconciled':
-                            master_obj = Globalacvv.objects.filter(mip_names=rec.mg_name).first()
-                            if master_obj and master_obj.notes:
-                                try:
-                                    last_date = datetime.strptime(master_obj.notes, "%d.%m.%Y").date()
-                                    next_month_date = (last_date.replace(day=28) + timedelta(days=5)).replace(day=1)
-                                    new_note_val = next_month_date.strftime("%d.%m.%Y")
-                                except:
-                                    new_note_val = current_fiscal.strftime("01.%m.%Y")
-                            else:
+                records_to_close = ReconciliationWorksheet.objects.filter(fiscal_month=current_fiscal)
+                for rec in records_to_close:
+                    if rec.reconciled_status == 'Reconciled':
+                        master_obj = Globalacvv.objects.filter(mip_names=rec.mg_name).first()
+                        if master_obj and master_obj.notes:
+                            try:
+                                last_date = datetime.strptime(master_obj.notes, "%d.%m.%Y").date()
+                                next_month_date = (last_date.replace(day=28) + timedelta(days=5)).replace(day=1)
+                                new_note_val = next_month_date.strftime("%d.%m.%Y")
+                            except:
                                 new_note_val = current_fiscal.strftime("01.%m.%Y")
-                            Globalacvv.objects.filter(mip_names=rec.mg_name).update(notes=new_note_val)
+                        else:
+                            new_note_val = current_fiscal.strftime("01.%m.%Y")
+                        Globalacvv.objects.filter(mip_names=rec.mg_name).update(notes=new_note_val)
 
-                    records_to_close.update(is_closed=True, closed_at=timezone.now())
-                    messages.success(request, f"Fiscal month {current_fiscal.strftime('%B %Y')} closed.")
-            
+                records_to_close.update(is_closed=True, closed_at=timezone.now())
+                messages.success(request, f"Fiscal month {current_fiscal.strftime('%B %Y')} closed.")
             return redirect(f"{reverse('reconciliation_worksheet')}?year={current_fiscal.year}&month={current_fiscal.month}")
 
-        # ACTION: RE-OPEN MONTH (SUPERUSER ONLY)
         elif 'reopen_month' in request.POST:
             if not request.user.is_superuser:
                 messages.error(request, "Permission Denied: Only Superusers can re-open a month.")
             else:
-                ReconciliationWorksheet.objects.filter(
-                    fiscal_month__year=current_fiscal.year, 
-                    fiscal_month__month=current_fiscal.month
-                ).update(is_closed=False, closed_at=None)
+                ReconciliationWorksheet.objects.filter(fiscal_month=current_fiscal).update(is_closed=False, closed_at=None)
                 messages.warning(request, f"Fiscal month {current_fiscal.strftime('%B %Y')} RE-OPENED.")
-            
             return redirect(f"{reverse('reconciliation_worksheet')}?year={current_fiscal.year}&month={current_fiscal.month}")
 
-    # 3. FETCH DATA (Same as before)
+    # 3. FETCH & AUTO-GENERATE DATA
     records = ReconciliationWorksheet.objects.filter(
         Q(fiscal_month=current_fiscal) | 
         Q(fiscal_month__lt=current_fiscal, reconciled_status='Unreconciled', is_closed=False)
     ).order_by('mg_code', 'fiscal_month')
     
-    # Auto-generate rows logic...
     if not records.filter(fiscal_month=current_fiscal).exists():
-        base_data = Globalacvv.objects.all() 
-        for item in base_data:
+        for item in Globalacvv.objects.all():
+            clean_code = str(item.branch_code).strip().upper()
             ReconciliationWorksheet.objects.get_or_create(
                 fiscal_month=current_fiscal,
-                mg_name=item.mip_names,
-                mg_code=item.branch_code
+                mg_code=clean_code, 
+                defaults={'mg_name': item.mip_names}
             )
         records = ReconciliationWorksheet.objects.filter(
             Q(fiscal_month=current_fiscal) | 
             Q(fiscal_month__lt=current_fiscal, reconciled_status='Unreconciled', is_closed=False)
         ).order_by('mg_code', 'fiscal_month')
 
-    # 4. SUBQUERIES AND LOGIC LOOP
+    # 4. ANNOTATIONS
     last_ws_recon_sub = ReconciliationWorksheet.objects.filter(
         mg_name=OuterRef('mg_name'),
-        fiscal_month__lt=OuterRef('fiscal_month'),
+        mg_code=OuterRef('mg_code'),
+        fiscal_month__lt=current_fiscal,
         reconciled_status='Reconciled'
     ).order_by('-fiscal_month').values('fiscal_month')[:1]
 
-    acvv_member_sub = Globalacvv.objects.filter(mip_names=OuterRef('mg_name')).values('member')[:1]
-    acvv_notes_sub = Globalacvv.objects.filter(mip_names=OuterRef('mg_name')).values('notes')[:1]
-
     records = records.annotate(
-        acvv_member_count=Subquery(acvv_member_sub),
-        master_start_date=Subquery(acvv_notes_sub),
+        acvv_member_count=Subquery(Globalacvv.objects.filter(mip_names=OuterRef('mg_name')).values('member')[:1]),
+        master_start_date=Subquery(Globalacvv.objects.filter(mip_names=OuterRef('mg_name')).values('notes')[:1]),
         last_reconciled_ws=Subquery(last_ws_recon_sub)
     )
 
     for r in records:
-        if r.last_reconciled_ws:
+        last_date = None
+        
+        # PRIORITY 1: Use the actual database field 'last_fiscal_reconciled'
+        if r.last_fiscal_reconciled and r.last_fiscal_reconciled.strip():
+            r.last_fiscal_display = r.last_fiscal_reconciled
+            try:
+                last_date = datetime.strptime(r.last_fiscal_reconciled, "%B %Y").date()
+            except:
+                last_date = None
+        
+        # PRIORITY 2: Fallback to Subquery (automated history)
+        elif r.last_reconciled_ws:
             last_date = r.last_reconciled_ws
             r.last_fiscal_display = last_date.strftime("%B %Y")
+        
+        # PRIORITY 3: Fallback to Master Notes
         elif r.master_start_date:
             try:
-                last_date = datetime.strptime(r.master_start_date, "%d.%m.%Y").date()
+                last_date = datetime.strptime(str(r.master_start_date).strip(), "%d.%m.%Y").date()
                 r.last_fiscal_display = last_date.strftime("%B %Y")
             except:
                 last_date = None
                 r.last_fiscal_display = r.master_start_date
         else:
-            last_date = None
             r.last_fiscal_display = "No Data"
 
+        # Overdue logic
         if last_date:
-            diff = (r.fiscal_month.year - last_date.year) * 12 + (r.fiscal_month.month - last_date.month)
+            diff = (current_fiscal.year - last_date.year) * 12 + (current_fiscal.month - last_date.month)
             r.is_overdue = diff >= 2
         else:
             r.is_overdue = True
 
-    history = ReconciliationWorksheet.objects.values('fiscal_month').distinct().order_by('-fiscal_month')
-    is_month_locked = ReconciliationWorksheet.objects.filter(fiscal_month=current_fiscal, is_closed=True).exists()
-
     return render(request, 'acvv_app/reconciliation_worksheet.html', {
         'records': records,
         'display_name': current_fiscal.strftime("%B %Y"),
-        'history': history,
-        'is_closed': is_month_locked,
+        'history': ReconciliationWorksheet.objects.values('fiscal_month').distinct().order_by('-fiscal_month'),
+        'is_closed': ReconciliationWorksheet.objects.filter(fiscal_month=current_fiscal, is_closed=True).exists(),
         'current_fiscal': current_fiscal
     })
 
@@ -2443,3 +2448,171 @@ def export_acvv_sla_excel(recon_q, email_q):
     response['Content-Disposition'] = f'attachment; filename="ACVV_Full_SLA_Report_{timezone.now().strftime("%Y%m%d")}.xlsx"'
     wb.save(response)
     return response
+
+@login_required
+def import_acvv_csv(request):
+    if request.method == "POST":
+        file = request.FILES.get('csv_upload')
+        
+        if not file:
+            messages.error(request, "Please select a file.")
+            return redirect('import_acvv_csv')
+
+        try:
+            # 1. Define columns to force as strings to prevent .0 decimals
+            string_cols = {
+                'ACCOUNT NUMBER': str, 
+                'MG Code': str, 
+                'NPO CODE': str,
+                'MG Contact Tel. 1': str,
+                'MG Contact Tel. 2': str
+            }
+
+            # 2. Check file extension and load with dtype
+            if file.name.endswith('.csv'):
+                df = pd.read_csv(file, dtype=string_cols)
+            elif file.name.endswith(('.xls', '.xlsx')):
+                df = pd.read_excel(file, dtype=string_cols)
+            else:
+                messages.error(request, "Unsupported file format. Please upload CSV or Excel.")
+                return redirect('import_acvv_csv')
+
+            # 3. Clean up any remaining .0 from pandas auto-conversion
+            # This turns '53361366398.0' into '53361366398'
+            for col in string_cols.keys():
+                if col in df.columns:
+                    df[col] = df[col].astype(str).str.replace(r'\.0$', '', regex=True)
+                    # Replace 'nan' string (from empty cells) with empty string
+                    df[col] = df[col].replace('nan', '')
+
+            # Fill remaining NaN values with None for DB compatibility
+            df = df.where(pd.notnull(df), None)
+            
+            records_created = 0
+            records_updated = 0
+
+            for _, row in df.iterrows():
+                mip_name_val = row.get('Member Group Name')
+                if not mip_name_val:
+                    continue
+
+                defaults_data = {
+                    'branch_code': row.get('MG Code', ''),
+                    'status': row.get('Company Status', ''),
+                    'member': row.get('Member Count', ''),
+                    'contribution_amount': row.get('Bill Amount', ''),
+                    'mg_email_address': row.get('MG Contact Email', ''),
+                    'tel': row.get('MG Contact Tel. 1', ''),
+                    'tel_2': row.get('MG Contact Tel. 2', ''),
+                    'npo_code': row.get('NPO CODE', ''),
+                    'mg_bank_info': row.get('MG BANK INFO', ''),
+                    'bank': row.get('BANK', ''),
+                    'branch': row.get('BRANCH', ''),
+                    'account_number': row.get('ACCOUNT NUMBER', ''),
+                    'account_name': row.get('ACCOUNT NAME', ''),
+                    'account_type': row.get('ACCOUNT TYPE', ''),
+                    'employer_contacts': row.get('EMPLOYER CONTACTS', ''),
+                    'schedule_date_received': row.get('Last Recon - Date', '')
+                }
+
+                obj, created = Globalacvv.objects.update_or_create(
+                    mip_names=str(mip_name_val),
+                    defaults=defaults_data
+                )
+                
+                if created: records_created += 1
+                else: records_updated += 1
+
+            messages.success(request, f"Import complete! Created: {records_created}, Updated: {records_updated}.")
+            
+        except Exception as e:
+            messages.error(request, f"Error processing file: {str(e)}")
+            
+        return redirect('import_acvv_csv')
+
+    return render(request, 'acvv_app/import_acvv.html')
+
+from django.db import connection, transaction
+
+@login_required
+def import_reconciliation_csv(request):
+    if request.method == "POST":
+        file = request.FILES.get('csv_upload')
+        if not file:
+            messages.error(request, "Please select a file.")
+            return redirect('import_reconciliation_csv')
+
+        try:
+            # 1. Load file
+            if file.name.endswith('.csv'):
+                df = pd.read_csv(file)
+            else:
+                df = pd.read_excel(file)
+
+            df.columns = df.columns.str.strip()
+
+            # 2. Helpers
+            def clean_decimal(val):
+                if pd.isna(val) or val == '': return 0.00
+                return float(str(val).replace(',', '').replace(' ', ''))
+
+            def clean_date_to_str(val):
+                # Coerce turns invalid text into NaT
+                dt = pd.to_datetime(val, errors='coerce')
+                # Force YYYY-MM-DD and ensure NO time component is returned
+                if pd.notna(dt):
+                    return dt.strftime('%Y-%m-%d')
+                return None
+
+            records_updated = 0
+            
+            with transaction.atomic():
+                with connection.cursor() as cursor:
+                    for _, row in df.iterrows():
+                        company_code = str(row.get('Company Code', '')).strip()
+                        # CLEAN the fiscal_month here to ensure it's a valid date
+                        fiscal_month = clean_date_to_str(row.get('Current Fiscal  (05/2026 )'))
+                        
+                        # Skip if identifiers are missing or date was unparseable
+                        if not company_code or company_code.lower() == 'nan' or not fiscal_month:
+                            continue
+
+                        # Clean dates to pure YYYY-MM-DD
+                        d1 = clean_date_to_str(row.get('LPI due date 06/05/2026 @12:00 For APRIL ( Date Schedule Received)'))
+                        d2 = clean_date_to_str(row.get('DATE CONFIRM ON STeP'))
+                        d3 = clean_date_to_str(row.get('DEBIT ORDER DATE CONFIRM BY EMPLOYER(FUND)'))
+
+                        sql = """
+                            INSERT INTO reconciliation_worksheet 
+                            (mg_code, fiscal_month, mg_name, company_status, payment_method, 
+                             member_count_reconciled, contribution_amount_reconciled, reconciled_status, 
+                             date_schedule_received, date_confirmed_on_step, debit_order_date)
+                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            ON DUPLICATE KEY UPDATE
+                            mg_name=VALUES(mg_name), company_status=VALUES(company_status), 
+                            payment_method=VALUES(payment_method), member_count_reconciled=VALUES(member_count_reconciled),
+                            contribution_amount_reconciled=VALUES(contribution_amount_reconciled),
+                            reconciled_status=VALUES(reconciled_status),
+                            date_schedule_received=VALUES(date_schedule_received),
+                            date_confirmed_on_step=VALUES(date_confirmed_on_step),
+                            debit_order_date=VALUES(debit_order_date)
+                        """
+                        
+                        params = (
+                            company_code, fiscal_month, str(row.get('Company Name', '')),
+                            str(row.get('Company Status', 'Active')), str(row.get('Payment Method', 'Debit Order')),
+                            int(row.get('MEMBERS', 0)), clean_decimal(row.get('CONTRIBUTION AMOUNT')),
+                            str(row.get('Current Status', 'Unreconciled')),
+                            d1, d2, d3
+                        )
+                        
+                        cursor.execute(sql, params)
+                        records_updated += 1
+
+            messages.success(request, f"Successfully processed {records_updated} records.")
+        except Exception as e:
+            messages.error(request, f"Import failed: {str(e)}")
+            
+        return redirect('import_reconciliation_csv')
+    
+    return render(request, 'acvv_app/import_reconciliation.html')
