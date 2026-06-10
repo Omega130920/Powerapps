@@ -187,7 +187,6 @@ tr:hover {background-color: #f1f8e9;}
         {% endif %}
     </div>
 
-    <!-- MODAL -->
     <div id="claimModal" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
         <div style="background: white; width: 90%; max-width: 1000px; margin: 30px auto; padding: 30px; border-radius: 12px; max-height: 90vh; overflow-y: auto; box-shadow: 0 15px 40px rgba(0,0,0,0.2);">
             <h2 id="modalTitle" style="color: #1b5e20; border-bottom: 3px solid #aed581; padding-bottom: 15px; margin-top: 0;">Manage Global Claim</h2>
@@ -287,8 +286,7 @@ tr:hover {background-color: #f1f8e9;}
                     </div>
                 </div>
 
-                <!-- 🚀 POT AVAILABILITY SECTION (UNITY INTERNAL) 🚀 -->
-                <div class="pot-section" id="two_pot_fields_section" style="display: none;">
+                <div class="pot-section" id="two_pot_fields_section">
                     <h4 style="margin-top: 0; color: #1565c0; border-bottom: 1px solid #1e88e5; padding-bottom: 10px; font-weight: 800;">Pot Availability & Certificates</h4>
                     <div class="pot-grid">
                         <div class="pot-box">
@@ -325,7 +323,6 @@ tr:hover {background-color: #f1f8e9;}
                     <div><label style="font-weight:bold;">Paid</label><input type="date" name="date_paid" class="form-input"></div>
                 </div>
 
-                <!-- 🔗 EMAIL COMPOSITION SECTION 🔗 -->
                 <div class="row" style="margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 20px; margin-bottom: 15px;">
                     <div class="col-md-12">
                         <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 8px;">
@@ -342,7 +339,6 @@ tr:hover {background-color: #f1f8e9;}
 
                         <div id="email-composition-container" style="display: none; margin-top: 20px; background-color: #fffaf5; border: 2.5px dashed #ff9800; border-radius: 12px; padding: 25px;">
                             <h3 style="color: #ff9800; margin-top: 0; font-size: 18px; font-weight: 800;">Compose Outgoing Email</h3>
-                            <!-- Important: Ensure editor syncs to this hidden input -->
                             <textarea id="email_body_html_content" name="email_body_html_content" style="display:none;"></textarea>
                             <div class="form-group" style="margin-bottom: 15px;"><label>To:</label><input type="text" id="member_recipient_email" name="member_recipient_email" class="form-input"></div>
                             <div class="form-group" style="margin-bottom: 15px;"><label>Subject:</label><input type="text" id="member_email_subject_reply" name="member_email_subject_reply" class="form-input"></div>
@@ -362,7 +358,6 @@ tr:hover {background-color: #f1f8e9;}
                 </div>
 
                 <hr style="border: 1px solid #aed581; margin: 30px 0;">
-                <!-- 📝 ADD CLAIM NOTE SECTION 📝 -->
                 <h3 style="color: #38761d; font-weight: 800;">Add Claim Note</h3>
                 <div style="background-color: #f9f9f9; padding: 25px; border-radius: 12px; border: 1.5px solid #ccc;">
                     <select name="note_selection" class="form-select" style="margin-bottom: 15px;">
@@ -426,7 +421,8 @@ tr:hover {background-color: #f1f8e9;}
         document.getElementById('div_mip_number').style.display = isTwoPot ? 'block' : 'none';
         document.getElementById('div_claim_amount').style.display = isTwoPot ? 'block' : 'none';
         document.getElementById('div_exit_reason').style.display = isTwoPot ? 'none' : 'block';
-        document.getElementById('two_pot_fields_section').style.display = isTwoPot ? 'block' : 'none';
+        // Note: The logic that previously hid the two_pot_fields_section has been removed, 
+        // ensuring the Pot Availability section always remains visible.
     }
 
     function syncEmailEditor() {

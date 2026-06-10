@@ -1047,6 +1047,15 @@ def save_global_claim(request):
         form_informed_er = request.POST.get('informed_er') or "NO"
         form_submitted_by_agent = request.POST.get('submitted_by_agent') or ""
 
+        # --- EXTRACT POT AVAILABILITY FIELDS ---
+        # Checkboxes return 'on' if checked, otherwise they are missing from POST
+        vested_pot_available = request.POST.get('vested_pot_available') == 'on'
+        savings_pot_available = request.POST.get('savings_pot_available') == 'on'
+        
+        vested_pot_paid_date = clean_date_input(request.POST.get('vested_pot_paid_date'))
+        savings_pot_paid_date = clean_date_input(request.POST.get('savings_pot_paid_date'))
+        infund_cert_date = clean_date_input(request.POST.get('infund_cert_date'))
+
         # --- EXTRACT BASE FIELD ATTRIBUTES CLEANLY FOR BASE CLAIM OBJECT ---
         data = {
             'company_code': company_code,
@@ -1064,6 +1073,13 @@ def save_global_claim(request):
             # Map form date input field directly back onto database column 
             'date_submitted': form_date_submitted,
             'linked_email_id': linked_id,
+            
+            # --- MAP POT FIELDS ---
+            'vested_pot_available': vested_pot_available,
+            'savings_pot_available': savings_pot_available,
+            'vested_pot_paid_date': vested_pot_paid_date,
+            'savings_pot_paid_date': savings_pot_paid_date,
+            'infund_cert_date': infund_cert_date,
         }
 
         # --- 1. SAVE OR UPDATE THE CLAIM WITH TRY/EXCEPT DEBUGGING ---
@@ -1133,7 +1149,8 @@ def save_global_claim(request):
                 subject, 
                 body, 
                 content_type='Html',
-                attachment=email_attachment
+                attachment=email_attachment,
+                user=request.user
             )
             
             if result.get('success'):
@@ -1192,7 +1209,7 @@ def save_global_claim(request):
 def export_global_claims_excel(request):
     """
     Exports claims to the standard Register format (Green Theme) matching the attachment.
-    Excludes 'Two Pot' claims.
+    Excludes 'Two Pot' claims. Includes newly added Pot fields.
     """
     query = request.GET.get('q')
     
@@ -1210,18 +1227,28 @@ def export_global_claims_excel(request):
     ws = wb.active
     ws.title = "Claims Register"
 
-    # Define Green Theme Styles (Matching the image)
-    green_fill = PatternFill(start_color="C6E0B4", end_color="C6E0B4", fill_type="solid")
-    border = Border(left=Side(style='thin'), right=Side(style='thin'), 
-                    top=Side(style='thin'), bottom=Side(style='thin'))
-    header_font = Font(bold=True, size=11)
-    alignment = Alignment(horizontal='center', vertical='center')
+    # Define Green Theme Styles (Matching the provided image)
+    # Using a stronger standard Excel green matching the photo
+    green_fill = PatternFill(start_color="92D050", end_color="92D050", fill_type="solid")
+    
+    # Standard thin borders for all cells
+    border = Border(left=Side(style='thin', color='000000'), 
+                    right=Side(style='thin', color='000000'), 
+                    top=Side(style='thin', color='000000'), 
+                    bottom=Side(style='thin', color='000000'))
+                    
+    header_font = Font(bold=True, size=11, color="000000")
+    header_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    data_alignment = Alignment(vertical='center')
 
-    # 2. Header Row Titles (Matching Image: Co Code, Branch, Agent, etc.)
+    # 2. Header Row Titles (Matching Image + New Pot Fields)
     headers = [
-        'Co Code', 'Branch', 'Agent', 'MIP Number', 'ID Number', 
+        'Co.Code', 'Branch', 'Agent', 'MIP Number', 'ID Number', 
         'Name', 'Surname', 'Type', 'Status', 'Exit Reason', 
-        'Created', 'Submitted', 'Paid', 'Last Reconciled', 'Claim Allocation'
+        'Created', 'Submitted', 'Paid', 'Last Reconciled', 'Claim Allocation',
+        'Vested Pot Available', 'Vested Pot Paid Date', 
+        'Savings Pot Available', 'Savings Pot Paid Date', 
+        'In-Fund Cert Date'
     ]
     
     ws.append(headers)
@@ -1230,36 +1257,50 @@ def export_global_claims_excel(request):
     for cell in ws[1]:
         cell.font = header_font
         cell.fill = green_fill
-        cell.alignment = alignment
+        cell.alignment = header_alignment
         cell.border = border
+
+    # Freeze the top row so headers stay visible when scrolling down
+    ws.freeze_panes = "A2"
 
     # 3. Data Rows
     for c in claims:
         row = [
-            c.company_code,                                      # Co Code
-            '',                                                 # Branch (Placeholder if separate)
-            c.agent if hasattr(c, 'agent') else '',             # Agent
-            c.mip_number if hasattr(c, 'mip_number') else '',   # MIP Number
-            c.id_number,                                        # ID Number
-            c.member_name,                                      # Name
-            c.member_surname,                                   # Surname
-            c.claim_type,                                       # Type
-            c.claim_status,                                     # Status
-            c.exit_reason if hasattr(c, 'exit_reason') else '', # Exit Reason
+            c.company_code,                                                      # Co Code
+            '',                                                                  # Branch
+            c.agent if hasattr(c, 'agent') else '',                              # Agent
+            c.mip_number if hasattr(c, 'mip_number') else '',                    # MIP Number
+            c.id_number,                                                         # ID Number
+            c.member_name,                                                       # Name
+            c.member_surname,                                                    # Surname
+            c.claim_type,                                                        # Type
+            c.claim_status,                                                      # Status
+            c.exit_reason if hasattr(c, 'exit_reason') else '',                  # Exit Reason
             c.claim_created_date.strftime('%Y-%m-%d') if c.claim_created_date else '', # Created
             c.date_submitted.strftime('%Y-%m-%d') if hasattr(c, 'date_submitted') and c.date_submitted else '', # Submitted
             c.date_paid.strftime('%Y-%m-%d') if hasattr(c, 'date_paid') and c.date_paid else '',              # Paid
             c.last_reconciled.strftime('%Y-%m-%d') if hasattr(c, 'last_reconciled') and c.last_reconciled else '', # Last Reconciled
-            c.claim_allocation if hasattr(c, 'claim_allocation') else ''                                     # Claim Allocation
+            c.claim_allocation if hasattr(c, 'claim_allocation') else '',         # Claim Allocation
+            
+            # --- NEW POT FIELDS ---
+            'Yes' if getattr(c, 'vested_pot_available', False) else 'No',        # Vested Pot Available
+            c.vested_pot_paid_date.strftime('%Y-%m-%d') if getattr(c, 'vested_pot_paid_date', None) else '', # Vested Paid Date
+            'Yes' if getattr(c, 'savings_pot_available', False) else 'No',       # Savings Pot Available
+            c.savings_pot_paid_date.strftime('%Y-%m-%d') if getattr(c, 'savings_pot_paid_date', None) else '', # Savings Paid Date
+            c.infund_cert_date.strftime('%Y-%m-%d') if getattr(c, 'infund_cert_date', None) else '',         # In-Fund Cert Date
         ]
         ws.append(row)
         
-        # Apply borders to the data row
+        # Apply borders and alignment to the data row
         for cell in ws[ws.max_row]:
             cell.border = border
+            cell.alignment = data_alignment
+
+    # Apply AutoFilter to the header row (adds the dropdown arrows from the photo)
+    ws.auto_filter.ref = f"A1:{openpyxl.utils.get_column_letter(len(headers))}{ws.max_row}"
 
     # 4. Formatting - Auto-adjust Column Widths
-    column_widths = [10, 20, 15, 15, 18, 15, 15, 12, 20, 15, 12, 12, 12]
+    column_widths = [12, 15, 15, 15, 18, 15, 15, 12, 15, 15, 12, 12, 12, 15, 20, 18, 18, 18, 18, 18]
     for i, width in enumerate(column_widths):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i+1)].width = width
 
@@ -2242,7 +2283,8 @@ def send_acvv_direct_email(request, company_code):
                 subject, 
                 body, 
                 content_type='Html', 
-                attachments=attachments
+                attachments=attachments,
+                user=request.user
             )
             
             if result.get('success'):
