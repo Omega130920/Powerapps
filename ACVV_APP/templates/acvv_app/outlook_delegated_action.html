@@ -115,7 +115,7 @@
         background: #f8f9fa; 
         max-height: 50vh; 
         overflow-y: auto;
-        white-space: pre-line; /* 💡 Respects incoming message linebreaks */
+        white-space: pre-line;
     }
     
     .email-body-pre {
@@ -246,7 +246,8 @@
                             <option value="Savings Pot Letter from Sanlam" {% if delegation.email_category == "Savings Pot Letter from Sanlam" %}selected{% endif %}>Savings Pot Letter from Sanlam</option>
                             <option value="Paid Up Certificate from Sanlam" {% if delegation.email_category == "Paid Up Certificate from Sanlam" %}selected{% endif %}>Paid Up Certificate from Sanlam</option>
                             <option value="Member Info Update Request" {% if delegation.email_category == "Member Info Update Request" %}selected{% endif %}>Member Info Update Request</option>
-                            <option value="Info Only">Info Only</option>
+                            
+                            <option value="Info Only" {% if delegation.email_category == "Info Only" %}selected{% endif %}>Info Only</option>
                         </select>
                     </div>
                     <div>
