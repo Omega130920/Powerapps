@@ -2899,7 +2899,7 @@ def confirmations_view(request):
     Now pulls the 'settlement_note' captured during finalization.
     """
     from decimal import Decimal
-    from datetime import datetime, date
+    from datetime import datetime, date, timedelta
     from django.db.models import Q 
     from django.contrib import messages
     import traceback 
@@ -2927,7 +2927,8 @@ def confirmations_view(request):
                 
                 if filter_end_date_str:
                     end_dt = datetime.strptime(filter_end_date_str, '%Y-%m-%d').date()
-                    settlement_q &= Q(settlement_date__lte=end_dt)
+                    inclusive_end_dt = end_dt + timedelta(days=1)
+                    settlement_q &= Q(settlement_date__lt=inclusive_end_dt)
                 
                 # Fetching matching bill IDs
                 matching_bill_ids = BillSettlement.objects.filter(
@@ -3076,7 +3077,7 @@ def admin_billing_view(request):
     Calculates a 0.3% Admin Fee per bill line based on monthly salary.
     """
     from decimal import Decimal
-    from datetime import datetime
+    from datetime import datetime, timedelta
 
     filter_start_date = request.GET.get('start_date')
     filter_end_date = request.GET.get('end_date')
@@ -3100,7 +3101,8 @@ def admin_billing_view(request):
     if filter_end_date:
         try:
             end_dt = datetime.strptime(filter_end_date, '%Y-%m-%d').date()
-            bills_queryset = bills_queryset.filter(A_CCDatesMonth__lte=end_dt)
+            inclusive_end_dt = end_dt + timedelta(days=1)
+            bills_queryset = bills_queryset.filter(A_CCDatesMonth__lt=inclusive_end_dt)
         except ValueError:
             pass
             
@@ -5298,8 +5300,7 @@ def download_email_file(request, email_id):
     except Exception as e:
         messages.error(request, f"Error downloading email: {str(e)}")
         return redirect(request.META.get('HTTP_REFERER', 'unity_list'))
-    
-    
+        
 @login_required
 @transaction.atomic
 def create_manual_credit(request):

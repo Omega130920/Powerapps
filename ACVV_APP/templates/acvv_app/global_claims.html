@@ -205,7 +205,11 @@ tr:hover {background-color: #f1f8e9;}
                             {% endfor %}
                         </datalist>
                     </div>
-                    <div><label style="font-weight:bold;">Agent</label><input type="text" name="agent" id="agent_input" class="form-input" readonly style="background-color: #eee;"></div>
+                    <div>
+                        <label style="font-weight:bold;">Agent</label>
+                        <input type="text" name="agent" id="agent_input" class="form-input" readonly style="background-color: #eee; font-weight: bold; color: #1e88e5;" 
+                            value="{% if 'jesica' in request.user.username|lower or 'jessica' in request.user.first_name|lower %}JH{% elif 'timothy' in request.user.username|lower or 'timothy' in request.user.first_name|lower %}TD{% else %}{{ request.user.username|upper }}{% endif %}">
+                    </div>
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
@@ -512,9 +516,7 @@ tr:hover {background-color: #f1f8e9;}
     }
 
     document.getElementById('company_code_input').addEventListener('input', function() {
-        const val = this.value;
-        const opt = document.querySelector(`#company_list option[value="${val}"]`);
-        if (opt) document.getElementById('agent_input').value = opt.dataset.agent;
+        // Agent auto-fill has been removed so it remains safely locked for Jesica and Timothy.
     });
 
     window.onclick = function(e) { if (e.target.id === 'claimModal') e.target.style.display = "none"; }

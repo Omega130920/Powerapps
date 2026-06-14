@@ -1045,7 +1045,18 @@ def save_global_claim(request):
         form_qualified = request.POST.get('qualified') or "YES"
         form_date_submitted = clean_date_input(request.POST.get('date_submitted'))
         form_informed_er = request.POST.get('informed_er') or "NO"
+        
+        # --- NEW LOGIC: Lock Agent based on logged in user ---
         form_submitted_by_agent = request.POST.get('submitted_by_agent') or ""
+        
+        current_username = request.user.username.lower()
+        current_firstname = request.user.first_name.lower() if request.user.first_name else ""
+        
+        if 'jesica' in current_username or 'jessica' in current_username or 'jesica' in current_firstname or 'jessica' in current_firstname:
+            form_submitted_by_agent = "JH"
+        elif 'timothy' in current_username or 'timothy' in current_firstname:
+            form_submitted_by_agent = "TD"
+        # -----------------------------------------------------
 
         # --- EXTRACT POT AVAILABILITY FIELDS ---
         # Checkboxes return 'on' if checked, otherwise they are missing from POST

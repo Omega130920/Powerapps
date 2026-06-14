@@ -202,7 +202,11 @@
                         {% endfor %}
                     </datalist>
                 </div>
-                <div><label style="font-weight:bold;">Agent</label><input type="text" name="agent" id="agent_input" class="form-input" readonly style="background-color: #eee;"></div>
+                <div>
+                    <label style="font-weight:bold;">Agent</label>
+                    <input type="text" name="agent" id="agent_input" class="form-input" readonly style="background-color: #eee; font-weight: bold; color: #1e88e5;" 
+                        value="{% if 'jesica' in request.user.username|lower or 'jessica' in request.user.first_name|lower %}JH{% elif 'timothy' in request.user.username|lower or 'timothy' in request.user.first_name|lower %}TD{% else %}{{ request.user.username|upper }}{% endif %}">
+                </div>
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
@@ -219,7 +223,7 @@
                         <option value="Member Emergency Savings Pot Withdrawal Submitted">MESPW Submitted</option>
                         <option value="Member Emergency Savings Pot Withdrawal Requested">MESPW Requested</option>
                         <option value="Withdraw - Not Allowed">Withdraw - Not Allowed</option>
-                        <option value="Paid">Paid</option>
+                        <option value="Error">Error</option>
                     </select>
 
                     <div id="div_two_pot_withdrawal_details" style="display:none; margin-top: 10px; padding: 10px; background: #fffde7; border-left: 3px solid #fbc02d;">
@@ -235,7 +239,7 @@
                         </div>
                     </div>
                 </div>
-                <div><label style="font-weight:bold;">Payment Option</label><select name="payment_option" class="form-select"><option value="Full Payment">Full Payment</option><option value="Partially Taken">Partially Taken</option></select></div>
+                <div><label style="font-weight:bold;">Payment Option</label><select name="payment_option" class="form-select"><option value="Full Payment">Full Payment</option></select></div>
                 <div><label style="font-weight:bold;">Amount (R)</label><input type="number" step="0.01" name="claim_amount" class="form-input"></div>
                 <div><label style="font-weight:bold;">Date Application Extracted (Column B) *</label><input type="date" name="claim_created_date" id="claim_created_date" class="form-input" required></div>
             </div>
@@ -270,7 +274,7 @@
                 </div>
             </div>
 
-            <div class="pot-section" id="two_pot_fields_section">
+            <div class="pot-section" id="two_pot_fields_section" style="display: none;">
                 <h4 style="margin-top: 0; color: #1565c0; border-bottom: 1px solid #1e88e5; padding-bottom: 10px; font-weight: 800;">Pot Availability & Certificates</h4>
                 <div class="pot-grid">
                     <div class="pot-box">
@@ -300,11 +304,17 @@
                 </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-                <div><label style="font-weight:bold;">Created *</label><input type="date" name="claim_created_date" id="claim_created_date_fallback" class="form-input" required value="{% now 'Y-m-d' %}"></div>
-                <div><label style="font-weight:bold;">Last Contrib.</label><input type="date" name="last_contribution_date" id="last_contribution_date" class="form-input"></div>
-                <div><label style="font-weight:bold;">Submitted</label><input type="date" name="date_submitted_fallback" id="date_submitted_fallback" class="form-input"></div>
-                <div><label style="font-weight:bold;">Paid</label><input type="date" name="date_paid" id="date_paid" class="form-input"></div>
+            {# --- UPDATED LAYOUT SECTION: "Created *" remains visible while image_1c143d.png targets are safely hidden --- #}
+            <div style="margin-bottom: 15px;">
+                <div>
+                    <label style="font-weight:bold;">Created *</label>
+                    <input type="date" name="claim_created_date" id="claim_created_date_fallback" class="form-input" required value="{% now 'Y-m-d' %}">
+                </div>
+                
+                {# Hidden inputs continue to map values cleanly behind the scenes #}
+                <input type="hidden" name="last_contribution_date" id="last_contribution_date">
+                <input type="hidden" name="date_submitted_fallback" id="date_submitted_fallback">
+                <input type="hidden" name="date_paid" id="date_paid">
             </div>
 
             <div class="row" style="margin-top: 15px; border-top: 1px dashed #ccc; padding-top: 20px; margin-bottom: 15px;">
@@ -352,6 +362,8 @@
                             <option value="CLAIM DOCUMENTS REQUESTED">DOCS REQUESTED</option>
                             <option value="SUBMITTED VIA E-MAIL">SUBMITTED VIA EMAIL</option>
                             <option value="BANK DETAILS FOLLOW UP WITH MEMBER/EMPLOYER">BANK DETAILS FOLLOW UP</option>
+                            <option value="SUBMITTED">SUBMITTED</option>
+                            <option value="FEEDBACK TO EMPLOYER">FEEDBACK TO EMPLOYER</option>
                         </select>
                     </div>
                     <div>
@@ -455,7 +467,6 @@
         
         // Standard defaults initialization
         document.getElementById('claim_created_date').value = new Date().toISOString().split('T')[0];
-        document.getElementById('claim_created_date_fallback').value = new Date().toISOString().split('T')[0];
         
         document.getElementById('modalTitle').innerText = "New Two-Pot Entry";
         document.getElementById('claim_notes_tbody').innerHTML = '<tr><td colspan="5" style="text-align:center;">New record.</td></tr>';
@@ -483,7 +494,6 @@
         
         // Populate synchronized extraction date parameters
         document.getElementById('claim_created_date').value = d.claim_created_date;
-        document.getElementById('claim_created_date_fallback').value = d.claim_created_date;
 
         document.getElementById('qualified_select').value = d.qualified || 'YES';
         document.getElementById('date_submitted').value = d.date_submitted || '';
@@ -491,7 +501,7 @@
         document.getElementById('informed_er_select').value = d.informed_er || 'NO';
         document.getElementById('submitted_by_agent_select').value = d.submitted_by_agent || '';
 
-        // Hydrate newly added validation parameters cleanly into the modal fields layout
+        // Hydrate validation parameters cleanly into hidden layouts
         document.getElementById('id_vested_pot_available').checked = (d.vested_pot_available === 'True');
         document.getElementById('id_vested_pot_paid_date').value = d.vested_pot_paid_date || '';
         document.getElementById('id_savings_pot_available').checked = (d.savings_pot_available === 'True');
@@ -536,14 +546,7 @@
     }
 
     document.getElementById('company_code_input').addEventListener('input', function() {
-        const val = this.value;
-        const opts = document.getElementById('company_list').options;
-        for (let i = 0; i < opts.length; i++) {
-            if (opts[i].value === val) {
-                document.getElementById('agent_input').value = opts[i].getAttribute('data-agent');
-                break;
-            }
-        }
+        // Agent auto-fill remains bypassed so it locks to logged-in initials.
     });
 
     window.onclick = function(e) {
