@@ -56,7 +56,6 @@
             </ul>
 
             <div class="tab-content">
-                
                 <div id="acvv-info" class="tab-pane active">
                     <div class="flex justify-between items-center mb-2">
                         <h2 class="text-lg font-bold text-emerald-800">Branch Details</h2>
@@ -69,15 +68,12 @@
                         <tr><th>Member Group Code</th><td>{{ acvv_record.branch_code|default:"-" }}</td></tr>
                         <tr><th>Member</th><td>{{ acvv_record.member|default:"0" }}</td></tr>
                         <tr><th>Contribution Amount</th><td>{{ acvv_record.contribution_amount|default:"0.00" }}</td></tr>
-                        
-                        {# --- UPDATED BANK FIELDS --- #}
                         <tr><th>Bank</th><td>{{ acvv_record.bank|default:"-" }}</td></tr>
                         <tr><th>Branch</th><td>{{ acvv_record.branch|default:"-" }}</td></tr>
                         <tr><th>Account Number</th><td>{{ acvv_record.account_number|default:"-" }}</td></tr>
                         <tr><th>Account Name</th><td>{{ acvv_record.account_name|default:"-" }}</td></tr>
                         <tr><th>Account Type</th><td>{{ acvv_record.account_type|default:"-" }}</td></tr>
                         <tr><th>Employer Contacts</th><td>{{ acvv_record.employer_contacts|default:"-" }}</td></tr>
-                        
                         <tr><th>Email Address</th><td>{{ acvv_record.mg_email_address|default:"-" }}</td></tr>
                         <tr><th>Tel 1</th><td>{{ acvv_record.tel|default:"-" }}</td></tr>
                         <tr><th>Tel 2</th><td>{{ acvv_record.tel_2|default:"-" }}</td></tr>
@@ -334,7 +330,6 @@
                                                title="View Email Thread">
                                                 <i class="fas fa-eye"></i> View
                                             </a>
-
                                             <a href="{% url 'download_acvv_email' delegation_id=log.email_id %}" 
                                                title="Download .eml"
                                                style="background-color: #1976d2; color: white; padding: 4px 8px; border-radius: 4px; text-decoration: none; font-size: 0.8em; font-weight: bold;">
@@ -393,81 +388,6 @@
         </div>
     </div>
 
-    <div id="contactModal" class="modal-overlay">
-        <div class="modal-content" style="max-width: 600px;">
-            <h2 style="color: #1b5e20; border-bottom: 2px solid #aed581; padding-bottom: 10px; margin-top: 0;">Edit Contact Information</h2>
-            <form method="POST">
-                {% csrf_token %}
-                <div class="mb-4">
-                    <label class="block text-sm font-bold mb-1">Email Address <span class="text-xs text-gray-500 font-normal">(Use commas to separate multiple emails)</span></label>
-                    <input type="text" name="new_email" value="{{ acvv_record.mg_email_address }}" class="form-input">
-                </div>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-                    <div>
-                        <label class="block text-sm font-bold mb-1">Tel 1</label>
-                        <input type="text" name="new_tel" value="{{ acvv_record.tel }}" class="form-input">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-bold mb-1">Tel 2</label>
-                        <input type="text" name="new_tel_2" value="{{ acvv_record.tel_2 }}" class="form-input">
-                    </div>
-                </div>
-
-                {# --- NEW BANK/CONTACT FORM FIELDS FOR EDITS --- #}
-                <h3 style="color: #1b5e20; margin-top: 15px; margin-bottom: 10px; font-weight: bold; border-bottom: 1px solid #eee; padding-bottom: 5px;">Bank & Additional Details</h3>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-                    <div>
-                        <label class="block text-sm font-bold mb-1">Bank</label>
-                        <input type="text" name="new_bank" value="{{ acvv_record.bank|default:'' }}" class="form-input">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-bold mb-1">Branch</label>
-                        <input type="text" name="new_branch" value="{{ acvv_record.branch|default:'' }}" class="form-input">
-                    </div>
-                </div>
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
-                    <div>
-                        <label class="block text-sm font-bold mb-1">Account Number</label>
-                        <input type="text" name="new_account_number" value="{{ acvv_record.account_number|default:'' }}" class="form-input">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-bold mb-1">Account Name</label>
-                        <input type="text" name="new_account_name" value="{{ acvv_record.account_name|default:'' }}" class="form-input">
-                    </div>
-                    <div>
-                        <label class="block text-sm font-bold mb-1">Account Type</label>
-                        <input type="text" name="new_account_type" value="{{ acvv_record.account_type|default:'' }}" class="form-input">
-                    </div>
-                </div>
-
-                <div class="mb-4">
-                    <label class="block text-sm font-bold mb-1">Employer Contacts</label>
-                    <input type="text" name="new_employer_contacts" value="{{ acvv_record.employer_contacts|default:'' }}" class="form-input">
-                </div>
-
-                <div class="mb-4">
-                    <label class="block text-sm font-bold mb-1">MG Address</label>
-                    <input type="text" name="new_mg_address" value="{{ acvv_record.mg_address|default:'' }}" class="form-input">
-                </div>
-                <div class="mb-4">
-                    <label class="block text-sm font-bold mb-1">NPO Code</label>
-                    <input type="text" name="new_npo_code" value="{{ acvv_record.npo_code|default:'' }}" class="form-input">
-                </div>
-                <div class="mb-6">
-                    <label class="block text-sm font-bold mb-1">MG Bank Info</label>
-                    <input type="text" name="new_mg_bank_info" value="{{ acvv_record.mg_bank_info|default:'' }}" class="form-input">
-                </div>
-                <div class="flex justify-end gap-3">
-                    <button type="button" class="cancel-btn" onclick="closeContactModal()">Cancel</button>
-                    <button type="submit" name="update_contact_info" class="save-info-btn">Save Contact Info</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <div id="claimModal" class="modal-overlay">
         <div class="modal-content">
             <h2 style="color: #1b5e20; border-bottom: 2px solid #aed581; padding-bottom: 10px; margin-top: 0;">Manage Claim</h2>
@@ -493,14 +413,14 @@
                         <select name="claim_type" id="claim_type_select" class="form-select" onchange="toggleTwoPotLogic()">
                             <option value="Withdrawal">Withdrawal</option><option value="Retirement">Retirement</option><option value="Death">Death</option><option value="Two Pot">Two Pot</option>
                         </select>
-                </div>
-                <div id="div_exit_reason">
+                    </div>
+                    <div id="div_exit_reason">
                         <label style="font-weight:bold;">Reason For Exit</label>
                         <select name="exit_reason" class="form-select">
                             <option value="">-- Select --</option><option value="Resignation">Resignation</option><option value="Retirement">Retirement</option><option value="Death">Death</option>
                         </select>
-                </div>
-                <div>
+                    </div>
+                    <div>
                         <label style="font-weight:bold;">Claim Allocation</label>
                         <select name="claim_allocation" class="form-select">
                             <option value="New Claim">New Claim</option><option value="Claim Paid">Claim Paid</option><option value="Claim Query">Claim Query</option>
@@ -557,7 +477,7 @@
                     </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin: 15px 0;">
+                <div id="date_selectors_container" style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin: 15px 0;">
                     <div><label style="font-weight:bold;">Claim Created *</label><input type="date" name="claim_created_date" class="form-input" required value="{% now 'Y-m-d' %}"></div>
                     <div><label style="font-weight:bold;">Last Contribution</label><input type="date" name="last_contribution_date" class="form-input"></div>
                     <div><label style="font-weight:bold;">Date Submitted</label><input type="date" name="date_submitted" class="form-input"></div>
@@ -686,10 +606,15 @@
             const paymentSelect = document.getElementById('payment_option_select');
             const isTwoPot = (type === 'Two Pot');
             
+            // Toggle Fields
             if(document.getElementById('div_mip_number')) document.getElementById('div_mip_number').style.display = isTwoPot ? 'block' : 'none';
             if(document.getElementById('div_claim_amount')) document.getElementById('div_claim_amount').style.display = isTwoPot ? 'block' : 'none';
             if(document.getElementById('div_exit_reason')) document.getElementById('div_exit_reason').style.display = isTwoPot ? 'none' : 'block';
             if(document.getElementById('pot_availability_section')) document.getElementById('pot_availability_section').style.display = isTwoPot ? 'none' : 'block';
+            
+            // NEW: HIDE DATES FOR TWO POT
+            const dateContainer = document.getElementById('date_selectors_container');
+            if(dateContainer) dateContainer.style.display = isTwoPot ? 'none' : 'grid';
 
             if (isTwoPot) {
                 updateOptions(statusSelect, twoPotStatuses);

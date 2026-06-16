@@ -1420,6 +1420,7 @@ def update_bankline_details(request, recon_id):
                     subject=subject,
                     body_content=full_html_body,
                     content_type='HTML',
+                    user=request.user,
                     cc_email=cc_email if cc_email else None,
                     attachments=attachments
                 )
@@ -3744,9 +3745,9 @@ def send_email_view(request):
     if request.method == 'POST':
         recipient = request.POST.get('recipient')
         subject = request.POST.get('subject')
-        # 🛑 FIX 1: Define body_html (using 'body' content, assuming HTML) 🛑
+        # This body usually comes from the textarea. 
+        # Make sure your JS on the frontend replaces \n with <br> before POSTing!
         body_html = request.POST.get('body') 
-        # 🛑 FIX 2: Define sender (the delegated mailbox) 🛑
         sender = target_email 
 
         # Simple validation
@@ -3754,29 +3755,37 @@ def send_email_view(request):
             messages.error(request, "All fields are required.")
             return render(request, 'unity_internal_app/send_email_form.html', {'target_email': target_email})
         
-        # Call the service function, passing the target_email as the sender mailbox
-        # Line 3212 (Approximate):
-        response = OutlookGraphService.send_outlook_email(sender, recipient, subject, body_html, 'HTML')
+        # Call the service function with the user object for signature injection
+        response = OutlookGraphService.send_outlook_email(
+            target_email=sender, 
+            recipient_email=recipient, 
+            subject=subject, 
+            body_content=body_html, 
+            content_type='HTML',
+            user=request.user  # Injecting the user here
+        )
         
-        # 🛑 FIX 3: Change 'result' to 'response' (Line 3214 Approx.) 🛑
+        # Check if the response from our updated service was successful
         if response.get('success'): 
             messages.success(request, f"Email sent successfully from {target_email} to {recipient}.")
-            # Redirect back to the dashboard, preserving the target email
             return redirect(f"{reverse('outlook_dashboard')}?email={target_email}")
+        
         else:
-            error_message = f"Email failed to send from {target_email}. {response.get('error', 'Unknown API Error')}"
-            
-            # Extract details if they exist in the nested error structure
+            # Handle API Errors
+            error_msg = response.get('error', 'Unknown Error')
             details = response.get('details', {})
-            if isinstance(details, dict) and 'error' in details and 'message' in details['error']:
-                error_message += f" Details: {details['error']['message']}"
             
-            messages.error(request, error_message)
-            # Render the form again with the failure message
+            # Format the error message for the user
+            if isinstance(details, dict) and 'error' in details and 'message' in details['error']:
+                error_msg = details['error']['message']
+            
+            messages.error(request, f"Email failed to send: {error_msg}")
+            
+            # Render the form again, keeping the data so you don't lose your work
             return render(request, 'unity_internal_app/send_email_form.html', {
                 'recipient': recipient,
                 'subject': subject,
-                'body': body_html, # Pass the correct variable back to the form
+                'body': body_html, 
                 'target_email': target_email
             })
 
@@ -3957,6 +3966,7 @@ def outlook_delegated_action(request, delegation_id):
                 subject=subject, 
                 body_content=body_html,
                 content_type='HTML',
+                user=request.user,
                 attachments=reply_files,
                 cc_email=cc_recipients,    # 🚀 Mapped explicitly to pass parsing checks
                 bcc_email=bcc_recipients   # 🚀 Mapped explicitly to pass parsing checks

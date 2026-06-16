@@ -11,6 +11,60 @@ logger = logging.getLogger(__name__)
 # The base URL for the Microsoft Graph API
 GRAPH_API_URL = "https://graph.microsoft.com/v1.0"
 
+# --- NEW: Signature Generator ---
+def get_user_signature(user):
+    """Generates the specific HTML signature based on the user's name."""
+    if not user:
+        return ""
+
+    # Dictionary Mapping for all Team Members
+    team = {
+        'jesica': ('Jesica Haynes', 'Reconciliations Specialist'),
+        'timothy': ('Timothy Davids', 'Indexing Specialist'),
+        'mymoena': ('Mymoena', 'Job Title'),  # Update Titles as needed
+        'chantal': ('Chantal', 'Job Title'),
+        'karen': ('Karen', 'Job Title'),
+        'samantha': ('Samantha', 'Job Title'),
+        'lorraine': ('Lorraine', 'Job Title'),
+        'merril': ('Merril', 'Job Title'),
+        'gail': ('Gail', 'Job Title'),
+        'rashanda': ('Rashanda', 'Job Title'),
+        'manager': ('Manager Name', 'Manager'),
+        'omega': ('Omega User', 'Developer'),
+        'alpha': ('Alpha User', 'Developer'),
+    }
+
+    user_key = user.username.lower() if hasattr(user, 'username') else ""
+    first_name = user.first_name.lower() if hasattr(user, 'first_name') and user.first_name else ""
+    
+    found_user = team.get(user_key) or team.get(first_name)
+    logo_url = "https://futurasa.co.za/wp-content/uploads/2021/04/futura-logo.png"
+
+    if found_user:
+        full_name, title = found_user
+        return f"""
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 12px; color: #333; margin-top: 30px; padding-top: 15px;">
+            <div style="color: #4CAF50; font-size: 15px; font-weight: bold; margin-bottom: 2px;">{full_name}</div>
+            <div style="margin-bottom: 12px; color: #333;">{title}</div>
+            <img src="{logo_url}" alt="Futura" width="130" style="display: block; margin-bottom: 5px;">
+            <div style="font-size: 11px; color: #666; margin-top: 15px;">
+                <p>Futura SA is a Level 1 B-BBEE contributor, committed to transformation and inclusive growth.</p>
+                <p style="font-size: 8.5px; color: #000; text-align: justify; line-height: 1.4;">
+                <strong>Disclaimer:</strong> Futura SA Administrators (Pty) Ltd is an authorized Financial Services Provider licensed by the Financial Sector Conduct Authority in terms of the FAIS Act. License Number 18287 and a licensed Section 13B Administrator number 24/760.
+                </p>
+            </div>
+        </div>
+        """
+    
+    # Fallback Signature for Test Users (testuser1, testuser2, etc.)
+    return f"""
+    <div style="font-family: sans-serif; font-size: 12px; margin-top: 20px;">
+        Kind regards,<br>
+        <strong>{user.first_name or user.username}</strong>
+    </div>
+    """
+# --------------------------------
+
 class OutlookGraphService:
     """
     A service class to wrap Graph API calls, using the token manager 
@@ -127,11 +181,17 @@ class OutlookGraphService:
         return response
 
     @staticmethod
-    def send_outlook_email(target_email, recipient_email, subject, body_content, content_type='HTML', attachments=None, cc_email=None, bcc_email=None):
+    def send_outlook_email(target_email, recipient_email, subject, body_content, content_type='HTML', attachments=None, cc_email=None, bcc_email=None, user=None):
         """
         Sends an email via Microsoft Graph and retrieves the newly created ID 
         from Sent Items. Fully supports comma/semicolon multi-address string parsing for CC and BCC.
         """
+        
+        # --- NEW: Inject Signature ---
+        if user and content_type.upper() == 'HTML':
+            body_content += get_user_signature(user)
+        # -----------------------------
+
         email_data = {
             "message": {
                 "subject": subject,

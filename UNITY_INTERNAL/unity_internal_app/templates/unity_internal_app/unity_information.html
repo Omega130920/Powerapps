@@ -1142,28 +1142,26 @@
                     <td>{{ record.E_Active_Members }}</td>
                     <td>R {{ record.H_Schedule_Amount|default:"0.00"|floatformat:2 }}</td>
                     
-                    {# --- Original amount from bank --- #}
                     <td style="font-weight: bold; color: #1976d2;">
                         R {{ record.bank_assigned_total|default:"0.00"|floatformat:2 }}
                     </td>
 
-                    {# --- Amount used for this bill from bank --- #}
                     <td style="font-weight: bold; color: #388e3c;">
                         R {{ record.bankline_total|default:"0.00"|floatformat:2 }}
                     </td>
 
-                    {# --- 🚀 NEW COLUMN DATA: Credits used to settle this bill --- #}
                     <td style="font-weight: bold; color: #e65100; background-color: #fff3e0;">
                         R {{ record.credit_allocated|default:"0.00"|floatformat:2 }}
                     </td>
 
-                    {# --- The remainder moved to credits --- #}
                     <td style="font-weight: bold; color: #512da8;">
                         R {{ record.surplus_created|default:"0.00"|floatformat:2 }}
                     </td>
 
                     <td><span class="status-tag status-{{ record.display_status|lower|cut:' ' }}">{{ record.display_status }}</span></td>
+                    
                     <td>{{ record.J_Final_Date|date:"Y-m-d"|default:"-" }}</td>
+                    
                     <td>
                         <a href="{% url 'settle_bill_report' company_code=record.C_Company_Code bill_id=record.id %}" 
                            class="dashboard-button" 
@@ -1195,13 +1193,16 @@
                             <label for="id_action_notes" style="font-weight: bold; display: block; margin-bottom: 5px; color: #1565c0;">Note Selector / Action:</label>
                             <select id="id_action_notes" name="action_notes" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;" required>
                                 <option value="" disabled selected>Select Action Note</option>
-                                <option value="0101 BALANCE CONFIRMATION FROM SANLAM">0101 BALANCE CONFIRMATION FROM SANLAM</option>
-                                <option value="AD HOC NOTE">AD HOC NOTE</option>
-                                <option value="FEEDBACK TO CRM">FEEDBACK TO CRM</option>
-                                <option value="FEEDBACK TO EMPLOYER">FEEDBACK TO EMPLOYER</option>
-                                <option value="FEEDBACK TO SANLAM">FEEDBACK TO SANLAM</option>
-                                <option value="INBOUND CALL">INBOUND CALL</option>
-                                <option value="NOT FOR RECON - FW TO CORRECT DEPARTMENT">NOT FOR RECON - FW TO CORRECT DEPARTMENT</option>
+                                <option value="AMENDMENT REQUEST TO SANLAM">AMENDMENT REQUEST TO SANLAM</option>
+                                <option value="BANK STATEMENT">BANK STATEMENT</option>
+                                <option value="FEEDBACK FROM CONSULTING TEAM">FEEDBACK FROM CONSULTING TEAM</option>
+                                <option value="FEEDBACK FROM EMPLOYER">FEEDBACK FROM EMPLOYER</option>
+                                <option value="FOLLOW UP TO CONSULTING TEAM">FOLLOW UP TO CONSULTING TEAM</option>
+                                <option value="FOLLOW UP TO EMPLOYER">FOLLOW UP TO EMPLOYER</option>
+                                <option value="PRE-BILL SENT TO EMPLOYER">PRE-BILL SENT TO EMPLOYER</option>
+                                <option value="QUERY FROM SANLAM">QUERY FROM SANLAM</option>
+                                <option value="SCHEDULE RECEIVED">SCHEDULE RECEIVED</option>
+                                <option value="SCHEDULE REQUESTED">SCHEDULE REQUESTED</option>
                                 <option value="OUTBOUND CALL">OUTBOUND CALL</option>
                             </select>
                         </div>
@@ -1504,6 +1505,16 @@
         </div> </div> </div> 
 
 <script>
+    // --- 🚀 NEW: Email Sync Helper ---
+    function syncEmailEditor() {
+        const editor = document.getElementById('member_email_body_editor');
+        const htmlInput = document.getElementById('email_body_html_content');
+        if (editor && htmlInput) {
+            // Converts standard text line breaks to HTML <br> tags for the signature
+            htmlInput.value = editor.value.replace(/\n/g, '<br>');
+        }
+    }
+
     // --- 🚀 NEW: Email Log Filtering Logic ---
     function filterEmailLog() {
         const input = document.getElementById("emailSearchInput");
@@ -1529,15 +1540,11 @@
                 const recipientText = tdRecipient.textContent || tdRecipient.innerText;
                 const statusText = tdStatus.textContent || tdStatus.innerText;
 
-                // Match Search Input (Subject, Recipient, or Status)
                 const matchesSearch = (subjectText.toUpperCase().indexOf(filterText) > -1 || 
                                      recipientText.toUpperCase().indexOf(filterText) > -1 ||
                                      statusText.toUpperCase().indexOf(filterText) > -1);
                 
-                // Match Type Filter
                 const matchesType = filterType === "" || typeText.toUpperCase().indexOf(filterType) > -1;
-                
-                // Match Status Filter
                 const matchesStatus = filterStatus === "" || statusText.toUpperCase().indexOf(filterStatus) > -1;
 
                 if (matchesSearch && matchesType && matchesStatus) {
@@ -1725,11 +1732,7 @@
         const mainClaimForm = document.getElementById('main_claim_form');
         if (mainClaimForm) {
             mainClaimForm.addEventListener('submit', function() {
-                const editor = document.getElementById('member_email_body_editor');
-                const htmlInput = document.getElementById('email_body_html_content');
-                if (editor && htmlInput) {
-                    htmlInput.value = editor.value || editor.innerHTML; 
-                }
+                syncEmailEditor(); // Uses the new sync function
             });
         }
 
@@ -1746,6 +1749,7 @@
             });
         }
 
+        // Tab Switching Logic
         const tabs = document.querySelectorAll('.tab-nav li');
         const panes = document.querySelectorAll('.tab-pane');
         const urlHash = window.location.hash;
@@ -1951,7 +1955,7 @@
         const amountInput = document.querySelector('input[name="claim_amount"]');
         if(amountInput) amountInput.value = button.getAttribute('data-claim_amount') || "";
         
-        document.querySelector('input[name="claim_created_date"]').value = button.getAttribute('data-claim_created_date') || "";
+        document.querySelector('input[name="claim_created_date"]').value = button.getAttribute('claim_created_date') || "";
         document.querySelector('input[name="last_contribution_date"]').value = button.getAttribute('data-last_contribution_date') || "";
         document.querySelector('input[name="date_submitted"]').value = button.getAttribute('data-date_submitted') || "";
         document.querySelector('input[name="date_paid"]').value = button.getAttribute('data-date_paid') || "";
@@ -1980,7 +1984,7 @@
             document.getElementById('emailViewModal')
         ];
         modals.forEach(m => {
-            if (event.target == m) m.style.display = "none";
+            if (m && event.target == m) m.style.display = "none";
         });
     }
 </script>
