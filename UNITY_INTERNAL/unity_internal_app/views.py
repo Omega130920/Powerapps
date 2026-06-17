@@ -3003,7 +3003,7 @@ def confirmations_view(request):
                 'schedule_date': getattr(bill, 'F_Schedule_Date', bill.A_CCDatesMonth), 
                 'final_date': bill.J_Final_Date or None, 
                 'schedule_amount': bill.H_Schedule_Amount or 0,
-                'confirmed_date': confirmed_date,
+                'confirmed_date': bill.I_Submitted_Date,
                 'source_details': source_details,
             })
 

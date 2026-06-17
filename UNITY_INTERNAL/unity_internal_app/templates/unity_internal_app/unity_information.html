@@ -1160,7 +1160,7 @@
 
                     <td><span class="status-tag status-{{ record.display_status|lower|cut:' ' }}">{{ record.display_status }}</span></td>
                     
-                    <td>{{ record.J_Final_Date|date:"Y-m-d"|default:"-" }}</td>
+                    <td>{{ record.G_Schedule_Date|date:"Y-m-d"|default:"-" }}</td>
                     
                     <td>
                         <a href="{% url 'settle_bill_report' company_code=record.C_Company_Code bill_id=record.id %}" 

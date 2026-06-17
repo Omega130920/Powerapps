@@ -237,6 +237,35 @@ class AcvvClaim(models.Model):
         managed = False
         db_table = 'acvv_claims'
 
+    # --- DYNAMIC PROPERTIES (NO DATABASE MIGRATION REQUIRED) ---
+    
+    @property
+    def qualified(self):
+        latest_note = self.notes.order_by('-created_at').first()
+        if latest_note and "[Tracking Parameters Logged]" in (latest_note.note_description or ""):
+            if "- Qualified: NO" in latest_note.note_description:
+                return "NO"
+        return "YES"
+
+    @property
+    def informed_er(self):
+        latest_note = self.notes.order_by('-created_at').first()
+        if latest_note and "[Tracking Parameters Logged]" in (latest_note.note_description or ""):
+            if "- Informed ER: YES" in latest_note.note_description:
+                return "YES"
+        return "NO"
+
+    @property
+    def submitted_by_agent(self):
+        latest_note = self.notes.order_by('-created_at').first()
+        if latest_note and "[Tracking Parameters Logged]" in (latest_note.note_description or ""):
+            # Simple string parsing to extract the value after the label
+            import re
+            match = re.search(r"- Submitted by Agent: (\w+)", latest_note.note_description)
+            if match:
+                return match.group(1)
+        return ""
+
 class ClaimNote(models.Model):
     id = models.AutoField(db_column='ID', primary_key=True)
     claim = models.ForeignKey(AcvvClaim, on_delete=models.CASCADE, related_name='notes', db_column='claim_id')

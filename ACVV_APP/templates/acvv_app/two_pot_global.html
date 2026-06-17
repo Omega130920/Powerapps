@@ -203,9 +203,12 @@
                     </datalist>
                 </div>
                 <div>
-                    <label style="font-weight:bold;">Agent</label>
-                    <input type="text" name="agent" id="agent_input" class="form-input" readonly style="background-color: #eee; font-weight: bold; color: #1e88e5;" 
-                        value="{% if 'jesica' in request.user.username|lower or 'jessica' in request.user.first_name|lower %}JH{% elif 'timothy' in request.user.username|lower or 'timothy' in request.user.first_name|lower %}TD{% else %}{{ request.user.username|upper }}{% endif %}">
+                    <label style="font-weight:bold;">Agent *</label>
+                    <select name="agent" id="agent_input" class="form-select" style="font-weight: bold; color: #1e88e5;" required>
+                        <option value="">-- Select Agent --</option>
+                        <option value="JH">JH</option>
+                        <option value="TD">TD</option>
+                    </select>
                 </div>
             </div>
 
@@ -241,7 +244,10 @@
                 </div>
                 <div><label style="font-weight:bold;">Payment Option</label><select name="payment_option" class="form-select"><option value="Full Payment">Full Payment</option></select></div>
                 <div><label style="font-weight:bold;">Amount (R)</label><input type="number" step="0.01" name="claim_amount" class="form-input"></div>
-                <div><label style="font-weight:bold;">Date Application Extracted (Column B) *</label><input type="date" name="claim_created_date" id="claim_created_date" class="form-input" required></div>
+                <div>
+                    <label style="font-weight:bold;">Date Application Extracted (Column B) *</label>
+                    <input type="date" name="claim_created_date" id="claim_created_date" class="form-input" required onchange="document.getElementById('claim_created_date_fallback').value = this.value;">
+                </div>
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px; padding: 15px; background-color: #f1f8e9; border: 1px solid #c8e6c9; border-radius: 8px;">
@@ -304,11 +310,11 @@
                 </div>
             </div>
 
-            {# --- UPDATED LAYOUT SECTION: "Created *" remains visible while image_1c143d.png targets are safely hidden --- #}
+            {# --- UPDATED LAYOUT SECTION: Syncing Created logic to match Extracted Date --- #}
             <div style="margin-bottom: 15px;">
                 <div>
                     <label style="font-weight:bold;">Created *</label>
-                    <input type="date" name="claim_created_date" id="claim_created_date_fallback" class="form-input" required value="{% now 'Y-m-d' %}">
+                    <input type="date" name="claim_created_date" id="claim_created_date_fallback" class="form-input" required value="{% now 'Y-m-d' %}" onchange="document.getElementById('claim_created_date').value = this.value;">
                 </div>
                 
                 {# Hidden inputs continue to map values cleanly behind the scenes #}
@@ -465,8 +471,15 @@
         document.getElementById('email-composition-container').style.display = 'none';
         document.getElementById('div_two_pot_withdrawal_details').style.display = 'none';
         
-        // Standard defaults initialization
-        document.getElementById('claim_created_date').value = new Date().toISOString().split('T')[0];
+        // Auto-select agent dropdown based on logged-in user
+        const agentSel = document.getElementById('agent_input');
+        const userAgent = "{% if 'jesica' in request.user.username|lower or 'jessica' in request.user.first_name|lower %}JH{% elif 'timothy' in request.user.username|lower or 'timothy' in request.user.first_name|lower %}TD{% endif %}";
+        if (userAgent) { agentSel.value = userAgent; }
+        
+        // Standard defaults initialization - Sync both dates
+        const todayStr = new Date().toISOString().split('T')[0];
+        document.getElementById('claim_created_date').value = todayStr;
+        document.getElementById('claim_created_date_fallback').value = todayStr;
         
         document.getElementById('modalTitle').innerText = "New Two-Pot Entry";
         document.getElementById('claim_notes_tbody').innerHTML = '<tr><td colspan="5" style="text-align:center;">New record.</td></tr>';
@@ -482,7 +495,10 @@
         document.getElementById('modal_claim_id').value = d.id;
         document.getElementById('linked_email_id').value = d.linked_email_id || '';
         document.getElementById('company_code_input').value = d.company_code;
+        
+        // Populate Dropdown for Agent
         document.getElementById('agent_input').value = d.agent;
+        
         document.querySelector('input[name="id_number"]').value = d.id_number;
         document.querySelector('input[name="member_name"]').value = d.member_name;
         document.querySelector('input[name="member_surname"]').value = d.member_surname;
@@ -494,6 +510,7 @@
         
         // Populate synchronized extraction date parameters
         document.getElementById('claim_created_date').value = d.claim_created_date;
+        document.getElementById('claim_created_date_fallback').value = d.claim_created_date;
 
         document.getElementById('qualified_select').value = d.qualified || 'YES';
         document.getElementById('date_submitted').value = d.date_submitted || '';

@@ -66,7 +66,7 @@
         /* Specific Column Alignments */
         .text-center { text-align: center; }
         .amount-col { text-align: right; font-weight: 600; color: #2e7d32; }
-        .bank-col { background-color: #f9fff9; }
+        .bank-col { background-color: #f9fff9; } /* Subtle highlight for bank data */
 
         /* Row Separator Logic */
         .bill-group-end td { border-bottom: 2px solid #81c784 !important; }
@@ -148,7 +148,7 @@
                                         <td>{{ record.schedule_date|date:"Y-m-d" }}</td>
                                         <td>{{ record.final_date|date:"Y-m-d"|default:"-" }}</td>
                                         <td class="amount-col">R {{ record.schedule_amount }}</td>
-                                        <td>{{ record.final_date|date:"Y-m-d"|default:"-" }}</td>
+                                        <td>{{ record.confirmed_date|date:"Y-m-d"|default:"-" }}</td>
                                         <td class="bank-col">-</td> 
                                         <td class="amount-col bank-col">-</td> 
                                         <td class="amount-col bank-col">-</td> 
@@ -167,9 +167,8 @@
                                                 <td rowspan="{{ row_span }}">{{ record.schedule_date|date:"Y-m-d" }}</td>
                                                 <td rowspan="{{ row_span }}">{{ record.final_date|date:"Y-m-d"|default:"-" }}</td>
                                                 <td rowspan="{{ row_span }}" class="amount-col">R {{ record.schedule_amount }}</td>
-                                                
                                                 <td rowspan="{{ row_span }}">
-                                                    {{ record.final_date|date:"Y-m-d"|default:"-" }}
+                                                    {{ record.schedule_date|date:"Y-m-d"|default:"-" }}
                                                 </td>
                                             {% endif %}
                                             <td class="bank-col">{{ source.date|date:"Y-m-d" }}</td>
@@ -192,5 +191,6 @@
             </table>
         </div>
     </div>
+
 </body>
 </html>

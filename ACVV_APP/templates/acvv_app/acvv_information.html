@@ -417,7 +417,14 @@
                     <div id="div_exit_reason">
                         <label style="font-weight:bold;">Reason For Exit</label>
                         <select name="exit_reason" class="form-select">
-                            <option value="">-- Select --</option><option value="Resignation">Resignation</option><option value="Retirement">Retirement</option><option value="Death">Death</option>
+                            <option value="">-- Select --</option>
+                            <option value="Resignation">Resignation</option>
+                            <option value="Retirement">Retirement</option>
+                            <option value="Dismissal">Dismissal</option>
+                            <option value="Disability">Disability</option>
+                            <option value="Retrenchment">Retrenchment</option>
+                            <option value="Abscondent">Abscondent</option>
+                            <option value="Death">Death</option>
                         </select>
                     </div>
                     <div>
@@ -432,7 +439,12 @@
                     <div>
                         <label style="font-weight:bold;">Claim Status</label>
                         <select name="claim_status" id="claim_status_select" class="form-select" onchange="toggleWithdrawalSubFields()">
-                            <option value="Claim Docs Requested">Claim Docs Requested</option><option value="Paid">Paid</option><option value="Submitted">Submitted</option><option value="Incomplete">Incomplete</option><option value="Withdraw - Not Allowed">Withdraw - Not Allowed</option>
+                            <option value="New" selected>New</option>
+                            <option value="Paid">Paid</option>
+                            <option value="Submitted">Submitted</option>
+                            <option value="Incomplete">Incomplete</option>
+                            <option value="Claim Docs Requested">Claim Docs Requested</option>
+                            <option value="Payment/Schedule">Payment/Schedule</option>
                         </select>
                         <div id="div_two_pot_withdrawal_details" style="display:none; margin-top: 10px; padding: 10px; background: #fffde7; border-left: 3px solid #fbc02d;">
                             <label style="font-size: 0.85em; font-weight: bold; color: #bc5100;">Note Helper: Reason</label>

@@ -206,15 +206,21 @@ tr:hover {background-color: #f1f8e9;}
                         </datalist>
                     </div>
                     <div>
-                        <label style="font-weight:bold;">Agent</label>
-                        <input type="text" name="agent" id="agent_input" class="form-input" readonly style="background-color: #eee; font-weight: bold; color: #1e88e5;" 
-                            value="{% if 'jesica' in request.user.username|lower or 'jessica' in request.user.first_name|lower %}JH{% elif 'timothy' in request.user.username|lower or 'timothy' in request.user.first_name|lower %}TD{% else %}{{ request.user.username|upper }}{% endif %}">
+                        <label style="font-weight:bold;">Agent *</label>
+                        <select name="agent" id="agent_input" class="form-select" style="font-weight: bold; color: #1e88e5;" required>
+                            <option value="">-- Select Agent --</option>
+                            <option value="JH">JH</option>
+                            <option value="TD">TD</option>
+                        </select>
                     </div>
                 </div>
 
                 <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                     <div><label style="font-weight:bold;">ID / Passport *</label><input type="text" name="id_number" class="form-input" required></div>
-                    <div id="div_mip_number" style="display:none;"><label style="font-weight:bold; color:#d32f2f;">MIP Number *</label><input type="text" name="mip_number" class="form-input"></div>
+                    <div id="div_mip_number">
+                        <label style="font-weight:bold;">MIP Number <span id="mip_asterisk" style="color:#d32f2f; display:none;">*</span></label>
+                        <input type="text" name="mip_number" id="mip_number_input" class="form-input">
+                    </div>
                     <div><label style="font-weight:bold;">First Name *</label><input type="text" name="member_name" class="form-input" required></div>
                     <div><label style="font-weight:bold;">Surname *</label><input type="text" name="member_surname" class="form-input" required></div>
                 </div>
@@ -228,6 +234,7 @@ tr:hover {background-color: #f1f8e9;}
                             <option value="Death">Death</option>
                             <option value="Funeral">Funeral</option>
                             <option value="Claim">Claim</option>
+
                             <option value="Two Pot">Two Pot</option>
                         </select>
                     </div>
@@ -237,6 +244,10 @@ tr:hover {background-color: #f1f8e9;}
                             <option value="">-- Select --</option>
                             <option value="Resignation">Resignation</option>
                             <option value="Retirement">Retirement</option>
+                            <option value="Dismissal">Dismissal</option>
+                            <option value="Disability">Disability</option>
+                            <option value="Retrenchment">Retrenchment</option>
+                            <option value="Abscondent">Abscondent</option>
                             <option value="Death">Death</option>
                         </select>
                     </div>
@@ -260,6 +271,8 @@ tr:hover {background-color: #f1f8e9;}
                             <option value="Paid">Paid</option>
                             <option value="Submitted">Submitted</option>
                             <option value="Incomplete">Incomplete</option>
+                            <option value="Claim Docs Requested">Claim Docs Requested</option>
+                            <option value="Payment/Schedule">Payment/Schedule</option>
                         </select>
 
                         <div id="div_two_pot_withdrawal_details" style="display:none; margin-top: 10px; padding: 10px; border-left: 3px solid #fbc02d; background: #fffde7; border-radius: 4px;">
@@ -422,11 +435,20 @@ tr:hover {background-color: #f1f8e9;}
     function toggleTwoPotLogic() {
         const type = document.getElementById('claim_type_select').value;
         const isTwoPot = (type === 'Two Pot');
-        document.getElementById('div_mip_number').style.display = isTwoPot ? 'block' : 'none';
+        
+        // MIP Number is always visible, but only required (compulsory) for Two Pot
+        const mipInput = document.querySelector('input[name="mip_number"]');
+        const mipAsterisk = document.getElementById('mip_asterisk');
+        if (isTwoPot) {
+            mipInput.required = true;
+            if (mipAsterisk) mipAsterisk.style.display = 'inline';
+        } else {
+            mipInput.required = false;
+            if (mipAsterisk) mipAsterisk.style.display = 'none';
+        }
+
         document.getElementById('div_claim_amount').style.display = isTwoPot ? 'block' : 'none';
         document.getElementById('div_exit_reason').style.display = isTwoPot ? 'none' : 'block';
-        // Note: The logic that previously hid the two_pot_fields_section has been removed, 
-        // ensuring the Pot Availability section always remains visible.
     }
 
     function syncEmailEditor() {
@@ -438,6 +460,12 @@ tr:hover {background-color: #f1f8e9;}
         document.getElementById('modalTitle').innerText = "New Claim Withdrawal";
         document.getElementById('modal_claim_id').value = '';
         document.getElementById('main_claim_form').reset(); 
+        
+        // Auto-select agent dropdown based on logged-in user
+        const agentSel = document.getElementById('agent_input');
+        const userAgent = "{% if 'jesica' in request.user.username|lower or 'jessica' in request.user.first_name|lower %}JH{% elif 'timothy' in request.user.username|lower or 'timothy' in request.user.first_name|lower %}TD{% endif %}";
+        if (userAgent) { agentSel.value = userAgent; }
+
         document.getElementById('claim_notes_tbody').innerHTML = '<tr><td colspan="5" style="text-align:center;">New entry.</td></tr>';
         toggleTwoPotLogic();
         document.getElementById('claimModal').style.display = 'block';
@@ -448,6 +476,8 @@ tr:hover {background-color: #f1f8e9;}
         document.getElementById('modalTitle').innerText = "Edit Claim Entry";
         document.getElementById('modal_claim_id').value = data.id;
         document.getElementById('company_code_input').value = data.company_code;
+        
+        // Ensure the dropdown is set to the correct agent on edit
         document.getElementById('agent_input').value = data.agent;
         
         document.querySelector('input[name="id_number"]').value = data.id_number;
@@ -458,6 +488,7 @@ tr:hover {background-color: #f1f8e9;}
         document.getElementById('claim_type_select').value = data.claim_type;
         toggleTwoPotLogic(); 
 
+        // Ensure all dropdowns are set using the helper
         setSelectValue('claim_status', data.claim_status);
         setSelectValue('payment_option', data.payment_option);
         setSelectValue('exit_reason', data.exit_reason);
@@ -469,6 +500,7 @@ tr:hover {background-color: #f1f8e9;}
         document.querySelector('input[name="date_submitted"]').value = data.date_submitted;
         document.querySelector('input[name="date_paid"]').value = data.date_paid;
 
+        // Checkboxes and Date fields
         document.getElementById('id_vested_pot_available').checked = (data.vested_pot_available === 'True');
         document.getElementById('id_savings_pot_available').checked = (data.savings_pot_available === 'True');
         document.getElementById('id_vested_pot_paid_date').value = data.vested_pot_paid_date;
@@ -476,7 +508,9 @@ tr:hover {background-color: #f1f8e9;}
         document.getElementById('id_infund_cert_date').value = data.infund_cert_date;
         document.getElementById('linked_email_id').value = data.linked_email_id;
 
+        // Run visibility toggles AFTER setting values so the UI updates
         togglePotVisibility();
+        toggleWithdrawalSubFields();
 
         const notesSrc = document.getElementById('notes-data-' + data.id);
         const notesTrg = document.getElementById('claim_notes_tbody');
@@ -490,7 +524,10 @@ tr:hover {background-color: #f1f8e9;}
 
     function setSelectValue(name, val) {
         const sel = document.querySelector(`select[name="${name}"]`);
-        if (sel) sel.value = (val === 'None' || !val) ? "" : val;
+        if (sel) {
+            // Check if value exists in options to prevent errors
+            sel.value = (val === 'None' || !val) ? "" : val;
+        }
     }
 
     function toggleEmailForm() {
@@ -514,10 +551,6 @@ tr:hover {background-color: #f1f8e9;}
             note.value = `Withdrawal - Already claim in current financial year - Member claim date = ${date}`;
         }
     }
-
-    document.getElementById('company_code_input').addEventListener('input', function() {
-        // Agent auto-fill has been removed so it remains safely locked for Jesica and Timothy.
-    });
 
     window.onclick = function(e) { if (e.target.id === 'claimModal') e.target.style.display = "none"; }
 </script>

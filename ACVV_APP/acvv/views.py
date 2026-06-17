@@ -1046,16 +1046,17 @@ def save_global_claim(request):
         form_date_submitted = clean_date_input(request.POST.get('date_submitted'))
         form_informed_er = request.POST.get('informed_er') or "NO"
         
-        # --- NEW LOGIC: Lock Agent based on logged in user ---
-        form_submitted_by_agent = request.POST.get('submitted_by_agent') or ""
+        # --- UPDATED AGENT LOGIC: Prioritize dropdown, fallback to user auto-assignment ---
+        form_submitted_by_agent = request.POST.get('agent')
         
-        current_username = request.user.username.lower()
-        current_firstname = request.user.first_name.lower() if request.user.first_name else ""
-        
-        if 'jesica' in current_username or 'jessica' in current_username or 'jesica' in current_firstname or 'jessica' in current_firstname:
-            form_submitted_by_agent = "JH"
-        elif 'timothy' in current_username or 'timothy' in current_firstname:
-            form_submitted_by_agent = "TD"
+        if not form_submitted_by_agent:
+            current_username = request.user.username.lower()
+            current_firstname = request.user.first_name.lower() if request.user.first_name else ""
+            
+            if 'jesica' in current_username or 'jessica' in current_username or 'jesica' in current_firstname or 'jessica' in current_firstname:
+                form_submitted_by_agent = "JH"
+            elif 'timothy' in current_username or 'timothy' in current_firstname:
+                form_submitted_by_agent = "TD"
         # -----------------------------------------------------
 
         # --- EXTRACT POT AVAILABILITY FIELDS ---
@@ -1079,6 +1080,11 @@ def save_global_claim(request):
             'claim_type': claim_type,
             'claim_status': request.POST.get('claim_status'),
             'payment_option': request.POST.get('payment_option'),
+            
+            # --- UPDATED: Mapping added for Reason For Exit & Claim Allocation (Added fallback) ---
+            'exit_reason': request.POST.get('exit_reason'),
+            'claim_allocation': request.POST.get('claim_allocation') or "New Claim",
+            
             'claim_amount': claim_amount_val,
             'claim_created_date': clean_date_input(request.POST.get('claim_created_date')),
             # Map form date input field directly back onto database column 
@@ -2077,13 +2083,13 @@ def get_branch_map_acvv(claims_queryset):
 def export_two_pot_invoice_cecile(request):
     """
     Report 1: Cecile Invoice Format (Grey Theme)
-    Evaluates the status on the fly and strictly filters the sheet to only 
-    show Qualified 'yes' records. Records evaluating to 'no' are completely excluded.
+    Filters records where the status is valid and 'qualified' property is 'YES'.
     """
     query = request.GET.get('q')
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
 
+    # Initial Query
     claims = AcvvClaim.objects.filter(claim_type='Two Pot').order_by('claim_created_date')
     if query:
         claims = claims.filter(Q(id_number__icontains=query) | Q(member_surname__icontains=query))
@@ -2110,14 +2116,24 @@ def export_two_pot_invoice_cecile(request):
         cell.border = thin_border
         cell.alignment = Alignment(horizontal='center')
 
-    branch_map = get_branch_map_acvv(claims)
+    # Ensure get_branch_map_acvv is defined in your utils/services
+    branch_map = get_branch_map_acvv(claims) 
+
+    # Define the statuses that should be included in this report
+    valid_statuses = [
+        "PAID",
+        "MEMBER EMERGENCY SAVINGS POT WITHDRAWAL SUBMITTED",
+        "MEMBER EMERGENCY SAVINGS POT WITHDRAWAL REQUESTED"
+    ]
 
     for claim in claims:
-        # Check your existing database string field 'claim_status'
-        is_paid = str(claim.claim_status).upper().strip() == "PAID"
+        # Check property and status against the valid list
+        current_status = str(claim.claim_status).upper().strip()
+        is_valid_status = current_status in valid_statuses
+        is_qualified = (claim.qualified == "YES")
         
-        # 🚀 GUARD FILTER: Only continue if paid ("yes"). If not, skip the row entirely!
-        if not is_paid:
+        # 🚀 GUARD FILTER: Only continue if status is valid AND qualified.
+        if not (is_valid_status and is_qualified):
             continue
 
         initials = "".join([n[0] for n in claim.member_name.split() if n]) if claim.member_name else ""
@@ -2131,9 +2147,9 @@ def export_two_pot_invoice_cecile(request):
             claim.company_code,
             branch_map.get(claim.company_code, ""),
             claim.agent or "",
-            "yes",  # Guaranteed to be 'yes' due to the guard clause above
+            "yes",
             claim.date_submitted.strftime('%d/%m/%Y') if claim.date_submitted else '',
-            "YES",  # Guaranteed to be 'YES'
+            "YES",
             "R37.95",
             "SUBMIT ONLINE"
         ])
