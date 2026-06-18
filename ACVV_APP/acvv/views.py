@@ -983,21 +983,32 @@ def global_claims_view(request):
     base_claims = AcvvClaim.objects.exclude(claim_type='Two Pot')
 
     if query:
-        claims = base_claims.filter(
+        # If searching, we fetch all matching results before paginating
+        claims_list = base_claims.filter(
             Q(id_number__icontains=query) | 
             Q(member_surname__icontains=query) | 
             Q(company_code__icontains=query)
         ).order_by('-claim_created_date')
     else:
-        claims = base_claims.order_by('-claim_created_date')[:50] 
+        # Removed the [:50] limit so pagination can access all records
+        claims_list = base_claims.order_by('-claim_created_date')
 
-    # --- UPDATED: Email Preview Logic ---
-    delegation_ids = [str(c.linked_email_id) for c in claims if c.linked_email_id]
+    # --- Setup Pagination ---
+    # Show 36 claims per page as requested
+    paginator = Paginator(claims_list, 36) 
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # We now operate on page_obj.object_list instead of the full claims list
+    current_page_claims = page_obj.object_list
+
+    # --- Email Preview Logic (Only run for the 36 items on current page) ---
+    delegation_ids = [str(c.linked_email_id) for c in current_page_claims if c.linked_email_id]
     
     if delegation_ids:
         delegations_map = EmailDelegation.objects.in_bulk(delegation_ids, field_name='email_id')
         
-        for claim in claims:
+        for claim in current_page_claims:
             if claim.linked_email_id:
                 del_obj = delegations_map.get(str(claim.linked_email_id))
                 if del_obj:
@@ -1010,7 +1021,8 @@ def global_claims_view(request):
                         claim.email_preview_date = email_data.get('receivedDateTime')
 
     return render(request, 'acvv_app/global_claims.html', {
-        'claims': claims,
+        'claims': current_page_claims,   # The specific 36 items to display
+        'page_obj': page_obj,            # The paginator object needed for the HTML buttons
         'all_companies': Globalacvv.objects.values('mip_names', 'branch_code'),
         'my_delegated_emails': EmailDelegation.objects.filter(assigned_user=request.user).exclude(status='DLT'),
         'is_two_pot_view': False 
@@ -1089,6 +1101,8 @@ def save_global_claim(request):
             'claim_created_date': clean_date_input(request.POST.get('claim_created_date')),
             # Map form date input field directly back onto database column 
             'date_submitted': form_date_submitted,
+            'last_contribution_date': clean_date_input(request.POST.get('last_contribution_date')),
+            'date_paid': clean_date_input(request.POST.get('date_paid')),
             'linked_email_id': linked_id,
             
             # --- MAP POT FIELDS ---
@@ -1556,9 +1570,10 @@ def reconciliation_worksheet(request):
         try:
             current_fiscal = datetime.strptime(f"{req_year}-{req_month}-01", '%Y-%m-%d').date()
         except ValueError:
-            current_fiscal = last_month_date
+            current_fiscal = first_of_this_month
     else:
-        current_fiscal = last_month_date
+        # UPDATED: Changed default from last_month_date to first_of_this_month
+        current_fiscal = first_of_this_month
 
     # 2. HANDLE POST ACTIONS (Save/Close/Reopen)
     if request.method == 'POST':
@@ -2685,3 +2700,79 @@ def import_reconciliation_csv(request):
         return redirect('import_reconciliation_csv')
     
     return render(request, 'acvv_app/import_reconciliation.html')
+
+import re
+
+@login_required
+def import_withdrawals(request):
+    if request.method == 'POST' and request.FILES.get('excel_file'):
+        file = request.FILES['excel_file']
+        
+        # Helper to clean date strings that might contain extra text
+        def clean_and_parse_date(val):
+            if not val: return None
+            val_str = str(val).strip()
+            # Regex finds DD.MM.YYYY format
+            match = re.search(r'\d{2}\.\d{2}\.\d{4}', val_str)
+            if match:
+                return pd.to_datetime(match.group(0), dayfirst=True).date()
+            return None
+
+        try:
+            df = pd.read_excel(file)
+            df.columns = df.columns.str.strip()
+            df = df.where(pd.notnull(df), None)
+
+            for index, row in df.iterrows():
+                # Primary Key Lookup
+                id_no = str(row.get('ID_Passport', '')).strip()
+                if not id_no: continue
+                
+                # Strict Mapping based on your provided table
+                defaults = {
+                    'company_code': row.get('FUDN CODE', 'UNKNOWN'),
+                    'mip_number': row.get('Member Nr', ''),
+                    'member_name': row.get('Member Name', ''),
+                    'member_surname': row.get('Member Surname', ''),
+                    'claim_created_date': clean_and_parse_date(row.get('Claim Created')),
+                    'claim_type': row.get('Claim Type', 'Two Pot'),
+                    'exit_reason': row.get('Exit Reason', ''),
+                    'claim_allocation': row.get('Claim Allocation', 'New Claim'),
+                    'claim_status': row.get('Claim Status', 'Submitted'),
+                    'date_paid': clean_and_parse_date(row.get('DATE CLAIM PAID')),
+                    'last_contribution_date': clean_and_parse_date(row.get('J_Last_Contribution - EXIT DATE')),
+                    'date_submitted': clean_and_parse_date(row.get('Date Submitted')),
+                    'vested_pot_paid_date': clean_and_parse_date(row.get('Vested Pot Date Paid')),
+                    'savings_pot_paid_date': clean_and_parse_date(row.get('Savigns Pot Date Paid')),
+                    'infund_cert_date': clean_and_parse_date(row.get('Paid Up Certificate')),
+                    'payment_option': row.get('Pay Full Benefit / Retirement', ''),
+                    
+                    # Calculated Booleans
+                    'vested_pot_available': bool(row.get('Vested Pot Date Paid')),
+                    'savings_pot_available': bool(row.get('Savigns Pot Date Paid')),
+                }
+
+                # Update existing or create new
+                claim_obj, created = AcvvClaim.objects.update_or_create(
+                    id_number=id_no,
+                    defaults=defaults
+                )
+
+                # Add Note from the 'NOTES' Excel Column
+                note_content = row.get('NOTES')
+                if note_content:
+                    ClaimNote.objects.create(
+                        claim=claim_obj,
+                        note_selection="IMPORT",
+                        note_description=f"Excel Import Note: {note_content}",
+                        created_by=request.user
+                    )
+
+            messages.success(request, "Withdrawals imported successfully.")
+        except Exception as e:
+            print(f"IMPORT ERROR: {e}") 
+            messages.error(request, f"Import Failed: {str(e)}")
+            
+        return redirect('global_two_pot')
+    
+    return render(request, 'acvv_app/import_withdrawals.html')

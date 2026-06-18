@@ -639,17 +639,23 @@ def unity_information(request: HttpRequest, company_code):
         
         # Action: Add Note
         elif request.POST.get('note_content') or request.POST.get('action_notes'):
-            pdf_file = request.FILES.get('note_pdf_attachment')
-            UnityNotes.objects.create(
-                member_group_code=company_code, 
-                user=request.user.username, 
-                date=timezone.now(), 
-                communication_type=request.POST.get('communication_type') or 'Notes Log', 
-                action_notes=request.POST.get('action_notes'), 
-                notes=request.POST.get('note_content'),
-                attached_file=pdf_file 
-            )
-            messages.success(request, "Note and attachment added.")
+            try:
+                # Let Django's FileField handle the upload_to logic
+                pdf_file = request.FILES.get('note_pdf_attachment')
+                
+                UnityNotes.objects.create(
+                    member_group_code=company_code, 
+                    user=request.user.username, 
+                    date=timezone.now(), 
+                    communication_type=request.POST.get('communication_type') or 'Notes Log', 
+                    action_notes=request.POST.get('action_notes'), 
+                    notes=request.POST.get('note_content'),
+                    attached_file=pdf_file # Passes the uploaded file object directly
+                )
+                messages.success(request, "Note and attachment added.")
+            except Exception as e:
+                messages.error(request, f"Failed to save note: {e}")
+                
             return redirect(f"{reverse('unity_information', kwargs={'company_code': company_code})}#notes-log")
 
     context = {

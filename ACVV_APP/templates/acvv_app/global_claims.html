@@ -170,7 +170,7 @@ tr:hover {background-color: #f1f8e9;}
             {% endfor %}
         </div>
 
-        {% if is_two_pot_view and page_obj.has_other_pages %}
+        {% if page_obj.has_other_pages %}
         <div class="pagination-nav">
             {% if page_obj.has_previous %}
                 <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="dashboard-button" style="background-color: #757575;">&laquo; Previous</a>
