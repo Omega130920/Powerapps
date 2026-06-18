@@ -555,6 +555,7 @@ def unity_information(request: HttpRequest, company_code):
             overs_created = CreditNote.objects.filter(source_bank_line_id__in=used_line_ids, note_selection='OVERS', ccdates_month=bill.A_CCDatesMonth).aggregate(total=Sum('schedule_amount'))['total'] or Decimal('0.00')
             legacy_surplus = ScheduleSurplus.objects.filter(unity_bill_source_id=bill.id).aggregate(total=Sum('surplus_amount'))['total'] or Decimal('0.00')
             bill.surplus_created = overs_created + legacy_surplus
+            bill.I_Submitted_Date = bill.I_Submitted_Date
             settled_bills.append(bill)
         else:
             bill.display_status = 'OPEN' if bill.total_covered > Decimal('0.00') else 'SCHEDULED'
@@ -579,7 +580,6 @@ def unity_information(request: HttpRequest, company_code):
             attachments = request.FILES.getlist('attachments')
 
             if recipient and email_body_html:
-                # 🚀 FIX: Removed broken inline import. Utilizing top-level valid import string mapping.
                 response = OutlookGraphService.send_outlook_email(
                     settings.OUTLOOK_EMAIL_ADDRESS, recipient, subject, email_body_html, 'HTML', 
                     attachments=attachments,
@@ -587,7 +587,6 @@ def unity_information(request: HttpRequest, company_code):
                     bcc_email=bcc_recipients   
                 )
                 if response.get('success'):
-                    # Prettier note entry for email logs
                     attachment_count = len(attachments)
                     attach_string = f" ({attachment_count} files)" if attachment_count > 0 else ""
                     
@@ -640,9 +639,7 @@ def unity_information(request: HttpRequest, company_code):
         # Action: Add Note
         elif request.POST.get('note_content') or request.POST.get('action_notes'):
             try:
-                # Let Django's FileField handle the upload_to logic
                 pdf_file = request.FILES.get('note_pdf_attachment')
-                
                 UnityNotes.objects.create(
                     member_group_code=company_code, 
                     user=request.user.username, 
@@ -650,7 +647,7 @@ def unity_information(request: HttpRequest, company_code):
                     communication_type=request.POST.get('communication_type') or 'Notes Log', 
                     action_notes=request.POST.get('action_notes'), 
                     notes=request.POST.get('note_content'),
-                    attached_file=pdf_file # Passes the uploaded file object directly
+                    attached_file=pdf_file 
                 )
                 messages.success(request, "Note and attachment added.")
             except Exception as e:
@@ -2718,11 +2715,16 @@ TOLERANCE = Decimal('0.00001')
 def global_history_overview(request):
     """
     Renders a high-level overview of ALL Reconciled Bill History.
+    UPDATED: Now filters by I_Submitted_Date.
     """
     from decimal import Decimal
     from collections import defaultdict
-    from datetime import datetime, date # Ensure date is imported
-    
+    from datetime import datetime, date
+    from django.db import connection
+    from django.contrib import messages
+    from django.shortcuts import render
+    from .models import UnityBill, BillSettlement, JournalEntry
+
     start_date_str = request.GET.get('start_date')
     end_date_str = request.GET.get('end_date')
     
@@ -2739,10 +2741,9 @@ def global_history_overview(request):
         messages.error(request, "Invalid date format provided for filtering.")
         
     T1_TABLE = 'bill_settlement'
-    filtered_bill_ids = set()
 
-    # --- 1. Base Query with Strict Filters ---
-    base_bills = UnityBill.objects.filter(
+    # --- 1. Base Query ---
+    all_bills_queryset = UnityBill.objects.filter(
         is_reconciled=True
     ).exclude(
         E_Active_Members=0
@@ -2750,41 +2751,13 @@ def global_history_overview(request):
         H_Schedule_Amount=0
     )
 
-    # --- 2. Determine Bill IDs to Display (Filtering by Date) ---
-    if filter_start_date or filter_end_date:
-        where_conditions_cash = []
-        sql_args_cash = []
-        if filter_start_date:
-            where_conditions_cash.append("settlement_date >= %s")
-            sql_args_cash.append(filter_start_date)
-        if filter_end_date:
-            where_conditions_cash.append("settlement_date <= %s")
-            sql_args_cash.append(filter_end_date)
-            
-        where_clause_cash = "WHERE " + " AND ".join(where_conditions_cash) if where_conditions_cash else ""
-        cash_filter_sql = f"SELECT DISTINCT unity_bill_source_id FROM {T1_TABLE} {where_clause_cash}"
-        
-        try:
-            with connection.cursor() as cursor:
-                cursor.execute(cash_filter_sql, sql_args_cash)
-                cash_ids = [row[0] for row in cursor.fetchall()]
-                filtered_bill_ids.update(cash_ids)
-        except Exception as e:
-            messages.error(request, f"Database Error during cash filter: {e}")
-            
-        journal_queryset = JournalEntry.objects.all()
-        if filter_start_date:
-            journal_queryset = journal_queryset.filter(allocation_date__gte=filter_start_date)
-        if filter_end_date:
-            journal_queryset = journal_queryset.filter(allocation_date__lte=filter_end_date)
-        journal_ids = journal_queryset.values_list('target_bill_id', flat=True).distinct()
-        filtered_bill_ids.update(journal_ids)
-        
-        all_bills_queryset = base_bills.filter(id__in=list(filtered_bill_ids))
-    else:
-        all_bills_queryset = base_bills
+    # --- 2. Filter by I_Submitted_Date ---
+    if filter_start_date:
+        all_bills_queryset = all_bills_queryset.filter(I_Submitted_Date__gte=filter_start_date)
+    if filter_end_date:
+        all_bills_queryset = all_bills_queryset.filter(I_Submitted_Date__lte=filter_end_date)
 
-    all_bills = list(all_bills_queryset.order_by('-A_CCDatesMonth', 'C_Company_Code'))
+    all_bills = list(all_bills_queryset.order_by('-I_Submitted_Date', 'C_Company_Code'))
     final_bill_ids = [bill.id for bill in all_bills]
     
     # --- 3. Fetch Granular Settlements ---
@@ -2829,8 +2802,8 @@ def global_history_overview(request):
             cash_journal_settled = sum((d['amount'] for d in deposits), start=ZERO_DECIMAL)
             credit_settled = credits_map.get(bill.id, ZERO_DECIMAL)
             
-            # Find latest deposit date for sorting
-            latest_date = max([d['date'] for d in deposits] + [bill.A_CCDatesMonth or date(1900, 1, 1)])
+            # Use I_Submitted_Date as the key anchor for sorting/history
+            latest_date = bill.I_Submitted_Date or date(1900, 1, 1)
             
             final_records.append({
                 'bill': bill,
@@ -2839,16 +2812,16 @@ def global_history_overview(request):
                 'status_class': 'badge-success',
                 'is_settled': True,
                 'total_settled': cash_journal_settled + credit_settled,
-                'latest_date': latest_date, # For sorting
+                'latest_date': latest_date, 
             })
 
-    # 🚀 SORTING LOGIC: Newest reconciliation date first
+    # 🚀 SORTING LOGIC: Newest I_Submitted_Date first
     final_records.sort(key=lambda x: x['latest_date'], reverse=True)
 
     context = {
         'bill_records': final_records,
-        'filter_start_date': filter_start_date.strftime('%Y-%m-%d') if filter_start_date else '',
-        'filter_end_date': filter_end_date.strftime('%Y-%m-%d') if filter_end_date else '',
+        'filter_start_date': start_date_str or '',
+        'filter_end_date': end_date_str or '',
     }
     return render(request, 'unity_internal_app/global_history_overview.html', context)
 
@@ -3082,9 +3055,11 @@ def admin_billing_view(request):
     """
     Displays a raw, line-by-line list of bills ready for Admin Billing confirmation.
     Calculates a 0.3% Admin Fee per bill line based on monthly salary.
+    UPDATED: Filters by I_Submitted_Date.
     """
     from decimal import Decimal
     from datetime import datetime, timedelta
+    from .models import UnityBill, BillSettlement
 
     filter_start_date = request.GET.get('start_date')
     filter_end_date = request.GET.get('end_date')
@@ -3098,10 +3073,11 @@ def admin_billing_view(request):
         H_Schedule_Amount=0
     )
 
+    # 🚀 UPDATED: Filtering by I_Submitted_Date
     if filter_start_date:
         try:
             start_dt = datetime.strptime(filter_start_date, '%Y-%m-%d').date()
-            bills_queryset = bills_queryset.filter(A_CCDatesMonth__gte=start_dt)
+            bills_queryset = bills_queryset.filter(I_Submitted_Date__gte=start_dt)
         except ValueError:
             pass
 
@@ -3109,7 +3085,7 @@ def admin_billing_view(request):
         try:
             end_dt = datetime.strptime(filter_end_date, '%Y-%m-%d').date()
             inclusive_end_dt = end_dt + timedelta(days=1)
-            bills_queryset = bills_queryset.filter(A_CCDatesMonth__lt=inclusive_end_dt)
+            bills_queryset = bills_queryset.filter(I_Submitted_Date__lt=inclusive_end_dt)
         except ValueError:
             pass
             
@@ -3119,7 +3095,7 @@ def admin_billing_view(request):
         schedule_amount = bill.H_Schedule_Amount or Decimal('0.00')
         active_members = bill.E_Active_Members or 0 
         
-        # 🚀 Admin Fee calculation (0.3%)
+        # Admin Fee calculation (0.3%)
         admin_fee = schedule_amount * Decimal('0.003')
         
         # Find the FIRST settlement record for metadata
@@ -3127,7 +3103,8 @@ def admin_billing_view(request):
             unity_bill_source_id=bill.pk
         ).order_by('settlement_date').first()
         
-        posted_date = first_settlement.settlement_date if first_settlement else None
+        # Using I_Submitted_Date for the posted date reference
+        posted_date = bill.I_Submitted_Date
         
         posted_user = "N/A"
         if first_settlement and first_settlement.confirmed_by:
@@ -3146,9 +3123,8 @@ def admin_billing_view(request):
             'posted_user': posted_user, 
         })
 
-    # 🚀 SORTING LOGIC: Sort by posted_date (Newest first). 
-    # Using datetime.min as a fallback for records without a date.
-    final_bill_data.sort(key=lambda x: x['posted_date'] if x['posted_date'] else datetime.min, reverse=True)
+    # 🚀 SORTING LOGIC: Sort by posted_date (I_Submitted_Date). 
+    final_bill_data.sort(key=lambda x: x['posted_date'] if x['posted_date'] else datetime.min.date(), reverse=True)
 
     context = {
         'bill_records': final_bill_data,

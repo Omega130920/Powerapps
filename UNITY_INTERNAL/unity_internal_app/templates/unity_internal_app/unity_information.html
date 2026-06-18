@@ -1131,8 +1131,7 @@
                     <th style="color: #e65100; background-color: #fff3e0;">Applied Credit</th>
                     <th style="color: #512da8; background-color: #ede7f6;">Surplus Created (Overs)</th>
                     <th>Status</th>
-                    <th>Confirm Date</th>
-                    <th>Action</th>
+                    <th>Conf. Date</th> <th>Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -1160,7 +1159,7 @@
 
                     <td><span class="status-tag status-{{ record.display_status|lower|cut:' ' }}">{{ record.display_status }}</span></td>
                     
-                    <td>{{ record.G_Schedule_Date|date:"Y-m-d"|default:"-" }}</td>
+                    <td>{{ record.I_Submitted_Date|date:"Y-m-d"|default:"-" }}</td>
                     
                     <td>
                         <a href="{% url 'settle_bill_report' company_code=record.C_Company_Code bill_id=record.id %}" 
