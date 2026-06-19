@@ -1101,7 +1101,7 @@
                         <td><span class="status-tag status-{{ record.display_status|lower|cut:' ' }}">{{ record.display_status }}</span></td>
                         <td>{{ record.F_Pre_Bill_Date|date:"Y-m-d"|default:"-" }}</td>   
                         <td>{{ record.G_Schedule_Date|date:"Y-m-d"|default:"-" }}</td>   
-                        <td>{{ record.J_Final_Date|date:"Y-m-d"|default:"-" }}</td>   
+                        <td>{{ record.I_Submitted_Date|date:"Y-m-d"|default:"-" }}</td>   
                         <td>
                             <a href="{% url 'edit_bill' company_code=record.C_Company_Code bill_id=record.id %}" class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #3f51b5;">Edit Bill</a>
                             <a href="{% url 'pre_bill_reconciliation_summary' company_code=record.C_Company_Code bill_id=record.id %}" class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #3f51b5;">Recon</a>

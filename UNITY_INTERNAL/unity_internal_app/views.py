@@ -559,6 +559,7 @@ def unity_information(request: HttpRequest, company_code):
             settled_bills.append(bill)
         else:
             bill.display_status = 'OPEN' if bill.total_covered > Decimal('0.00') else 'SCHEDULED'
+            bill.I_Submitted_Date = bill.I_Submitted_Date
             open_bills.append(bill)
 
     my_delegated_emails = EmailDelegation.objects.filter(assigned_user=request.user).exclude(status__in=['COMP', 'CLS', 'DONE']).order_by('-received_at')
