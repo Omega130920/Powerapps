@@ -101,14 +101,15 @@
         <table>
             <thead>
                 <tr>
-                    <th style="width: 12%;">Fiscal Period</th>
-                    <th style="width: 10%;">Code</th>
-                    <th style="width: 18%;">Company Name</th>
-                    <th style="width: 10%;">Members</th>
-                    <th style="width: 13%;" class="amount-col">Salary</th>
-                    <th style="width: 13%;" class="fee-col">Fee (0.3%)</th>
+                    <th style="width: 10%;">Fiscal Period</th>
+                    <th style="width: 8%;">Code</th>
+                    <th style="width: 16%;">Company Name</th>
+                    <th style="width: 8%;">Members</th>
+                    <th style="width: 12%;" class="amount-col">Schedule Amount</th>
+                    <th style="width: 12%;" class="amount-col">Salary Amount</th>
+                    <th style="width: 12%;" class="fee-col">Fee (0.3%)</th>
                     <th style="width: 12%;">Confirmed By</th>
-                    <th style="width: 12%;">Date</th>
+                    <th style="width: 10%;">Date</th>
                 </tr>
             </thead>
             <tbody>
@@ -119,13 +120,14 @@
                     <td>{{ record.company_name }}</td>
                     <td>{{ record.active_members }}</td>
                     <td class="amount-col">R {{ record.total_schedule_amount|default:"0.00"|floatformat:2 }}</td>
+                    <td class="amount-col">R {{ record.total_salary_amount|default:"0.00"|floatformat:2 }}</td>
                     <td class="fee-col">R {{ record.total_admin_fee|floatformat:2 }}</td>
                     <td>{{ record.posted_user }}</td>
                     <td>{{ record.posted_date|date:"Y-m-d"|default:"N/A" }}</td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="8" style="text-align: center; padding: 40px; color: #999;">
+                    <td colspan="9" style="text-align: center; padding: 40px; color: #999;">
                         No individual bill records found matching the criteria.
                     </td>
                 </tr>

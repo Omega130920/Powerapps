@@ -39,7 +39,7 @@ class PreBillForm(forms.ModelForm):
             #'B_Fund_Code',
             'C_Company_Code', 'D_Company_Name', 
             'E_Active_Members', 'F_Pre_Bill_Date', 'G_Schedule_Date', 
-            'H_Schedule_Amount', 'I_Submitted_Date', 'J_Final_Date',
+            'H_Schedule_Amount', 'salary_amount', 'I_Submitted_Date', 'J_Final_Date',
             # All deposit fields (K, L, M, N, O, P, Q, R, S, T) are excluded.
         ]
         widgets = {
@@ -55,6 +55,7 @@ class PreBillForm(forms.ModelForm):
             'D_Company_Name': forms.TextInput(),
             'E_Active_Members': forms.NumberInput(),
             'H_Schedule_Amount': forms.NumberInput(attrs={'step': '0.01'}),
+            'salary_amount': forms.NumberInput(attrs={'step': '0.01', 'placeholder': '0.00'}),
         }
         labels = {
             'A_CCDatesMonth': 'Bill/Month Date (Required)',
@@ -64,6 +65,7 @@ class PreBillForm(forms.ModelForm):
             'F_Pre_Bill_Date': 'Pre-Bill Date',
             'G_Schedule_Date': 'Schedule Date',
             'H_Schedule_Amount': 'Scheduled Bill Amount (R)', 
+            'salary_amount': 'Salary Amount (R)',
             'I_Submitted_Date': 'Submitted Date',
             'J_Final_Date': 'Final Date',
         }

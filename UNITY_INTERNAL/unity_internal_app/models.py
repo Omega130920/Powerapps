@@ -134,6 +134,7 @@ class UnityBill(models.Model):
     I_Submitted_Date = models.DateField(null=True, blank=True, db_column='I_Submitted_Date')
     J_Final_Date = models.DateField(null=True, blank=True, db_column='J_Final_Date')
     is_reconciled = models.BooleanField(default=False)
+    salary_amount = models.DecimalField(max_digits=15, decimal_places=2, default=0.00)
 
     # REMOVED: surplus_created (to stop the crash)
 
@@ -710,6 +711,7 @@ class UnityClaim(models.Model):
     savings_pot_paid_date = models.DateField(null=True, blank=True)
     
     infund_preservation_cert_received_date = models.DateField(null=True, blank=True)
+    
 
     class Meta:
         managed = False

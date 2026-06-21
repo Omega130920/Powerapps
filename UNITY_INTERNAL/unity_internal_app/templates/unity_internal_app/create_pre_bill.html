@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Create New Pre-Bill</title>
 <style>
-/* ... (Your original CSS is here) ... */
+/* ... (Your existing CSS remains exactly as you had it) ... */
 body {
     font-family: sans-serif;
     background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
@@ -103,6 +103,16 @@ input[type="text"], input[type="number"], input[type="date"] {
                         Pre-filled with calculated debt based on the **Bill Date** above. **Can be edited.**
                         (Calculated Debt: R{{ calculated_debt_for_prefill|floatformat:2 }})
                     </small>
+                    {% if field.errors %}
+                        <small style="color: red;">{{ field.errors }}</small>
+                    {% endif %}
+                </div>
+
+            {# 🚀 ADDED: Explicit handling for salary_amount #}
+            {% elif field.name == 'salary_amount' %}
+                <div class="form-group">
+                    {{ field.label_tag }}
+                    {{ field }}
                     {% if field.errors %}
                         <small style="color: red;">{{ field.errors }}</small>
                     {% endif %}

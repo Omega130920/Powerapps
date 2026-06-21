@@ -815,8 +815,11 @@ def create_pre_bill(request, company_code):
     if request.method == 'POST':
         form = PreBillForm(request.POST)
         bill_date_str = request.POST.get('A_CCDatesMonth')
-        bill_date = None
         
+        # 🚀 ADDED: Capture salary_amount from the form submission
+        salary_amount_val = request.POST.get('salary_amount', ZERO_DECIMAL)
+        
+        bill_date = None
         if bill_date_str:
             try:
                 bill_date = datetime.strptime(bill_date_str, '%Y-%m-%d').date()
@@ -826,8 +829,6 @@ def create_pre_bill(request, company_code):
         if form.is_valid() and bill_date:
             
             # --- NEW LOGIC: Calculate Debt (All available) ---
-            # NOTE: We fetch ALL available debt, regardless of fiscal date, for pre-fill purposes.
-            # This calculation is for guidance only, as it's not restricted by fiscal month anymore.
             debt_queryset = ReconnedBank.objects.filter(
                 company_code=company_code,
                 # Only unsettled lines
@@ -842,6 +843,9 @@ def create_pre_bill(request, company_code):
             
             bill_record = form.save(commit=False)
             bill_record.C_Company_Code = company_code
+            
+            # 🚀 ADDED: Map the salary amount to the model instance
+            bill_record.salary_amount = Decimal(salary_amount_val)
             
             # --- NEW LOGIC: Set Pre-Bill Date upon creation ---
             # This triggers the 'PRE-BILL' status as G_Schedule_Date will be None
@@ -862,7 +866,7 @@ def create_pre_bill(request, company_code):
             try:
                 bill_record.save()
                 
-                messages.success(request, f"New Pre-Bill record created for {company_code} (Date: {bill_record.A_CCDatesMonth}). Scheduled Amount: R{bill_record.H_Schedule_Amount}")
+                messages.success(request, f"New Pre-Bill record created for {company_code}. Salary: R{salary_amount_val}. Scheduled: R{bill_record.H_Schedule_Amount}")
                 
                 # 🛑 CRITICAL FIX: Add cache-busting timestamp to the redirect URL
                 timestamp = timezone.now().timestamp()
@@ -2517,10 +2521,13 @@ def export_settled_bill_csv(request, company_code, bill_id):
 
     return response
 
-# Assuming UnityBill model and other necessary imports exist.
+# --- DEFINE CONSTANTS ---
 # MAX_DEPOSITS constant
 MAX_DEPOSITS = 5
 TWO_PLACES = Decimal('0.00') # Assuming this is correctly defined globally
+ZERO_DECIMAL = Decimal('0.00')
+# Tolerance to handle floating point errors when comparing Decimal amounts to zero
+TOLERANCE = Decimal('0.00001')
 
 @login_required
 def export_global_history_csv(request):
@@ -2528,14 +2535,16 @@ def export_global_history_csv(request):
     Exports the payment history for Bills that had settlement activity 
     in a horizontal format (pivoted deposits).
     
-    FIX: Unifies data fetching by querying BillSettlement, CreditNote, and 
-          JournalEntry models separately and merging the results before pivoting.
+    FIX: Now filters by I_Submitted_Date to match the on-screen table exactly.
+    ADDED: 'K_Total_Settled' column to base headers and row details,
+           shifting subsequent deposit letter columns dynamically.
     """
-    # --- Constants ---
-    MAX_DEPOSITS = 5
-    TWO_PLACES = Decimal('0.00')
-    
-    # --- Date Filtering Logic (Unchanged) ---
+    import csv
+    from collections import defaultdict
+    from datetime import datetime
+    from django.http import HttpResponse
+
+    # --- Date Filtering Logic ---
     start_date_str = request.GET.get('start_date')
     end_date_str = request.GET.get('end_date')
     
@@ -2550,38 +2559,28 @@ def export_global_history_csv(request):
     except ValueError:
         return HttpResponse("Invalid date format provided for filtering.", status=400)
     
-    T1_TABLE = 'bill_settlement'
+    # --- 1. Determine Bill IDs to Display (Filtered by I_Submitted_Date) ---
+    all_bills_queryset = UnityBill.objects.filter(
+        is_reconciled=True
+    ).exclude(
+        E_Active_Members=0
+    ).exclude(
+        H_Schedule_Amount=0
+    )
     
-    # --- 1. Determine Bill IDs to Display (Filtered by Settlement Date) ---
-    # This logic is kept concise, relying on BillSettlement for date filtering if requested.
-    
-    all_bills_queryset = UnityBill.objects.all()
-    
-    if filter_start_date or filter_end_date:
-        # Get bill IDs from BillSettlement based on date range
-        settlement_filter = BillSettlement.objects.all()
-        if filter_start_date:
-            settlement_filter = settlement_filter.filter(settlement_date__gte=filter_start_date)
-        if filter_end_date:
-            settlement_filter = settlement_filter.filter(settlement_date__lte=filter_end_date)
-        
-        filtered_bill_ids = settlement_filter.values_list('unity_bill_source_id', flat=True).distinct()
-        
-        if not filtered_bill_ids:
-            all_bills_queryset = UnityBill.objects.none()
-        else:
-            all_bills_queryset = all_bills_queryset.filter(id__in=filtered_bill_ids)
+    if filter_start_date:
+        all_bills_queryset = all_bills_queryset.filter(I_Submitted_Date__gte=filter_start_date)
+    if filter_end_date:
+        all_bills_queryset = all_bills_queryset.filter(I_Submitted_Date__lte=filter_end_date)
             
-    all_bills = list(all_bills_queryset.order_by('C_Company_Code', '-A_CCDatesMonth'))
+    all_bills = list(all_bills_queryset.order_by('C_Company_Code', '-I_Submitted_Date'))
     filtered_bill_ids = [bill.id for bill in all_bills]
     
     # --- 2. Fetch ALL Granular Settlements (Cash, Credit, Journal) ---
-
     deposits_by_bill = defaultdict(list)
     credits_map = defaultdict(Decimal)
 
     if filtered_bill_ids:
-        # A. Fetch ALL BillSettlement records for the target bills
         all_settlements = BillSettlement.objects.filter(
             unity_bill_source_id__in=filtered_bill_ids
         ).select_related(
@@ -2589,39 +2588,32 @@ def export_global_history_csv(request):
             'reconned_bank_line__bank_line'
         ).order_by('settlement_date')
 
-        # B. Fetch all relevant Credit Notes and Journals for lookups
         credit_ids = all_settlements.values_list('source_credit_note_id', flat=True).distinct()
         journal_ids = all_settlements.values_list('source_journal_entry_id', flat=True).distinct()
 
-        # Optimize: Pre-fetch source object maps (if necessary for rich detail)
         credit_note_details = {cn.id: cn for cn in CreditNote.objects.filter(id__in=credit_ids)}
         journal_entry_details = {je.id: je for je in JournalEntry.objects.filter(id__in=journal_ids)}
         
-        # C. Map BillSettlement entries to deposits_by_bill list
         for s in all_settlements:
             deposit_amount = s.settled_amount or ZERO_DECIMAL
             source_type = 'Unknown'
-            deposit_date = s.settlement_date.date() # Default date
+            deposit_date = s.settlement_date.date()
 
             if s.reconned_bank_line_id:
-                # 1. Cash Settlement (Primary Source is ReconnedBank/ImportBank)
                 source_type = 'Cash'
                 if s.reconned_bank_line and s.reconned_bank_line.bank_line:
                     deposit_date = s.reconned_bank_line.bank_line.date
             
             elif s.source_credit_note_id:
-                # 2. Credit Settlement
                 source_type = 'Credit'
-                credits_map[s.unity_bill_source_id] += deposit_amount # Track total credit for status check
+                credits_map[s.unity_bill_source_id] += deposit_amount
                 
                 cn = credit_note_details.get(s.source_credit_note_id)
                 if cn and cn.fiscal_date:
                     deposit_date = cn.fiscal_date
             
             elif s.source_journal_entry_id:
-                # 3. Journal/Surplus Settlement
                 source_type = 'Journal'
-                
                 je = journal_entry_details.get(s.source_journal_entry_id)
                 if je and je.allocation_date:
                     deposit_date = je.allocation_date
@@ -2633,45 +2625,41 @@ def export_global_history_csv(request):
             })
 
     # --- 3. Generate CSV Response ---
-
     response = HttpResponse(content_type='text/csv')
     response['Content-Disposition'] = 'attachment; filename="Global_Horizontal_Payments_DOWNLOAD.csv"'
 
     writer = csv.writer(response)
     
-    # 1. Define Headers (Unchanged)
+    # 1. Define Headers (Added K_Total_Settled)
     base_headers = [
         'A_CCDatesMonth', 'B_Fund_Code', 'C_Company_Code', 'D_Company_Name',
         'E_Active_Members', 'F_Pre-Bill_Date', 'G_Schedule_Date', 'H_Schedule_Amount',
-        'I_Submitted_Date', 'J_Final_Date',
+        'I_Submitted_Date', 'J_Final_Date', 'K_Total_Settled'
     ]
     
+    # Shifted character pointers up by 1 (76 is L, 77 is M) to follow K_Total_Settled cleanly
     payment_headers = []
     for i in range(MAX_DEPOSITS):
         payment_headers.extend([
-            f'{chr(75 + 2 * i)}_Bank_Stmt_Date',  # K, M, O, Q, S
-            f'{chr(76 + 2 * i)}_Bank_Deposit_Amount'  # L, N, P, R, T
+            f'{chr(76 + 2 * i)}_Bank_Stmt_Date',       # L, N, P, R, T
+            f'{chr(77 + 2 * i)}_Bank_Deposit_Amount'   # M, O, Q, S, U
         ])
     
     writer.writerow(base_headers + payment_headers)
-    
-    # Date format for CSV output
     CSV_DATE_FORMAT = '%d/%m/%Y'
 
     for bill in all_bills:
-        
         deposits = deposits_by_bill.get(bill.id, [])
         
-        # Calculate settlement status (CRITICAL: Needs to rely on total paid vs schedule)
+        # Calculate settlement status
         total_settled = sum((d['amount'] for d in deposits), start=TWO_PLACES)
-        
         is_settled = total_settled >= (bill.H_Schedule_Amount or TWO_PLACES)
 
-        # CRITICAL FILTER: Skip row if the bill is not fully RECONCILED (as requested)
+        # Skip row if the bill is not fully RECONCILED
         if not is_settled:
             continue
 
-        # A. Gather Base Bill Data (Columns A-J)
+        # A. Gather Base Bill Data (Columns A-K)
         row_data = [
             bill.A_CCDatesMonth.strftime(CSV_DATE_FORMAT) if bill.A_CCDatesMonth else '',
             bill.B_Fund_Code or '',
@@ -2683,12 +2671,11 @@ def export_global_history_csv(request):
             str((bill.H_Schedule_Amount or ZERO_DECIMAL).quantize(TWO_PLACES)),
             bill.I_Submitted_Date.strftime(CSV_DATE_FORMAT) if bill.I_Submitted_Date else '',
             bill.J_Final_Date.strftime(CSV_DATE_FORMAT) if bill.J_Final_Date else '',
+            str(total_settled.quantize(TWO_PLACES)), # Added actual values to row data output
         ]
         
-        # B. Prepare for Payment Data (Dynamic Columns K-T)
+        # B. Prepare for Payment Data (Dynamic Columns L-U)
         payment_data = [''] * (MAX_DEPOSITS * 2)
-        
-        # Sort all deposits (Cash, Credit, Journal) by date
         deposits.sort(key=lambda d: d['date'])
 
         for i in range(MAX_DEPOSITS):
@@ -2698,7 +2685,6 @@ def export_global_history_csv(request):
                 date_col_index = i * 2
                 amount_col_index = i * 2 + 1
                 
-                # Fill payment data array
                 payment_data[date_col_index] = deposit['date'].strftime(CSV_DATE_FORMAT)
                 payment_data[amount_col_index] = str(deposit['amount'].quantize(TWO_PLACES))
 
@@ -2707,10 +2693,6 @@ def export_global_history_csv(request):
 
     return response
 
-# --- DEFINE CONSTANTS ---
-# ZERO_DECIMAL already defined globally at the top
-# Tolerance to handle floating point errors when comparing Decimal amounts to zero
-TOLERANCE = Decimal('0.00001')
 
 @login_required
 def global_history_overview(request):
@@ -2724,6 +2706,7 @@ def global_history_overview(request):
     from django.db import connection
     from django.contrib import messages
     from django.shortcuts import render
+    from django.db.models import Sum
     from .models import UnityBill, BillSettlement, JournalEntry
 
     start_date_str = request.GET.get('start_date')
@@ -2731,7 +2714,6 @@ def global_history_overview(request):
     
     filter_start_date = None
     filter_end_date = None
-    ZERO_DECIMAL = Decimal('0.00')
     
     try:
         if start_date_str:
@@ -3054,19 +3036,18 @@ def confirmations_view(request):
 @login_required
 def admin_billing_view(request):
     """
-    Displays a raw, line-by-line list of bills ready for Admin Billing confirmation.
-    Calculates a 0.3% Admin Fee per bill line based on monthly salary.
-    UPDATED: Filters by I_Submitted_Date.
+    Displays raw line-by-line list, now using the robust ID-matching filter pattern.
     """
     from decimal import Decimal
     from datetime import datetime, timedelta
+    from django.db.models import Q
     from .models import UnityBill, BillSettlement
 
-    filter_start_date = request.GET.get('start_date')
-    filter_end_date = request.GET.get('end_date')
+    filter_start_date_str = request.GET.get('start_date')
+    filter_end_date_str = request.GET.get('end_date')
 
     # Base Query
-    bills_queryset = UnityBill.objects.all().filter(
+    bills_queryset = UnityBill.objects.filter(
         is_reconciled=True
     ).exclude(
         E_Active_Members=0
@@ -3074,19 +3055,20 @@ def admin_billing_view(request):
         H_Schedule_Amount=0
     )
 
-    # 🚀 UPDATED: Filtering by I_Submitted_Date
-    if filter_start_date:
+    # 🚀 DYNAMIC ID MATCHING PATTERN
+    if filter_start_date_str or filter_end_date_str:
+        filter_q = Q()
         try:
-            start_dt = datetime.strptime(filter_start_date, '%Y-%m-%d').date()
-            bills_queryset = bills_queryset.filter(I_Submitted_Date__gte=start_dt)
-        except ValueError:
-            pass
-
-    if filter_end_date:
-        try:
-            end_dt = datetime.strptime(filter_end_date, '%Y-%m-%d').date()
-            inclusive_end_dt = end_dt + timedelta(days=1)
-            bills_queryset = bills_queryset.filter(I_Submitted_Date__lt=inclusive_end_dt)
+            if filter_start_date_str:
+                start_dt = datetime.strptime(filter_start_date_str, '%Y-%m-%d').date()
+                filter_q &= Q(I_Submitted_Date__gte=start_dt)
+            if filter_end_date_str:
+                end_dt = datetime.strptime(filter_end_date_str, '%Y-%m-%d').date()
+                filter_q &= Q(I_Submitted_Date__lt=end_dt + timedelta(days=1))
+            
+            # Fetch matching IDs and apply to queryset
+            matching_ids = UnityBill.objects.filter(filter_q).values_list('pk', flat=True)
+            bills_queryset = bills_queryset.filter(pk__in=list(matching_ids))
         except ValueError:
             pass
             
@@ -3094,159 +3076,98 @@ def admin_billing_view(request):
     
     for bill in bills_queryset:
         schedule_amount = bill.H_Schedule_Amount or Decimal('0.00')
-        active_members = bill.E_Active_Members or 0 
         
-        # Admin Fee calculation (0.3%)
-        admin_fee = schedule_amount * Decimal('0.003')
+        # 🚀 UPDATED LOGIC: Calculate 0.3% against the new salary_amount field
+        salary_amount = bill.salary_amount or Decimal('0.00')
+        admin_fee = salary_amount * Decimal('0.003')
         
-        # Find the FIRST settlement record for metadata
         first_settlement = BillSettlement.objects.filter(
             unity_bill_source_id=bill.pk
         ).order_by('settlement_date').first()
         
-        # Using I_Submitted_Date for the posted date reference
-        posted_date = bill.I_Submitted_Date
-        
-        posted_user = "N/A"
-        if first_settlement and first_settlement.confirmed_by:
-            posted_user = first_settlement.confirmed_by.username
-        
-        fiscal_period_key = bill.A_CCDatesMonth.strftime("%Y-%m") if bill.A_CCDatesMonth else "N/A"
-
         final_bill_data.append({
-            'fiscal_period': fiscal_period_key,
+            'fiscal_period': bill.A_CCDatesMonth.strftime("%Y-%m") if bill.A_CCDatesMonth else "N/A",
             'company_code': bill.C_Company_Code or "N/A",
             'company_name': bill.D_Company_Name or "N/A",
-            'active_members': active_members, 
+            'active_members': bill.E_Active_Members or 0, 
             'total_schedule_amount': schedule_amount,
+            'total_salary_amount': salary_amount, # Optional: pass this to template if you want to display it
             'total_admin_fee': admin_fee,
-            'posted_date': posted_date,
-            'posted_user': posted_user, 
+            'posted_date': bill.I_Submitted_Date,
+            'posted_user': first_settlement.confirmed_by.username if first_settlement and first_settlement.confirmed_by else "N/A", 
         })
 
-    # 🚀 SORTING LOGIC: Sort by posted_date (I_Submitted_Date). 
     final_bill_data.sort(key=lambda x: x['posted_date'] if x['posted_date'] else datetime.min.date(), reverse=True)
 
-    context = {
+    return render(request, 'unity_internal_app/admin_billing.html', {
         'bill_records': final_bill_data,
-        'filter_start_date': filter_start_date,
-        'filter_end_date': filter_end_date,
-    }
-    
-    return render(request, 'unity_internal_app/admin_billing.html', context)
+        'filter_start_date': filter_start_date_str,
+        'filter_end_date': filter_end_date_str,
+    })
+
 
 @login_required
 def export_admin_billing_excel(request):
-    """
-    Exports the filtered Admin Billing data to Excel.
-    Calculates 0.3% fee and includes a Grand Total.
-    """
-    filter_start_date = request.GET.get('start_date')
-    filter_end_date = request.GET.get('end_date')
+    from decimal import Decimal
+    from datetime import datetime, timedelta
+    from openpyxl import Workbook
+    from openpyxl.styles import PatternFill, Font
+    from django.http import HttpResponse
+    from django.db.models import Q
+    from .models import UnityBill, BillSettlement
 
-    # Replicate Queryset Logic
-    bills_queryset = UnityBill.objects.filter(
-        is_reconciled=True
-    ).exclude(
-        E_Active_Members=0
-    ).exclude(
-        H_Schedule_Amount=0
-    ).order_by('-A_CCDatesMonth', 'C_Company_Code')
+    filter_start = request.GET.get('start_date')
+    filter_end = request.GET.get('end_date')
 
-    # Apply Date Filters
-    if filter_start_date:
-        try:
-            start_dt = datetime.strptime(filter_start_date, '%Y-%m-%d').date()
-            bills_queryset = bills_queryset.filter(A_CCDatesMonth__gte=start_dt)
-        except ValueError: pass
+    # 1. Base Query
+    bills = UnityBill.objects.filter(is_reconciled=True).exclude(E_Active_Members=0).exclude(H_Schedule_Amount=0)
 
-    if filter_end_date:
-        try:
-            end_dt = datetime.strptime(filter_end_date, '%Y-%m-%d').date()
-            bills_queryset = bills_queryset.filter(A_CCDatesMonth__lte=end_dt)
-        except ValueError: pass
+    # 2. Apply Date Filters (Using I_Submitted_Date safely)
+    if filter_start or filter_end:
+        q_filter = Q()
+        if filter_start:
+            q_filter &= Q(I_Submitted_Date__gte=datetime.strptime(filter_start, '%Y-%m-%d').date())
+        if filter_end:
+            q_filter &= Q(I_Submitted_Date__lt=datetime.strptime(filter_end, '%Y-%m-%d').date() + timedelta(days=1))
+        bills = bills.filter(q_filter)
+    
+    bills = bills.order_by('-I_Submitted_Date', 'C_Company_Code')
 
-    # --- Excel Setup ---
+    # 3. Excel Setup
     wb = Workbook()
     ws = wb.active
-    ws.title = "Admin Billing"
+    # 🚀 ADDED: "Salary Amount" to the Excel headers
+    ws.append(["Fiscal Period", "Company Code", "Company Name", "Active Members", "Total Schedule Amount", "Salary Amount", "Admin Fee (0.3%)", "Posted Date", "Posted User"])
 
-    # Styling
-    header_fill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid") # Dark Blue
-    white_font = Font(color="FFFFFF", bold=True)
-    center_align = Alignment(horizontal="center")
-    bold_font = Font(bold=True)
+    # 4. Data Population
+    total_schedule, total_salary, total_fees = Decimal('0.00'), Decimal('0.00'), Decimal('0.00')
 
-    # Headers
-    headers = [
-        "Fiscal Period", "Company Code", "Company Name", 
-        "Active Members", "Total Schedule Amount", "Admin Fee (0.3%)", 
-        "Posted Date", "Posted User"
-    ]
-    ws.append(headers)
-
-    for cell in ws[1]:
-        cell.fill = header_fill
-        cell.font = white_font
-        cell.alignment = center_align
-
-    # Data Rows
-    total_schedule = Decimal('0.00')
-    total_fees = Decimal('0.00')
-
-    for bill in bills_queryset:
-        schedule_amount = bill.H_Schedule_Amount or Decimal('0.00')
-        admin_fee = schedule_amount * Decimal('0.003')
+    for bill in bills:
+        # 🚀 UPDATED: Calculate Fee against Salary Amount
+        sched = bill.H_Schedule_Amount or Decimal('0.00')
+        salary = bill.salary_amount or Decimal('0.00')
+        fee = salary * Decimal('0.003')
         
-        # Metadata
-        first_settlement = BillSettlement.objects.filter(
-            unity_bill_source_id=bill.pk
-        ).order_by('settlement_date').first()
+        # Get Settlement Metadata (The 'Posted Date' / 'User' info)
+        # Using .first() on the related set directly
+        settlement = BillSettlement.objects.filter(unity_bill_source_id=bill.pk).order_by('settlement_date').first()
         
-        posted_date = first_settlement.settlement_date.strftime('%Y-%m-%d') if first_settlement else "N/A"
-        posted_user = first_settlement.confirmed_by.username if first_settlement and first_settlement.confirmed_by else "N/A"
-        fiscal_period = bill.A_CCDatesMonth.strftime("%Y-%m") if bill.A_CCDatesMonth else "N/A"
+        posted_date = bill.I_Submitted_Date.strftime('%Y-%m-%d') if bill.I_Submitted_Date else "N/A"
+        posted_user = settlement.confirmed_by.username if settlement and settlement.confirmed_by else "N/A"
+        fiscal = bill.A_CCDatesMonth.strftime("%Y-%m") if bill.A_CCDatesMonth else "N/A"
 
-        ws.append([
-            fiscal_period,
-            bill.C_Company_Code or "N/A",
-            bill.D_Company_Name or "N/A",
-            bill.E_Active_Members or 0,
-            float(schedule_amount),
-            float(admin_fee),
-            posted_date,
-            posted_user
-        ])
+        # 🚀 ADDED: Insert float(salary) into the row
+        ws.append([fiscal, bill.C_Company_Code, bill.D_Company_Name, bill.E_Active_Members, float(sched), float(salary), float(fee), posted_date, posted_user])
 
-        total_schedule += schedule_amount
-        total_fees += admin_fee
+        total_schedule += sched
+        total_salary += salary
+        total_fees += fee
 
-    # Add Totals Row
-    last_row = ws.max_row + 1
-    ws.append(["", "", "GRAND TOTALS", "", float(total_schedule), float(total_fees), "", ""])
+    # 🚀 ADDED: Included total_salary in the Grand Totals row
+    ws.append(["", "", "GRAND TOTALS", "", float(total_schedule), float(total_salary), float(total_fees), "", ""])
     
-    # Format Totals Row
-    for col_num in range(1, 9):
-        cell = ws.cell(row=last_row, column=col_num)
-        cell.font = bold_font
-        if col_num in [5, 6]: # Amount Columns
-            cell.number_format = '#,##0.00'
-
-    # Auto-adjust column width
-    for col in ws.columns:
-        max_length = 0
-        column = col[0].column_letter
-        for cell in col:
-            try:
-                if len(str(cell.value)) > max_length:
-                    max_length = len(str(cell.value))
-            except: pass
-        ws.column_dimensions[column].width = max_length + 2
-
-    # Return Response
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    filename = f"Admin_Billing_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response['Content-Disposition'] = f'attachment; filename="Admin_Billing_{datetime.now().strftime("%Y%m%d")}.xlsx"'
     wb.save(response)
     return response
 
@@ -3502,6 +3423,19 @@ def save_global_claim(request):
     if request.method == 'POST':
         post_data = request.POST.copy()
         
+        # --- SAFE DATE CLEANER: Prevent '' from breaking Django Form validation ---
+        def clean_date(val):
+            return val if val and val.strip() and val.strip() != 'None' else None
+            
+        date_fields = [
+            'vested_pot_paid_date', 'savings_pot_paid_date', 'infund_cert_date', 
+            'claim_created_date', 'last_contribution_date', 'date_submitted', 'date_paid'
+        ]
+        for field in date_fields:
+            if field in post_data:
+                post_data[field] = clean_date(post_data[field])
+        # --------------------------------------------------------------------------
+
         claim_type_input = post_data.get('claim_type', 'Standard')
         redirect_url = 'global_two_pot' if claim_type_input == 'Two Pot' else 'global_claims'
         
@@ -3524,7 +3458,6 @@ def save_global_claim(request):
             if not saved_claim.company_code:
                 saved_claim.company_code = post_data.get('company_code')
 
-            # Ensure Agent from dropdown is saved
             saved_claim.agent = post_data.get('agent')
 
             if claim_type_input == 'Two Pot':
@@ -3537,14 +3470,9 @@ def save_global_claim(request):
                 saved_claim.vested_pot_available = post_data.get('vested_pot_available') == 'on'
                 saved_claim.savings_pot_available = post_data.get('savings_pot_available') == 'on'
                 
-                v_date = post_data.get('vested_pot_paid_date')
-                saved_claim.vested_pot_paid_date = v_date if v_date else None
-                
-                s_date = post_data.get('savings_pot_paid_date')
-                saved_claim.savings_pot_paid_date = s_date if s_date else None
-                
-                p_date = post_data.get('infund_cert_date')
-                saved_claim.infund_preservation_cert_received_date = p_date if p_date else None
+                saved_claim.vested_pot_paid_date = post_data.get('vested_pot_paid_date')
+                saved_claim.savings_pot_paid_date = post_data.get('savings_pot_paid_date')
+                saved_claim.infund_preservation_cert_received_date = post_data.get('infund_cert_date')
 
                 amount = post_data.get('claim_amount')
                 try:
@@ -3561,18 +3489,16 @@ def save_global_claim(request):
 
             saved_claim.save()
 
-            # --- 🚀 ADDED: EMAIL SENDING LOGIC 🚀 ---
+            # --- EMAIL SENDING LOGIC ---
             if post_data.get('email_submission_action') == 'send_email_and_log':
                 recipient = post_data.get('member_recipient_email', '').strip()
                 subject = post_data.get('member_email_subject_reply', '').strip()
                 raw_body = post_data.get('member_email_body_editor', '')
 
                 if recipient and subject:
-                    # Convert newlines to HTML breaks for Outlook
                     formatted_body = raw_body.replace('\n', '<br>')
                     
                     try:
-                        # Call your Outlook service
                         result = OutlookGraphService.send_outlook_email(
                             target_email=settings.OUTLOOK_EMAIL_ADDRESS,
                             recipient_email=recipient,
@@ -3582,7 +3508,6 @@ def save_global_claim(request):
                         )
 
                         if result.get('success'):
-                            # Log the sent email as a note
                             UnityClaimNote.objects.create(
                                 claim=saved_claim,
                                 note_selection="SENT EMAIL",
