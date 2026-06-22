@@ -2534,15 +2534,17 @@ def export_global_history_csv(request):
     """
     Exports the payment history for Bills that had settlement activity 
     in a horizontal format (pivoted deposits).
-    
-    FIX: Now filters by I_Submitted_Date to match the on-screen table exactly.
-    ADDED: 'K_Total_Settled' column to base headers and row details,
-           shifting subsequent deposit letter columns dynamically.
     """
     import csv
     from collections import defaultdict
     from datetime import datetime
+    from decimal import Decimal
     from django.http import HttpResponse
+    from .models import UnityBill, BillSettlement, CreditNote, JournalEntry
+    # Assuming these constants are defined in your module
+    ZERO_DECIMAL = Decimal('0.00')
+    TWO_PLACES = Decimal('0.01')
+    MAX_DEPOSITS = 5 
 
     # --- Date Filtering Logic ---
     start_date_str = request.GET.get('start_date')
@@ -2559,7 +2561,7 @@ def export_global_history_csv(request):
     except ValueError:
         return HttpResponse("Invalid date format provided for filtering.", status=400)
     
-    # --- 1. Determine Bill IDs to Display (Filtered by I_Submitted_Date) ---
+    # --- 1. Determine Bill IDs to Display ---
     all_bills_queryset = UnityBill.objects.filter(
         is_reconciled=True
     ).exclude(
@@ -2576,7 +2578,7 @@ def export_global_history_csv(request):
     all_bills = list(all_bills_queryset.order_by('C_Company_Code', '-I_Submitted_Date'))
     filtered_bill_ids = [bill.id for bill in all_bills]
     
-    # --- 2. Fetch ALL Granular Settlements (Cash, Credit, Journal) ---
+    # --- 2. Fetch ALL Granular Settlements ---
     deposits_by_bill = defaultdict(list)
     credits_map = defaultdict(Decimal)
 
@@ -2607,7 +2609,6 @@ def export_global_history_csv(request):
             elif s.source_credit_note_id:
                 source_type = 'Credit'
                 credits_map[s.unity_bill_source_id] += deposit_amount
-                
                 cn = credit_note_details.get(s.source_credit_note_id)
                 if cn and cn.fiscal_date:
                     deposit_date = cn.fiscal_date
@@ -2630,36 +2631,31 @@ def export_global_history_csv(request):
 
     writer = csv.writer(response)
     
-    # 1. Define Headers (Added K_Total_Settled)
+    # Updated Headers to match your specific requirements
     base_headers = [
-        'A_CCDatesMonth', 'B_Fund_Code', 'C_Company_Code', 'D_Company_Name',
-        'E_Active_Members', 'F_Pre-Bill_Date', 'G_Schedule_Date', 'H_Schedule_Amount',
-        'I_Submitted_Date', 'J_Final_Date', 'K_Total_Settled'
+        'CCDatesMonth', 'Fund Code', 'Company Code', 'Company Name',
+        'Active Members', 'Prebill Date', 'Schedule Date', 'Schedule_Amount',
+        'Submitted_Date', 'J_Final_Date', 'K_Bank_Stmt_Date'
     ]
     
-    # Shifted character pointers up by 1 (76 is L, 77 is M) to follow K_Total_Settled cleanly
-    payment_headers = []
-    for i in range(MAX_DEPOSITS):
-        payment_headers.extend([
-            f'{chr(76 + 2 * i)}_Bank_Stmt_Date',       # L, N, P, R, T
-            f'{chr(77 + 2 * i)}_Bank_Deposit_Amount'   # M, O, Q, S, U
-        ])
+    payment_headers = [
+        'L_Bank_Deposit_Amount', 'M_Add_Bank_Stmt_Date', 'N_Add_Bank_Deposit_Amount',
+        'O_Add_Bank_Stmt_Date', 'P_Add_Bank_Deposit_Amount', 'Q_Add_Bank_Stmt_Date',
+        'R_Add_Bank_Deposit_Amount', 'S_Add_Bank_Stmt_Date', 'T_Add_Bank_Deposit_Amount',
+        'U_Add_Bank_Stmt_Date'
+    ]
     
     writer.writerow(base_headers + payment_headers)
     CSV_DATE_FORMAT = '%d/%m/%Y'
 
     for bill in all_bills:
         deposits = deposits_by_bill.get(bill.id, [])
-        
-        # Calculate settlement status
-        total_settled = sum((d['amount'] for d in deposits), start=TWO_PLACES)
-        is_settled = total_settled >= (bill.H_Schedule_Amount or TWO_PLACES)
+        total_settled = sum((d['amount'] for d in deposits), start=ZERO_DECIMAL)
+        is_settled = total_settled >= (bill.H_Schedule_Amount or ZERO_DECIMAL)
 
-        # Skip row if the bill is not fully RECONCILED
         if not is_settled:
             continue
 
-        # A. Gather Base Bill Data (Columns A-K)
         row_data = [
             bill.A_CCDatesMonth.strftime(CSV_DATE_FORMAT) if bill.A_CCDatesMonth else '',
             bill.B_Fund_Code or '',
@@ -2671,24 +2667,41 @@ def export_global_history_csv(request):
             str((bill.H_Schedule_Amount or ZERO_DECIMAL).quantize(TWO_PLACES)),
             bill.I_Submitted_Date.strftime(CSV_DATE_FORMAT) if bill.I_Submitted_Date else '',
             bill.J_Final_Date.strftime(CSV_DATE_FORMAT) if bill.J_Final_Date else '',
-            str(total_settled.quantize(TWO_PLACES)), # Added actual values to row data output
+            str(total_settled.quantize(TWO_PLACES)),
         ]
         
-        # B. Prepare for Payment Data (Dynamic Columns L-U)
-        payment_data = [''] * (MAX_DEPOSITS * 2)
+        payment_data = [''] * len(payment_headers)
         deposits.sort(key=lambda d: d['date'])
 
+        # Aligning payments to the specific column order requested
         for i in range(MAX_DEPOSITS):
             if i < len(deposits):
                 deposit = deposits[i]
+                # Columns are L(0), M(1), N(2), O(3), P(4), Q(5), R(6), S(7), T(8), U(9)
+                # i=0: L=Amount(deposit['amount']), M=Date(deposit['date'])
+                # i=1: N=Amount(deposit['amount']), O=Date(deposit['date']) ... etc
                 
-                date_col_index = i * 2
-                amount_col_index = i * 2 + 1
+                # Logic: We populate payment_data array based on the list created above
+                date_str = deposit['date'].strftime(CSV_DATE_FORMAT)
+                amount_str = str(deposit['amount'].quantize(TWO_PLACES))
                 
-                payment_data[date_col_index] = deposit['date'].strftime(CSV_DATE_FORMAT)
-                payment_data[amount_col_index] = str(deposit['amount'].quantize(TWO_PLACES))
+                # L(0) is Amount, M(1) is Date ... based on your mapping L=Amount, M=Date
+                if i == 0:
+                    payment_data[0] = amount_str
+                    payment_data[1] = date_str
+                elif i == 1:
+                    payment_data[2] = amount_str
+                    payment_data[3] = date_str
+                elif i == 2:
+                    payment_data[4] = amount_str
+                    payment_data[5] = date_str
+                elif i == 3:
+                    payment_data[6] = amount_str
+                    payment_data[7] = date_str
+                elif i == 4:
+                    payment_data[8] = amount_str
+                    payment_data[9] = date_str
 
-        # C. Write the final row
         writer.writerow(row_data + payment_data)
 
     return response
@@ -3111,7 +3124,6 @@ def export_admin_billing_excel(request):
     from decimal import Decimal
     from datetime import datetime, timedelta
     from openpyxl import Workbook
-    from openpyxl.styles import PatternFill, Font
     from django.http import HttpResponse
     from django.db.models import Q
     from .models import UnityBill, BillSettlement
@@ -3122,7 +3134,7 @@ def export_admin_billing_excel(request):
     # 1. Base Query
     bills = UnityBill.objects.filter(is_reconciled=True).exclude(E_Active_Members=0).exclude(H_Schedule_Amount=0)
 
-    # 2. Apply Date Filters (Using I_Submitted_Date safely)
+    # 2. Apply Date Filters
     if filter_start or filter_end:
         q_filter = Q()
         if filter_start:
@@ -3136,35 +3148,40 @@ def export_admin_billing_excel(request):
     # 3. Excel Setup
     wb = Workbook()
     ws = wb.active
-    # 🚀 ADDED: "Salary Amount" to the Excel headers
-    ws.append(["Fiscal Period", "Company Code", "Company Name", "Active Members", "Total Schedule Amount", "Salary Amount", "Admin Fee (0.3%)", "Posted Date", "Posted User"])
+    # New Headers
+    ws.append(["Fiscal Period", "Company Code", "Company Name", "Active Members", "Salary Amount", "Admin Fee (0.3%)", "Posted User", "Posted Date"])
 
     # 4. Data Population
-    total_schedule, total_salary, total_fees = Decimal('0.00'), Decimal('0.00'), Decimal('0.00')
+    total_salary, total_fees = Decimal('0.00'), Decimal('0.00')
 
     for bill in bills:
-        # 🚀 UPDATED: Calculate Fee against Salary Amount
-        sched = bill.H_Schedule_Amount or Decimal('0.00')
         salary = bill.salary_amount or Decimal('0.00')
         fee = salary * Decimal('0.003')
         
-        # Get Settlement Metadata (The 'Posted Date' / 'User' info)
-        # Using .first() on the related set directly
+        # Get Settlement Metadata
         settlement = BillSettlement.objects.filter(unity_bill_source_id=bill.pk).order_by('settlement_date').first()
         
-        posted_date = bill.I_Submitted_Date.strftime('%Y-%m-%d') if bill.I_Submitted_Date else "N/A"
-        posted_user = settlement.confirmed_by.username if settlement and settlement.confirmed_by else "N/A"
         fiscal = bill.A_CCDatesMonth.strftime("%Y-%m") if bill.A_CCDatesMonth else "N/A"
+        posted_user = settlement.confirmed_by.username if settlement and settlement.confirmed_by else "N/A"
+        posted_date = bill.I_Submitted_Date.strftime('%Y-%m-%d') if bill.I_Submitted_Date else "N/A"
 
-        # 🚀 ADDED: Insert float(salary) into the row
-        ws.append([fiscal, bill.C_Company_Code, bill.D_Company_Name, bill.E_Active_Members, float(sched), float(salary), float(fee), posted_date, posted_user])
+        # Append row in exact order requested
+        ws.append([
+            fiscal, 
+            bill.C_Company_Code, 
+            bill.D_Company_Name, 
+            bill.E_Active_Members, 
+            float(salary), 
+            float(fee), 
+            posted_user, 
+            posted_date
+        ])
 
-        total_schedule += sched
         total_salary += salary
         total_fees += fee
 
-    # 🚀 ADDED: Included total_salary in the Grand Totals row
-    ws.append(["", "", "GRAND TOTALS", "", float(total_schedule), float(total_salary), float(total_fees), "", ""])
+    # Grand Totals Row
+    ws.append(["", "", "GRAND TOTALS", "", float(total_salary), float(total_fees), "", ""])
     
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = f'attachment; filename="Admin_Billing_{datetime.now().strftime("%Y%m%d")}.xlsx"'

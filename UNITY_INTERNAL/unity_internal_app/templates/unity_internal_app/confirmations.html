@@ -66,11 +66,10 @@
         /* Specific Column Alignments */
         .text-center { text-align: center; }
         .amount-col { text-align: right; font-weight: 600; color: #2e7d32; }
-        .bank-col { background-color: #f9fff9; } /* Subtle highlight for bank data */
+        .bank-col { background-color: #f9fff9; } 
 
         /* Row Separator Logic */
         .bill-group-end td { border-bottom: 2px solid #81c784 !important; }
-        
     </style>
 </head>
 <body>
@@ -125,7 +124,7 @@
                         <th style="width: 80px;">Sched. Date</th>
                         <th style="width: 80px;">Final Date</th>
                         <th style="width: 100px;" class="amount-col">Sched. Amount</th>
-                        <th style="width: 85px;">Conf. Date</th>
+                        <th style="width: 85px;">Confirm Date</th>
                         <th style="width: 85px;" class="bank-col">Bank Date</th>
                         <th style="width: 100px;" class="amount-col bank-col">Bank Deposit</th>
                         <th style="width: 100px;" class="amount-col bank-col">Allocated</th>
@@ -168,7 +167,7 @@
                                                 <td rowspan="{{ row_span }}">{{ record.final_date|date:"Y-m-d"|default:"-" }}</td>
                                                 <td rowspan="{{ row_span }}" class="amount-col">R {{ record.schedule_amount }}</td>
                                                 <td rowspan="{{ row_span }}">
-                                                    {{ record.schedule_date|date:"Y-m-d"|default:"-" }}
+                                                    {{ record.confirmed_date|date:"Y-m-d"|default:"-" }}
                                                 </td>
                                             {% endif %}
                                             <td class="bank-col">{{ source.date|date:"Y-m-d" }}</td>
