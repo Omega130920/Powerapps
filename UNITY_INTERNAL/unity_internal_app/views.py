@@ -2541,7 +2541,7 @@ def export_global_history_csv(request):
     from decimal import Decimal
     from django.http import HttpResponse
     from .models import UnityBill, BillSettlement, CreditNote, JournalEntry
-    # Assuming these constants are defined in your module
+    
     ZERO_DECIMAL = Decimal('0.00')
     TWO_PLACES = Decimal('0.01')
     MAX_DEPOSITS = 5 
@@ -2580,7 +2580,6 @@ def export_global_history_csv(request):
     
     # --- 2. Fetch ALL Granular Settlements ---
     deposits_by_bill = defaultdict(list)
-    credits_map = defaultdict(Decimal)
 
     if filtered_bill_ids:
         all_settlements = BillSettlement.objects.filter(
@@ -2598,23 +2597,16 @@ def export_global_history_csv(request):
         
         for s in all_settlements:
             deposit_amount = s.settled_amount or ZERO_DECIMAL
-            source_type = 'Unknown'
             deposit_date = s.settlement_date.date()
 
             if s.reconned_bank_line_id:
-                source_type = 'Cash'
                 if s.reconned_bank_line and s.reconned_bank_line.bank_line:
                     deposit_date = s.reconned_bank_line.bank_line.date
-            
             elif s.source_credit_note_id:
-                source_type = 'Credit'
-                credits_map[s.unity_bill_source_id] += deposit_amount
                 cn = credit_note_details.get(s.source_credit_note_id)
                 if cn and cn.fiscal_date:
                     deposit_date = cn.fiscal_date
-            
             elif s.source_journal_entry_id:
-                source_type = 'Journal'
                 je = journal_entry_details.get(s.source_journal_entry_id)
                 if je and je.allocation_date:
                     deposit_date = je.allocation_date
@@ -2622,7 +2614,6 @@ def export_global_history_csv(request):
             deposits_by_bill[s.unity_bill_source_id].append({
                 'date': deposit_date,
                 'amount': deposit_amount,
-                'type': source_type
             })
 
     # --- 3. Generate CSV Response ---
@@ -2631,18 +2622,20 @@ def export_global_history_csv(request):
 
     writer = csv.writer(response)
     
-    # Updated Headers to match your specific requirements
+    # Static headers to ensure sequence is maintained
     base_headers = [
         'CCDatesMonth', 'Fund Code', 'Company Code', 'Company Name',
         'Active Members', 'Prebill Date', 'Schedule Date', 'Schedule_Amount',
-        'Submitted_Date', 'J_Final_Date', 'K_Bank_Stmt_Date'
+        'Submitted_Date', 'J_Final_Date', 'K_Total_Settled'
     ]
     
+    # Date (Stmt_Date) comes first, then Amount (Deposit_Amount)
     payment_headers = [
-        'L_Bank_Deposit_Amount', 'M_Add_Bank_Stmt_Date', 'N_Add_Bank_Deposit_Amount',
-        'O_Add_Bank_Stmt_Date', 'P_Add_Bank_Deposit_Amount', 'Q_Add_Bank_Stmt_Date',
-        'R_Add_Bank_Deposit_Amount', 'S_Add_Bank_Stmt_Date', 'T_Add_Bank_Deposit_Amount',
-        'U_Add_Bank_Stmt_Date'
+        'L_Bank_Stmt_Date', 'M_Bank_Deposit_Amount',
+        'N_Add_Bank_Stmt_Date', 'O_Add_Bank_Deposit_Amount',
+        'P_Add_Bank_Stmt_Date', 'Q_Add_Bank_Deposit_Amount',
+        'R_Add_Bank_Stmt_Date', 'S_Add_Bank_Deposit_Amount',
+        'T_Add_Bank_Stmt_Date', 'U_Add_Bank_Deposit_Amount'
     ]
     
     writer.writerow(base_headers + payment_headers)
@@ -2651,9 +2644,9 @@ def export_global_history_csv(request):
     for bill in all_bills:
         deposits = deposits_by_bill.get(bill.id, [])
         total_settled = sum((d['amount'] for d in deposits), start=ZERO_DECIMAL)
-        is_settled = total_settled >= (bill.H_Schedule_Amount or ZERO_DECIMAL)
-
-        if not is_settled:
+        
+        # Ensure only fully reconciled/settled bills appear if required
+        if total_settled < (bill.H_Schedule_Amount or ZERO_DECIMAL):
             continue
 
         row_data = [
@@ -2673,34 +2666,16 @@ def export_global_history_csv(request):
         payment_data = [''] * len(payment_headers)
         deposits.sort(key=lambda d: d['date'])
 
-        # Aligning payments to the specific column order requested
+        # Aligning payments: Even indices = Date, Odd indices = Amount
         for i in range(MAX_DEPOSITS):
             if i < len(deposits):
                 deposit = deposits[i]
-                # Columns are L(0), M(1), N(2), O(3), P(4), Q(5), R(6), S(7), T(8), U(9)
-                # i=0: L=Amount(deposit['amount']), M=Date(deposit['date'])
-                # i=1: N=Amount(deposit['amount']), O=Date(deposit['date']) ... etc
-                
-                # Logic: We populate payment_data array based on the list created above
                 date_str = deposit['date'].strftime(CSV_DATE_FORMAT)
                 amount_str = str(deposit['amount'].quantize(TWO_PLACES))
                 
-                # L(0) is Amount, M(1) is Date ... based on your mapping L=Amount, M=Date
-                if i == 0:
-                    payment_data[0] = amount_str
-                    payment_data[1] = date_str
-                elif i == 1:
-                    payment_data[2] = amount_str
-                    payment_data[3] = date_str
-                elif i == 2:
-                    payment_data[4] = amount_str
-                    payment_data[5] = date_str
-                elif i == 3:
-                    payment_data[6] = amount_str
-                    payment_data[7] = date_str
-                elif i == 4:
-                    payment_data[8] = amount_str
-                    payment_data[9] = date_str
+                # Column sequence: L(Date), M(Amount), N(Date), O(Amount)...
+                payment_data[i * 2] = date_str
+                payment_data[i * 2 + 1] = amount_str
 
         writer.writerow(row_data + payment_data)
 
@@ -3149,7 +3124,7 @@ def export_admin_billing_excel(request):
     wb = Workbook()
     ws = wb.active
     # New Headers
-    ws.append(["Fiscal Period", "Company Code", "Company Name", "Active Members", "Salary Amount", "Admin Fee (0.3%)", "Posted User", "Posted Date"])
+    ws.append(["Fiscal Period", "Company Code", "Company Name", "Active Members", "Monthly Salary", "Admin Fee", "Posted User", "Posted Date"])
 
     # 4. Data Population
     total_salary, total_fees = Decimal('0.00'), Decimal('0.00')
