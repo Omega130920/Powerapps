@@ -3124,7 +3124,7 @@ def export_admin_billing_excel(request):
     wb = Workbook()
     ws = wb.active
     # New Headers
-    ws.append(["Fiscal Period", "Company Code", "Company Name", "Active Members", "Monthly Salary", "Admin Fee", "Posted User", "Posted Date"])
+    ws.append(["Fiscal Period", "Company Code", "Company Name", "Active Members", "Monthly Salary", "Admin Fee", "Recon Agent", "Date Confirmed"])
 
     # 4. Data Population
     total_salary, total_fees = Decimal('0.00'), Decimal('0.00')
