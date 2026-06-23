@@ -3532,9 +3532,6 @@ def save_global_claim(request):
             return redirect(redirect_url)
             
     return redirect('global_claims')
-# --------------------------------------------------------------------- #
-# OUTLOOK DELEGATOR VIEWS (Inbox & Assignment)
-# --------------------------------------------------------------------- #
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.conf import settings
