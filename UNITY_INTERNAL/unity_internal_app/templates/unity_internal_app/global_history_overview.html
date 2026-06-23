@@ -107,7 +107,6 @@
                     <th style="width: 12%;">Group Code</th>
                     <th style="width: 25%;">Company Name</th>
                     <th style="width: 15%;" class="amount-col">Schedule Amt (H)</th>
-                    <th style="width: 15%;" class="amount-col">Total Settled</th>
                     <th style="width: 10%; text-align: center;">Status</th>
                     <th style="width: 11%; text-align: center;">Action</th>
                 </tr>
@@ -119,7 +118,6 @@
                     <td>{{ record.bill.C_Company_Code }}</td>
                     <td>{{ record.bill.D_Company_Name }}</td>
                     <td class="amount-col">R {{ record.bill.H_Schedule_Amount|default:"0.00"|floatformat:2 }}</td>
-                    <td class="amount-col" style="color: #2e7d32; font-weight: bold;">R {{ record.total_settled|floatformat:2 }}</td>
                     <td class="text-center">
                         <span class="badge-success">{{ record.status_name }}</span>
                     </td>
