@@ -124,41 +124,46 @@ from .models import UnityClaim
 class UnityClaimForm(forms.ModelForm):
     class Meta:
         model = UnityClaim
-        # Using __all__ will now pick up 'mip_number' and 'claim_amount' from the model
         fields = '__all__'
         
         widgets = {
-            # --- Personal & Identification ---
+            # --- Existing Fields ---
             'id_number': forms.TextInput(attrs={'class': 'form-input'}),
             'member_name': forms.TextInput(attrs={'class': 'form-input'}),
             'member_surname': forms.TextInput(attrs={'class': 'form-input'}),
             'mip_number': forms.TextInput(attrs={'class': 'form-input', 'placeholder': 'Enter MIP Number'}),
-            
-            # --- Dropdowns ---
             'claim_type': forms.Select(attrs={'class': 'form-select', 'id': 'claim_type_select'}),
             'exit_reason': forms.Select(attrs={'class': 'form-select'}),
             'claim_allocation': forms.Select(attrs={'class': 'form-select'}),
             'claim_status': forms.Select(attrs={'class': 'form-select', 'id': 'claim_status_select'}),
             'payment_option': forms.Select(attrs={'class': 'form-select', 'id': 'payment_option_select'}),
-            
-            # --- Currency/Numbers ---
             'claim_amount': forms.NumberInput(attrs={'class': 'form-input', 'step': '0.01', 'placeholder': '0.00'}),
-
-            # --- Dates ---
             'claim_created_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-input'}),
             'last_contribution_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-input'}),
             'date_submitted': forms.DateInput(attrs={'type': 'date', 'class': 'form-input'}),
             'date_paid': forms.DateInput(attrs={'type': 'date', 'class': 'form-input'}),
-            
-            # --- System/Readonly Fields ---
             'company_code': forms.TextInput(attrs={'class': 'form-input', 'readonly': 'readonly'}),
             'agent': forms.TextInput(attrs={'class': 'form-input', 'readonly': 'readonly'}),
-            'linked_email_id': forms.HiddenInput(), # Usually handled manually in the view via logic
+            'linked_email_id': forms.HiddenInput(),
+
+            # --- 🚀 NEW FIELDS: Added Widgets for CSS styling ---
+            'qualified': forms.Select(choices=[('YES', 'YES'), ('NO', 'NO')], attrs={'class': 'form-select'}),
+            'date_submitted_online': forms.DateInput(attrs={'type': 'date', 'class': 'form-input'}),
+            'informed_er': forms.Select(choices=[('YES', 'YES'), ('NO', 'NO')], attrs={'class': 'form-select'}),
+            'submitted_by_agent': forms.Select(choices=[('', '-- Select --'), ('TD', 'TD'), ('LG', 'LG'), ('JV', 'JV')], attrs={'class': 'form-select'}),
         }
 
     def __init__(self, *args, **kwargs):
         super(UnityClaimForm, self).__init__(*args, **kwargs)
-        # Ensure fields that are not compulsory in your Two Pot logic are not required by the form
+        
+        # Ensure new fields are not required if you want them to be optional
+        # Update these to True if you want them to be mandatory
+        self.fields['qualified'].required = False
+        self.fields['date_submitted_online'].required = False
+        self.fields['informed_er'].required = False
+        self.fields['submitted_by_agent'].required = False
+
+        # Existing required field overrides
         self.fields['mip_number'].required = False
         self.fields['claim_amount'].required = False
         self.fields['exit_reason'].required = False

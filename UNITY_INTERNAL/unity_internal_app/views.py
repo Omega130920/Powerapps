@@ -3432,11 +3432,8 @@ def save_global_claim(request):
         redirect_url = 'global_two_pot' if claim_type_input == 'Two Pot' else 'global_claims'
         
         claim_id = post_data.get('claim_id')
-        old_linked_email_id = None
-        
         if claim_id:
             claim_instance = get_object_or_404(UnityClaim, pk=claim_id)
-            old_linked_email_id = claim_instance.linked_email_id
             form = UnityClaimForm(post_data, request.FILES, instance=claim_instance)
         else:
             form = UnityClaimForm(post_data, request.FILES)
@@ -3489,7 +3486,6 @@ def save_global_claim(request):
 
                 if recipient and subject:
                     formatted_body = raw_body.replace('\n', '<br>')
-                    
                     try:
                         result = OutlookGraphService.send_outlook_email(
                             target_email=settings.OUTLOOK_EMAIL_ADDRESS,
@@ -3498,7 +3494,6 @@ def save_global_claim(request):
                             body_content=formatted_body,
                             content_type='HTML'
                         )
-
                         if result.get('success'):
                             UnityClaimNote.objects.create(
                                 claim=saved_claim,
@@ -3506,21 +3501,27 @@ def save_global_claim(request):
                                 note_description=f"To: {recipient}\nSubject: {subject}\n\n{raw_body}",
                                 created_by=request.user
                             )
-                            messages.success(request, f"Claim saved and email sent to {recipient}!")
+                            messages.success(request, f"Claim saved and email sent!")
                         else:
-                            messages.error(request, f"Claim saved, but email failed: {result.get('error')}")
+                            messages.error(request, f"Email failed: {result.get('error')}")
                     except Exception as e:
                         messages.error(request, f"Email system error: {str(e)}")
 
-            # Handle Manual Notes (if provided)
+            # --- UPDATED: Handle Manual Notes & Attachments ---
             note_desc = post_data.get('note_description')
-            if note_desc and note_desc.strip():
-                UnityClaimNote.objects.create(
+            note_type = post_data.get('note_selection', 'General Note')
+            note_file = request.FILES.get('note_attachment')
+
+            if (note_desc and note_desc.strip()) or note_file:
+                new_note = UnityClaimNote(
                     claim=saved_claim,
-                    note_selection=post_data.get('note_selection') or "GENERAL NOTE",
-                    note_description=note_desc,
+                    note_selection=note_type,
+                    note_description=note_desc.strip() if note_desc else "Document Attached",
                     created_by=request.user
                 )
+                if note_file:
+                    new_note.note_attachment = note_file
+                new_note.save()
 
             messages.success(request, f"Claim for {saved_claim.member_surname} saved successfully.")
             return redirect(redirect_url)

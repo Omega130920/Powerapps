@@ -633,13 +633,15 @@ class UnityNotes(models.Model):
     def __str__(self):
         return f"Note {self.ID} for {self.member_group_code}"
         
+from django.db import models
+
 class UnityClaim(models.Model):
     # --- Dropdown Choices ---
     CLAIM_TYPES = [
         ('Retirement', 'Retirement'), ('Withdrawal', 'Withdrawal'), ('Death', 'Death'), 
         ('Disability', 'Disability'), ('Funeral', 'Funeral'), ('Surplus', 'Surplus'), 
         ('Ill-Health', 'Ill-Health'), 
-        ('Two Pot', 'Two Pot'),  # <--- NEW
+        ('Two Pot', 'Two Pot'), 
     ]
 
     EXIT_REASONS = [
@@ -652,16 +654,14 @@ class UnityClaim(models.Model):
         ('New Claim', 'New Claim'), ('Dealing With Claim', 'Dealing With Claim'), 
         ('Claim Query', 'Claim Query'), ('Claim Paid', 'Claim Paid'), 
         ('Exit Processed', 'Exit Processed'),
-        ('Default new claim', 'Default new claim'), # <--- NEW for Two Pot default
+        ('Default new claim', 'Default new claim'),
     ]
 
     CLAIM_STATUS = [
-        # Existing
         ('Claim Docs Requested', 'Claim Docs Requested'), ('Delegated', 'Delegated'), 
         ('Incomplete', 'Incomplete'), ('Paid', 'Paid'), ('Submitted', 'Submitted'), 
         ('Company in Arrears', 'Company in Arrears'), ('Payment/Schedule Due', 'Payment/Schedule Due'), 
         ('Completed', 'Completed'), ('Family Member – Sent to Sanlam', 'Family Member – Sent to Sanlam'),
-        # NEW Two Pot Statuses
         ('2 pot forms submitted to ER', '2 pot forms submitted to ER'),
         ('Withdraw - Not Allowed', 'Withdraw - Not Allowed'),
         ('Withdraw – Already Claimed in Current Tax Year', 'Withdraw – Already Claimed in Current Tax Year'),
@@ -670,11 +670,9 @@ class UnityClaim(models.Model):
     ]
 
     PAYMENT_OPTIONS = [
-        # Existing
         ('Leave Benefit in Fund', 'Leave Benefit in Fund'), ('Transfer Full Benefit', 'Transfer Full Benefit'), 
         ('Portion Cash and Transfer Balance', 'Portion Cash and Transfer Balance'), 
         ('Pay Full Benefit', 'Pay Full Benefit'), ('No Payment Instruction', 'No Payment Instruction'),
-        # NEW Two Pot Options
         ('Full Payment', 'Full Payment'),
         ('Partially Taken', 'Partially Taken'),
     ]
@@ -687,7 +685,6 @@ class UnityClaim(models.Model):
     member_name = models.CharField(max_length=100)
     member_surname = models.CharField(max_length=100)
     
-    # NEW FIELD
     mip_number = models.CharField(max_length=50, blank=True, null=True, verbose_name="Member Number (MIP)")
 
     claim_type = models.CharField(max_length=50, choices=CLAIM_TYPES, default='Withdrawal')
@@ -703,15 +700,18 @@ class UnityClaim(models.Model):
     date_paid = models.DateField(blank=True, null=True)
     linked_email_id = models.CharField(max_length=255, blank=True, null=True)
     
-    # New fields for Pot logic
+    # Pot logic
     vested_pot_available = models.BooleanField(default=False)
     vested_pot_paid_date = models.DateField(null=True, blank=True)
-    
     savings_pot_available = models.BooleanField(default=False)
     savings_pot_paid_date = models.DateField(null=True, blank=True)
-    
     infund_preservation_cert_received_date = models.DateField(null=True, blank=True)
-    
+
+    # --- NEW FIELDS FOR TWO-POT ---
+    qualified = models.CharField(max_length=10, default='YES', blank=True, null=True)
+    date_submitted_online = models.DateField(blank=True, null=True)
+    informed_er = models.CharField(max_length=10, default='NO', blank=True, null=True)
+    submitted_by_agent = models.CharField(max_length=20, blank=True, null=True)
 
     class Meta:
         managed = False
@@ -722,9 +722,6 @@ class UnityClaim(models.Model):
 
     def __str__(self):
         return f"{self.member_surname}, {self.member_name} ({self.company_code})"
-    
-# NOTE: User is already imported via get_user_model() at the top
-# from django.contrib.auth.models import User 
     
 class UnityClaimNote(models.Model):
     claim = models.ForeignKey(UnityClaim, on_delete=models.CASCADE, related_name='notes')
