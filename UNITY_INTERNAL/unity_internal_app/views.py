@@ -2614,7 +2614,7 @@ def export_global_history_csv(request):
             deposits_by_bill[s.unity_bill_source_id].append({
                 'date': deposit_date,
                 'amount': deposit_amount,
-            })
+                })
 
     # --- 3. Generate CSV Response ---
     response = HttpResponse(content_type='text/csv')
@@ -2622,11 +2622,11 @@ def export_global_history_csv(request):
 
     writer = csv.writer(response)
     
-    # Static headers to ensure sequence is maintained
+    # Static headers to ensure sequence is maintained ('K_Total_Settled' removed)
     base_headers = [
         'CCDatesMonth', 'Fund Code', 'Company Code', 'Company Name',
         'Active Members', 'Prebill Date', 'Schedule Date', 'Schedule_Amount',
-        'Submitted_Date', 'J_Final_Date', 'K_Total_Settled'
+        'Submitted_Date', 'J_Final_Date'
     ]
     
     # Date (Stmt_Date) comes first, then Amount (Deposit_Amount)
@@ -2649,6 +2649,8 @@ def export_global_history_csv(request):
         if total_settled < (bill.H_Schedule_Amount or ZERO_DECIMAL):
             continue
 
+        # 'total_settled' logic remains for the exclusion check above, 
+        # but it is no longer appended to row_data.
         row_data = [
             bill.A_CCDatesMonth.strftime(CSV_DATE_FORMAT) if bill.A_CCDatesMonth else '',
             bill.B_Fund_Code or '',
@@ -2660,7 +2662,6 @@ def export_global_history_csv(request):
             str((bill.H_Schedule_Amount or ZERO_DECIMAL).quantize(TWO_PLACES)),
             bill.I_Submitted_Date.strftime(CSV_DATE_FORMAT) if bill.I_Submitted_Date else '',
             bill.J_Final_Date.strftime(CSV_DATE_FORMAT) if bill.J_Final_Date else '',
-            str(total_settled.quantize(TWO_PLACES)),
         ]
         
         payment_data = [''] * len(payment_headers)
@@ -3124,7 +3125,7 @@ def export_admin_billing_excel(request):
     wb = Workbook()
     ws = wb.active
     # New Headers
-    ws.append(["Fiscal Period", "Company Code", "Company Name", "Active Members", "Monthly Salary", "Admin Fee", "Posted User", "Posted Date"])
+    ws.append(["Fiscal Period", "Company Code", "Company Name", "Active Members", "Monthly Salary", "Admin Fee", "Recon Agent", "Date Confirmed"])
 
     # 4. Data Population
     total_salary, total_fees = Decimal('0.00'), Decimal('0.00')
