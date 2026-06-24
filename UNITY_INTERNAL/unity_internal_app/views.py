@@ -2972,10 +2972,10 @@ def confirmations_view(request):
             ws.title = "Confirmations"
 
             headers = [
-                'Dates_Month', 'Fund_Co', 'Company_Code', 'Company_Name', 
-                'Active_Member', 'Schedule_Date', 'Final_Date', 'Schedule_Amount', 
-                'Confirmed_Date', 'Bank_Statement_Date', 'Bank_Deposit_Amount', 
-                'Allocated_Amount', 'Comment', 'Deposit_Reference'
+                'CCDates_Month', 'Fund_Code', 'Member Group Code', 'Member Group Name', 
+                'Active_Member - (Info from FuturaSA & NOT checked by Sanlam)', 'Schedule Date', 'Final Data Received Date', 'Schedule Amount', 
+                'Confirmed Date', 'Bank Statement Date', 'Bank Deposit Amount', 
+                'Allocated Amount (For Front Office use & not to be checked by Sanlam)', 'Comment', 'Deposit Reference'
             ]
             ws.append(headers)
 
