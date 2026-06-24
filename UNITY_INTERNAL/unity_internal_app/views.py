@@ -39,6 +39,7 @@ from openpyxl.styles import Font, Alignment, PatternFill
 from django.db.models import Q, Max
 import datetime as dt_mod
 from datetime import datetime, time
+from django.template.loader import render_to_string  # Add this at the top
 
 # Import the new Graph API service functions
 from .services.outlook_graph_service import OutlookGraphService
@@ -326,6 +327,7 @@ def unity_information(request: HttpRequest, company_code):
     from django.contrib import messages
     from django.shortcuts import render, redirect
     from django.conf import settings
+    from django.template.loader import render_to_string # 🚀 ADDED THIS IMPORT 🚀
 
     # =========================================================
     # 0. DOWNLOAD HANDLER (Matches CRM_UNITY Logic)
@@ -581,8 +583,12 @@ def unity_information(request: HttpRequest, company_code):
             attachments = request.FILES.getlist('attachments')
 
             if recipient and email_body_html:
+                # --- 🚀 ADDED SIGNATURE LOGIC 🚀 ---
+                signature_html = render_to_string('unity_internal_app/email_signature.html')
+                final_email_content = f"{email_body_html}<br>{signature_html}"
+                
                 response = OutlookGraphService.send_outlook_email(
-                    settings.OUTLOOK_EMAIL_ADDRESS, recipient, subject, email_body_html, 'HTML', 
+                    settings.OUTLOOK_EMAIL_ADDRESS, recipient, subject, final_email_content, 'HTML', # 🚀 USING final_email_content 🚀
                     attachments=attachments,
                     cc_email=cc_recipients,    
                     bcc_email=bcc_recipients   
@@ -591,6 +597,7 @@ def unity_information(request: HttpRequest, company_code):
                     attachment_count = len(attachments)
                     attach_string = f" ({attachment_count} files)" if attachment_count > 0 else ""
                     
+                    # Log uses the original email_body_html so the DB isn't flooded with signature HTML code
                     UnityNotes.objects.create(
                         member_group_code=company_code, 
                         user=request.user.username, 
@@ -950,6 +957,20 @@ def import_excel_view(request):
                 df.columns = db_columns
                 
                 df = df.astype(str).replace({'nan': '', 'NaT': ''})
+                
+                # --- NEW FILTER: Only process lines where Specialist is "FUTURASA" ---
+                initial_row_count = len(df)
+                df = df[df['Specialist'].str.strip().str.upper() == 'FUTURASA']
+                ignored_count = initial_row_count - len(df)
+                
+                if ignored_count > 0:
+                    messages.info(request, f"Ignored {ignored_count} row(s) because the Specialist was not 'FUTURASA'.")
+                # ---------------------------------------------------------------------
+                
+                # If dataframe is empty after filtering, stop processing to prevent errors
+                if df.empty:
+                    messages.warning(request, "No valid records with Specialist 'FUTURASA' found to import.")
+                    return redirect('import_data')
                 
                 df['DATE'] = pd.to_datetime(df['DATE'], errors='coerce')
                 df['Date_identified'] = pd.to_datetime(df['Date_identified'], errors='coerce').dt.date
@@ -2972,8 +2993,8 @@ def confirmations_view(request):
             ws.title = "Confirmations"
 
             headers = [
-                'CCDates_Month', 'Fund_Code', 'Member Group Code', 'Member Group Name', 
-                'Active_Member - (Info from FuturaSA & NOT checked by Sanlam)', 'Schedule Date', 'Final Data Received Date', 'Schedule Amount', 
+                'CCDates Month', 'Fund Code', 'Member Group Code', 'Member Group Name', 
+                'Active Member - (Info from FuturaSA & NOT checked by Sanlam)', 'Schedule Date', 'Final Data Received Date', 'Schedule Amount', 
                 'Confirmed Date', 'Bank Statement Date', 'Bank Deposit Amount', 
                 'Allocated Amount (For Front Office use & not to be checked by Sanlam)', 'Comment', 'Deposit Reference'
             ]
@@ -3487,15 +3508,21 @@ def save_global_claim(request):
 
                 if recipient and subject:
                     formatted_body = raw_body.replace('\n', '<br>')
+                    
+                    # --- 🚀 ADDED SIGNATURE LOGIC 🚀 ---
+                    signature_html = render_to_string('unity_internal_app/email_signature.html')
+                    final_email_content = f"{formatted_body}<br>{signature_html}"
+                    
                     try:
                         result = OutlookGraphService.send_outlook_email(
                             target_email=settings.OUTLOOK_EMAIL_ADDRESS,
                             recipient_email=recipient,
                             subject=subject,
-                            body_content=formatted_body,
+                            body_content=final_email_content, # 🚀 USING final_email_content 🚀
                             content_type='HTML'
                         )
                         if result.get('success'):
+                            # Log uses the original raw_body so the DB isn't flooded with signature HTML code
                             UnityClaimNote.objects.create(
                                 claim=saved_claim,
                                 note_selection="SENT EMAIL",
@@ -3638,49 +3665,47 @@ def send_email_view(request):
     Handles displaying the email form and processing the email submission 
     to the Microsoft Graph API. The email is sent FROM the mailbox specified by target_email.
     """
-    # DELEGATION AWARENESS: Get target email from URL or settings default 
     target_email = request.GET.get('email', settings.OUTLOOK_EMAIL_ADDRESS)
     
     if request.method == 'POST':
         recipient = request.POST.get('recipient')
         subject = request.POST.get('subject')
-        # This body usually comes from the textarea. 
-        # Make sure your JS on the frontend replaces \n with <br> before POSTing!
         body_html = request.POST.get('body') 
         sender = target_email 
 
-        # Simple validation
         if not all([recipient, subject, body_html]):
             messages.error(request, "All fields are required.")
             return render(request, 'unity_internal_app/send_email_form.html', {'target_email': target_email})
         
-        # Call the service function with the user object for signature injection
+        # --- 🚀 INTEGRATE SIGNATURE 🚀 ---
+        # 1. Render the signature template
+        signature_html = render_to_string('unity_internal_app/email_signature.html')
+        
+        # 2. Append the signature to the user-provided body
+        final_body_html = f"{body_html}<br>{signature_html}"
+        
+        # Call the service function with the combined HTML content
         response = OutlookGraphService.send_outlook_email(
             target_email=sender, 
             recipient_email=recipient, 
             subject=subject, 
-            body_content=body_html, 
+            body_content=final_body_html, # Using the combined content
             content_type='HTML',
-            user=request.user  # Injecting the user here
+            user=request.user
         )
         
-        # Check if the response from our updated service was successful
         if response.get('success'): 
             messages.success(request, f"Email sent successfully from {target_email} to {recipient}.")
             return redirect(f"{reverse('outlook_dashboard')}?email={target_email}")
         
         else:
-            # Handle API Errors
             error_msg = response.get('error', 'Unknown Error')
             details = response.get('details', {})
-            
-            # Format the error message for the user
             if isinstance(details, dict) and 'error' in details and 'message' in details['error']:
                 error_msg = details['error']['message']
             
             messages.error(request, f"Email failed to send: {error_msg}")
             
-            # Render the form again, keeping the data so you don't lose your work
             return render(request, 'unity_internal_app/send_email_form.html', {
                 'recipient': recipient,
                 'subject': subject,
@@ -3688,7 +3713,6 @@ def send_email_view(request):
                 'target_email': target_email
             })
 
-    # Render the empty form on GET request
     return render(request, 'unity_internal_app/send_email_form.html', {'target_email': target_email})
 
 
@@ -3776,6 +3800,8 @@ def outlook_delegated_action(request, delegation_id):
     Handles Notes, Replies, Metadata Updates, RESTORATION, and COMPLETION.
     Updated to support MULTIPLE file attachments with replies, parsing robust CC/BCC inputs.
     """
+    from django.template.loader import render_to_string # 🚀 ADDED IMPORT 🚀
+    
     delegation = get_object_or_404(EmailDelegation, pk=delegation_id)
     
     # --- ROLE-BASED ACCESS CONTROL ---
@@ -3858,12 +3884,16 @@ def outlook_delegated_action(request, delegation_id):
             log_type = request.POST.get('email_log_type', 'REPLY') 
             reply_files = request.FILES.getlist('reply_files')
 
+            # --- 🚀 ADDED SIGNATURE LOGIC 🚀 ---
+            signature_html = render_to_string('unity_internal_app/email_signature.html')
+            final_body_html = f"{body_html}<br>{signature_html}"
+
             # Pass the list of files to the service with exact keyword naming parameters
             response = OutlookGraphService.send_outlook_email(
                 target_email=target_email, 
                 recipient_email=recipient, 
                 subject=subject, 
-                body_content=body_html,
+                body_content=final_body_html, # 🚀 USING final_body_html 🚀
                 content_type='HTML',
                 user=request.user,
                 attachments=reply_files,
