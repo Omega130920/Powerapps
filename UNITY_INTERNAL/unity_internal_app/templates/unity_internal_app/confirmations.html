@@ -144,7 +144,7 @@
                                         <td>{{ record.company_code }}</td>
                                         <td>{{ record.company_name }}</td>
                                         <td class="text-center">{{ record.active_members }}</td>
-                                        <td>{{ record.schedule_date|date:"Y-m-d" }}</td>
+                                        <td>{{ record.schedule_date|date:"Y-m-d"|default:"-" }}</td>
                                         <td>{{ record.final_date|date:"Y-m-d"|default:"-" }}</td>
                                         <td class="amount-col">R {{ record.schedule_amount }}</td>
                                         <td>{{ record.confirmed_date|date:"Y-m-d"|default:"-" }}</td>
@@ -163,7 +163,7 @@
                                                 <td rowspan="{{ row_span }}">{{ record.company_code }}</td>
                                                 <td rowspan="{{ row_span }}">{{ record.company_name }}</td>
                                                 <td rowspan="{{ row_span }}" class="text-center">{{ record.active_members }}</td>
-                                                <td rowspan="{{ row_span }}">{{ record.schedule_date|date:"Y-m-d" }}</td>
+                                                <td rowspan="{{ row_span }}">{{ record.schedule_date|date:"Y-m-d"|default:"-" }}</td>
                                                 <td rowspan="{{ row_span }}">{{ record.final_date|date:"Y-m-d"|default:"-" }}</td>
                                                 <td rowspan="{{ row_span }}" class="amount-col">R {{ record.schedule_amount }}</td>
                                                 <td rowspan="{{ row_span }}">

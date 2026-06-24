@@ -2951,7 +2951,7 @@ def confirmations_view(request):
                 'company_code': bill.C_Company_Code, 
                 'company_name': getattr(bill, 'D_Company_Name', ''), 
                 'active_members': bill.E_Active_Members or 0, 
-                'schedule_date': getattr(bill, 'F_Schedule_Date', bill.A_CCDatesMonth), 
+                'schedule_date': getattr(bill, 'G_Schedule_Date', None), # 🚀 FIX APPLIED HERE: Now correctly pulling G_Schedule_Date 🚀
                 'final_date': bill.J_Final_Date or None, 
                 'schedule_amount': bill.H_Schedule_Amount or 0,
                 'confirmed_date': bill.I_Submitted_Date,
