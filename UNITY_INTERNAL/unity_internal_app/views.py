@@ -2972,10 +2972,10 @@ def confirmations_view(request):
             ws.title = "Confirmations"
 
             headers = [
-                'A_CC_Dates_Month', 'B_Fund_Co', 'C_Company_Code', 'D_Company_Name', 
-                'E_Active_Member', 'F_Schedule_Dat', 'G_Final_Date', 'H_Schedul', 
-                'I_Confirmed_Dat', 'J_Bank_Statement_Date', 'K_Bank_Deposit_Amount', 
-                'L_Allocated_Amoun', 'M_Comment', 'N_Deposit_Reference'
+                'Dates_Month', 'Fund_Co', 'Company_Code', 'Company_Name', 
+                'Active_Member', 'Schedule_Date', 'Final_Date', 'Schedule_Amount', 
+                'Confirmed_Date', 'Bank_Statement_Date', 'Bank_Deposit_Amount', 
+                'Allocated_Amount', 'Comment', 'Deposit_Reference'
             ]
             ws.append(headers)
 
