@@ -146,7 +146,13 @@ class UnityClaimForm(forms.ModelForm):
             'agent': forms.TextInput(attrs={'class': 'form-input', 'readonly': 'readonly'}),
             'linked_email_id': forms.HiddenInput(),
 
-            # --- 🚀 NEW FIELDS: Added Widgets for CSS styling ---
+            # 🚀 ADDED 'date_app_extracted' 🚀
+            'date_app_extracted': forms.DateInput(attrs={'type': 'date', 'class': 'form-input'}),
+
+            # 🚀 Existing Preservation Certificate Date 🚀
+            'infund_preservation_cert_received_date': forms.DateInput(attrs={'type': 'date', 'class': 'form-input'}),
+
+            # --- New Fields ---
             'qualified': forms.Select(choices=[('YES', 'YES'), ('NO', 'NO')], attrs={'class': 'form-select'}),
             'date_submitted_online': forms.DateInput(attrs={'type': 'date', 'class': 'form-input'}),
             'informed_er': forms.Select(choices=[('YES', 'YES'), ('NO', 'NO')], attrs={'class': 'form-select'}),
@@ -157,11 +163,14 @@ class UnityClaimForm(forms.ModelForm):
         super(UnityClaimForm, self).__init__(*args, **kwargs)
         
         # Ensure new fields are not required if you want them to be optional
-        # Update these to True if you want them to be mandatory
         self.fields['qualified'].required = False
         self.fields['date_submitted_online'].required = False
         self.fields['informed_er'].required = False
         self.fields['submitted_by_agent'].required = False
+        
+        # 🚀 MAKE SURE THESE DATES ARE OPTIONAL 🚀
+        self.fields['infund_preservation_cert_received_date'].required = False
+        self.fields['date_app_extracted'].required = False
 
         # Existing required field overrides
         self.fields['mip_number'].required = False

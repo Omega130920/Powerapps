@@ -3398,7 +3398,7 @@ def global_two_pot_view(request):
 
     all_companies = UnityMgListing.objects.values('a_company_code', 'b_company_name', 'c_agent')
     
-    # --- 🚀 ADDED: Fetch users for the Agent Dropdown ---
+    # Fetch users for the Agent Dropdown
     available_users = User.objects.filter(is_active=True).order_by('username')
 
     my_delegated_emails = EmailDelegation.objects.filter(
@@ -3422,7 +3422,7 @@ def global_two_pot_view(request):
         'page_obj': page_obj, 
         'all_companies': all_companies,
         'my_delegated_emails': my_delegated_emails,
-        'available_users': available_users, # 🚀 Added to context
+        'available_users': available_users, 
         'is_two_pot_view': True,
         'search_query': query, 
         'start_date': start_date,
@@ -3437,18 +3437,19 @@ def save_global_claim(request):
     if request.method == 'POST':
         post_data = request.POST.copy()
         
-        # --- SAFE DATE CLEANER: Prevent '' from breaking Django Form validation ---
+        # --- SAFE DATE CLEANER ---
+        # This strips out 'None' or empty strings to prevent database errors
         def clean_date(val):
             return val if val and val.strip() and val.strip() != 'None' else None
             
         date_fields = [
-            'vested_pot_paid_date', 'savings_pot_paid_date', 'infund_cert_date', 
-            'claim_created_date', 'last_contribution_date', 'date_submitted', 'date_paid'
+            'vested_pot_paid_date', 'savings_pot_paid_date', 'infund_preservation_cert_received_date', 
+            'claim_created_date', 'last_contribution_date', 'date_submitted', 'date_paid', 'date_app_extracted'
         ]
+        
         for field in date_fields:
             if field in post_data:
                 post_data[field] = clean_date(post_data[field])
-        # --------------------------------------------------------------------------
 
         claim_type_input = post_data.get('claim_type', 'Standard')
         redirect_url = 'global_two_pot' if claim_type_input == 'Two Pot' else 'global_claims'
@@ -3466,10 +3467,15 @@ def save_global_claim(request):
         if form.is_valid():
             saved_claim = form.save(commit=False)
             
+            # --- Handle Standard Fields ---
             if not saved_claim.company_code:
                 saved_claim.company_code = post_data.get('company_code')
 
             saved_claim.agent = post_data.get('agent')
+            
+            # --- Save the Date App Extracted (Handled by form, but explicitly set here for safety) ---
+            if post_data.get('date_app_extracted'):
+                saved_claim.date_app_extracted = post_data.get('date_app_extracted')
 
             if claim_type_input == 'Two Pot':
                 saved_claim.claim_type = 'Two Pot'
@@ -3478,23 +3484,32 @@ def save_global_claim(request):
                 if not saved_claim.claim_allocation:
                     saved_claim.claim_allocation = "Two Pot"
                 
-                saved_claim.vested_pot_available = post_data.get('vested_pot_available') == 'on'
-                saved_claim.savings_pot_available = post_data.get('savings_pot_available') == 'on'
+                # Checkbox Handling
+                saved_claim.vested_pot_available = (post_data.get('vested_pot_available') == 'on')
+                saved_claim.savings_pot_available = (post_data.get('savings_pot_available') == 'on')
                 
+                # Pot Dates
                 saved_claim.vested_pot_paid_date = post_data.get('vested_pot_paid_date')
                 saved_claim.savings_pot_paid_date = post_data.get('savings_pot_paid_date')
-                saved_claim.infund_preservation_cert_received_date = post_data.get('infund_cert_date')
+                
+                # Cert Date
+                cert_date = post_data.get('infund_preservation_cert_received_date') or post_data.get('infund_cert_date')
+                if cert_date:
+                    saved_claim.infund_preservation_cert_received_date = cert_date
 
+                # Amount
                 amount = post_data.get('claim_amount')
                 try:
                     saved_claim.claim_amount = float(amount) if amount and amount.strip() else 0.00
                 except ValueError:
                     saved_claim.claim_amount = 0.00
 
+            # --- Link Email ---
             new_linked_email_id = post_data.get('linked_email_id')
             if new_linked_email_id and new_linked_email_id.strip():
                 saved_claim.linked_email_id = new_linked_email_id
 
+            # --- Attachments ---
             if 'claim_attachment' in request.FILES:
                 saved_claim.claim_attachment = request.FILES['claim_attachment']
 
@@ -3508,8 +3523,6 @@ def save_global_claim(request):
 
                 if recipient and subject:
                     formatted_body = raw_body.replace('\n', '<br>')
-                    
-                    # --- 🚀 ADDED SIGNATURE LOGIC 🚀 ---
                     signature_html = render_to_string('unity_internal_app/email_signature.html')
                     final_email_content = f"{formatted_body}<br>{signature_html}"
                     
@@ -3518,11 +3531,10 @@ def save_global_claim(request):
                             target_email=settings.OUTLOOK_EMAIL_ADDRESS,
                             recipient_email=recipient,
                             subject=subject,
-                            body_content=final_email_content, # 🚀 USING final_email_content 🚀
+                            body_content=final_email_content,
                             content_type='HTML'
                         )
                         if result.get('success'):
-                            # Log uses the original raw_body so the DB isn't flooded with signature HTML code
                             UnityClaimNote.objects.create(
                                 claim=saved_claim,
                                 note_selection="SENT EMAIL",
@@ -3535,7 +3547,7 @@ def save_global_claim(request):
                     except Exception as e:
                         messages.error(request, f"Email system error: {str(e)}")
 
-            # --- UPDATED: Handle Manual Notes & Attachments ---
+            # --- Handle Manual Notes ---
             note_desc = post_data.get('note_description')
             note_type = post_data.get('note_selection', 'General Note')
             note_file = request.FILES.get('note_attachment')

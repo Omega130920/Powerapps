@@ -712,6 +712,7 @@ class UnityClaim(models.Model):
     date_submitted_online = models.DateField(blank=True, null=True)
     informed_er = models.CharField(max_length=10, default='NO', blank=True, null=True)
     submitted_by_agent = models.CharField(max_length=20, blank=True, null=True)
+    date_app_extracted = models.DateField(blank=True, null=True, verbose_name="Date App Extracted")
     
 
     class Meta:
