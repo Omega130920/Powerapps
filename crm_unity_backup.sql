@@ -1641,7 +1641,6 @@ CREATE TABLE `unity_claims` (
   `date_submitted_online` date DEFAULT NULL,
   `informed_er` varchar(10) DEFAULT 'NO',
   `submitted_by_agent` varchar(50) DEFAULT NULL,
-  `date_app_extracted` date DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_unity_claims_company_code` (`company_code`)
 ) ENGINE=InnoDB AUTO_INCREMENT=36 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
@@ -1943,4 +1942,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2026-06-26  8:32:59
+-- Dump completed on 2026-06-26  7:41:26
