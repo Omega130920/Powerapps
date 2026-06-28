@@ -16,7 +16,7 @@ form { margin-top: 25px; padding: 20px; border: 1px solid #ccc; border-radius: 5
 label { display: block; margin-bottom: 8px; font-weight: bold; }
 
 /* Input Styling */
-#company_code_input, input[type="submit"] { width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; }
+#company_code_input, #fiscal_date, input[type="submit"] { width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; }
 input[type="submit"] { background-color: #43a047; color: white; cursor: pointer; transition: background-color 0.3s; margin-top: 10px; font-weight: bold; font-size: 16px; border: none; }
 input[type="submit"]:hover { background-color: #388e3c; }
 
@@ -69,6 +69,9 @@ input[type="submit"]:hover { background-color: #388e3c; }
         {% endfor %}
     </datalist>
 
+    <label for="fiscal_date">Assign to Fiscal Period (Date):</label>
+    <input type="date" name="fiscal_date" id="fiscal_date" required>
+
     <div class="checkbox-group">
         <input type="checkbox" name="is_bulk" id="is_bulk" {% if current_recon.review_note == 'BULK' %}checked{% endif %}>
         <label for="is_bulk">Mark for Bulk Split Processing</label>
@@ -104,6 +107,12 @@ input[type="submit"]:hover { background-color: #388e3c; }
     // Run on load to set initial state
     window.onload = function() {
         codeInput.value = "{{ current_recon.company_code|default:'' }}";
+        // Pre-populate fiscal date if exists (assumes model field is fiscal_period_date)
+        const fiscalInput = document.getElementById('fiscal_date');
+        {% if current_recon.fiscal_period_date %}
+            fiscalInput.value = "{{ current_recon.fiscal_period_date|date:'Y-m-d' }}";
+        {% endif %}
+        
         toggleRequirement();
     };
 </script>

@@ -665,6 +665,7 @@ def unity_information(request: HttpRequest, company_code):
 
     context = {
         'unity_record': unity_record, 
+        'latest_bill': latest_bill,
         'notes': notes, 
         'communication_logs': communication_logs, 
         'combined_email_log': combined_email_log, 
@@ -1132,6 +1133,7 @@ def bankline_recon(request, record_id):
     Handles the reconciliation/assignment of bank lines OR Approved Credits.
     UPDATED: Returns to bank_list.html after successful assignment.
     UPDATED: Allows saving without a company code if 'is_bulk' is ticked.
+    UPDATED: Captures and saves Fiscal Period Date.
     """
     from django.urls import reverse
     
@@ -1153,7 +1155,6 @@ def bankline_recon(request, record_id):
                             bill_id=open_bill.id)
         else:
             messages.warning(request, f"Credit is ready, but no open bills were found for {credit_note.member_group_code}.")
-            # Note: Decided to keep this redirect to unity_info as a fallback for credits
             return redirect('unity_information', company_code=credit_note.member_group_code)
 
     # --- STANDARD BANK LINE LOGIC ---
@@ -1174,6 +1175,8 @@ def bankline_recon(request, record_id):
 
     if request.method == 'POST':
         allocated_company_code_value = request.POST.get('company_code')
+        # Capture Fiscal Date
+        fiscal_date_value = request.POST.get('fiscal_date')
         # Capture Bulk Tick Box
         is_bulk_ticked = request.POST.get('is_bulk') == 'on'
         
@@ -1187,15 +1190,19 @@ def bankline_recon(request, record_id):
             # Only validate the company code if one was provided
             if allocated_company_code_value and allocated_company_code_value != 'None':
                 code_exists = InternalFunds.objects.filter(A_Company_Code=allocated_company_code_value).exists() or \
-                             UnityMgListing.objects.filter(a_company_code=allocated_company_code_value).exists()
+                              UnityMgListing.objects.filter(a_company_code=allocated_company_code_value).exists()
 
                 if not code_exists:
                     messages.error(request, f"Company code '{allocated_company_code_value}' is not recognized.")
                     return redirect('bankline_recon', record_id=record_id)
 
             # --- ASSIGNMENT ---
-            # Set company_code to the provided value, or None if it's a Bulk Split without a code
             recon_segment.company_code = allocated_company_code_value if allocated_company_code_value != 'None' else None
+            
+            # --- SAVE FISCAL DATE ---
+            if fiscal_date_value:
+                recon_segment.fiscal_period_date = fiscal_date_value
+                
             recon_segment.agent = request.user.get_full_name() or request.user.username
             
             # Apply Bulk Logic if ticked
@@ -1396,7 +1403,9 @@ def update_bankline_details(request, recon_id):
         new_comment_text = request.POST.get('review_note_text', '').strip()
 
         recon_record.company_code = new_company_code if new_company_code else None
-        recon_record.fiscal_date = new_fiscal_date if new_fiscal_date else None
+        
+        # FIX: Ensure it maps to fiscal_period_date to match your ReconnedBank model
+        recon_record.fiscal_period_date = new_fiscal_date if new_fiscal_date else None
         recon_record.review_note = category
         
         # 🚀 LOGIC: SAVE NEW NOTE AS A SEPARATE ROW 🚀

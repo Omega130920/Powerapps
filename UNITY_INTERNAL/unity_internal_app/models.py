@@ -185,6 +185,7 @@ class ReconnedBank(models.Model):
     review_note = models.CharField(max_length=255, null=True, blank=True) # Category
     review_note_text = models.TextField(null=True, blank=True)          # Detailed Note
     recon_status = models.CharField(max_length=50, default='Reconciled')
+    fiscal_period_date = models.DateField(null=True, blank=True)
     
     amount_settled = models.DecimalField(
         max_digits=15, 

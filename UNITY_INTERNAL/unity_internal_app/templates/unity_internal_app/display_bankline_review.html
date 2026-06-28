@@ -125,7 +125,7 @@ input:checked + .slider:before { transform: translateX(20px); }
         </tr>
         <tr>
             <th>Current Fiscal Date</th>
-            <td>{{ recon_record.fiscal_date|date:"Y-m-d"|default:"N/A" }}</td>
+            <td>{{ recon_record.fiscal_period_date|date:"Y-m-d"|default:"N/A" }}</td>
         </tr>
         <tr>
             <th>Current Review Category</th>
@@ -298,7 +298,7 @@ input:checked + .slider:before { transform: translateX(20px); }
             </div>
 
             <label for="fiscal_date">Assign Fiscal Date:</label>
-            <input type="date" id="fiscal_date" name="fiscal_date" value="{{ recon_record.fiscal_date|date:'Y-m-d'|default:'' }}">
+            <input type="date" id="fiscal_date" name="fiscal_date" value="{{ recon_record.fiscal_period_date|date:'Y-m-d'|default:'' }}">
             
             <label for="review_note">Note Selector:</label>
             <select id="review_note" name="review_note" required>
@@ -328,7 +328,6 @@ input:checked + .slider:before { transform: translateX(20px); }
     <input type="email" id="cc_email" name="cc_email" placeholder="e.g. manager@unity.co.za">
 
     <label for="email_subject">Email Subject:</label>
-    {# 🚀 UPDATED SUBJECT VALUE BELOW 🚀 #}
     <input type="text" id="email_subject" name="email_subject" value="[Member Group: {{ recon_record.company_code|default:'N/A' }}] Update regarding Bank Transaction Ref: {{ bank_record.statement_reference }}">
     
     <label for="email_body_content">Email Body Content:</label>
