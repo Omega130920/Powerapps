@@ -492,7 +492,7 @@
                     <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Fund Status Date</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{{ unity_record.fund_status_date|date:"Y-m-d"|default:"-" }}</td></tr>
                     
                     {# --- UPDATED: Last Recon Note View --- #}
-                    <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Last Recon Note</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{{ unity_record.i_last_recon }}<br><small style="color:#666"><strong>Submitted:</strong> {{ latest_bill.I_Submitted_Date|date:"Y-m-d"|default:"N/A" }}</small></td></tr>
+                    <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Last Recon Note</th><td style="padding: 8px; border-bottom: 1px solid #ddd;"> {{ latest_bill.A_CCDatesMonth|date:"Y-m-d"|default:"N/A" }}</small></td></tr>
                     
                     <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Agent</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{{ unity_record.c_agent }}</td></tr>
                     <tr><th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Company Status</th><td style="padding: 8px; border-bottom: 1px solid #ddd;">{{ unity_record.d_company_status }}</td></tr>
@@ -550,7 +550,7 @@
                         <tr><th style="padding: 8px;">Fund Status Date</th><td><input type="date" name="fund_status_date" value="{{ unity_record.fund_status_date|date:'Y-m-d' }}" class="form-input" style="width: 100%; padding: 5px;"></td></tr>
                         
                         {# --- UPDATED: Last Recon Note Edit --- #}
-                        <tr><th style="padding: 8px;">Last Recon Note</th><td><input type="text" name="last_recon_note" value="{{ unity_record.i_last_recon }}" class="form-input" style="width: 100%; padding: 5px;"><br><small style="color:#666; display:inline-block; margin-top:4px;"><strong>Submitted:</strong> {{ latest_bill.I_Submitted_Date|date:"Y-m-d"|default:"N/A" }}</small></td></tr>
+                        <tr><th style="padding: 8px;">Last Recon Note</th><td><input type="text" name="last_recon_note" value="{{ unity_record.i_last_recon }}" class="form-input" style="width: 100%; padding: 5px;"><br><small style="color:#666; display:inline-block; margin-top:4px;"><strong>Recon Month:</strong> {{ latest_bill.A_CCDatesMonth|date:"Y-m-d"|default:"N/A" }}</small></td></tr>
                         
                         <tr><th style="padding: 8px;">Agent</th><td>
                             <select name="agent" class="form-select" style="width: 100%; padding: 5px;">

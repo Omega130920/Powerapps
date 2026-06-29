@@ -933,7 +933,8 @@ def add_member_view(request):
 @login_required
 def import_excel_view(request):
     """Handles the upload and import of Excel data."""
-    from django.db import connection
+    from django.db import connection, transaction
+    from django.utils import timezone
     from .models import ImportBank
     import pandas as pd
     import numpy as np
@@ -959,7 +960,7 @@ def import_excel_view(request):
                 
                 df = df.astype(str).replace({'nan': '', 'NaT': ''})
                 
-                # --- NEW FILTER: Only process lines where Specialist is "FUTURASA" ---
+                # --- FILTER: Only process lines where Specialist is "FUTURASA" ---
                 initial_row_count = len(df)
                 df = df[df['Specialist'].str.strip().str.upper() == 'FUTURASA']
                 ignored_count = initial_row_count - len(df)
@@ -990,19 +991,42 @@ def import_excel_view(request):
                 df = df.where(pd.notna(df), None)
 
                 with transaction.atomic():
+                    # SQL for main importbank table
                     columns_sql = ', '.join([f'`{col}`' for col in db_columns])
                     placeholders = ', '.join(['%s'] * len(db_columns))
                     sql = f"INSERT INTO {ImportBank._meta.db_table} ({columns_sql}) VALUES ({placeholders})"
                     
-                    data_to_insert = []
-                    for row in df[db_columns].values:
-                        cleaned_row = [None if isinstance(item, float) and np.isnan(item) else item for item in row]
-                        data_to_insert.append(tuple(cleaned_row))
-
+                    # SQL for bank_line_notes table
+                    note_sql = """
+                        INSERT INTO bank_line_notes 
+                        (recon_record_id, note_text, category, created_by, created_at) 
+                        VALUES (%s, %s, %s, %s, %s)
+                    """
+                    
                     with connection.cursor() as cursor:
-                        cursor.executemany(sql, data_to_insert)
+                        for row in df[db_columns].values:
+                            # Clean the row for null values
+                            cleaned_row = [None if isinstance(item, float) and np.isnan(item) else item for item in row]
+                            
+                            # 1. Insert into importbank
+                            cursor.execute(sql, tuple(cleaned_row))
+                            
+                            # 2. Grab the generated ID of the new importbank record
+                            new_record_id = cursor.lastrowid
+                            
+                            # 3. Check if there is a Comment (Index 11 in db_columns)
+                            comment_val = cleaned_row[11]
+                            if comment_val and str(comment_val).strip():
+                                # Insert into bank_line_notes
+                                cursor.execute(note_sql, (
+                                    new_record_id,
+                                    str(comment_val).strip(),
+                                    'Imported Note',            # Category name
+                                    request.user.username,      # Created by
+                                    timezone.now()              # Created at
+                                ))
                         
-                messages.success(request, f"Successfully imported {len(df)} records into the 'importbank' table. Data was appended.")
+                messages.success(request, f"Successfully imported {len(df)} records (and related notes) into the database.")
                 
             except Exception as e:
                 messages.error(request, f"An error occurred during import: {e}")
@@ -1210,7 +1234,7 @@ def bankline_recon(request, record_id):
                 recon_segment.recon_status = 'Unreconciled - Bulk Split'
                 recon_segment.review_note = 'BULK'
             else:
-                recon_segment.recon_status = 'Reconciled - Assigned'
+                recon_segment.recon_status = 'Unreconciled - Assigned'
                 
             recon_segment.save()
             
