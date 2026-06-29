@@ -568,33 +568,36 @@ def acvv_information(request, mip_names):
                 messages.success(request, "PDF added.")
                 return redirect(f'/acvv-records/{acvv_record.mip_names}/#pdf-upload')
 
-        # 3. Handle Contact Info Update (UPDATED: Sanitized Email Input & New Bank Fields)
+        # 3. Handle Contact Info Update (UPDATED: Matched exact HTML name attributes)
         elif 'update_contact_info' in request.POST:
             # Normalize email input to handle multiple addresses entered with commas or semicolons
-            raw_emails = request.POST.get('new_email', '')
+            raw_emails = request.POST.get('mg_email_address', '')
             # Clean: Replace ; with , then split, strip whitespace, and rejoin with comma
             email_list = [e.strip() for e in raw_emails.replace(';', ',').split(',') if e.strip()]
             acvv_record.mg_email_address = ",".join(email_list)
             
-            acvv_record.tel = request.POST.get('new_tel')
-            acvv_record.tel_2 = request.POST.get('new_tel_2')
+            # --- EXTRACT AND SAVE ALL DATA MATCHING THE HTML NAMES ---
+            acvv_record.branch_code = request.POST.get('branch_code')
+            acvv_record.member = request.POST.get('member')
+            acvv_record.contribution_amount = request.POST.get('contribution_amount')
             
-            # --- EXTRACT AND SAVE THE NEW BANK & CONTACT DATA HERE ---
-            acvv_record.bank = request.POST.get('new_bank')
-            acvv_record.branch = request.POST.get('new_branch')
-            acvv_record.account_number = request.POST.get('new_account_number')
-            acvv_record.account_name = request.POST.get('new_account_name')
-            acvv_record.account_type = request.POST.get('new_account_type')
-            acvv_record.employer_contacts = request.POST.get('new_employer_contacts')
+            acvv_record.tel = request.POST.get('tel')
+            acvv_record.tel_2 = request.POST.get('tel_2')
             
-            # --- EXTRACT AND SAVE THE EXISTING ADDITIONAL DATA ATTRIBUTES HERE ---
-            acvv_record.mg_address = request.POST.get('new_mg_address')
-            acvv_record.npo_code = request.POST.get('new_npo_code')
-            acvv_record.mg_bank_info = request.POST.get('new_mg_bank_info')
+            acvv_record.bank = request.POST.get('bank')
+            acvv_record.branch = request.POST.get('branch')
+            acvv_record.account_number = request.POST.get('account_number')
+            acvv_record.account_name = request.POST.get('account_name')
+            acvv_record.account_type = request.POST.get('account_type')
+            acvv_record.employer_contacts = request.POST.get('employer_contacts')
+            
+            acvv_record.mg_address = request.POST.get('mg_address')
+            acvv_record.npo_code = request.POST.get('npo_code')
+            acvv_record.mg_bank_info = request.POST.get('mg_bank_info')
             
             acvv_record.save()
             messages.success(request, "Contact information updated successfully.")
-            return redirect('acvv_information', mip_names=acvv_record.branch_code)
+            return redirect('acvv_information', mip_names=acvv_record.mip_names)
 
     # --- DATA FETCHING & COLUMN LINKING ---
     all_notes = ClientNotes.objects.filter(acvv_record=acvv_record)
