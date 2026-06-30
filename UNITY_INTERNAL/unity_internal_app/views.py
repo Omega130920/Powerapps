@@ -939,6 +939,9 @@ def import_excel_view(request):
     import pandas as pd
     import numpy as np
     
+    # 💡 FIX: Opt-in to the future behavior to clear the FutureWarning in the logs
+    pd.set_option('future.no_silent_downcasting', True)
+    
     if request.method == 'POST':
         if 'excel_file' in request.FILES:
             excel_file = request.FILES['excel_file']
@@ -987,7 +990,9 @@ def import_excel_view(request):
                     messages.warning(request, f"Skipped {dropped_count} row(s) due to missing or invalid required data (Date).")
 
                 df['DATE'] = df['DATE'].dt.date
-                df = df.replace(r'^\s*$', np.nan, regex=True)
+                
+                # 💡 FIX: Chained .infer_objects(copy=False) to ensure compatibility
+                df = df.replace(r'^\s*$', np.nan, regex=True).infer_objects(copy=False)
                 df = df.where(pd.notna(df), None)
 
                 with transaction.atomic():
