@@ -31,6 +31,7 @@ from django.core.paginator import Paginator
 from django.db import connection, transaction
 from django.forms.models import model_to_dict
 from django.urls import reverse
+import base64
 
 # Model Imports
 from .models import (
@@ -480,9 +481,15 @@ def send_task_email_view(request, email_id):
              messages.error(request, "Email body cannot be empty.")
              return redirect('delegate_action', email_id=email_id)
 
-        # 🚀 INTEGRATE DYNAMIC SIGNATURE 🚀
-        # Render the signature snippet with current request context
-        signature_html = render_to_string('email_signature.html', {'request': request})
+        # Before render_to_string, calculate the full URL
+        logo_full_url = request.build_absolute_uri(settings.MEDIA_URL + 'futuraLogo.png')
+
+        # Update your signature render call
+        signature_html = render_to_string('email_signature.html', {
+            'request': request,
+            'MEDIA_URL': settings.MEDIA_URL,
+            'logo_url': logo_full_url  # Pass this new variable
+        })
         
         # Combine the user's message body with the signature
         full_message_body = f"{message_body}<br>{signature_html}"
@@ -496,8 +503,6 @@ def send_task_email_view(request, email_id):
         
         if response.get('success'):
             # 2. LOG TO DELEGATE ACTIONS (The Thread Table)
-            # We log the message_body (without the signature) to avoid cluttering the thread UI,
-            # or you can use full_message_body if you want the history to show the signature too.
             CrmDelegateAction.objects.create(
                 task_email_id=email_id,
                 action_type='REPLY_SENT',
@@ -701,9 +706,15 @@ def member_information(request, member_group_code):
             cc_recipients = request.POST.get('member_cc_email', '')
             bcc_recipients = request.POST.get('member_bcc_email', '')
 
-            # 🚀 DYNAMIC SIGNATURE INJECTION 🚀
-            # Render the signature template using the current request user
-            signature_html = render_to_string('email_signature.html', {'request': request})
+            # Before render_to_string, calculate the full URL
+            logo_full_url = request.build_absolute_uri(settings.MEDIA_URL + 'futuraLogo.png')
+
+            # Update your signature render call
+            signature_html = render_to_string('email_signature.html', {
+                'request': request,
+                'MEDIA_URL': settings.MEDIA_URL,
+                'logo_url': logo_full_url  # Pass this new variable
+            })
             
             # Combine user content with the signature
             full_body_content = f"{body_content}<br>{signature_html}"
@@ -716,8 +727,8 @@ def member_information(request, member_group_code):
                 body_content=full_body_content,
                 content_type='HTML',
                 attachments=attachments,
-                cc_email=cc_recipients,
-                bcc_email=bcc_recipients
+                cc_email=cc_recipients,    # 🚀 Routed safely
+                bcc_email=bcc_recipients   # 🚀 Routed safely
             )
 
             if response.get('success'):
@@ -734,6 +745,7 @@ def member_information(request, member_group_code):
                     action_type=action_log_type
                 )
                 
+                # Format tracing values inside local historical interaction ledgers
                 attachment_count = len(attachments)
                 attach_string = f" ({attachment_count} files)" if attachment_count > 0 else ""
                 
