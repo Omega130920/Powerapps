@@ -14,6 +14,7 @@ import openpyxl
 from openpyxl.styles import Font, Alignment, PatternFill
 from datetime import timedelta
 from django.utils.dateparse import parse_datetime
+from django.template.loader import render_to_string
 
 from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
@@ -463,6 +464,8 @@ def delegate_email_view(request, email_id):
         'is_manager': is_manager
     })
     
+from django.template.loader import render_to_string # Add this import to the top of your file
+
 @login_required
 def send_task_email_view(request, email_id):
     if request.method == 'POST':
@@ -477,26 +480,33 @@ def send_task_email_view(request, email_id):
              messages.error(request, "Email body cannot be empty.")
              return redirect('delegate_action', email_id=email_id)
 
-        # 1. Send the actual email via Outlook
+        # 🚀 INTEGRATE DYNAMIC SIGNATURE 🚀
+        # Render the signature snippet with current request context
+        signature_html = render_to_string('email_signature.html', {'request': request})
+        
+        # Combine the user's message body with the signature
+        full_message_body = f"{message_body}<br>{signature_html}"
+
+        # 1. Send the actual email via Outlook using the full body + signature
         response = OutlookGraphService.send_outlook_email(
             recipient=recipient, 
             subject=subject, 
-            body_html=message_body
+            body_html=full_message_body
         )
         
         if response.get('success'):
             # 2. LOG TO DELEGATE ACTIONS (The Thread Table)
-            # This makes it show up in the "View Thread" timeline
+            # We log the message_body (without the signature) to avoid cluttering the thread UI,
+            # or you can use full_message_body if you want the history to show the signature too.
             CrmDelegateAction.objects.create(
                 task_email_id=email_id,
-                action_type='REPLY_SENT', # Specific type to distinguish from notes
+                action_type='REPLY_SENT',
                 action_user=request.user.username,
-                note_content=message_body, # Stores the actual email content
-                related_subject=subject     # Stores the reply subject
+                note_content=full_message_body, # Stores the actual email content including signature
+                related_subject=subject 
             )
 
             # 🚀 THE ADDITION: Log to ClientNotes for SLA Reporting
-            # This ensures the email reply is visible in the Master SLA Audit Trail
             ClientNotes.objects.create(
                 related_member_group_code=task.member_group_code,
                 notes=f"Email Sent (Delegated): {subject}",
@@ -688,20 +698,26 @@ def member_information(request, member_group_code):
             attachments = request.FILES.getlist('attachments')
             action_log_type = request.POST.get('action_notes_email', 'Direct Email Sent')
 
-            # 🚀 ADDED: Capturing CC and BCC from the incoming front-end payload form values
             cc_recipients = request.POST.get('member_cc_email', '')
             bcc_recipients = request.POST.get('member_bcc_email', '')
 
-            # 🚀 UPDATED: Invoking service method matching your exact positional structure and variable bindings
+            # 🚀 DYNAMIC SIGNATURE INJECTION 🚀
+            # Render the signature template using the current request user
+            signature_html = render_to_string('email_signature.html', {'request': request})
+            
+            # Combine user content with the signature
+            full_body_content = f"{body_content}<br>{signature_html}"
+
+            # 🚀 UPDATED: Using full_body_content for the Outlook service
             response = OutlookGraphService.send_outlook_email(
                 target_email=settings.OUTLOOK_EMAIL_ADDRESS,
                 recipient_email=recipient,
                 subject=subject,
-                body_content=body_content,
+                body_content=full_body_content,
                 content_type='HTML',
                 attachments=attachments,
-                cc_email=cc_recipients,    # 🚀 Routed safely
-                bcc_email=bcc_recipients   # 🚀 Routed safely
+                cc_email=cc_recipients,
+                bcc_email=bcc_recipients
             )
 
             if response.get('success'):
@@ -711,14 +727,13 @@ def member_information(request, member_group_code):
                     member_group_code=member_group_code,
                     subject=subject,
                     recipient_email=recipient,
-                    body_content=body_content,
+                    body_content=full_body_content, # Store full body in log
                     sent_by_user=request.user,
                     outlook_message_id=real_outlook_id, 
                     sent_at=timezone.now(),
                     action_type=action_log_type
                 )
                 
-                # Format tracing values inside local historical interaction ledgers
                 attachment_count = len(attachments)
                 attach_string = f" ({attachment_count} files)" if attachment_count > 0 else ""
                 
@@ -730,7 +745,7 @@ def member_information(request, member_group_code):
                     user=user_display,
                     date=timezone.now()
                 )
-                messages.success(request, f"Email sent successfully and logged as {action_log_type}.")
+                messages.success(request, f"Email sent successfully with signature and logged as {action_log_type}.")
             else:
                 messages.error(request, f"Microsoft Error: {response.get('error')}")
             return redirect(f"/global-members/{member_group_code}/#communications")
@@ -1020,6 +1035,8 @@ def tasks_view(request):
 
     return render(request, 'tasks.html', {'delegated_tasks': display_tasks})
 
+from django.template.loader import render_to_string # Ensure this is at the top of views.py
+
 @login_required
 def delegate_action_view(request, email_id):
     """
@@ -1192,11 +1209,15 @@ def delegate_action_view(request, email_id):
                 uploaded_files = request.FILES.getlist('attachments')
 
                 if recipient and subject and body_html:
+                    # 🚀 DYNAMIC SIGNATURE INJECTION 🚀
+                    signature_html = render_to_string('email_signature.html', {'request': request})
+                    full_body_html = f"{body_html}<br>{signature_html}"
+
                     result = OutlookGraphService.send_outlook_email(
                         target_email=target_email,
                         recipient_email=recipient,
                         subject=subject,
-                        body_content=body_html,
+                        body_content=full_body_html,
                         content_type='HTML',
                         attachments=uploaded_files,
                         cc_email=cc_recipients,    
@@ -1209,7 +1230,7 @@ def delegate_action_view(request, email_id):
                         
                         ClientNotes.objects.create(
                             related_member_group_code=task.member_group_code,
-                            notes=f"To: {recipient}\nCC: {cc_recipients}\nBCC: {bcc_recipients}\nSubject: {subject}{attachments_footprint}\n{body_html}",
+                            notes=f"To: {recipient}\nCC: {cc_recipients}\nBCC: {bcc_recipients}\nSubject: {subject}{attachments_footprint}\n{full_body_html}",
                             communication_type="Delegated: Sent Email (Reply)",
                             action_notes=action_log_type, 
                             user=user_display,
@@ -1220,7 +1241,7 @@ def delegate_action_view(request, email_id):
                             task_email_id=email_id,
                             action_type='REPLY_SENT',
                             action_user=user_display,
-                            note_content=f"{action_log_type} | CC: {cc_recipients} | BCC: {bcc_recipients}{attachments_footprint}", 
+                            note_content=f"{action_log_type} | CC: {cc_recipients} | BCC: {bcc_recipients}{attachments_footprint}\n{full_body_html}", 
                             related_subject=subject
                         )
                         
