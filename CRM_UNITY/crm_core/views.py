@@ -1864,7 +1864,7 @@ def final_sla_report_view(request):
 
 def export_sla_excel(delegate_q, notes_q, email_log_q):
     """
-    MASTER SLA EXCEL EXPORT
+    MASTER SLA EXCEL EXPORT (Filtered by date range)
     """
     wb = openpyxl.Workbook()
     
@@ -1886,7 +1886,7 @@ def export_sla_excel(delegate_q, notes_q, email_log_q):
     for cell in ws1[1]:
         cell.font, cell.fill, cell.alignment = header_font, header_fill, Alignment(horizontal="center")
 
-    # 2. DELEGATED (CrmDelegateTo)
+    # 1. DELEGATED (Respecting delegate_q)
     for task in CrmDelegateTo.objects.filter(delegate_q):
         inbox_record = CrmInbox.objects.filter(email_id=task.email_id).first()
         received_dt = inbox_record.received_timestamp.replace(tzinfo=None) if inbox_record and inbox_record.received_timestamp else task.received_timestamp.replace(tzinfo=None)
@@ -1896,50 +1896,43 @@ def export_sla_excel(delegate_q, notes_q, email_log_q):
             actioned_dt = comp.action_timestamp.replace(tzinfo=None) if comp else task.received_timestamp.replace(tzinfo=None)
         ws1.append([task.status, received_dt, actioned_dt, task.delegated_by, task.delegated_to, 'Inbox Delegation', CATEGORY_NAMES.get(str(task.category), task.category), task.type, getattr(task, 'member_group_code', '---'), task.subject, getattr(task, 'sender', '---')])
 
-    # 3. DIRECT & DELEGATED NOTES
+    # 2. DIRECT & DELEGATED NOTES (Respecting notes_q)
     for note in ClientNotes.objects.filter(notes_q):
         display_label = "Direct Note"
         clean_comm_type = note.communication_type or "Note"
-        
         if note.communication_type and "Delegated:" in note.communication_type:
             display_label = "Delegated Note"
             clean_comm_type = note.communication_type.replace("Delegated: ", "")
-
         ws1.append([display_label, None, note.date.replace(tzinfo=None), None, note.user, clean_comm_type, None, note.action_notes, note.related_member_group_code, note.notes[:250], None])
 
-    # 4. DIRECT EMAILS
+    # 3. DIRECT EMAILS (Respecting email_log_q)
     for email in DirectEmailLog.objects.filter(email_log_q):
         ws1.append(['Direct Email', None, email.sent_at.replace(tzinfo=None), None, email.sent_by_user.username, 'Direct Email', '', email.action_type, getattr(email, 'member_group_code', '---'), email.subject, email.recipient_email])
 
-    # 5. THREAD REPLIES
-    for action in CrmDelegateAction.objects.filter(action_type='REPLY_SENT'):
+    # 4. THREAD REPLIES (Respecting date range of tasks)
+    # We only show replies for tasks that passed the delegate_q filter
+    filtered_email_ids = CrmDelegateTo.objects.filter(delegate_q).values_list('email_id', flat=True)
+    for action in CrmDelegateAction.objects.filter(action_type='REPLY_SENT', task_email_id__in=filtered_email_ids):
         parent = CrmDelegateTo.objects.filter(email_id=action.task_email_id).first()
-        # 🟢 FIXED: Changed hardcoded 'Thread Reply' to action.note_content
         ws1.append([
-            'Reply Sent (Thread)', 
-            None, 
-            action.action_timestamp.replace(tzinfo=None), 
-            None, 
-            action.action_user, 
-            'Sent Email (Reply)', 
-            None, 
-            action.note_content, 
-            getattr(parent, 'member_group_code', '---') if parent else '---', 
-            action.related_subject, 
+            'Reply Sent (Thread)', None, action.action_timestamp.replace(tzinfo=None), None, action.action_user, 
+            'Sent Email (Reply)', None, action.note_content, 
+            getattr(parent, 'member_group_code', '---') if parent else '---', action.related_subject, 
             getattr(parent, 'sender', '---') if parent else '---'
         ])
 
     # ==========================================================================
-    # SHEET 2: AGENT SUMMARY (GROUPED BY AGENT)
+    # SHEET 2: AGENT SUMMARY (Respecting date range for each agent's actions)
     # ==========================================================================
     ws2 = wb.create_sheet(title="Agent Summary")
     ws2.append(headers)
     for cell in ws2[1]:
         cell.font, cell.fill, cell.alignment = header_font, header_fill, Alignment(horizontal="center")
 
+    # Get unique agents across all filtered query sets
     agents = set(CrmDelegateTo.objects.filter(delegate_q).values_list('delegated_to', flat=True)) | \
-              set(ClientNotes.objects.filter(notes_q).values_list('user', flat=True)) | \
-              set(DirectEmailLog.objects.filter(email_log_q).values_list('sent_by_user__username', flat=True))
+             set(ClientNotes.objects.filter(notes_q).values_list('user', flat=True)) | \
+             set(DirectEmailLog.objects.filter(email_log_q).values_list('sent_by_user__username', flat=True))
 
     for agent in sorted(filter(None, agents)):
         agent_fill = PatternFill(start_color="D1D5DB", end_color="D1D5DB", fill_type="solid")
@@ -1949,22 +1942,18 @@ def export_sla_excel(delegate_q, notes_q, email_log_q):
         ws2.cell(row=row_num, column=1).font = Font(bold=True)
         ws2.cell(row=row_num, column=1).fill = agent_fill
 
+        # Filtered Agent Data
         for t in CrmDelegateTo.objects.filter(delegate_q, delegated_to=agent):
             ws2.append([t.status, None, None, t.delegated_by, t.delegated_to, 'Inbox Delegation', t.category, t.type, t.member_group_code, t.subject, '---'])
         
         for n in ClientNotes.objects.filter(notes_q, user=agent):
-            display_label = "Direct Note"
-            clean_type = n.communication_type or "Note"
-            if n.communication_type and "Delegated:" in n.communication_type:
-                display_label = "Delegated Note"
-                clean_type = n.communication_type.replace("Delegated: ", "")
-            ws2.append([display_label, None, n.date.replace(tzinfo=None), None, n.user, clean_type, None, n.action_notes, n.related_member_group_code, n.notes[:100], None])
+            display_label = "Delegated Note" if "Delegated:" in (n.communication_type or "") else "Direct Note"
+            ws2.append([display_label, None, n.date.replace(tzinfo=None), None, n.user, (n.communication_type or "Note"), None, n.action_notes, n.related_member_group_code, n.notes[:100], None])
         
         for e in DirectEmailLog.objects.filter(email_log_q, sent_by_user__username=agent):
             ws2.append(['Direct Email', None, e.sent_at.replace(tzinfo=None), None, agent, 'Direct Email', '', e.action_type, e.member_group_code, e.subject, e.recipient_email])
 
-        for r in CrmDelegateAction.objects.filter(action_type='REPLY_SENT', action_user=agent):
-            # 🟢 FIXED: Changed hardcoded 'Thread Reply' to r.note_content
+        for r in CrmDelegateAction.objects.filter(action_type='REPLY_SENT', action_user=agent, task_email_id__in=filtered_email_ids):
             ws2.append(['Reply Sent (Thread)', None, r.action_timestamp.replace(tzinfo=None), None, agent, 'Sent Email (Reply)', None, r.note_content, '---', r.related_subject, '---'])
 
         ws2.append([]) 
