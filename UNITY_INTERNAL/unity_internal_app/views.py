@@ -934,7 +934,6 @@ def add_member_view(request):
 def import_excel_view(request):
     """Handles the upload and import of Excel data."""
     from django.db import connection, transaction
-    from django.utils import timezone
     from .models import ImportBank
     import pandas as pd
     import numpy as np
@@ -1001,13 +1000,6 @@ def import_excel_view(request):
                     placeholders = ', '.join(['%s'] * len(db_columns))
                     sql = f"INSERT INTO {ImportBank._meta.db_table} ({columns_sql}) VALUES ({placeholders})"
                     
-                    # SQL for bank_line_notes table
-                    note_sql = """
-                        INSERT INTO bank_line_notes 
-                        (recon_record_id, note_text, category, created_by, created_at) 
-                        VALUES (%s, %s, %s, %s, %s)
-                    """
-                    
                     with connection.cursor() as cursor:
                         for row in df[db_columns].values:
                             # Clean the row for null values
@@ -1016,22 +1008,8 @@ def import_excel_view(request):
                             # 1. Insert into importbank
                             cursor.execute(sql, tuple(cleaned_row))
                             
-                            # 2. Grab the generated ID of the new importbank record
-                            new_record_id = cursor.lastrowid
-                            
-                            # 3. Check if there is a Comment (Index 11 in db_columns)
-                            comment_val = cleaned_row[11]
-                            if comment_val and str(comment_val).strip():
-                                # Insert into bank_line_notes
-                                cursor.execute(note_sql, (
-                                    new_record_id,
-                                    str(comment_val).strip(),
-                                    'Imported Note',            # Category name
-                                    request.user.username,      # Created by
-                                    timezone.now()              # Created at
-                                ))
-                        
-                messages.success(request, f"Successfully imported {len(df)} records (and related notes) into the database.")
+                # Note: Also removed "(and related notes)" from the success message
+                messages.success(request, f"Successfully imported {len(df)} records into the database.")
                 
             except Exception as e:
                 messages.error(request, f"An error occurred during import: {e}")
