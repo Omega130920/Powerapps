@@ -169,14 +169,6 @@
         </div>
     </div>
 
-    {% if messages %}
-        <div style="margin: 15px 0;">
-        {% for message in messages %}
-            <div style="padding: 10px; background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; border-radius: 4px; margin-bottom: 5px;">{{ message }}</div>
-        {% endfor %}
-        </div>
-    {% endif %}
-
     {% if task.status == 'Recycled' %}
     <form method="POST">
         {% csrf_token %}
