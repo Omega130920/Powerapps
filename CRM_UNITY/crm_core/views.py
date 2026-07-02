@@ -221,24 +221,17 @@ def login_view(request):
 
 @login_required
 def dashboard(request):
-    """Displays the CRM dashboard with specific notification badges."""
+    """Displays the CRM dashboard with notification badges for all users."""
     username = request.user.username
     
-    # Initialize counts
-    new_emails_count = 0
-    recycled_count = 0
-    my_pending_tasks_count = 0
+    # All users can now see these counts
+    # New emails in CrmInbox that haven't been processed yet
+    new_emails_count = CrmInbox.objects.filter(status='Pending').count()
+    
+    # Recycle Bin
+    recycled_count = CrmDelegateTo.objects.filter(status='Recycled').count()
 
-    # 1. Manager Logic (Only for omega)
-    if username.lower() == 'omega' or request.user.is_superuser:
-        # New emails in CrmInbox that haven't been processed yet
-        new_emails_count = CrmInbox.objects.filter(status='Pending').count()
-        
-        # Recycle Bin: Based on your recycle_bin_view logic (status='Recycled')
-        recycled_count = CrmDelegateTo.objects.filter(status='Recycled').count()
-
-    # 2. Agent Logic: My Assigned Tasks
-    # Based on your tasks_view logic (delegated_to = username)
+    # Agent Logic: My Assigned Tasks
     my_pending_tasks_count = CrmDelegateTo.objects.filter(
         delegated_to=request.user.username, 
         status='Delegated'
