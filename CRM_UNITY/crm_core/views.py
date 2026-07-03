@@ -408,15 +408,18 @@ def delegate_email_view(request, email_id):
                     try:
                         assignee = User.objects.get(pk=agent_name) if agent_name.isdigit() else User.objects.get(username=agent_name)
                         
-                        # Only send a reply if this is a NEW delegation
-                        if not existing_delegation:
-                            # 🟢 UPDATED: Include Membership Number in the reference
-                            reply_payload = {
-                                "comment": f"Dear Sender,\n\nThis has been delegated to: {assignee.username}.\nMG Code: {member_code}\nMem No: {membership_num if membership_num else 'N/A'}"
-                            }
-                            draft = OutlookGraphService._make_graph_request(f"messages/{email_id}/createReply", method='POST', data=reply_payload)
-                            if draft and isinstance(draft, dict) and 'id' in draft:
-                                OutlookGraphService._make_graph_request(f"messages/{draft['id']}/send", method='POST')
+                        # ==============================================================
+                        # 🚫 DISABLED: Outlook auto-reply to the client is commented out
+                        # ==============================================================
+                        # if not existing_delegation:
+                        #     # 🟢 UPDATED: Include Membership Number in the reference
+                        #     reply_payload = {
+                        #         "comment": f"Dear Sender,\n\nThis has been delegated to: {assignee.username}.\nMG Code: {member_code}\nMem No: {membership_num if membership_num else 'N/A'}"
+                        #     }
+                        #     draft = OutlookGraphService._make_graph_request(f"messages/{email_id}/createReply", method='POST', data=reply_payload)
+                        #     if draft and isinstance(draft, dict) and 'id' in draft:
+                        #         OutlookGraphService._make_graph_request(f"messages/{draft['id']}/send", method='POST')
+                        # ==============================================================
                         
                         messages.success(request, f"Task assigned to {assignee.username}. (Re-delegation: {'Yes' if existing_delegation else 'No'})")
                     except Exception as e:
