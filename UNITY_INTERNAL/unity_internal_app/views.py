@@ -3067,6 +3067,7 @@ def admin_billing_view(request):
     from decimal import Decimal
     from datetime import datetime, timedelta
     from django.db.models import Q
+    from django.core.exceptions import ObjectDoesNotExist
     from .models import UnityBill, BillSettlement
 
     filter_start_date_str = request.GET.get('start_date')
@@ -3101,29 +3102,39 @@ def admin_billing_view(request):
     final_bill_data = []
     
     for bill in bills_queryset:
-        schedule_amount = bill.H_Schedule_Amount or Decimal('0.00')
+        # Safely cast to Decimal to prevent float * Decimal type errors
+        schedule_amount = Decimal(str(bill.H_Schedule_Amount or '0.00'))
+        salary_amount = Decimal(str(bill.salary_amount or '0.00'))
         
         # 🚀 UPDATED LOGIC: Calculate 0.3% against the new salary_amount field
-        salary_amount = bill.salary_amount or Decimal('0.00')
         admin_fee = salary_amount * Decimal('0.003')
         
         first_settlement = BillSettlement.objects.filter(
             unity_bill_source_id=bill.pk
         ).order_by('settlement_date').first()
         
+        # 🚀 FIX: Safely retrieve username, handling deleted users
+        posted_user = "N/A"
+        if first_settlement:
+            try:
+                posted_user = first_settlement.confirmed_by.username if first_settlement.confirmed_by else "N/A"
+            except ObjectDoesNotExist:
+                posted_user = "Deleted User"
+        
         final_bill_data.append({
-            'fiscal_period': bill.A_CCDatesMonth.strftime("%Y-%m") if bill.A_CCDatesMonth else "N/A",
+            'fiscal_period': bill.A_CCDatesMonth.strftime("%Y-%m") if getattr(bill, 'A_CCDatesMonth', None) else "N/A",
             'company_code': bill.C_Company_Code or "N/A",
             'company_name': bill.D_Company_Name or "N/A",
             'active_members': bill.E_Active_Members or 0, 
             'total_schedule_amount': schedule_amount,
-            'total_salary_amount': salary_amount, # Optional: pass this to template if you want to display it
+            'total_salary_amount': salary_amount, 
             'total_admin_fee': admin_fee,
             'posted_date': bill.I_Submitted_Date,
-            'posted_user': first_settlement.confirmed_by.username if first_settlement and first_settlement.confirmed_by else "N/A", 
+            'posted_user': posted_user, 
         })
 
-    final_bill_data.sort(key=lambda x: x['posted_date'] if x['posted_date'] else datetime.min.date(), reverse=True)
+    # Sort safely by converting to strings (handles Nones, dates, and datetimes without type crashing)
+    final_bill_data.sort(key=lambda x: str(x['posted_date'] or ''), reverse=True)
 
     return render(request, 'unity_internal_app/admin_billing.html', {
         'bill_records': final_bill_data,
@@ -3139,6 +3150,7 @@ def export_admin_billing_excel(request):
     from openpyxl import Workbook
     from django.http import HttpResponse
     from django.db.models import Q
+    from django.core.exceptions import ObjectDoesNotExist
     from .models import UnityBill, BillSettlement
 
     filter_start = request.GET.get('start_date')
@@ -3168,14 +3180,22 @@ def export_admin_billing_excel(request):
     total_salary, total_fees = Decimal('0.00'), Decimal('0.00')
 
     for bill in bills:
-        salary = bill.salary_amount or Decimal('0.00')
+        # Safely cast to prevent math crashes
+        salary = Decimal(str(bill.salary_amount or '0.00'))
         fee = salary * Decimal('0.003')
         
         # Get Settlement Metadata
         settlement = BillSettlement.objects.filter(unity_bill_source_id=bill.pk).order_by('settlement_date').first()
         
-        fiscal = bill.A_CCDatesMonth.strftime("%Y-%m") if bill.A_CCDatesMonth else "N/A"
-        posted_user = settlement.confirmed_by.username if settlement and settlement.confirmed_by else "N/A"
+        # 🚀 FIX: Safely retrieve username, handling deleted users
+        posted_user = "N/A"
+        if settlement:
+            try:
+                posted_user = settlement.confirmed_by.username if settlement.confirmed_by else "N/A"
+            except ObjectDoesNotExist:
+                posted_user = "Deleted User"
+        
+        fiscal = bill.A_CCDatesMonth.strftime("%Y-%m") if getattr(bill, 'A_CCDatesMonth', None) else "N/A"
         posted_date = bill.I_Submitted_Date.strftime('%Y-%m-%d') if bill.I_Submitted_Date else "N/A"
 
         # Append row in exact order requested
