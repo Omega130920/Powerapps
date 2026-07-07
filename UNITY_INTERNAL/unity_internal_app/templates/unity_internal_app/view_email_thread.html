@@ -269,7 +269,6 @@
             </p>
         </div>
         <div class="btn-group">
-            {# 🚀 Corrected logic uses email.id consistently 🚀 #}
             <a href="{% url 'download_email_file' email_id=email.id %}" class="download-eml-button">
                 <i class="fas fa-file-download"></i> Download Full Email (.eml)
             </a>
@@ -319,8 +318,8 @@
                     </div>
                     <div class="file-name" title="{{ att.name }}">{{ att.name }}</div>
                     
-                    {# 🚀 FIXED: Changed message_id= to email_id= to match urls.py 🚀 #}
-                    <a href="{% url 'download_attachment_view' email_id=email.id attachment_id=att.id %}" target="_blank" class="btn-download-small">
+                    {# 🚀 FIXED: Changed 'download_attachment_view' to 'download_attachment' to match urls.py 🚀 #}
+                    <a href="{% url 'download_attachment' message_id=email.id attachment_id=att.id %}" target="_blank" class="btn-download-small">
                         <i class="fas fa-download"></i> Download
                     </a>
                 </div>
