@@ -2102,7 +2102,8 @@ def get_branch_map_acvv(claims_queryset):
 def export_two_pot_invoice_cecile(request):
     """
     Report 1: Cecile Invoice Format (Grey Theme)
-    Filters records where the status is valid and 'qualified' property is 'YES'.
+    Filters records where the status is valid, qualified is 'YES', 
+    and a submission date exists.
     """
     query = request.GET.get('q')
     start_date = request.GET.get('start_date')
@@ -2135,10 +2136,8 @@ def export_two_pot_invoice_cecile(request):
         cell.border = thin_border
         cell.alignment = Alignment(horizontal='center')
 
-    # Ensure get_branch_map_acvv is defined in your utils/services
     branch_map = get_branch_map_acvv(claims) 
 
-    # Define the statuses that should be included in this report
     valid_statuses = [
         "PAID",
         "MEMBER EMERGENCY SAVINGS POT WITHDRAWAL SUBMITTED",
@@ -2154,6 +2153,10 @@ def export_two_pot_invoice_cecile(request):
         # 🚀 GUARD FILTER: Only continue if status is valid AND qualified.
         if not (is_valid_status and is_qualified):
             continue
+            
+        # 🚀 NEW GUARD FILTER: Skip if no submission date exists
+        if not claim.date_submitted:
+            continue
 
         initials = "".join([n[0] for n in claim.member_name.split() if n]) if claim.member_name else ""
 
@@ -2167,7 +2170,7 @@ def export_two_pot_invoice_cecile(request):
             branch_map.get(claim.company_code, ""),
             claim.agent or "",
             "yes",
-            claim.date_submitted.strftime('%d/%m/%Y') if claim.date_submitted else '',
+            claim.date_submitted.strftime('%d/%m/%Y'), # Now safe to call since we checked it above
             "YES",
             "R37.95",
             "SUBMIT ONLINE"
