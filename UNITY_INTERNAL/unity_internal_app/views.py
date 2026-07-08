@@ -475,6 +475,14 @@ def unity_information(request: HttpRequest, company_code):
         
         actual_subject = inbox_subject_map.get(item.email_id) or item.email_category or f"Task: {item.email_id[:12]}..."
         
+        # 🚀 ADDED: Safe lookup for assigned user to prevent DoesNotExist error on deleted users
+        assigned_to_name = 'UNASSIGNED'
+        if item.assigned_user_id:
+            try:
+                assigned_to_name = item.assigned_user.username
+            except Exception:
+                assigned_to_name = 'DELETED USER'
+
         combined_email_log.append({
             'timestamp': item.received_at, 
             'arrival_timestamp': inbox_map.get(item.email_id, item.received_at), 
@@ -482,7 +490,7 @@ def unity_information(request: HttpRequest, company_code):
             'type': 'Original', 
             'display_type': 'Completed' if is_completed else 'Delegated', 
             'subject': actual_subject, 
-            'assigned_to': item.assigned_user.username if item.assigned_user else 'UNASSIGNED', 
+            'assigned_to': assigned_to_name, # 🚀 UPDATED HERE
             'status': item.status, 
             'email_id': item.email_id, 
             'action_user': 'System', 
@@ -493,6 +501,15 @@ def unity_information(request: HttpRequest, company_code):
     # Process Threaded Replies
     threaded_replies = DelegationTransactionLog.objects.filter(delegation_id__in=all_del_ids, action_type='REPLIED').select_related('user')
     for reply in threaded_replies:
+        
+        # 🚀 ADDED: Safe lookup for action user just in case
+        action_user_name = 'System'
+        if reply.user_id:
+            try:
+                action_user_name = reply.user.username
+            except Exception:
+                action_user_name = 'DELETED USER'
+
         combined_email_log.append({
             'timestamp': reply.timestamp, 
             'arrival_timestamp': None, 
@@ -503,7 +520,7 @@ def unity_information(request: HttpRequest, company_code):
             'assigned_to': reply.recipient_email, 
             'status': thread_status_map.get(reply.delegation_id, "SENT"), 
             'email_id': thread_email_id_map.get(reply.delegation_id), 
-            'action_user': reply.user.username if reply.user else 'System', 
+            'action_user': action_user_name, # 🚀 UPDATED HERE
             'badge_color': '#673ab7', 
             'icon': '📤'
         })
@@ -1837,7 +1854,6 @@ def finalize_reconciliation(request, company_code, bill_id):
                 recon_line.save()
 
         # 🚀 3. THE FIX: SWEEP NOTE TO ALL EXISTING SETTLEMENTS
-        # This updates rows that were created earlier via individual "Apply Cash" buttons.
         if recon_note:
             BillSettlement.objects.filter(
                 unity_bill_source_id=bill_record.pk
@@ -1851,8 +1867,21 @@ def finalize_reconciliation(request, company_code, bill_id):
         if bill_settled_agg >= (bill_record.H_Schedule_Amount - SAFETY_TOLERANCE):
             if not bill_record.is_reconciled:
                 bill_record.is_reconciled = True
-                bill_record.J_Final_Date = aware_dt.date()
+                
+                # --- PRESERVE EXISTING DATE IF PRESENT ---
+                # Only set J_Final_Date if it is currently NULL/None
+                if not bill_record.J_Final_Date:
+                    print(f"DEBUG: J_Final_Date was empty. Setting to: {aware_dt.date()}")
+                    bill_record.J_Final_Date = aware_dt.date()
+                else:
+                    print(f"DEBUG: J_Final_Date already exists ({bill_record.J_Final_Date}). Keeping it.")
+                
                 bill_record.save()
+                
+                # Verify immediately after save
+                bill_record.refresh_from_db()
+                print(f"DEBUG: Database confirmed J_Final_Date is: {bill_record.J_Final_Date}")
+                # ------------------------------------------
 
                 # Save the Closing Note to the General Audit Trail
                 UnityClaimNote.objects.create(

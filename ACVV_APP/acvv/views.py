@@ -5,6 +5,7 @@ import re
 import logging
 from itertools import count
 from datetime import datetime, timedelta
+import traceback
 
 # Django Imports
 from django.shortcuts import render, redirect, get_object_or_404
@@ -2636,7 +2637,33 @@ def import_reconciliation_csv(request):
             else:
                 df = pd.read_excel(file)
 
+            # Clean and strip whitespaces from column headers
             df.columns = df.columns.str.strip()
+            available_columns = list(df.columns)
+
+            # 🚀 ROBUST FLEXIBLE HEADER MATCHING
+            # Look for Company Identifier Variations
+            col_code = next((c for c in df.columns if c in ['MG Code', 'Company Code', 'Group Code', 'ACCOUNT NUMBER']), None)
+            
+            # Look for Fiscal Month Variations
+            col_fiscal = next((c for c in df.columns if "Current Fiscal" in c or "Fiscal Month" in c or "Period" in c), None)
+            
+            # Look for Name Variations
+            col_name = next((c for c in df.columns if c in ['Member Group Name', 'Company Name', 'MG Name']), None)
+
+            # Other tracking dates
+            col_lpi = next((c for c in df.columns if "LPI due date" in c or "Date Schedule Received" in c), None)
+            col_step = next((c for c in df.columns if "DATE CONFIRM ON STeP" in c or "STeP" in c), None)
+            col_debit = next((c for c in df.columns if "DEBIT ORDER DATE" in c or "CONFIRM BY EMPLOYER" in c), None)
+
+            # Critical validation check: If key columns aren't found, tell the user exactly what headers were detected
+            if not col_code or not col_fiscal:
+                messages.error(
+                    request, 
+                    f"Import failed. Missing required columns. We need a Code column and a Fiscal column. "
+                    f"Detected columns in your file: {', '.join(available_columns)}"
+                )
+                return redirect('import_reconciliation_csv')
 
             # 2. Helpers
             def clean_decimal(val):
@@ -2644,9 +2671,7 @@ def import_reconciliation_csv(request):
                 return float(str(val).replace(',', '').replace(' ', ''))
 
             def clean_date_to_str(val):
-                # Coerce turns invalid text into NaT
                 dt = pd.to_datetime(val, errors='coerce')
-                # Force YYYY-MM-DD and ensure NO time component is returned
                 if pd.notna(dt):
                     return dt.strftime('%Y-%m-%d')
                 return None
@@ -2656,18 +2681,19 @@ def import_reconciliation_csv(request):
             with transaction.atomic():
                 with connection.cursor() as cursor:
                     for _, row in df.iterrows():
-                        company_code = str(row.get('Company Code', '')).strip()
-                        # CLEAN the fiscal_month here to ensure it's a valid date
-                        fiscal_month = clean_date_to_str(row.get('Current Fiscal  (05/2026 )'))
+                        # Dynamically pull identifiers based on the columns found above
+                        company_code = str(row.get(col_code, '')).strip()
+                        fiscal_month = clean_date_to_str(row.get(col_fiscal))
                         
-                        # Skip if identifiers are missing or date was unparseable
+                        # Skip row safely if data is empty or invalid
                         if not company_code or company_code.lower() == 'nan' or not fiscal_month:
                             continue
 
-                        # Clean dates to pure YYYY-MM-DD
-                        d1 = clean_date_to_str(row.get('LPI due date 06/05/2026 @12:00 For APRIL ( Date Schedule Received)'))
-                        d2 = clean_date_to_str(row.get('DATE CONFIRM ON STeP'))
-                        d3 = clean_date_to_str(row.get('DEBIT ORDER DATE CONFIRM BY EMPLOYER(FUND)'))
+                        # Clean fallback target rows
+                        company_name = str(row.get(col_name, 'Unknown Company')).strip()
+                        d1 = clean_date_to_str(row.get(col_lpi)) if col_lpi else None
+                        d2 = clean_date_to_str(row.get(col_step)) if col_step else None
+                        d3 = clean_date_to_str(row.get(col_debit)) if col_debit else None
 
                         sql = """
                             INSERT INTO reconciliation_worksheet 
@@ -2686,7 +2712,7 @@ def import_reconciliation_csv(request):
                         """
                         
                         params = (
-                            company_code, fiscal_month, str(row.get('Company Name', '')),
+                            company_code, fiscal_month, company_name,
                             str(row.get('Company Status', 'Active')), str(row.get('Payment Method', 'Debit Order')),
                             int(row.get('MEMBERS', 0)), clean_decimal(row.get('CONTRIBUTION AMOUNT')),
                             str(row.get('Current Status', 'Unreconciled')),
@@ -2696,8 +2722,17 @@ def import_reconciliation_csv(request):
                         cursor.execute(sql, params)
                         records_updated += 1
 
-            messages.success(request, f"Successfully processed {records_updated} records.")
+            if records_updated == 0:
+                messages.warning(
+                    request, 
+                    f"0 records matched formatting layouts. Verify your file data contains valid rows. "
+                    f"Matched Identifier Column: '{col_code}', Matched Fiscal Month Column: '{col_fiscal}'"
+                )
+            else:
+                messages.success(request, f"Successfully processed {records_updated} records.")
+                
         except Exception as e:
+            print(traceback.format_exc())
             messages.error(request, f"Import failed: {str(e)}")
             
         return redirect('import_reconciliation_csv')
