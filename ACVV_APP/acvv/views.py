@@ -2635,39 +2635,7 @@ def import_reconciliation_csv(request):
             if file.name.endswith('.csv'):
                 df = pd.read_csv(file)
             else:
-<<<<<<< HEAD
-                df = pd.read_excel(file)
-
-            # Clean and strip whitespaces from column headers
-            df.columns = df.columns.str.strip()
-            available_columns = list(df.columns)
-
-            # 🚀 ROBUST FLEXIBLE HEADER MATCHING
-            # Look for Company Identifier Variations
-            col_code = next((c for c in df.columns if c in ['MG Code', 'Company Code', 'Group Code', 'ACCOUNT NUMBER']), None)
-            
-            # Look for Fiscal Month Variations
-            col_fiscal = next((c for c in df.columns if "Current Fiscal" in c or "Fiscal Month" in c or "Period" in c), None)
-            
-            # Look for Name Variations
-            col_name = next((c for c in df.columns if c in ['Member Group Name', 'Company Name', 'MG Name']), None)
-
-            # Other tracking dates
-            col_lpi = next((c for c in df.columns if "LPI due date" in c or "Date Schedule Received" in c), None)
-            col_step = next((c for c in df.columns if "DATE CONFIRM ON STeP" in c or "STeP" in c), None)
-            col_debit = next((c for c in df.columns if "DEBIT ORDER DATE" in c or "CONFIRM BY EMPLOYER" in c), None)
-
-            # Critical validation check: If key columns aren't found, tell the user exactly what headers were detected
-            if not col_code or not col_fiscal:
-                messages.error(
-                    request, 
-                    f"Import failed. Missing required columns. We need a Code column and a Fiscal column. "
-                    f"Detected columns in your file: {', '.join(available_columns)}"
-                )
-                return redirect('import_reconciliation_csv')
-=======
                 df = pd.read_excel(file, engine='openpyxl')
->>>>>>> 7ce144f2b45bac80f36bccec2d6e05a25abe1b3b
 
             # 2. Helpers
             def clean_decimal(val):
@@ -2685,11 +2653,8 @@ def import_reconciliation_csv(request):
                     return 0.00
 
             def clean_date_to_str(val):
-<<<<<<< HEAD
-=======
                 if pd.isna(val) or val == '' or val is None:
                     return None
->>>>>>> 7ce144f2b45bac80f36bccec2d6e05a25abe1b3b
                 dt = pd.to_datetime(val, errors='coerce')
                 if pd.notna(dt):
                     return dt.strftime('%Y-%m-%d')
@@ -2699,22 +2664,6 @@ def import_reconciliation_csv(request):
             
             with transaction.atomic():
                 with connection.cursor() as cursor:
-<<<<<<< HEAD
-                    for _, row in df.iterrows():
-                        # Dynamically pull identifiers based on the columns found above
-                        company_code = str(row.get(col_code, '')).strip()
-                        fiscal_month = clean_date_to_str(row.get(col_fiscal))
-                        
-                        # Skip row safely if data is empty or invalid
-                        if not company_code or company_code.lower() == 'nan' or not fiscal_month:
-                            continue
-
-                        # Clean fallback target rows
-                        company_name = str(row.get(col_name, 'Unknown Company')).strip()
-                        d1 = clean_date_to_str(row.get(col_lpi)) if col_lpi else None
-                        d2 = clean_date_to_str(row.get(col_step)) if col_step else None
-                        d3 = clean_date_to_str(row.get(col_debit)) if col_debit else None
-=======
                     
                     # df.values converts data to list of rows, bypassing headers entirely
                     for row in df.values:
@@ -2749,7 +2698,6 @@ def import_reconciliation_csv(request):
                         d1 = clean_date_to_str(row[col_date_schedule])
                         d2 = clean_date_to_str(row[col_date_step])
                         d3 = clean_date_to_str(row[col_date_debit])
->>>>>>> 7ce144f2b45bac80f36bccec2d6e05a25abe1b3b
 
                         # 3. Safely Extract Members (Handling missing or text data)
                         members_count = row[col_members]
@@ -2788,32 +2736,16 @@ def import_reconciliation_csv(request):
                         """
                         
                         params = (
-<<<<<<< HEAD
-                            company_code, fiscal_month, company_name,
-                            str(row.get('Company Status', 'Active')), str(row.get('Payment Method', 'Debit Order')),
-                            int(row.get('MEMBERS', 0)), clean_decimal(row.get('CONTRIBUTION AMOUNT')),
-                            str(row.get('Current Status', 'Unreconciled')),
-=======
                             company_code, fiscal_month, company_name, company_status, payment_method,
                             members_count, contribution_amount, reconciled_status,
->>>>>>> 7ce144f2b45bac80f36bccec2d6e05a25abe1b3b
                             d1, d2, d3
                         )
                         
                         cursor.execute(sql, params)
                         records_updated += 1
 
-            if records_updated == 0:
-                messages.warning(
-                    request, 
-                    f"0 records matched formatting layouts. Verify your file data contains valid rows. "
-                    f"Matched Identifier Column: '{col_code}', Matched Fiscal Month Column: '{col_fiscal}'"
-                )
-            else:
-                messages.success(request, f"Successfully processed {records_updated} records.")
-                
+            messages.success(request, f"Successfully processed {records_updated} records.")
         except Exception as e:
-            print(traceback.format_exc())
             messages.error(request, f"Import failed: {str(e)}")
             
         return redirect('import_reconciliation_csv')
