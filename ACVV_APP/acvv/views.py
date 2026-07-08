@@ -2630,21 +2630,34 @@ def import_reconciliation_csv(request):
             return redirect('import_reconciliation_csv')
 
         try:
-            # 1. Load file
+            # 1. Load file (explicitly using openpyxl engine for excel)
             if file.name.endswith('.csv'):
                 df = pd.read_csv(file)
             else:
-                df = pd.read_excel(file)
+                df = pd.read_excel(file, engine='openpyxl')
 
             df.columns = df.columns.str.strip()
 
             # 2. Helpers
             def clean_decimal(val):
-                if pd.isna(val) or val == '': return 0.00
-                return float(str(val).replace(',', '').replace(' ', ''))
+                if pd.isna(val) or val == '' or val is None: 
+                    return 0.00
+                
+                # Convert to string and clean out currency symbols, commas, and hidden spaces
+                val_str = str(val).upper()
+                for char in ['R', '$', 'ZAR', ',', ' ', '\xa0']:
+                    val_str = val_str.replace(char, '')
+                
+                # Safely attempt to convert to float
+                try:
+                    return float(val_str)
+                except ValueError:
+                    return 0.00 # Fallback if the cell contains text like "N/A"
 
             def clean_date_to_str(val):
                 # Coerce turns invalid text into NaT
+                if pd.isna(val) or val == '' or val is None:
+                    return None
                 dt = pd.to_datetime(val, errors='coerce')
                 # Force YYYY-MM-DD and ensure NO time component is returned
                 if pd.notna(dt):
@@ -2669,6 +2682,19 @@ def import_reconciliation_csv(request):
                         d2 = clean_date_to_str(row.get('DATE CONFIRM ON STeP'))
                         d3 = clean_date_to_str(row.get('DEBIT ORDER DATE CONFIRM BY EMPLOYER(FUND)'))
 
+                        # Safely extract members
+                        members_count = row.get('MEMBERS', 0)
+                        if pd.isna(members_count) or members_count == '':
+                            members_count = 0
+                        else:
+                            try:
+                                members_count = int(float(members_count))
+                            except ValueError:
+                                members_count = 0
+
+                        # Safely extract amount
+                        contribution_amount = clean_decimal(row.get('CONTRIBUTION AMOUNT'))
+
                         sql = """
                             INSERT INTO reconciliation_worksheet 
                             (mg_code, fiscal_month, mg_name, company_status, payment_method, 
@@ -2688,7 +2714,7 @@ def import_reconciliation_csv(request):
                         params = (
                             company_code, fiscal_month, str(row.get('Company Name', '')),
                             str(row.get('Company Status', 'Active')), str(row.get('Payment Method', 'Debit Order')),
-                            int(row.get('MEMBERS', 0)), clean_decimal(row.get('CONTRIBUTION AMOUNT')),
+                            members_count, contribution_amount,
                             str(row.get('Current Status', 'Unreconciled')),
                             d1, d2, d3
                         )
