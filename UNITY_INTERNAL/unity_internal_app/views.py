@@ -2595,22 +2595,40 @@ ZERO_DECIMAL = Decimal('0.00')
 # Tolerance to handle floating point errors when comparing Decimal amounts to zero
 TOLERANCE = Decimal('0.00001')
 
+from django.contrib.auth.decorators import login_required
+
 @login_required
 def export_global_history_csv(request):
     """
     Exports the payment history for Bills that had settlement activity 
     in a horizontal format (pivoted deposits).
+    Matches the high-performance logic of global_history_overview.
     """
     import csv
     from collections import defaultdict
-    from datetime import datetime
+    from datetime import datetime, date
     from decimal import Decimal
     from django.http import HttpResponse
+    from django.db import connection
     from .models import UnityBill, BillSettlement, CreditNote, JournalEntry
     
     ZERO_DECIMAL = Decimal('0.00')
     TWO_PLACES = Decimal('0.01')
     MAX_DEPOSITS = 5 
+
+    # --- Helper to normalize dates from raw SQL ---
+    def normalize_date(val):
+        if not val:
+            return date(1900, 1, 1) # Fallback
+        if isinstance(val, str):
+            try:
+                # Handle standard DB string format
+                return datetime.strptime(val[:10], '%Y-%m-%d').date()
+            except ValueError:
+                return date(1900, 1, 1)
+        if isinstance(val, datetime):
+            return val.date()
+        return val
 
     # --- Date Filtering Logic ---
     start_date_str = request.GET.get('start_date')
@@ -2644,43 +2662,62 @@ def export_global_history_csv(request):
     all_bills = list(all_bills_queryset.order_by('C_Company_Code', '-I_Submitted_Date'))
     filtered_bill_ids = [bill.id for bill in all_bills]
     
-    # --- 2. Fetch ALL Granular Settlements ---
+    # --- 2. Fetch ALL Granular Settlements (Optimized to match view) ---
     deposits_by_bill = defaultdict(list)
 
     if filtered_bill_ids:
-        all_settlements = BillSettlement.objects.filter(
-            unity_bill_source_id__in=filtered_bill_ids
-        ).select_related(
-            'reconned_bank_line',
-            'reconned_bank_line__bank_line'
-        ).order_by('settlement_date')
-
-        credit_ids = all_settlements.values_list('source_credit_note_id', flat=True).distinct()
-        journal_ids = all_settlements.values_list('source_journal_entry_id', flat=True).distinct()
-
-        credit_note_details = {cn.id: cn for cn in CreditNote.objects.filter(id__in=credit_ids)}
-        journal_entry_details = {je.id: je for je in JournalEntry.objects.filter(id__in=journal_ids)}
+        id_placeholders = ', '.join(['%s'] * len(filtered_bill_ids))
         
-        for s in all_settlements:
-            deposit_amount = s.settled_amount or ZERO_DECIMAL
-            deposit_date = s.settlement_date.date()
+        # A. Cash Deposits (Raw SQL for speed and accurate Bank Line dates)
+        sql_query_cash = f"""
+        SELECT T1.unity_bill_source_id, T3.DATE, T1.settled_amount
+        FROM bill_settlement T1
+        LEFT JOIN reconned_bank T2 ON T1.reconned_bank_line_id = T2.bank_line_id
+        LEFT JOIN importbank T3 ON T2.bank_line_id = T3.id
+        WHERE T1.unity_bill_source_id IN ({id_placeholders})
+        """
+        with connection.cursor() as cursor:
+            cursor.execute(sql_query_cash, filtered_bill_ids)
+            for row in cursor.fetchall():
+                if row[1]: # If date exists
+                    deposits_by_bill[row[0]].append({
+                        'date': normalize_date(row[1]), 
+                        'amount': Decimal(str(row[2] or 0))
+                    })
 
-            if s.reconned_bank_line_id:
-                if s.reconned_bank_line and s.reconned_bank_line.bank_line:
-                    deposit_date = s.reconned_bank_line.bank_line.date
-            elif s.source_credit_note_id:
-                cn = credit_note_details.get(s.source_credit_note_id)
-                if cn and cn.fiscal_date:
-                    deposit_date = cn.fiscal_date
-            elif s.source_journal_entry_id:
-                je = journal_entry_details.get(s.source_journal_entry_id)
-                if je and je.allocation_date:
-                    deposit_date = je.allocation_date
-
-            deposits_by_bill[s.unity_bill_source_id].append({
-                'date': deposit_date,
-                'amount': deposit_amount,
+        # B. Journal Entries
+        journal_queryset = JournalEntry.objects.filter(target_bill__in=filtered_bill_ids)
+        for je in journal_queryset:
+            if je.allocation_date:
+                deposits_by_bill[je.target_bill_id].append({
+                    'date': normalize_date(je.allocation_date),
+                    'amount': je.amount or ZERO_DECIMAL,
                 })
+
+        # C. Credit Notes (Using Dictionary Mapping to avoid Foreign Key errors)
+        cn_settlements = BillSettlement.objects.filter(
+            unity_bill_source_id__in=filtered_bill_ids,
+            source_credit_note_id__isnull=False
+        )
+        
+        # Fetch the actual credit notes into a dictionary
+        credit_ids = cn_settlements.values_list('source_credit_note_id', flat=True).distinct()
+        credit_note_details = {cn.id: cn for cn in CreditNote.objects.filter(id__in=credit_ids)}
+        
+        for s in cn_settlements:
+            cn = credit_note_details.get(s.source_credit_note_id)
+            
+            # Use credit note fiscal date, fallback to settlement date
+            d_date = None
+            if cn and cn.fiscal_date:
+                d_date = cn.fiscal_date
+            else:
+                d_date = s.settlement_date
+                
+            deposits_by_bill[s.unity_bill_source_id].append({
+                'date': normalize_date(d_date),
+                'amount': s.settled_amount or ZERO_DECIMAL
+            })
 
     # --- 3. Generate CSV Response ---
     response = HttpResponse(content_type='text/csv')
@@ -2688,7 +2725,7 @@ def export_global_history_csv(request):
 
     writer = csv.writer(response)
     
-    # Static headers to ensure sequence is maintained ('K_Total_Settled' removed)
+    # Static headers
     base_headers = [
         'CCDatesMonth', 'Fund Code', 'Company Code', 'Company Name',
         'Active Members', 'Prebill Date', 'Schedule Date', 'Schedule_Amount',
@@ -2715,29 +2752,35 @@ def export_global_history_csv(request):
         if total_settled < (bill.H_Schedule_Amount or ZERO_DECIMAL):
             continue
 
-        # 'total_settled' logic remains for the exclusion check above, 
-        # but it is no longer appended to row_data.
         row_data = [
-            bill.A_CCDatesMonth.strftime(CSV_DATE_FORMAT) if bill.A_CCDatesMonth else '',
-            bill.B_Fund_Code or '',
+            bill.A_CCDatesMonth.strftime(CSV_DATE_FORMAT) if getattr(bill, 'A_CCDatesMonth', None) else '',
+            getattr(bill, 'B_Fund_Co', ''), 
             bill.C_Company_Code or '',
-            bill.D_Company_Name or '',
+            getattr(bill, 'D_Company_Name', ''),
             bill.E_Active_Members or 0,
-            bill.F_Pre_Bill_Date.strftime(CSV_DATE_FORMAT) if bill.F_Pre_Bill_Date else '',
-            bill.G_Schedule_Date.strftime(CSV_DATE_FORMAT) if bill.G_Schedule_Date else '',
+            bill.F_Pre_Bill_Date.strftime(CSV_DATE_FORMAT) if getattr(bill, 'F_Pre_Bill_Date', None) else '',
+            bill.G_Schedule_Date.strftime(CSV_DATE_FORMAT) if getattr(bill, 'G_Schedule_Date', None) else '',
             str((bill.H_Schedule_Amount or ZERO_DECIMAL).quantize(TWO_PLACES)),
-            bill.I_Submitted_Date.strftime(CSV_DATE_FORMAT) if bill.I_Submitted_Date else '',
-            bill.J_Final_Date.strftime(CSV_DATE_FORMAT) if bill.J_Final_Date else '',
+            bill.I_Submitted_Date.strftime(CSV_DATE_FORMAT) if getattr(bill, 'I_Submitted_Date', None) else '',
+            bill.J_Final_Date.strftime(CSV_DATE_FORMAT) if getattr(bill, 'J_Final_Date', None) else '',
         ]
         
         payment_data = [''] * len(payment_headers)
+        
+        # Sort deposits safely
         deposits.sort(key=lambda d: d['date'])
 
         # Aligning payments: Even indices = Date, Odd indices = Amount
         for i in range(MAX_DEPOSITS):
             if i < len(deposits):
                 deposit = deposits[i]
-                date_str = deposit['date'].strftime(CSV_DATE_FORMAT)
+                
+                # Check against our fallback 1900 date just in case
+                if deposit['date'].year == 1900:
+                    date_str = ''
+                else:
+                    date_str = deposit['date'].strftime(CSV_DATE_FORMAT)
+                    
                 amount_str = str(deposit['amount'].quantize(TWO_PLACES))
                 
                 # Column sequence: L(Date), M(Amount), N(Date), O(Amount)...
@@ -2749,11 +2792,13 @@ def export_global_history_csv(request):
     return response
 
 
+from django.contrib.auth.decorators import login_required
+
 @login_required
 def global_history_overview(request):
     """
     Renders a high-level overview of ALL Reconciled Bill History.
-    UPDATED: Now filters by I_Submitted_Date.
+    UPDATED: Now filters by I_Submitted_Date and pulls Schedule/Final dates.
     """
     from decimal import Decimal
     from collections import defaultdict
@@ -2763,6 +2808,9 @@ def global_history_overview(request):
     from django.shortcuts import render
     from django.db.models import Sum
     from .models import UnityBill, BillSettlement, JournalEntry
+
+    # Ensure ZERO_DECIMAL is defined for the sum() function later
+    ZERO_DECIMAL = Decimal('0.00')
 
     start_date_str = request.GET.get('start_date')
     end_date_str = request.GET.get('end_date')
@@ -2845,6 +2893,11 @@ def global_history_overview(request):
             
             final_records.append({
                 'bill': bill,
+                # 🚀 NEW: Explicitly pulling the dates through so the template/export can read them
+                'final_date': bill.J_Final_Date,
+                'schedule_date': bill.G_Schedule_Date,
+                'confirmed_date': bill.I_Submitted_Date,
+                
                 'deposits': deposits,
                 'status_name': 'RECON COMPLETE',
                 'status_class': 'badge-success',

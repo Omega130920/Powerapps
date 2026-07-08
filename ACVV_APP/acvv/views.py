@@ -2635,6 +2635,7 @@ def import_reconciliation_csv(request):
             if file.name.endswith('.csv'):
                 df = pd.read_csv(file)
             else:
+<<<<<<< HEAD
                 df = pd.read_excel(file)
 
             # Clean and strip whitespaces from column headers
@@ -2664,13 +2665,31 @@ def import_reconciliation_csv(request):
                     f"Detected columns in your file: {', '.join(available_columns)}"
                 )
                 return redirect('import_reconciliation_csv')
+=======
+                df = pd.read_excel(file, engine='openpyxl')
+>>>>>>> 7ce144f2b45bac80f36bccec2d6e05a25abe1b3b
 
             # 2. Helpers
             def clean_decimal(val):
-                if pd.isna(val) or val == '': return 0.00
-                return float(str(val).replace(',', '').replace(' ', ''))
+                if pd.isna(val) or val == '' or val is None: 
+                    return 0.00
+                
+                # Convert to string and clean out currency symbols, commas, and hidden spaces
+                val_str = str(val).upper()
+                for char in ['R', '$', 'ZAR', ',', ' ', '\xa0']:
+                    val_str = val_str.replace(char, '')
+                
+                try:
+                    return float(val_str)
+                except ValueError:
+                    return 0.00
 
             def clean_date_to_str(val):
+<<<<<<< HEAD
+=======
+                if pd.isna(val) or val == '' or val is None:
+                    return None
+>>>>>>> 7ce144f2b45bac80f36bccec2d6e05a25abe1b3b
                 dt = pd.to_datetime(val, errors='coerce')
                 if pd.notna(dt):
                     return dt.strftime('%Y-%m-%d')
@@ -2680,6 +2699,7 @@ def import_reconciliation_csv(request):
             
             with transaction.atomic():
                 with connection.cursor() as cursor:
+<<<<<<< HEAD
                     for _, row in df.iterrows():
                         # Dynamically pull identifiers based on the columns found above
                         company_code = str(row.get(col_code, '')).strip()
@@ -2694,7 +2714,63 @@ def import_reconciliation_csv(request):
                         d1 = clean_date_to_str(row.get(col_lpi)) if col_lpi else None
                         d2 = clean_date_to_str(row.get(col_step)) if col_step else None
                         d3 = clean_date_to_str(row.get(col_debit)) if col_debit else None
+=======
+                    
+                    # df.values converts data to list of rows, bypassing headers entirely
+                    for row in df.values:
+                        
+                        # =========================================================
+                        # EXACT MAPPING BASED ON YOUR EXCEL COLUMNS
+                        # =========================================================
+                        col_company_name    = 0  # MG Name
+                        col_company_code    = 1  # MG Code
+                        # col 2 is Email Address (Skipped)
+                        col_company_status  = 3  # Company Status
+                        col_payment_method  = 4  # Payment Method
+                        col_fiscal_month    = 5  # Last Fiscal Reconciled
+                        # col 6 is Arrears (Skipped)
+                        col_members         = 7  # Member Count Reconciled
+                        col_amount          = 8  # Contribution Amount Reconciled
+                        col_current_status  = 9  # Reconciled Status
+                        col_date_schedule   = 10 # Date Schedule Received
+                        col_date_step       = 11 # Date Confirmed on Step
+                        col_date_debit      = 12 # Debit order date
+                        # =========================================================
 
+                        # 1. Extract Identifiers First
+                        company_code = str(row[col_company_code]).strip() if pd.notna(row[col_company_code]) else ''
+                        fiscal_month = clean_date_to_str(row[col_fiscal_month])
+                        
+                        # Skip if essential identifiers are missing
+                        if not company_code or company_code.lower() == 'nan' or not fiscal_month:
+                            continue
+
+                        # 2. Clean Dates
+                        d1 = clean_date_to_str(row[col_date_schedule])
+                        d2 = clean_date_to_str(row[col_date_step])
+                        d3 = clean_date_to_str(row[col_date_debit])
+>>>>>>> 7ce144f2b45bac80f36bccec2d6e05a25abe1b3b
+
+                        # 3. Safely Extract Members (Handling missing or text data)
+                        members_count = row[col_members]
+                        if pd.isna(members_count) or members_count == '':
+                            members_count = 0
+                        else:
+                            try:
+                                members_count = int(float(members_count))
+                            except ValueError:
+                                members_count = 0
+
+                        # 4. Safely Extract Amount
+                        contribution_amount = clean_decimal(row[col_amount])
+                        
+                        # 5. Extract Basic Strings Safely
+                        company_name = str(row[col_company_name]).strip() if pd.notna(row[col_company_name]) else ''
+                        company_status = str(row[col_company_status]).strip() if pd.notna(row[col_company_status]) else 'Active'
+                        payment_method = str(row[col_payment_method]).strip() if pd.notna(row[col_payment_method]) else 'Debit Order'
+                        reconciled_status = str(row[col_current_status]).strip() if pd.notna(row[col_current_status]) else 'Unreconciled'
+
+                        # 6. Database Insertion/Update
                         sql = """
                             INSERT INTO reconciliation_worksheet 
                             (mg_code, fiscal_month, mg_name, company_status, payment_method, 
@@ -2712,10 +2788,15 @@ def import_reconciliation_csv(request):
                         """
                         
                         params = (
+<<<<<<< HEAD
                             company_code, fiscal_month, company_name,
                             str(row.get('Company Status', 'Active')), str(row.get('Payment Method', 'Debit Order')),
                             int(row.get('MEMBERS', 0)), clean_decimal(row.get('CONTRIBUTION AMOUNT')),
                             str(row.get('Current Status', 'Unreconciled')),
+=======
+                            company_code, fiscal_month, company_name, company_status, payment_method,
+                            members_count, contribution_amount, reconciled_status,
+>>>>>>> 7ce144f2b45bac80f36bccec2d6e05a25abe1b3b
                             d1, d2, d3
                         )
                         
