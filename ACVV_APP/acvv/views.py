@@ -1244,7 +1244,7 @@ def save_global_claim(request):
 def export_global_claims_excel(request):
     """
     Exports claims to the standard Register format (Green Theme) matching the attachment.
-    Excludes 'Two Pot' claims. Includes newly added Pot fields.
+    Excludes 'Two Pot' claims. Includes newly added Pot fields and Last Contribution Date.
     """
     query = request.GET.get('q')
     
@@ -1263,7 +1263,6 @@ def export_global_claims_excel(request):
     ws.title = "Claims Register"
 
     # Define Green Theme Styles (Matching the provided image)
-    # Using a stronger standard Excel green matching the photo
     green_fill = PatternFill(start_color="92D050", end_color="92D050", fill_type="solid")
     
     # Standard thin borders for all cells
@@ -1276,11 +1275,11 @@ def export_global_claims_excel(request):
     header_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
     data_alignment = Alignment(vertical='center')
 
-    # 2. Header Row Titles (Matching Image + New Pot Fields)
+    # 2. Header Row Titles (Added 'Last Contribution Date')
     headers = [
         'Co.Code', 'Branch', 'Agent', 'MIP Number', 'ID Number', 
         'Name', 'Surname', 'Type', 'Status', 'Exit Reason', 
-        'Created', 'Submitted', 'Paid', 'Last Reconciled', 'Claim Allocation',
+        'Last Contribution Date', 'Created', 'Submitted', 'Paid', 'Last Reconciled', 'Claim Allocation',
         'Vested Pot Available', 'Vested Pot Paid Date', 
         'Savings Pot Available', 'Savings Pot Paid Date', 
         'In-Fund Cert Date'
@@ -1311,10 +1310,14 @@ def export_global_claims_excel(request):
             c.claim_type,                                                        # Type
             c.claim_status,                                                      # Status
             c.exit_reason if hasattr(c, 'exit_reason') else '',                  # Exit Reason
+            
+            # --- NEW MISSING FIELD ADDED HERE ---
+            c.last_contribution_date.strftime('%Y-%m-%d') if getattr(c, 'last_contribution_date', None) else '', 
+            
             c.claim_created_date.strftime('%Y-%m-%d') if c.claim_created_date else '', # Created
-            c.date_submitted.strftime('%Y-%m-%d') if hasattr(c, 'date_submitted') and c.date_submitted else '', # Submitted
-            c.date_paid.strftime('%Y-%m-%d') if hasattr(c, 'date_paid') and c.date_paid else '',              # Paid
-            c.last_reconciled.strftime('%Y-%m-%d') if hasattr(c, 'last_reconciled') and c.last_reconciled else '', # Last Reconciled
+            c.date_submitted.strftime('%Y-%m-%d') if getattr(c, 'date_submitted', None) else '', # Submitted
+            c.date_paid.strftime('%Y-%m-%d') if getattr(c, 'date_paid', None) else '',              # Paid
+            c.last_reconciled.strftime('%Y-%m-%d') if getattr(c, 'last_reconciled', None) else '', # Last Reconciled
             c.claim_allocation if hasattr(c, 'claim_allocation') else '',         # Claim Allocation
             
             # --- NEW POT FIELDS ---
@@ -1331,11 +1334,11 @@ def export_global_claims_excel(request):
             cell.border = border
             cell.alignment = data_alignment
 
-    # Apply AutoFilter to the header row (adds the dropdown arrows from the photo)
+    # Apply AutoFilter to the header row
     ws.auto_filter.ref = f"A1:{openpyxl.utils.get_column_letter(len(headers))}{ws.max_row}"
 
-    # 4. Formatting - Auto-adjust Column Widths
-    column_widths = [12, 15, 15, 15, 18, 15, 15, 12, 15, 15, 12, 12, 12, 15, 20, 18, 18, 18, 18, 18]
+    # 4. Formatting - Auto-adjust Column Widths (Added an extra '15' for the new column)
+    column_widths = [12, 15, 15, 15, 18, 15, 15, 12, 15, 15, 15, 12, 12, 12, 15, 20, 18, 18, 18, 18, 18]
     for i, width in enumerate(column_widths):
         ws.column_dimensions[openpyxl.utils.get_column_letter(i+1)].width = width
 
