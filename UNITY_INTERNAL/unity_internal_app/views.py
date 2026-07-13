@@ -5005,6 +5005,7 @@ def global_bank_view(request):
 def export_global_bank_excel(request):
     """
     Exports the Global Bank history to Excel.
+    UPDATED: Includes 'Source' column to match dashboard view.
     UPDATED: Matches dashboard logic for Correct Settled vs Remaining math.
     UPDATED: Splits review_note into 'Note Category' and 'Internal Note'.
     """
@@ -5042,7 +5043,6 @@ def export_global_bank_excel(request):
         )
 
     # --- 3. Pre-Calculate Bill Settlements for Bank Lines ---
-    # This is the critical step to ensure math (Deposit - Settled = Remaining) is correct
     bank_line_ids = list(bank_records.values_list('id', flat=True))
     bill_usage_map = {
         item['reconned_bank_line_id']: item['total']
@@ -5092,13 +5092,14 @@ def export_global_bank_excel(request):
                 note_category = r.review_note
 
         export_rows.append({
+            'source': 'BANK', # 🚀 Added Source
             'date': r.transaction_date,
             'description': raw_description,
             'code': r.company_code or "Unassigned",
             'name': mg_info.get('name', "—"),
             'deposit': r.transaction_amount,
-            'settled': bill_usage, # The R 1200
-            'remaining': r.transaction_amount - bill_usage, # The R 300
+            'settled': bill_usage, 
+            'remaining': r.transaction_amount - bill_usage, 
             'status': r.recon_status,
             'agent': mg_info.get('agent', "System"),
             'note_category': note_category,
@@ -5111,6 +5112,7 @@ def export_global_bank_excel(request):
         c_date = c.authorized_at.date() if c.authorized_at else c.processed_date
 
         export_rows.append({
+            'source': 'CREDIT', # 🚀 Added Source
             'date': c_date,
             'description': f"APPROVED OVERS (Virtual Credit: {c.note_selection})",
             'code': c.member_group_code,
@@ -5132,9 +5134,9 @@ def export_global_bank_excel(request):
     ws = wb.active
     ws.title = "Global Bank Export"
 
-    # HEADERS
+    # HEADERS 🚀 (Added "Source" as the second column)
     headers = [
-        "Date", "Bank Description", "Company Code", "Company Name", 
+        "Date", "Source", "Bank Description", "Company Code", "Company Name", 
         "Deposit Amount", "Settled (Bill Usage)", "Remaining (Surplus/Overs)", 
         "Status", "Agent", "Note Category", "Internal Note"
     ]
@@ -5145,19 +5147,19 @@ def export_global_bank_excel(request):
         cell.font = openpyxl.styles.Font(bold=True)
         cell.alignment = openpyxl.styles.Alignment(horizontal="center")
 
-    # Append rows
+    # Append rows 🚀 (Added row['source'])
     for row in export_rows:
         ws.append([
-            row['date'], row['description'], row['code'], row['name'],
+            row['date'], row['source'], row['description'], row['code'], row['name'],
             row['deposit'], row['settled'], row['remaining'],
             row['status'], row['agent'], 
             row['note_category'], row['internal_note']
         ])
 
-    # Auto-adjust column widths for better look
+    # Auto-adjust column widths for better look 🚀 (Shifted letters to accommodate the new column B)
     col_widths = {
-        'A': 15, 'B': 45, 'C': 15, 'D': 30, 'E': 18, 
-        'F': 18, 'G': 18, 'H': 15, 'I': 15, 'J': 25, 'K': 60
+        'A': 15, 'B': 15, 'C': 45, 'D': 15, 'E': 30, 'F': 18, 
+        'G': 18, 'H': 18, 'I': 15, 'J': 15, 'K': 25, 'L': 60
     }
     for col, width in col_widths.items():
         ws.column_dimensions[col].width = width

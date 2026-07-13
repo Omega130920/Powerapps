@@ -79,4 +79,5 @@ urlpatterns = [
     path('sla-report/export/', views.acvv_sla_report_view, name='export_acvv_sla'),
     path('reconciliation/import/', views.import_reconciliation_csv, name='import_reconciliation_csv'),
     path('withdrawals/import/', views.import_withdrawals, name='import_withdrawals'),
+    path('import/two-pot/', views.import_two_pot_claims, name='import_two_pot_claims'),
 ]

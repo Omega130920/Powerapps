@@ -937,7 +937,7 @@ def global_two_pot_view(request):
         base_claims = base_claims.filter(claim_created_date__range=[parse_date(start_date), parse_date(end_date)])
 
     # Pagination
-    paginator = Paginator(base_claims, 15) 
+    paginator = Paginator(base_claims, 200) 
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
@@ -2241,7 +2241,7 @@ def export_two_pot_tracking_acvv(request):
         "Date submitted online",                                       # Column L
         "Inform Employer that the claim is succesfully loaded",       # Column M
         "Admin Front Office Application Submitted",                    # Column N
-        "Note Helper"                                                  # Column O
+        "Note"                                                  # Column O
     ]
     ws.append(headers)
     
@@ -2833,3 +2833,102 @@ def import_withdrawals(request):
         return redirect('global_two_pot')
     
     return render(request, 'acvv_app/import_withdrawals.html')
+
+@login_required
+def import_two_pot_claims(request):
+    if request.method == "POST":
+        file = request.FILES.get('claim_upload')
+        if not file:
+            messages.error(request, "Please select a file to upload.")
+            return redirect('import_two_pot_claims')
+
+        try:
+            # 1. Load file safely (CSV or XLSX)
+            if file.name.endswith('.csv'):
+                df = pd.read_csv(file)
+            else:
+                df = pd.read_excel(file, engine='openpyxl')
+
+            # 2. Clean headers to prevent mismatch errors (removes trailing/leading spaces)
+            df.columns = df.columns.str.strip()
+
+            # 3. Date cleaning helper function
+            def clean_date_to_obj(val):
+                if pd.isna(val) or val == '' or val is None:
+                    return None
+                dt = pd.to_datetime(val, errors='coerce')
+                if pd.notna(dt):
+                    return dt.date()
+                return None
+
+            records_created = 0
+            records_updated = 0
+            
+            with transaction.atomic():
+                for index, row in df.iterrows():
+                    
+                    # --- Extract Core Identifiers ---
+                    # Using .get() prevents the script from crashing if a column is entirely missing
+                    id_number = str(row.get('ID NUMBER', '')).strip()
+                    
+                    if not id_number or id_number.lower() == 'nan':
+                        continue # Skip empty rows
+
+                    # --- Extract Dates ---
+                    claim_created_date = clean_date_to_obj(row.get('Date application extracted from Web: Savings Form Request'))
+                    date_submitted = clean_date_to_obj(row.get('Date submitted online'))
+
+                    # --- Extract Strings Safely ---
+                    company_code = str(row.get('Company Name', '')).strip()
+                    agent = str(row.get('agent', '')).strip()
+                    member_name = str(row.get('Initials', '')).strip()
+                    member_surname = str(row.get('Surname', '')).strip()
+                    mip_number = str(row.get('Member number', '')).strip()
+                    claim_type = str(row.get('claim_type', 'Two Pot')).strip() # Default to Two Pot if empty
+                    claim_status = str(row.get('Claim', 'New Claim')).strip()
+                    payment_option = str(row.get('Payment Option', '')).strip()
+                    claim_allocation = str(row.get('Claim Allocation', '')).strip()
+
+                    # Handle pandas NaN turning into the string "nan"
+                    if company_code.lower() == 'nan': company_code = ''
+                    if agent.lower() == 'nan': agent = ''
+                    if member_name.lower() == 'nan': member_name = ''
+                    if member_surname.lower() == 'nan': member_surname = ''
+                    if mip_number.lower() == 'nan': mip_number = ''
+                    if payment_option.lower() == 'nan': payment_option = ''
+                    if claim_allocation.lower() == 'nan': claim_allocation = ''
+
+                    # --- Database Insert / Update ---
+                    # update_or_create checks if a claim for this ID Number and Type already exists.
+                    # If it does, it updates it. If not, it creates a new one.
+                    claim, created = AcvvClaim.objects.update_or_create(
+                        id_number=id_number,
+                        claim_type=claim_type,
+                        defaults={
+                            'company_code': company_code,
+                            'agent': agent,
+                            'member_name': member_name,
+                            'member_surname': member_surname,
+                            'mip_number': mip_number,
+                            'claim_status': claim_status,
+                            'payment_option': payment_option,
+                            'claim_created_date': claim_created_date,
+                            'date_submitted': date_submitted,
+                            'claim_allocation': claim_allocation,
+                        }
+                    )
+                    
+                    if created:
+                        records_created += 1
+                    else:
+                        records_updated += 1
+
+            messages.success(request, f"Import complete! Created {records_created} new claims and updated {records_updated} existing claims.")
+        
+        except Exception as e:
+            messages.error(request, f"Import failed due to a system error: {str(e)}")
+            
+        return redirect('import_two_pot_claims') # Adjust this to your actual redirect URL name
+    
+    # GET request - render the upload page
+    return render(request, 'acvv_app/two_pot_import.html')
