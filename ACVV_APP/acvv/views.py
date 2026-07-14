@@ -2205,7 +2205,15 @@ def export_two_pot_tracking_acvv(request):
     if start_date and end_date:
         claims_queryset = claims_queryset.filter(claim_created_date__range=[start_date, end_date])
 
-    branch_map = get_branch_map_acvv(claims_queryset)
+    # --- NEW: Build an efficient Lookup Map for Company Names ---
+    # Fetch unique company codes to minimize database hits
+    unique_codes = claims_queryset.values_list('company_code', flat=True).distinct()
+    
+    # Map the branch_code (fund code) to the mip_names (company name)
+    company_name_map = {
+        item['branch_code']: item['mip_names'] 
+        for item in Globalacvv.objects.filter(branch_code__in=unique_codes).values('branch_code', 'mip_names')
+    }
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -2226,22 +2234,22 @@ def export_two_pot_tracking_acvv(request):
     header_cell.fill = yellow_fill
     header_cell.border = thin_border
 
-    # Row 2 Headers (Updated to match Blue template row labels exactly)
+    # Row 2 Headers
     headers = [
         "Date application extracted from Web: Savings Form Request",  # Column B
         "Initials",                                                    # Column C
         "Surname",                                                     # Column D
         "Member number",                                               # Column E
         "ID NUMBER",                                                   # Column F
-        "Company Name",                                                   # Column G
-        "Number of Employees",                                                # Column H
+        "Fund Code",                                                   # Column G
+        "Company Name",                                                # Column H
         "Query",                                                       # Column I
         "Claim",                                                       # Column J
         "Qualified Y/N",                                               # Column K
         "Date submitted online",                                       # Column L
         "Inform Employer that the claim is succesfully loaded",       # Column M
         "Admin Front Office Application Submitted",                    # Column N
-        "Note"                                                  # Column O
+        "Note"                                                         # Column O
     ]
     ws.append(headers)
     
@@ -2266,7 +2274,10 @@ def export_two_pot_tracking_acvv(request):
             if "Already claim" in status_str:
                 note_helper = "Member already claimed this financial year"
             else:
-                note_helper = "Not enough funds available"
+                note_helper = ""
+
+        # --- FIX: Fetch the actual company name string ---
+        company_name = company_name_map.get(claim.company_code, "Unknown Company")
 
         row = [
             claim.claim_created_date.strftime('%d/%m/%Y') if claim.claim_created_date else '', # Col B
@@ -2275,14 +2286,14 @@ def export_two_pot_tracking_acvv(request):
             claim.mip_number,                                                                  # Col E
             claim.id_number,                                                                   # Col F
             claim.company_code,                                                                # Col G
-            branch_map.get(claim.company_code, "Unknown"),                                     # Col H
+            company_name,                                                                      # Col H (Now mapping correctly)
             "Savings Form Request",                                                            # Col I (Default)
-            claim.claim_status or "",                                                          # Col J (Claim status field value)
+            claim.claim_status or "",                                                          # Col J
             qualified_val,                                                                     # Col K
             claim.date_submitted.strftime('%d/%m/%Y') if claim.date_submitted else '',         # Col L
             "YES" if is_paid else "No",                                                        # Col M
-            claim.agent or "TD",                                                               # Col N (Submitted by agent dropdown)
-            note_helper                                                                        # Col O (Note Helper reasoning layout)
+            claim.agent or "TD",                                                               # Col N
+            note_helper                                                                        # Col O
         ]
         ws.append(row)
 
