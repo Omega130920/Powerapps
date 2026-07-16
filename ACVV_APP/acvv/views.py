@@ -1446,12 +1446,14 @@ def bulk_delete_recycled(request):
 def outlook_view_thread(request, delegation_id):
     """
     Displays the email content and audit trail. 
-    FIXED: Now pulls actual body and attachments for local SENT records.
     """
     import os
     from django.utils.safestring import mark_safe
+    from django.shortcuts import get_object_or_404
+    from django.db.models import Q
+    # Ensure your OutlookGraphService and models are imported at the top of the file
 
-    # 1. Flexible Lookup (Handles both PK and Microsoft ID)
+    # 1. Flexible Lookup
     if str(delegation_id).isdigit():
         task = get_object_or_404(EmailDelegation, Q(id=delegation_id) | Q(email_id=delegation_id))
     else:
@@ -1461,17 +1463,23 @@ def outlook_view_thread(request, delegation_id):
     email_content = ""
     attachments = []
 
-    # 2. LOCAL vs MICROSOFT LOGIC
-    if task.email_id.startswith('SENT-') or task.email_id.startswith('LOCAL-'):
-        # --- NEW: PULL FROM LOCAL DATABASE FIELDS ---
-        # We replace the hardcoded "Live version not available" text with your data
-        if task.body:
+    # 2. LOCAL vs MICROSOFT LOGIC (FIXED)
+    # If email_id is blank, 'None', or has a local prefix, we MUST pull it from the DB
+    is_local_record = False
+    if not task.email_id or str(task.email_id).strip().lower() == 'none':
+        is_local_record = True
+    elif task.email_id.startswith('SENT-') or task.email_id.startswith('LOCAL-'):
+        is_local_record = True
+
+    if is_local_record:
+        # --- PULL BODY FROM LOCAL DATABASE ---
+        if getattr(task, 'body', None):
             email_content = task.body
         else:
-            email_content = f"<div class='alert alert-warning'><strong>No Body Recorded:</strong> This email was logged with the subject '{task.subject}', but no body content was found.</div>"
+            email_content = f"<div style='padding: 15px; background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; border-radius: 6px;'><strong>No Body Recorded:</strong> This local reply was logged with the subject '{task.subject}', but no HTML body content was found in the database.</div>"
         
-        # Format the local attachment for the template loop
-        if task.attachment:
+        # --- PULL ATTACHMENTS FROM LOCAL DATABASE ---
+        if getattr(task, 'attachment', None) and task.attachment:
             attachments = [{
                 'name': os.path.basename(task.attachment.name),
                 'url': task.attachment.url,
@@ -1479,22 +1487,25 @@ def outlook_view_thread(request, delegation_id):
                 'is_local': True 
             }]
     else:
-        # --- LIVE MICROSOFT FETCH (For original incoming emails) ---
-        endpoint = f"messages/{task.email_id}"
-        email_data = OutlookGraphService._make_graph_request(endpoint, target_email)
-        
-        attachment_endpoint = f"messages/{task.email_id}/attachments"
-        attachment_data = OutlookGraphService._make_graph_request(attachment_endpoint, target_email)
-        
-        attachments = attachment_data.get('value', [])
-        email_content = email_data.get('body', {}).get('content')
+        # --- LIVE MICROSOFT FETCH ---
+        try:
+            endpoint = f"messages/{task.email_id}"
+            email_data = OutlookGraphService._make_graph_request(endpoint, target_email)
+            
+            attachment_endpoint = f"messages/{task.email_id}/attachments"
+            attachment_data = OutlookGraphService._make_graph_request(attachment_endpoint, target_email)
+            
+            attachments = attachment_data.get('value', [])
+            email_content = email_data.get('body', {}).get('content')
+        except Exception as e:
+            email_content = f"<div style='padding: 15px; background-color: #f8d7da; color: #721c24; border-radius: 6px;'><strong>Microsoft Graph Error:</strong> Could not fetch email from server. ({str(e)})</div>"
 
     # 3. Fetch local Audit Trail
     actions = DelegationTransactionLog.objects.filter(delegation=task).order_by('transaction_time')
 
     context = {
         'task': task,
-        'email_body': mark_safe(email_content) if email_content else "No content available.",
+        'email_body': mark_safe(email_content) if email_content else "",
         'attachments': attachments,
         'actions': actions,
     }

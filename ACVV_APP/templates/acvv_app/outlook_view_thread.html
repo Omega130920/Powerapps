@@ -23,7 +23,8 @@
         .preview-container img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; }
         .file-icon { font-size: 35px; }
         .file-name { font-size: 11px; font-weight: bold; text-align: center; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #333; margin-bottom: 5px; }
-        .btn-download-small { background-color: #43a047; color: white; text-decoration: none; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; width: 100%; text-align: center; }
+        .btn-download-small { background-color: #43a047; color: white; text-decoration: none; padding: 6px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; width: 100%; text-align: center; box-sizing: border-box; display: inline-block; transition: 0.2s; margin-top: 8px; }
+        .btn-download-small:hover { background-color: #2e7d32; }
         .timeline-container { position: relative; padding-left: 50px; margin-top: 20px; }
         .timeline-container::before { content: ''; position: absolute; left: 20px; top: 0; bottom: 0; width: 3px; background: #cbd5e0; }
         .timeline-event { position: relative; background: white; padding: 18px; margin-bottom: 25px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
@@ -35,7 +36,8 @@
         .bg-default { background-color: #f0fff4; color: #2f855a; }
         .event-meta { display: block; margin-top: 10px; font-size: 12px; color: #718096; border-top: 1px solid #f7fafc; padding-top: 8px; }
         .event-text { font-size: 14px; color: #2d3748; margin: 5px 0; }
-        .email-details-block { background-color: #f8f9fa; border-left: 3px solid #ccc; padding: 8px 12px; margin-top: 8px; font-size: 0.95em; color: #555; }
+        .email-details-block { background-color: #f8f9fa; border-left: 3px solid #ccc; padding: 12px; margin-top: 10px; border-radius: 0 6px 6px 0; }
+        .reply-body-container { background: white; border: 1px solid #e2e8f0; padding: 15px; border-radius: 6px; margin-top: 10px; max-height: 300px; overflow-y: auto; font-size: 13.5px; line-height: 1.5; color: #444; }
     </style>
 </head>
 <body>
@@ -84,6 +86,10 @@
                     </div>
                     <div class="file-name" title="{{ att.name }}">{{ att.name }}</div>
                     <span style="font-size: 9px; color: #999;">{{ att.size|filesizeformat }}</span>
+                    
+                    {% if att.is_local %}
+                        <a href="{{ att.url }}" target="_blank" class="btn-download-small"><i class="fas fa-eye"></i> View File</a>
+                    {% endif %}
                 </div>
                 {% endfor %}
             </div>
@@ -94,7 +100,6 @@
     <h2 style="font-size: 1.2em; color: #4a5568; margin-bottom: 20px; padding-left: 10px;">Activity Timeline</h2>
 
     <div class="timeline-container">
-        {# 1. Initial Delegation Event #}
         <div class="timeline-event">
             <div class="timeline-icon" style="background-color: #2b6cb0;"></div>
             <span class="badge-status bg-delegated">Delegation Created</span>
@@ -106,16 +111,13 @@
             </span>
         </div>
 
-        {# 2. Action History #}
         {% for action in actions %}
         <div class="timeline-event">
             <div class="timeline-icon" 
                  style="background-color: {% if action.action_type == 'EMAIL_REPLY' %}#9c27b0{% else %}#2f855a{% endif %};">
             </div>
             
-            <span class="badge-status 
-                {% if action.action_type == 'EMAIL_REPLY' %}bg-reply{% else %}bg-default{% endif %}">
-                {# FIXED: Used title filter instead of invalid replace filter #}
+            <span class="badge-status {% if action.action_type == 'EMAIL_REPLY' %}bg-reply{% else %}bg-default{% endif %}">
                 {{ action.action_type|title }}
             </span>
 
@@ -124,7 +126,23 @@
             </p>
             
             <div class="email-details-block">
-                <strong>Subject:</strong> {{ action.subject }}
+                <div style="margin-bottom: 5px;">
+                    <strong>Subject:</strong> {{ action.subject }}
+                </div>
+                
+                {% if action.body %}
+                <div class="reply-body-container">
+                    {{ action.body|safe }}
+                </div>
+                {% endif %}
+
+                {% if action.attachment %}
+                <div style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed #ccc;">
+                    <a href="{{ action.attachment.url }}" target="_blank" class="return-button" style="background-color: #1976d2; font-size: 12px; padding: 6px 12px; display: inline-block;">
+                        <i class="fas fa-paperclip mr-1"></i> View Attached Document
+                    </a>
+                </div>
+                {% endif %}
             </div>
             
             <span class="event-meta">
@@ -138,5 +156,6 @@
         {% endfor %}
     </div>
 </div>
+
 </body>
 </html>
