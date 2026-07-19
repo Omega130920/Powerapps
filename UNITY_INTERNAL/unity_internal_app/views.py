@@ -3029,6 +3029,7 @@ def confirmations_view(request):
                     bank_line = settlement.reconned_bank_line
                     source['date'] = bank_line.transaction_date
                     source['type'] = 'Bank Line'
+                    source['source'] = 'BANK'  # 🚀 ADDED SOURCE FLAG
                     source['bank_total'] = bank_line.transaction_amount
                     
                     # 🚀 SAFE REFERENCE LOOKUP 🚀
@@ -3041,16 +3042,19 @@ def confirmations_view(request):
                         credit_note = CreditNote.objects.get(id=settlement.source_credit_note_id)
                         source['date'] = credit_note.bank_stmt_date or (settlement.settlement_date.date() if settlement.settlement_date else None)
                         source['type'] = 'Credit Note'
+                        source['source'] = 'CREDIT'  # 🚀 ADDED SOURCE FLAG
                         source['bank_total'] = credit_note.credit_amount
                         source['bank_ref'] = getattr(credit_note, 'credit_note_number', '-')
                     except:
                         source['date'] = settlement.settlement_date.date() if settlement.settlement_date else None
                         source['type'] = 'Credit Note (Source Missing)'
+                        source['source'] = 'CREDIT'  # 🚀 ADDED SOURCE FLAG
                         source['bank_total'] = settlement.settled_amount
                         source['bank_ref'] = "-"
                 else:
                     source['date'] = settlement.settlement_date.date() if settlement.settlement_date else None
                     source['type'] = 'Other Source'
+                    source['source'] = 'OTHER'  # 🚀 ADDED SOURCE FLAG
                     source['bank_total'] = settlement.settled_amount
                     source['bank_ref'] = "-"
 
@@ -3070,7 +3074,7 @@ def confirmations_view(request):
                 'company_code': bill.C_Company_Code, 
                 'company_name': getattr(bill, 'D_Company_Name', ''), 
                 'active_members': bill.E_Active_Members or 0, 
-                'schedule_date': getattr(bill, 'G_Schedule_Date', None), # 🚀 FIX APPLIED HERE: Now correctly pulling G_Schedule_Date 🚀
+                'schedule_date': getattr(bill, 'G_Schedule_Date', None), 
                 'final_date': bill.J_Final_Date or None, 
                 'schedule_amount': bill.H_Schedule_Amount or 0,
                 'confirmed_date': bill.I_Submitted_Date,
@@ -3090,11 +3094,12 @@ def confirmations_view(request):
             ws = wb.active
             ws.title = "Confirmations"
 
+            # 🚀 ADDED "Source" TO HEADERS 🚀
             headers = [
                 'CCDates Month', 'Fund Code', 'Member Group Code', 'Member Group Name', 
                 'Active Member - (Info from FuturaSA & NOT checked by Sanlam)', 'Schedule Date', 'Final Data Received Date', 'Schedule Amount', 
                 'Confirmed Date', 'Bank Statement Date', 'Bank Deposit Amount', 
-                'Allocated Amount (For Front Office use & not to be checked by Sanlam)', 'Comment', 'Deposit Reference'
+                'Allocated Amount (For Front Office use & not to be checked by Sanlam)', 'Comment', 'Deposit Reference', 'Source'
             ]
             ws.append(headers)
 
@@ -3112,10 +3117,15 @@ def confirmations_view(request):
 
                 sources = item['source_details']
                 if not sources:
-                    ws.append(bill_common + ['', '', '', '', '']) 
+                    # 🚀 Added extra empty string padding for the new Source column 🚀
+                    ws.append(bill_common + ['', '', '', '', '', '']) 
                 else:
                     for index, s in enumerate(sources):
-                        bank_cols = [s['date'], s['bank_total'], s['amount'], s['comment'], s['bank_ref']]
+                        # 🚀 Translate 'CREDIT' string to 'Overs Line' for the Excel export 🚀
+                        export_source_text = 'Overs Line' if s.get('source') == 'CREDIT' else 'Bank'
+                        
+                        bank_cols = [s['date'], s['bank_total'], s['amount'], s['comment'], s['bank_ref'], export_source_text]
+                        
                         if index == 0:
                             ws.append(bill_common + bank_cols)
                         else:

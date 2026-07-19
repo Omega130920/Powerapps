@@ -53,6 +53,11 @@
         }
         .date-input { border: none; outline: none; font-size: 13px; color: #333; width: 120px; }
 
+        /* SOURCE BADGES */
+        .source-badge { font-size: 10px; font-weight: bold; padding: 3px 6px; border-radius: 4px; text-transform: uppercase; display: inline-block; }
+        .badge-credit { background-color: #ef6c00; color: white; }
+        .badge-bank { background-color: #2196F3; color: white; }
+
         /* TABLE STYLES */
         .table-wrapper { overflow-y: auto; flex: 1; border: 1px solid #aed581; border-radius: 4px; background: white; }
         table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
@@ -116,6 +121,7 @@
             <table>
                 <thead>
                     <tr>
+                        <th style="width: 80px;" class="text-center">Source</th>
                         <th style="width: 70px;">Month</th>
                         <th style="width: 50px;">Fund</th>
                         <th style="width: 70px;">Co. Code</th>
@@ -130,6 +136,7 @@
                         <th style="width: 100px;" class="amount-col bank-col">Allocated</th>
                         <th style="width: 180px;" class="bank-col">Recon Note</th>
                         <th style="width: 120px;" class="bank-col">Bank Ref</th>
+                        
                     </tr>
                 </thead>
                 <tbody>
@@ -153,6 +160,7 @@
                                         <td class="amount-col bank-col">-</td> 
                                         <td class="bank-col">-</td> 
                                         <td class="bank-col">-</td> 
+                                        <td class="bank-col text-center">-</td> 
                                     </tr>
                                 {% else %}
                                     {% for source in record.source_details %}
@@ -175,6 +183,15 @@
                                             <td class="amount-col bank-col">R {{ source.amount }}</td>
                                             <td class="bank-col" style="font-style: italic; color: #555;">{{ source.comment|default:"-" }}</td>
                                             <td class="bank-col">{{ source.bank_ref|default:"-" }}</td>
+                                            
+                                            <!-- NEW SOURCE COLUMN -->
+                                            <td class="bank-col text-center">
+                                                {% if source.source == 'CREDIT' %}
+                                                    <span class="source-badge badge-credit">Overs Line</span>
+                                                {% else %}
+                                                    <span class="source-badge badge-bank">Bank</span>
+                                                {% endif %}
+                                            </td>
                                         </tr>
                                     {% endfor %}
                                 {% endif %}
@@ -183,7 +200,8 @@
                         {% endwith %}
                     {% empty %}
                         <tr>
-                            <td colspan="14" class="text-center" style="padding: 40px; color: #757575;">No records found matching the criteria.</td>
+                            <!-- Updated colspan to 15 to accommodate the new Source column -->
+                            <td colspan="15" class="text-center" style="padding: 40px; color: #757575;">No records found matching the criteria.</td>
                         </tr>
                     {% endfor %}
                 </tbody>

@@ -49,7 +49,7 @@
             background-color: #2e7d32;
         }
 
-        /* Download EML Button Styling */
+        /* NEW: Download EML Button Styling */
         .download-eml-button {
             padding: 10px 18px;
             background-color: #1976d2;
@@ -104,7 +104,7 @@
             border-top: 1px solid #edf2f7;
         }
 
-        /* Attachment Pill */
+        /* Updated Attachment Pill to act as a container */
         .attachment-pill {
             display: inline-flex;
             align-items: center;
@@ -119,7 +119,7 @@
             font-weight: 500;
         }
 
-        /* Buttons for View and Download */
+        /* New buttons for explicit View and Download */
         .att-action-btn {
             margin-left: 6px;
             padding: 4px 10px;
@@ -186,10 +186,10 @@
             margin-bottom: 10px;
         }
 
-        /* Action Badges */
         .bg-delegated { background-color: #ebf8ff; color: #2b6cb0; }
-        .bg-reply { background-color: #f3e5f5; color: #7b1fa2; }
-        .bg-default { background-color: #f0fff4; color: #2f855a; }
+        .bg-note { background-color: #fefcbf; color: #b7791f; }
+        .bg-complete { background-color: #f0fff4; color: #2f855a; }
+        .bg-restore { background-color: #fff5f5; color: #c53030; }
 
         .event-meta {
             display: block;
@@ -205,28 +205,6 @@
             color: #2d3748;
             margin: 0;
         }
-
-        /* Inner blocks for detailed timeline actions (emails) */
-        .email-details-block {
-            background-color: #f8f9fa;
-            border-left: 3px solid #ccc;
-            padding: 12px;
-            margin-top: 10px;
-            border-radius: 0 6px 6px 0;
-        }
-        
-        .reply-body-container {
-            background: white;
-            border: 1px solid #e2e8f0;
-            padding: 15px;
-            border-radius: 6px;
-            margin-top: 10px;
-            max-height: 300px;
-            overflow-y: auto;
-            font-size: 13.5px;
-            line-height: 1.5;
-            color: #444;
-        }
     </style>
 </head>
 <body>
@@ -239,8 +217,9 @@
             <p style="margin:0; color: #666;">Ref: {{ task.mip_names|default:"N/A" }}</p>
         </div>
         <div class="button-group">
+            <!-- UPDATE THE LINE BELOW -->
             <a href="{% url 'download_acvv_email' delegation_id=task.email_id %}" class="download-eml-button">
-                <i class="fas fa-envelope-open-text"></i> Download Actual Email (.eml)
+                <i class="fas fa-file-download"></i> Download Full Email (.eml)
             </a>
             <a href="javascript:history.back()" class="return-button">← Back to Email Log</a>
         </div>
@@ -249,10 +228,10 @@
     <div class="email-thread-card">
         <div class="card-header-main">
             <div>
-                <h3>{{ task.subject|default:"(No Subject)" }}</h3>
+                <h3>{{ task.subject }}</h3>
                 <div style="font-size: 14px; color: #4a5568;">
-                    <strong>Incoming Task ID:</strong> {{ task.id }} <br>
-                    <strong>Original Arrival:</strong> {{ task.received_at|date:"d M Y, H:i" }}
+                    <strong>Sender:</strong> {{ inbox_item.sender|default:"System" }} <br>
+                    <strong>Original Arrival:</strong> {{ inbox_item.received_timestamp|date:"d M Y, H:i" }}
                 </div>
             </div>
             <a href="{% url 'download_acvv_email' delegation_id=task.email_id %}" title="Download as .eml file" style="color: #1976d2; font-size: 20px;">
@@ -275,10 +254,6 @@
                     {% if att.contentBytes %}
                         <img src="data:{{ att.contentType }};base64,{{ att.contentBytes }}" 
                              style="height: 18px; width: 18px; border-radius: 2px; margin-right: 8px; object-fit: cover;">
-                    {% elif "image" in att.contentType %}
-                        <i class="fas fa-file-image" style="margin-right: 8px; color: #607d8b;"></i>
-                    {% elif "pdf" in att.contentType %}
-                        <i class="fas fa-file-pdf" style="margin-right: 8px; color: #E02316;"></i>
                     {% else %}
                         <i class="fas fa-file-alt" style="margin-right: 8px; color: #718096;"></i>
                     {% endif %}
@@ -287,21 +262,12 @@
                     <span style="font-weight: normal; color: #a0aec0; margin-left: 5px;">({{ att.size|filesizeformat }})</span>
                     
                     <div style="margin-left: 12px; border-left: 1px solid #e2e8f0; padding-left: 8px; display: flex; gap: 4px;">
-                        {% if att.is_local %}
-                            <a href="{{ att.url }}" target="_blank" class="att-action-btn" title="View in Browser">
-                                <i class="fas fa-eye"></i> View
-                            </a>
-                            <a href="{{ att.url }}" download class="att-action-btn" title="Download File">
-                                <i class="fas fa-download"></i> Download
-                            </a>
-                        {% else %}
-                            <a href="{% url 'download_attachment' message_id=task.email_id attachment_id=att.id %}" target="_blank" class="att-action-btn" title="View in Browser">
-                                <i class="fas fa-eye"></i> View
-                            </a>
-                            <a href="{% url 'download_attachment' message_id=task.email_id attachment_id=att.id %}" download class="att-action-btn" title="Download File">
-                                <i class="fas fa-download"></i> Download
-                            </a>
-                        {% endif %}
+                        <a href="{% url 'download_attachment' message_id=email_id attachment_id=att.id %}" target="_blank" class="att-action-btn" title="View in Browser">
+                            <i class="fas fa-eye"></i> View
+                        </a>
+                        <a href="{% url 'download_attachment' message_id=email_id attachment_id=att.id %}" download class="att-action-btn" title="Download File">
+                            <i class="fas fa-download"></i> Download
+                        </a>
                     </div>
                 </div>
                 {% endfor %}
@@ -317,54 +283,33 @@
             <div class="timeline-icon" style="background-color: #2b6cb0;"></div>
             <span class="badge-status bg-delegated">Delegation Created</span>
             <p class="event-text">
-                Task was delegated to <strong>{{ task.assigned_user.username|default:"Unassigned" }}</strong> by System/Admin.
+                Task was delegated to <strong>{{ task.delegated_to }}</strong> by <strong>{{ task.delegated_by }}</strong>.
             </p>
             <span class="event-meta">
-                Date: {{ task.delegated_at|date:"d M Y, H:i" }}
+                Date: {{ task.received_timestamp|date:"d M Y, H:i" }}
             </span>
         </div>
 
         {% for action in actions %}
         <div class="timeline-event">
             <div class="timeline-icon" 
-                 style="background-color: {% if action.action_type == 'EMAIL_REPLY' %}#9c27b0{% else %}#2f855a{% endif %};">
+                 style="background-color: {% if action.action_type == 'complete' %}#2f855a{% else %}#b7791f{% endif %};">
             </div>
             
-            <span class="badge-status {% if action.action_type == 'EMAIL_REPLY' %}bg-reply{% else %}bg-default{% endif %}">
+            <span class="badge-status 
+                {% if action.action_type == 'complete' %}bg-complete
+                {% elif action.action_type == 'add_note' %}bg-note
+                {% else %}bg-restore{% endif %}">
                 {{ action.action_type|title }}
             </span>
 
             <p class="event-text">
-                <strong>Recipient:</strong> {{ action.recipient_email|default:"N/A" }}
+                {{ action.note_content|safe }}
             </p>
             
-            <div class="email-details-block">
-                <div style="margin-bottom: 5px;">
-                    <strong>Subject:</strong> {{ action.subject }}
-                </div>
-                
-                {% if action.body %}
-                <div class="reply-body-container">
-                    {{ action.body|safe }}
-                </div>
-                {% endif %}
-
-                {% if action.attachment %}
-                <div style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed #ccc;">
-                    <a href="{{ action.attachment.url }}" target="_blank" class="att-action-btn" style="padding: 6px 12px; display: inline-flex; align-items: center; gap: 5px;">
-                        <i class="fas fa-paperclip"></i> View Attached Document
-                    </a>
-                </div>
-                {% endif %}
-            </div>
-            
             <span class="event-meta">
-                Action by: <strong>{{ action.user.username }}</strong> | {{ action.transaction_time|date:"d M Y, H:i" }}
+                User: <strong>{{ action.action_user }}</strong> | {{ action.action_timestamp|date:"d M Y, H:i" }}
             </span>
-        </div>
-        {% empty %}
-        <div style="padding-left: 20px; color: #888; font-style: italic;">
-            No additional actions recorded yet.
         </div>
         {% endfor %}
     </div>
