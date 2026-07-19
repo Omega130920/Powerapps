@@ -329,7 +329,15 @@ def outlook_delegated_action(request, delegation_id):
             result = OutlookGraphService.send_outlook_email(target_email, recipient, subject, body, content_type='Html', attachments=attachments_list)
             
             if result.get('success'):
-                log_delegation_transaction(delegation_id, request.user, subject, recipient, action_type='EMAIL_REPLY')
+                # 🚀 FIX: Passed body=body to the transaction logger
+                log_delegation_transaction(
+                    delegation_id, 
+                    request.user, 
+                    subject, 
+                    recipient, 
+                    action_type='EMAIL_REPLY',
+                    body=body 
+                )
                 
                 new_ms_id = result.get('message_id') or f"REPLY-{timezone.now().timestamp()}"
                 
@@ -1445,108 +1453,63 @@ def bulk_delete_recycled(request):
 @login_required
 def outlook_view_thread(request, delegation_id):
     """
-    Displays the email content and audit trail. 
-    Includes a global cross-reference fallback for locally synced Sent Items.
+    Updated view to support the 'Unity' template structure, 
+    including combined timeline and proper email data context.
     """
     import os
     import re
     from django.utils.safestring import mark_safe
     from django.shortcuts import get_object_or_404
     from django.db.models import Q
-    # Ensure your OutlookGraphService is imported at the top of your file
+    from itertools import chain # Used to combine querysets
 
-    # 1. Flexible Lookup (Handles both PK and Microsoft ID)
+    # 1. Fetch Task
     if str(delegation_id).isdigit():
         task = get_object_or_404(EmailDelegation, Q(id=delegation_id) | Q(email_id=delegation_id))
     else:
         task = get_object_or_404(EmailDelegation, email_id=delegation_id)
 
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
-    email_content = ""
+    email_data = {}
     attachments = []
+    email_content = "No content available."
 
-    # Helper function to detect empty bodies even if padded with blank HTML tags
-    def is_visually_empty(html_string):
-        if not html_string: 
-            return True
-        # Strip all HTML tags and spaces
-        clean_text = re.sub(r'<[^>]+>', '', str(html_string)).replace('&nbsp;', '').strip()
-        return len(clean_text) == 0
-
-# 2. Evaluate if it's purely a local placeholder ID
-    is_local_only = False
-    if not task.email_id or str(task.email_id).strip().lower() == 'none':
-        is_local_only = True
-    elif str(task.email_id).startswith('SENT-') or str(task.email_id).startswith('LOCAL-') or str(task.email_id).startswith('REPLY-'):
-        is_local_only = True
-
-    # 3. Try fetching from Microsoft Graph if it has a real ID
-    if not is_local_only:
-        try:
-            endpoint = f"messages/{task.email_id}"
-            email_data = OutlookGraphService._make_graph_request(endpoint, target_email)
-            
-            attachment_endpoint = f"messages/{task.email_id}/attachments"
-            attachment_data = OutlookGraphService._make_graph_request(attachment_endpoint, target_email)
-            
-            attachments = attachment_data.get('value', [])
-            email_content = email_data.get('body', {}).get('content', "")
-        except Exception as e:
-            pass # Graph failed, let it fall through to the local fallback
-
-    # 4. THE MASTER FALLBACK: If Graph returned empty (or empty HTML tags)
-    if is_visually_empty(email_content):
+    # 2. Try fetching from Microsoft Graph
+    try:
+        endpoint = f"messages/{task.email_id}"
+        email_data = OutlookGraphService._make_graph_request(endpoint, target_email)
         
-        # Check A: The task's direct local body field
-        if not is_visually_empty(getattr(task, 'body', None)):
-            email_content = task.body
-            
-        else:
-            # Check B: A transaction log directly attached to this task
-            log_attached = DelegationTransactionLog.objects.filter(delegation=task).exclude(body__isnull=True).first()
-            if log_attached and not is_visually_empty(log_attached.body):
-                email_content = log_attached.body
-                
-            else:
-                # Check C (The Magic Link): Search the ENTIRE system for the Microsoft email_id
-                if task.email_id and str(task.email_id).strip().lower() != 'none':
-                    global_log = DelegationTransactionLog.objects.filter(email_id=task.email_id).exclude(body__isnull=True).first()
-                    
-                    if global_log and not is_visually_empty(global_log.body):
-                        email_content = global_log.body
-                        
-                        # Since we found the original send log, grab its attachment too!
-                        if not attachments and getattr(global_log, 'attachment', None) and global_log.attachment:
-                            attachments = [{
-                                'name': os.path.basename(global_log.attachment.name),
-                                'url': global_log.attachment.url,
-                                'contentType': 'application/octet-stream', 
-                                'is_local': True 
-                            }]
+        attachment_endpoint = f"messages/{task.email_id}/attachments"
+        attachment_data = OutlookGraphService._make_graph_request(attachment_endpoint, target_email)
+        
+        attachments = attachment_data.get('value', [])
+        email_content = email_data.get('body', {}).get('content', "No content available.")
+    except Exception:
+        # Fallback to local logs if Graph fails
+        pass
 
-        # If it is STILL empty after all 3 local checks, force a visible message block
-        if is_visually_empty(email_content):
-            email_content = "<div style='padding: 15px; background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; border-radius: 6px;'><strong>No Content Found:</strong> The email body could not be fetched from Microsoft, and no local backup was found in the logs.</div>"
+    # 3. Combine Timeline (Unity Style)
+    # Fetch your different types of audit/notes
+    actions = DelegationTransactionLog.objects.filter(delegation=task).order_by('-transaction_time')
+    
+    # If you have other note models (like UnityManagementNote or InternalTaskNote), 
+    # fetch them here and add them to a list for sorting
+    timeline = []
+    for action in actions:
+        timeline.append({'type': 'action', 'obj': action, 'date': action.transaction_time})
+    
+    # Sort by date descending (Newest first)
+    combined_timeline = sorted(timeline, key=lambda x: x['date'], reverse=True)
 
-    # 5. Local Attachment Fallback for direct task attachments
-    if not attachments and getattr(task, 'attachment', None) and task.attachment:
-        attachments = [{
-            'name': os.path.basename(task.attachment.name),
-            'url': task.attachment.url,
-            'contentType': 'application/octet-stream', 
-            'is_local': True 
-        }]
-
-    # 6. Fetch local Audit Trail
-    actions = DelegationTransactionLog.objects.filter(delegation=task).order_by('transaction_time')
-
-    # Note: Make sure 'email_body' here replaces your old fallback string logic!
+    # 4. Context for Template
     context = {
         'task': task,
-        'email_body': mark_safe(email_content), 
+        'email': email_data,             # The full MS Graph object for the template
+        'email_body': mark_safe(email_content),
         'attachments': attachments,
-        'actions': actions,
+        'combined_timeline': combined_timeline,
     }
+    
     return render(request, 'acvv_app/outlook_view_thread.html', context)
 
 @login_required

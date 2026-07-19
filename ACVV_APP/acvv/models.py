@@ -198,6 +198,9 @@ class DelegationTransactionLog(models.Model):
     recipient_email = models.CharField(max_length=255)
     action_type = models.CharField(max_length=50) # Use constants like 'EMAIL_REPLY'
     
+    # 🛑 NEW FIELD ADDED HERE 🛑
+    body = models.TextField(null=True, blank=True) 
+    
     transaction_time = models.DateTimeField(auto_now_add=True)
 
     class Meta:

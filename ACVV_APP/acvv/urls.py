@@ -48,6 +48,7 @@ urlpatterns = [
     # --- Outlook View/Download ---
     path('outlook/thread/<str:delegation_id>/', views.outlook_view_thread, name='outlook_view_thread'),
     path('outlook/download/<str:delegation_id>/', views.download_acvv_email, name='download_acvv_email'),
+    path('outlook/download/<str:delegation_id>/', views.download_acvv_email, name='download_email'), # 🚀 Added Alias
     
     # --- Reconciliation Worksheet Paths ---
     path('reconciliation-worksheet/', views.reconciliation_worksheet, name='reconciliation_worksheet'),
@@ -61,10 +62,7 @@ urlpatterns = [
     path('acvv-records/<str:company_code>/send-direct-email/', views.send_acvv_direct_email, name='send_acvv_direct_email'),
 
     # --- Two-Pot Specific Exports ---
-    # 1. The Cecile Invoice (Grey format)
     path('export-two-pot-cecile/', views.export_two_pot_invoice_cecile, name='export_two_pot_cecile'),
-    
-    # 2. The Full Tracking (Yellow format matching the image)
     path('export-two-pot-billing/', views.export_two_pot_tracking_acvv, name='export_two_pot_billing'),
 
     path('outlook/export-tasks/', views.export_email_tasks_excel, name='export_email_tasks_excel'),
@@ -73,9 +71,6 @@ urlpatterns = [
     
     # SLA Report View
     path('sla-report/', views.acvv_sla_report_view, name='acvv_sla_report'),
-
-    # Excel Export for SLA (Note: This is handled via GET params in the view, 
-    # but having a named URL is good practice for reverse lookups)
     path('sla-report/export/', views.acvv_sla_report_view, name='export_acvv_sla'),
     path('reconciliation/import/', views.import_reconciliation_csv, name='import_reconciliation_csv'),
     path('withdrawals/import/', views.import_withdrawals, name='import_withdrawals'),

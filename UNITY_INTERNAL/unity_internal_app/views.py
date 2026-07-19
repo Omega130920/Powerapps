@@ -39,7 +39,9 @@ from openpyxl.styles import Font, Alignment, PatternFill
 from django.db.models import Q, Max
 import datetime as dt_mod
 from datetime import datetime, time
-from django.template.loader import render_to_string  # Add this at the top
+from django.template.loader import render_to_string
+
+from ACVV_APP.acvv.models import Globalacvv  # Add this at the top
 
 # Import the new Graph API service functions
 from .services.outlook_graph_service import OutlookGraphService
@@ -3928,18 +3930,13 @@ def outlook_delegated_box(request):
 @login_required
 def outlook_delegated_action(request, delegation_id):
     """
-    Handles Notes, Replies, Metadata Updates, RESTORATION, and COMPLETION.
-    Updated to support newline-to-HTML conversion for email bodies.
+    Allows the assigned user to view the full email, add notes, 
+    update metadata, reply (with attachments), and mark as completed.
     """
-    from django.template.loader import render_to_string 
-    
     delegation = get_object_or_404(EmailDelegation, pk=delegation_id)
     
-    # --- ROLE-BASED ACCESS CONTROL ---
-    is_manager = request.user.username.lower() == 'omega' or request.user.is_superuser
-    
-    if not is_manager and delegation.assigned_user != request.user:
-        messages.error(request, "Access restricted. You are not assigned to this task.")
+    if delegation.assigned_user != request.user:
+        messages.error(request, "You are not assigned to this task.")
         return redirect('outlook_delegated_box')
 
     target_email = settings.OUTLOOK_EMAIL_ADDRESS 
@@ -3947,144 +3944,161 @@ def outlook_delegated_action(request, delegation_id):
     if request.method == 'POST':
         action_type = request.POST.get('action_type')
 
-        # --- 1. HANDLE RESTORE ---
-        if action_type == 'restore_to_inbox':
-            delegation.work_related = True
-            delegation.status = 'NEW'
-            delegation.assigned_user = None 
-            delegation.save()
-
-            add_delegation_note(
-                delegation_id, 
-                request.user, 
-                "ACTION: Restored task from Recycle Bin to Main Inbox queue."
-            )
-            messages.success(request, "Email successfully restored to the Live Inbox.")
-            return redirect('outlook_recycle_bin')
-
-        # --- 2. HANDLE COMPLETE ---
-        elif action_type == 'mark_complete':
+        # 1. Handle Task Completion
+        if action_type == 'complete_task':
             delegation.status = 'COM'
             delegation.save()
-
-            add_delegation_note(
-                delegation_id, 
-                request.user, 
-                "ACTION: Task marked as COMPLETED. Removed from active queue."
-            )
-            messages.success(request, "Task successfully marked as Completed.")
+            log_delegation_transaction(delegation_id, request.user, "TASK COMPLETED", "Email marked as completed.", action_type='TASK_COMPLETE')
+            messages.success(request, f"Task #{delegation_id} archived.")
             return redirect('outlook_delegated_box')
 
-        # --- 3. HANDLE METADATA UPDATES ---
+        # 2. Handle Metadata Update
         elif action_type == 'update_metadata':
-            delegation.company_code = request.POST.get('company_code')
+            delegation.mip_names = request.POST.get('mip_names')
             delegation.email_category = request.POST.get('email_category')
-            delegation.status = request.POST.get('status')
+            delegation.communication_type = request.POST.get('communication_type')
             delegation.save()
-
-            add_delegation_note(
-                delegation_id, 
-                request.user, 
-                f"SYSTEM: Metadata Updated. Status: [{delegation.status}], Category: [{delegation.email_category}]"
-            )
-            messages.success(request, "Task metadata updated successfully.")
+            log_delegation_transaction(delegation_id, request.user, f"Metadata Updated", "System", action_type='METADATA_UPDATE')
+            messages.success(request, "Task metadata updated.")
             return redirect('outlook_delegated_action', delegation_id=delegation_id)
 
-        # --- 4. HANDLE NOTE SUBMISSION ---
+        # 3. Handle Note Submission
         elif action_type == 'add_note':
-            note_content = request.POST.get('internal_note')
+            note_content = request.POST.get('note_content')
             success, message = add_delegation_note(delegation_id, request.user, note_content)
-            if success: 
-                messages.success(request, "Internal note saved.")
-            else:
-                messages.error(request, message)
+            
+            if success:
+                # 🟢 CRITICAL SYSTEM ADDITION: Write manual internal note entry straight to ClientNotes 
+                ClientNotes.objects.create(
+                    acvv_record=Globalacvv.objects.filter(Q(mip_names=delegation.mip_names) | Q(branch_code=delegation.mip_names)).first(),
+                    notes=note_content,
+                    user=request.user.username,
+                    date=timezone.now(),
+                    communication_type="Internal Note",
+                    action_note_type=delegation.email_category or "Task Note"
+                )
+                messages.success(request, message)
             return redirect('outlook_delegated_action', delegation_id=delegation_id)
         
-        # --- 5. HANDLE REPLY/SEND EMAIL ---
-        elif 'reply_recipient' in request.POST:
+        # 4. Handle Reply
+        elif action_type == 'send_reply':
             recipient = request.POST.get('reply_recipient')
-            raw_subject = request.POST.get('reply_subject')
-            subject = raw_subject if raw_subject else f"Reply: {delegation.email_category or 'Task Action'}"
+            subject = request.POST.get('reply_subject')
+            body = request.POST.get('reply_body')
             
-            # 🚀 FIX: Convert textarea newlines to HTML <br> tags
-            raw_body = request.POST.get('reply_body', '')
-            formatted_body = raw_body.replace('\r\n', '<br>').replace('\n', '<br>')
+            # --- MULTI-ATTACHMENT UPDATE ---
+            attachments_list = request.FILES.getlist('email_attachments')
+            fallback_single_attachment = attachments_list[0] if attachments_list else None
             
-            action_destination = request.POST.get('action_notes', 'EMAIL_REPLY')
-            cc_recipients = request.POST.get('member_cc_email', '')
-            bcc_recipients = request.POST.get('member_bcc_email', '')
-            log_type = request.POST.get('email_log_type', 'REPLY') 
-            reply_files = request.FILES.getlist('reply_files')
-
-            signature_html = render_to_string('unity_internal_app/email_signature.html')
-            final_body_html = f"{formatted_body}<br>{signature_html}"
-
-            response = OutlookGraphService.send_outlook_email(
-                target_email=target_email, 
-                recipient_email=recipient, 
-                subject=subject, 
-                body_content=final_body_html,
-                content_type='HTML',
-                user=request.user,
-                attachments=reply_files,
-                cc_email=cc_recipients,
-                bcc_email=bcc_recipients
-            )
+            selected_action_type = request.POST.get('action_log_type') or "Correspondence"
             
-            if response.get('success'):
-                final_action_type = 'REPLIED' if log_type == 'REPLY' else action_destination
-                tracking_metadata = f"{subject} | CC: {cc_recipients or 'None'} | BCC: {bcc_recipients or 'None'}"
-                
+            # Pass down the complete file objects array context list safely
+            result = OutlookGraphService.send_outlook_email(target_email, recipient, subject, body, content_type='Html', attachments=attachments_list)
+            
+            if result.get('success'):
+                # 🚀 FIX: Pass body=body to log the actual text sent
                 log_delegation_transaction(
                     delegation_id, 
                     request.user, 
-                    tracking_metadata, 
+                    subject, 
                     recipient, 
-                    action_type=final_action_type,
-                    body=final_body_html  # 🚀 ADDED: Passes the body to the logger
+                    action_type='EMAIL_REPLY',
+                    body=body 
                 )
                 
-                file_count = len(reply_files)
-                messages.success(request, f"Reply sent successfully with {file_count} attachment(s).")
-            else:
-                messages.error(request, f"Failed to send email: {response.get('error')}")
+                new_ms_id = result.get('message_id') or f"REPLY-{timezone.now().timestamp()}"
                 
+                EmailDelegation.objects.create(
+                    email_id=new_ms_id,
+                    subject=subject,
+                    body=body,
+                    attachment=fallback_single_attachment,
+                    sender_address=target_email,
+                    assigned_user=request.user,
+                    status='SENT',
+                    mip_names=delegation.mip_names,
+                    received_at=timezone.now(),
+                    delegated_at=timezone.now(),
+                    work_related=True,
+                    communication_type='Reply'
+                )
+                
+                ClientNotes.objects.create(
+                    acvv_record=Globalacvv.objects.filter(Q(mip_names=delegation.mip_names) | Q(branch_code=delegation.mip_names)).first(),
+                    notes=f"Reply Sent: {subject}\nRecipient: {recipient}",
+                    user=request.user.username,
+                    date=timezone.now(),
+                    communication_type="Email",
+                    action_note_type=selected_action_type 
+                )
+                
+                messages.success(request, "Reply sent.")
+            else:
+                messages.error(request, f"Reply failed: {result.get('error')}")
             return redirect('outlook_delegated_action', delegation_id=delegation_id)
 
-    # --- GET DATA WITH 404 SAFETY HANDLING ---
-    endpoint = f"messages/{delegation.email_id}"
-    email_data = OutlookGraphService._make_graph_request(endpoint, target_email, method='GET')
+    # --- FETCH Data for GET ---
+    acvv_records = Globalacvv.objects.all().only('mip_names', 'branch_code')
     
-    if isinstance(email_data, dict) and email_data.get('details', {}).get('code') == 'ErrorItemNotFound':
-        email_display = {
-            'subject': delegation.email_category or 'Email Thread', 
-            'body': {'content': '<div class="alert alert-warning">This email has been moved or archived. Live content is temporarily unavailable.</div>'}
+    if delegation.email_id.startswith('SENT-') or delegation.email_id.startswith('REPLY-') or delegation.email_id.startswith('LOCAL-'):
+        email_data = {
+            'subject': delegation.subject,
+            'body': {'content': delegation.body or "Local preview content not found."},
+            'from': {'emailAddress': {'address': delegation.sender_address or target_email}}
         }
         attachments = []
+        if delegation.attachment:
+            attachments = [{
+                'name': os.path.basename(delegation.attachment.name),
+                'url': delegation.attachment.url,
+                'contentType': 'application/octet-stream',
+                'is_local': True
+            }]
     else:
-        attachments = OutlookGraphService.fetch_attachments(target_email, delegation.email_id)
-        for att in attachments:
-            content_type = att.get('contentType', '').lower()
-            if 'image' in content_type:
-                raw_att = OutlookGraphService.get_attachment_raw(target_email, delegation.email_id, att['id'])
-                if isinstance(raw_att, dict) and 'contentBytes' in raw_att:
-                    att['contentBytes'] = raw_att['contentBytes']
-        
-        if isinstance(email_data, dict) and 'error' in email_data:
-            messages.warning(request, "Could not fetch live email content.")
-            email_display = {'subject': delegation.email_id, 'body': {'content': 'Live content unavailable.'}}
-        else:
-            email_display = email_data
+        # 🔑 SAFELY WRAP OUTLOOK MICROSOFT LIVE API CALLS IN EXCEPTION TRY BLOCKS
+        try:
+            email_data = OutlookGraphService.fetch_outlook_data(f"messages/{delegation.email_id}", target_email)
+            
+            is_404_error = False
+            if isinstance(email_data, dict):
+                error_value = str(email_data.get('error', ''))
+                details_value = str(email_data.get('details', ''))
+                
+                if "Status 404" in error_value or "ErrorItemNotFound" in details_value:
+                    is_404_error = True
+            elif isinstance(email_data, str) and "ErrorItemNotFound" in email_data:
+                is_404_error = True
+
+            if is_404_error:
+                raise Exception("ErrorItemNotFound")
+
+            # FIX: Used new fetch_outlook_data for attachment retrieval
+            attachment_endpoint = f"messages/{delegation.email_id}/attachments"
+            attachment_data = OutlookGraphService.fetch_outlook_data(attachment_endpoint, target_email)
+            attachments = attachment_data.get('value', []) if isinstance(attachment_data, dict) and 'error' not in attachment_data else []
+
+        except Exception as graph_error:
+            if "ErrorItemNotFound" in str(graph_error) or "404" in str(graph_error):
+                # 🚀 ADDED: PURGE THE BROKEN RECORD TO STOP THE REDIRECT LOOP
+                delegation.delete()
+                messages.warning(request, "This email could not be found (moved or deleted). Task removed from your list.")
+                return redirect('outlook_delegated_box')
+            else:
+                raise graph_error
+
+    if isinstance(email_data, dict) and 'error' in email_data and not email_data.get('subject'):
+        messages.error(request, f"Error fetching content: {email_data.get('error')}")
+        return redirect('outlook_delegated_box')
 
     context = {
         'delegation': delegation,
-        'email': email_display,
+        'email': email_data,
         'attachments': attachments,
         'notes': delegation.notes.all().order_by('-created_at'),
+        'acvv_records': acvv_records,
         'target_email': target_email,
-        'is_manager': is_manager,
     }
-    return render(request, 'unity_internal_app/outlook_delegated_action.html', context)
+    return render(request, 'acvv_app/outlook_delegated_action.html', context)
 
 @login_required
 def outlook_delegate_to(request, email_id):

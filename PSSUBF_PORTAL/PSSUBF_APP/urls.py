@@ -42,10 +42,14 @@ urlpatterns = [
     path('adhoc/', views.ad_hoc_list_view, name='adhoc_list'),
     path('get-beneficiary-data/<str:membership_number>/', views.get_beneficiary_data, name='get_beneficiary_data'),
     path('get-claim-details/<int:claim_id>/', views.get_claim_details, name='get_claim_details'),
+    
+    # NEW PATH ADDED FOR AD HOC MODAL DATA FETCHING
+    path('get-adhoc-details/<int:record_id>/', views.get_adhoc_details, name='get_adhoc_details'),
+    
     path('export-adhoc/', views.export_adhoc_excel, name='export_adhoc'),
     path('claims/export/', views.export_claims_excel, name='export_claims'),
     path('affordability-tool/', views.affordability_dashboard, name='affordability_dashboard'),
-    path('affordability/run/', views.run_manual_calc, name='run_manual_calc'),  
+    path('affordability/run/', views.run_manual_calc, name='run_manual_calc'),   
     path('email/download/<str:email_id>/', views.download_email_eml, name='download_email_eml'),
     path('reports/sla/', views.claim_sla_report_view, name='claim_sla_report'),
     path('download-pdf/<int:claim_id>/', views.download_claim_pdf, name='download_claim_pdf'),

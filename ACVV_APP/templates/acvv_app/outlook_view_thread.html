@@ -6,90 +6,303 @@
     <title>Email Thread | {{ task.subject }}</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f7f6; color: #333; margin: 0; padding: 20px; }
-        .thread-page-wrapper { max-width: 1100px; margin: 0 auto; }
-        .action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #ddd; }
-        .return-button { padding: 10px 18px; background-color: #43a047; color: white; text-decoration: none; border-radius: 6px; font-weight: 500; transition: background 0.3s; }
-        .return-button:hover { background-color: #2e7d32; }
-        .email-thread-card { background: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 40px; border-left: 5px solid #1976d2; }
-        .card-header-main { padding: 20px; background-color: #fafafa; border-bottom: 1px solid #eee; border-top-right-radius: 8px; }
-        .card-header-main h3 { margin: 0 0 10px 0; color: #1976d2; }
-        .card-body-content { padding: 25px; line-height: 1.7; overflow-x: auto; }
-        .attachment-history-section { padding: 20px; background-color: #f1f8e9; border-top: 2px solid #aed581; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
-        .attachment-gallery { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 10px; }
-        .attachment-card { display: flex; flex-direction: column; align-items: center; width: 140px; background: #fff; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: transform 0.2s; }
-        .attachment-card:hover { transform: translateY(-3px); border-color: #43a047; }
-        .preview-container { width: 120px; height: 80px; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 4px; background: #f8f9fa; margin-bottom: 8px; border: 1px solid #eee; }
-        .preview-container img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; }
-        .file-icon { font-size: 35px; }
-        .file-name { font-size: 11px; font-weight: bold; text-align: center; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #333; margin-bottom: 5px; }
-        .btn-download-small { background-color: #43a047; color: white; text-decoration: none; padding: 6px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; width: 100%; text-align: center; box-sizing: border-box; display: inline-block; transition: 0.2s; margin-top: 8px; }
-        .btn-download-small:hover { background-color: #2e7d32; }
-        .timeline-container { position: relative; padding-left: 50px; margin-top: 20px; }
-        .timeline-container::before { content: ''; position: absolute; left: 20px; top: 0; bottom: 0; width: 3px; background: #cbd5e0; }
-        .timeline-event { position: relative; background: white; padding: 18px; margin-bottom: 25px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
-        .timeline-icon { position: absolute; left: -39px; top: 20px; width: 14px; height: 14px; background: #cbd5e0; border: 4px solid white; border-radius: 50%; z-index: 2; box-shadow: 0 0 0 3px #f4f7f6; }
-        .badge-status { display: inline-block; padding: 4px 12px; border-radius: 50px; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 10px; }
+        /* --- General Page Styling --- */
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .thread-page-wrapper {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        /* --- Action Bar --- */
+        .action-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .return-button {
+            padding: 10px 18px;
+            background-color: #43a047;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+
+        .return-button:hover {
+            background-color: #2e7d32;
+        }
+
+        /* Download EML Button Styling */
+        .download-eml-button {
+            padding: 10px 18px;
+            background-color: #1976d2;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: background 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .download-eml-button:hover {
+            background-color: #1565c0;
+        }
+
+        /* --- Original Email Card --- */
+        .email-thread-card {
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            margin-bottom: 40px;
+            border-left: 5px solid #1976d2;
+            overflow: hidden; 
+        }
+
+        .card-header-main {
+            padding: 20px;
+            background-color: #fafafa;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .card-header-main h3 {
+            margin: 0 0 10px 0;
+            color: #1976d2;
+        }
+
+        .card-body-content {
+            padding: 25px;
+            line-height: 1.7;
+            overflow-x: auto;
+        }
+
+        /* --- ATTACHMENT SECTION --- */
+        .attachment-section {
+            background-color: #f8fafc;
+            padding: 15px 25px;
+            border-top: 1px solid #edf2f7;
+        }
+
+        /* Attachment Pill */
+        .attachment-pill {
+            display: inline-flex;
+            align-items: center;
+            background: #fff;
+            padding: 6px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 200px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            color: #2d3748;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        /* Buttons for View and Download */
+        .att-action-btn {
+            margin-left: 6px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            background-color: #edf2f7;
+            color: #2b6cb0;
+            text-decoration: none;
+            font-size: 11px;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .att-action-btn:hover {
+            background-color: #e2e8f0;
+            color: #1a365d;
+        }
+
+        /* --- Timeline (Audit Trail) --- */
+        .timeline-container {
+            position: relative;
+            padding-left: 50px;
+            margin-top: 20px;
+        }
+
+        .timeline-container::before {
+            content: '';
+            position: absolute;
+            left: 20px;
+            top: 0;
+            bottom: 0;
+            width: 3px;
+            background: #cbd5e0;
+        }
+
+        .timeline-event {
+            position: relative;
+            background: white;
+            padding: 18px;
+            margin-bottom: 25px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+        }
+
+        .timeline-icon {
+            position: absolute;
+            left: -39px;
+            top: 20px;
+            width: 14px;
+            height: 14px;
+            background: #cbd5e0;
+            border: 4px solid white;
+            border-radius: 50%;
+            z-index: 2;
+            box-shadow: 0 0 0 3px #f4f7f6;
+        }
+
+        .badge-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 50px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        /* Action Badges */
         .bg-delegated { background-color: #ebf8ff; color: #2b6cb0; }
         .bg-reply { background-color: #f3e5f5; color: #7b1fa2; }
-        .bg-direct { background-color: #fff3e0; color: #e65100; }
         .bg-default { background-color: #f0fff4; color: #2f855a; }
-        .event-meta { display: block; margin-top: 10px; font-size: 12px; color: #718096; border-top: 1px solid #f7fafc; padding-top: 8px; }
-        .event-text { font-size: 14px; color: #2d3748; margin: 5px 0; }
-        .email-details-block { background-color: #f8f9fa; border-left: 3px solid #ccc; padding: 12px; margin-top: 10px; border-radius: 0 6px 6px 0; }
-        .reply-body-container { background: white; border: 1px solid #e2e8f0; padding: 15px; border-radius: 6px; margin-top: 10px; max-height: 300px; overflow-y: auto; font-size: 13.5px; line-height: 1.5; color: #444; }
+
+        .event-meta {
+            display: block;
+            margin-top: 10px;
+            font-size: 12px;
+            color: #718096;
+            border-top: 1px solid #f7fafc;
+            padding-top: 8px;
+        }
+
+        .event-text {
+            font-size: 14px;
+            color: #2d3748;
+            margin: 0;
+        }
+
+        /* Inner blocks for detailed timeline actions (emails) */
+        .email-details-block {
+            background-color: #f8f9fa;
+            border-left: 3px solid #ccc;
+            padding: 12px;
+            margin-top: 10px;
+            border-radius: 0 6px 6px 0;
+        }
+        
+        .reply-body-container {
+            background: white;
+            border: 1px solid #e2e8f0;
+            padding: 15px;
+            border-radius: 6px;
+            margin-top: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-size: 13.5px;
+            line-height: 1.5;
+            color: #444;
+        }
     </style>
 </head>
 <body>
 
 <div class="thread-page-wrapper">
+    
     <div class="action-bar">
         <div>
             <h1 style="margin:0; color: #2e7d32;">Communication History</h1>
             <p style="margin:0; color: #666;">Ref: {{ task.mip_names|default:"N/A" }}</p>
         </div>
-        <a href="javascript:history.back()" class="return-button">← Back</a>
+        <div class="button-group">
+            <a href="{% url 'download_acvv_email' delegation_id=task.email_id %}" class="download-eml-button">
+                <i class="fas fa-envelope-open-text"></i> Download Actual Email (.eml)
+            </a>
+            <a href="javascript:history.back()" class="return-button">← Back to Email Log</a>
+        </div>
     </div>
 
     <div class="email-thread-card">
         <div class="card-header-main">
-            <h3>{{ task.subject|default:"(No Subject)" }}</h3>
-            <div style="font-size: 14px; color: #4a5568;">
-                <strong>Incoming Task ID:</strong> {{ task.id }} <br>
-                <strong>Original Arrival:</strong> {{ task.received_at|date:"d M Y, H:i" }}
+            <div>
+                <h3>{{ task.subject|default:"(No Subject)" }}</h3>
+                <div style="font-size: 14px; color: #4a5568;">
+                    <strong>Incoming Task ID:</strong> {{ task.id }} <br>
+                    <strong>Original Arrival:</strong> {{ task.received_at|date:"d M Y, H:i" }}
+                </div>
             </div>
+            <a href="{% url 'download_acvv_email' delegation_id=task.email_id %}" title="Download as .eml file" style="color: #1976d2; font-size: 20px;">
+                <i class="fas fa-file-export"></i>
+            </a>
         </div>
         <div class="card-body-content">
             {{ email_body|safe }}
         </div>
 
+        {# --- ATTACHMENT SECTION --- #}
         {% if attachments %}
-        <div class="attachment-history-section">
-            <strong style="display:block; margin-bottom:10px; color:#2e7d32; font-size: 14px;">
-                <i class="fas fa-paperclip"></i> Files associated with this thread:
-            </strong>
-            <div class="attachment-gallery">
+        <div class="attachment-section">
+            <div style="margin-bottom: 10px; font-size: 13px; font-weight: bold; color: #4a5568;">
+                <i class="fas fa-paperclip" style="color: #1976d2; margin-right: 5px;"></i> Original Attachments:
+            </div>
+            <div style="display: flex; flex-wrap: wrap;">
                 {% for att in attachments %}
-                <div class="attachment-card">
-                    <div class="preview-container">
-                        {% if "image" in att.contentType %}
-                            <i class="fas fa-file-image file-icon" style="color: #607d8b;"></i>
-                        {% elif "spreadsheet" in att.contentType or "excel" in att.name|lower %}
-                            <i class="fas fa-file-excel file-icon" style="color: #1D6F42;"></i>
-                        {% elif "word" in att.contentType or "docx" in att.name|lower %}
-                            <i class="fas fa-file-word file-icon" style="color: #2B579A;"></i>
-                        {% elif "pdf" in att.contentType %}
-                            <i class="fas fa-file-pdf file-icon" style="color: #E02316;"></i>
+                <div class="attachment-pill">
+                    {% if att.contentBytes %}
+                        <img src="data:{{ att.contentType }};base64,{{ att.contentBytes }}" 
+                             style="height: 18px; width: 18px; border-radius: 2px; margin-right: 8px; object-fit: cover;">
+                    {% elif "image" in att.contentType %}
+                        <i class="fas fa-file-image" style="margin-right: 8px; color: #607d8b;"></i>
+                    {% elif "pdf" in att.contentType %}
+                        <i class="fas fa-file-pdf" style="margin-right: 8px; color: #E02316;"></i>
+                    {% else %}
+                        <i class="fas fa-file-alt" style="margin-right: 8px; color: #718096;"></i>
+                    {% endif %}
+                    
+                    {{ att.name }}
+                    <span style="font-weight: normal; color: #a0aec0; margin-left: 5px;">({{ att.size|filesizeformat }})</span>
+                    
+                    <div style="margin-left: 12px; border-left: 1px solid #e2e8f0; padding-left: 8px; display: flex; gap: 4px;">
+                        {% if att.is_local %}
+                            <a href="{{ att.url }}" target="_blank" class="att-action-btn" title="View in Browser">
+                                <i class="fas fa-eye"></i> View
+                            </a>
+                            <a href="{{ att.url }}" download class="att-action-btn" title="Download File">
+                                <i class="fas fa-download"></i> Download
+                            </a>
                         {% else %}
-                            <i class="fas fa-file-alt file-icon" style="color: #607d8b;"></i>
+                            <a href="{% url 'download_attachment' message_id=task.email_id attachment_id=att.id %}" target="_blank" class="att-action-btn" title="View in Browser">
+                                <i class="fas fa-eye"></i> View
+                            </a>
+                            <a href="{% url 'download_attachment' message_id=task.email_id attachment_id=att.id %}" download class="att-action-btn" title="Download File">
+                                <i class="fas fa-download"></i> Download
+                            </a>
                         {% endif %}
                     </div>
-                    <div class="file-name" title="{{ att.name }}">{{ att.name }}</div>
-                    <span style="font-size: 9px; color: #999;">{{ att.size|filesizeformat }}</span>
-                    
-                    {% if att.is_local %}
-                        <a href="{{ att.url }}" target="_blank" class="btn-download-small"><i class="fas fa-eye"></i> View File</a>
-                    {% endif %}
                 </div>
                 {% endfor %}
             </div>
@@ -138,8 +351,8 @@
 
                 {% if action.attachment %}
                 <div style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed #ccc;">
-                    <a href="{{ action.attachment.url }}" target="_blank" class="return-button" style="background-color: #1976d2; font-size: 12px; padding: 6px 12px; display: inline-block;">
-                        <i class="fas fa-paperclip mr-1"></i> View Attached Document
+                    <a href="{{ action.attachment.url }}" target="_blank" class="att-action-btn" style="padding: 6px 12px; display: inline-flex; align-items: center; gap: 5px;">
+                        <i class="fas fa-paperclip"></i> View Attached Document
                     </a>
                 </div>
                 {% endif %}
