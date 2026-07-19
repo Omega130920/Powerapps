@@ -193,6 +193,9 @@ def outlook_dashboard_view(request):
 
     return render(request, 'acvv_app/outlook_dashboard.html', context)
 
+
+from django.template.loader import render_to_string
+
 @login_required
 def send_email_view(request):
     """
@@ -212,8 +215,23 @@ def send_email_view(request):
             messages.error(request, "All fields are required.")
             return render(request, 'acvv_app/send_email_form.html', {'target_email': target_email})
         
+        # --- NEW: GENERATE AND APPEND SIGNATURE ---
+        # 1. Define context (Update logo_url to your actual absolute URL if needed)
+        signature_context = {
+            'request': request,
+            'logo_url': 'https://acvv.futurasa.co.za/static/images/futura_logo.png'
+        }
+        
+        # 2. Render the signature HTML from your template
+        signature_html = render_to_string('acvv_app/acvv_email_signature.html', signature_context)
+        
+        # 3. Combine the typed body with the rendered signature
+        full_html_body = f"<div>{body}</div><br><br>{signature_html}"
+        # ------------------------------------------
+
         # Call the service function, passing the target_email as the sender mailbox
-        result = OutlookGraphService.send_outlook_email(target_email, recipient, subject, body, 'HTML')
+        # Ensure we pass 'full_html_body' instead of the raw 'body'
+        result = OutlookGraphService.send_outlook_email(target_email, recipient, subject, full_html_body, 'HTML')
         
         if result.get('success'):
             messages.success(request, f"Email sent successfully from {target_email} to {recipient}.")
@@ -319,6 +337,15 @@ def outlook_delegated_action(request, delegation_id):
             subject = request.POST.get('reply_subject')
             body = request.POST.get('reply_body')
             
+            # --- NEW: GENERATE AND APPEND SIGNATURE ---
+            signature_context = {
+                'request': request,
+                'logo_url': 'https://acvv.futurasa.co.za/static/images/futura_logo.png'
+            }
+            signature_html = render_to_string('acvv_app/acvv_email_signature.html', signature_context)
+            full_html_body = f"<div>{body}</div><br><br>{signature_html}"
+            # ------------------------------------------
+            
             # --- MULTI-ATTACHMENT UPDATE ---
             attachments_list = request.FILES.getlist('email_attachments')
             fallback_single_attachment = attachments_list[0] if attachments_list else None
@@ -326,17 +353,18 @@ def outlook_delegated_action(request, delegation_id):
             selected_action_type = request.POST.get('action_log_type') or "Correspondence"
             
             # Pass down the complete file objects array context list safely
-            result = OutlookGraphService.send_outlook_email(target_email, recipient, subject, body, content_type='Html', attachments=attachments_list)
+            # 🚀 FIX: Passed full_html_body to the Graph Service
+            result = OutlookGraphService.send_outlook_email(target_email, recipient, subject, full_html_body, content_type='Html', attachments=attachments_list)
             
             if result.get('success'):
-                # 🚀 FIX: Passed body=body to the transaction logger
+                # 🚀 FIX: Passed full_html_body to the transaction logger
                 log_delegation_transaction(
                     delegation_id, 
                     request.user, 
                     subject, 
                     recipient, 
                     action_type='EMAIL_REPLY',
-                    body=body 
+                    body=full_html_body 
                 )
                 
                 new_ms_id = result.get('message_id') or f"REPLY-{timezone.now().timestamp()}"
@@ -344,7 +372,7 @@ def outlook_delegated_action(request, delegation_id):
                 EmailDelegation.objects.create(
                     email_id=new_ms_id,
                     subject=subject,
-                    body=body,
+                    body=full_html_body,  # Saved the signature format to the DB as well
                     attachment=fallback_single_attachment,
                     sender_address=target_email,
                     assigned_user=request.user,
