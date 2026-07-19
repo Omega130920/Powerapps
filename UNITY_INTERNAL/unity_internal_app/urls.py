@@ -71,13 +71,10 @@ urlpatterns = [
     # --- Outlook DELEGATOR Paths ---
     path('outlook/', views.outlook_dashboard_view, name='outlook_dashboard'), 
     path('outlook/send/', views.send_email_view, name='send_email'), 
-    # 🚀 Changed to <path:> to handle Microsoft Graph ID slashes
     path('outlook/delegate/<path:email_id>//', views.outlook_delegate_to, name='outlook_delegate_to'),
     path('outlook/recycle-bin/', views.outlook_recycle_bin_view, name='outlook_recycle_bin'),
     path('outlook/delete-permanent/', views.outlook_delete_permanent, name='outlook_delete_permanent'),
-    # 🚀 Changed to <path:> to handle Microsoft Graph ID slashes
     path('view-email-thread/<path:email_id>/', views.view_email_thread, name='view_email_thread'),
-    # 🚀 Changed to <path:> for both ID segments
     path('outlook/download/<path:message_id>/<path:attachment_id>/', views.download_attachment_view, name='download_attachment'),
 
     # --- Outlook DELEGATED Paths ---
@@ -87,8 +84,10 @@ urlpatterns = [
     # Email Archive & Exports
     path('emails/archive/', views.email_list_view, name='email_list'),
     path('emails/export/', views.export_email_list, name='export_email_list'),
-    # 🚀 Changed to <path:>
+    # 🚀 Added alias 'download_actual_email' to resolve the NoReverseMatch error
     path('download-email/<path:email_id>/', views.download_email_file, name='download_email_file'),
+    path('download-email/<path:email_id>/', views.download_email_file, name='download_actual_email'),
+    
     path('export_two_pot_invoice/', views.export_two_pot_invoice, name='export_two_pot_invoice'),
     path('export_two_pot_tracking/', views.export_two_pot_tracking, name='export_two_pot_tracking'),
     

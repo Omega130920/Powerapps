@@ -826,16 +826,17 @@ class DelegationNote(models.Model):
 # 4. Delegation Transaction Log (Required by delegation_service.py)
 class DelegationTransactionLog(models.Model):
     """Audit log for actions taken on a delegated task (e.g., email reply)."""
-    # ForeignKey uses the new EmailDelegation model
     delegation = models.ForeignKey(EmailDelegation, on_delete=models.CASCADE, related_name='transactions')
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     action_type = models.CharField(max_length=50) # e.g., 'EMAIL_REPLY', 'TASK_COMPLETE'
     subject = models.CharField(max_length=255)
     recipient_email = models.EmailField()
+    body = models.TextField(null=True, blank=True) # <--- ADD THIS LINE
     timestamp = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        # Django will automatically name this table 'unity_internal_delegationtransactionlog'
+        managed = False # Ensure this remains False
+        db_table = 'unity_internal_delegationtransactionlog'
         app_label = 'unity_internal'
         verbose_name = 'Delegation Transaction Log'
         ordering = ['-timestamp']

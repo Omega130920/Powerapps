@@ -3713,7 +3713,7 @@ User = get_user_model() # Alias for the User model
 
 # Assuming there are other required imports here (e.g., from unity_internal_app.models import ...)
 
-
+from django.utils.dateparse import parse_datetime
 @login_required
 def outlook_dashboard_view(request):
     if request.user.username.lower() != 'omega' and not request.user.is_superuser:
@@ -3724,7 +3724,7 @@ def outlook_dashboard_view(request):
     
     # --- Capture Search and Sort Params ---
     search_query = request.GET.get('q', '').strip().lower()
-    sort_order = request.GET.get('sort', 'newest') # Default to Newest
+    sort_order = request.GET.get('sort', 'newest')
     
     context = {
         'target_email': target_email, 
@@ -3753,32 +3753,33 @@ def outlook_dashboard_view(request):
             received_date_str = email.get('receivedDateTime') 
             delegation, created = EmailDelegation.objects.get_or_create(
                 email_id=email_id,
-                defaults={'received_at': received_date_str, 'status': 'NEW'}
+                defaults={'received_at': parse_datetime(received_date_str) if received_date_str else None, 'status': 'NEW'}
             )
             
             local_record = local_inbox_map.get(email_id)
-            # Standardize date for sorting logic
-            sort_date = local_record.received_at if local_record else received_date_str
             
-            email['internal_received_at'] = sort_date
+            # 🚀 NORMALIZATION: Ensure sort value is always a datetime object
+            sort_val = local_record.received_at if local_record and local_record.received_at else parse_datetime(received_date_str)
+            
+            # Fallback to datetime.min if parsing failed so sorting doesn't crash
+            email['internal_received_at'] = sort_val if isinstance(sort_val, datetime) else datetime.min
+            
             email['delegation_status'] = delegation.get_status_display()
             email['delegation_id'] = delegation.pk 
 
-            # --- 2. WILDCARD SEARCH LOGIC ---
+            # --- SEARCH LOGIC ---
             if search_query:
                 subject = email.get('subject', '').lower()
                 sender = email.get('from', {}).get('emailAddress', {}).get('address', '').lower()
                 sender_name = email.get('from', {}).get('emailAddress', {}).get('name', '').lower()
                 
-                # If search term isn't in subject or sender, skip this email
                 if search_query not in subject and search_query not in sender and search_query not in sender_name:
                     continue
 
             filtered_emails.append(email)
             
         # --- 3. DATE SORTER LOGIC ---
-        # Note: local_record.received_at is a datetime object, received_date_str is a string.
-        # Python handles string ISO dates or datetime objects well in sorted()
+        # Now filtering strictly by datetime objects
         reverse_sort = (sort_order == 'newest')
         filtered_emails.sort(key=lambda x: x['internal_received_at'], reverse=reverse_sort)
             
@@ -3928,9 +3929,9 @@ def outlook_delegated_box(request):
 def outlook_delegated_action(request, delegation_id):
     """
     Handles Notes, Replies, Metadata Updates, RESTORATION, and COMPLETION.
-    Updated to support MULTIPLE file attachments with replies, parsing robust CC/BCC inputs.
+    Updated to support newline-to-HTML conversion for email bodies.
     """
-    from django.template.loader import render_to_string # 🚀 ADDED IMPORT 🚀
+    from django.template.loader import render_to_string 
     
     delegation = get_object_or_404(EmailDelegation, pk=delegation_id)
     
@@ -3999,42 +4000,39 @@ def outlook_delegated_action(request, delegation_id):
                 messages.error(request, message)
             return redirect('outlook_delegated_action', delegation_id=delegation_id)
         
-        # --- 5. HANDLE REPLY/SEND EMAIL (MULTIPLE ATTACHMENT, CC & BCC PARSING) ---
+        # --- 5. HANDLE REPLY/SEND EMAIL ---
         elif 'reply_recipient' in request.POST:
             recipient = request.POST.get('reply_recipient')
             raw_subject = request.POST.get('reply_subject')
             subject = raw_subject if raw_subject else f"Reply: {delegation.email_category or 'Task Action'}"
-            body_html = request.POST.get('reply_body')
-            action_destination = request.POST.get('action_notes', 'EMAIL_REPLY')
             
-            # 🚀 ROBUST VALUE CAPTURE MATCHING HTML INPUT NAMES
+            # 🚀 FIX: Convert textarea newlines to HTML <br> tags
+            raw_body = request.POST.get('reply_body', '')
+            formatted_body = raw_body.replace('\r\n', '<br>').replace('\n', '<br>')
+            
+            action_destination = request.POST.get('action_notes', 'EMAIL_REPLY')
             cc_recipients = request.POST.get('member_cc_email', '')
             bcc_recipients = request.POST.get('member_bcc_email', '')
-            
             log_type = request.POST.get('email_log_type', 'REPLY') 
             reply_files = request.FILES.getlist('reply_files')
 
-            # --- 🚀 ADDED SIGNATURE LOGIC 🚀 ---
             signature_html = render_to_string('unity_internal_app/email_signature.html')
-            final_body_html = f"{body_html}<br>{signature_html}"
+            final_body_html = f"{formatted_body}<br>{signature_html}"
 
-            # Pass the list of files to the service with exact keyword naming parameters
             response = OutlookGraphService.send_outlook_email(
                 target_email=target_email, 
                 recipient_email=recipient, 
                 subject=subject, 
-                body_content=final_body_html, # 🚀 USING final_body_html 🚀
+                body_content=final_body_html,
                 content_type='HTML',
                 user=request.user,
                 attachments=reply_files,
-                cc_email=cc_recipients,    # 🚀 Mapped explicitly to pass parsing checks
-                bcc_email=bcc_recipients   # 🚀 Mapped explicitly to pass parsing checks
+                cc_email=cc_recipients,
+                bcc_email=bcc_recipients
             )
             
             if response.get('success'):
                 final_action_type = 'REPLIED' if log_type == 'REPLY' else action_destination
-                
-                # Format an audit trace tracking line for transaction records
                 tracking_metadata = f"{subject} | CC: {cc_recipients or 'None'} | BCC: {bcc_recipients or 'None'}"
                 
                 log_delegation_transaction(
@@ -4042,7 +4040,8 @@ def outlook_delegated_action(request, delegation_id):
                     request.user, 
                     tracking_metadata, 
                     recipient, 
-                    action_type=final_action_type 
+                    action_type=final_action_type,
+                    body=final_body_html  # 🚀 ADDED: Passes the body to the logger
                 )
                 
                 file_count = len(reply_files)
@@ -4052,25 +4051,30 @@ def outlook_delegated_action(request, delegation_id):
                 
             return redirect('outlook_delegated_action', delegation_id=delegation_id)
 
-    # --- GET DATA ---
+    # --- GET DATA WITH 404 SAFETY HANDLING ---
     endpoint = f"messages/{delegation.email_id}"
     email_data = OutlookGraphService._make_graph_request(endpoint, target_email, method='GET')
     
-    attachments = OutlookGraphService.fetch_attachments(target_email, delegation.email_id)
-    
-    # Loop through attachments for image previews
-    for att in attachments:
-        content_type = att.get('contentType', '').lower()
-        if 'image' in content_type:
-            raw_att = OutlookGraphService.get_attachment_raw(target_email, delegation.email_id, att['id'])
-            if isinstance(raw_att, dict) and 'contentBytes' in raw_att:
-                att['contentBytes'] = raw_att['contentBytes']
-    
-    if isinstance(email_data, dict) and 'error' in email_data:
-        messages.warning(request, "Could not fetch live email content.")
-        email_display = {'subject': delegation.email_id, 'body': {'content': 'Live content unavailable.'}}
+    if isinstance(email_data, dict) and email_data.get('details', {}).get('code') == 'ErrorItemNotFound':
+        email_display = {
+            'subject': delegation.email_category or 'Email Thread', 
+            'body': {'content': '<div class="alert alert-warning">This email has been moved or archived. Live content is temporarily unavailable.</div>'}
+        }
+        attachments = []
     else:
-        email_display = email_data
+        attachments = OutlookGraphService.fetch_attachments(target_email, delegation.email_id)
+        for att in attachments:
+            content_type = att.get('contentType', '').lower()
+            if 'image' in content_type:
+                raw_att = OutlookGraphService.get_attachment_raw(target_email, delegation.email_id, att['id'])
+                if isinstance(raw_att, dict) and 'contentBytes' in raw_att:
+                    att['contentBytes'] = raw_att['contentBytes']
+        
+        if isinstance(email_data, dict) and 'error' in email_data:
+            messages.warning(request, "Could not fetch live email content.")
+            email_display = {'subject': delegation.email_id, 'body': {'content': 'Live content unavailable.'}}
+        else:
+            email_display = email_data
 
     context = {
         'delegation': delegation,
@@ -4294,74 +4298,76 @@ def view_email_thread(request, email_id):
     automated transactions, delegation notes, and manual unity notes.
     """
     from .models import EmailDelegation, DelegationTransactionLog, UnityNotes, DelegationNote, OutlookInbox
+    from django.http import Http404
 
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
-    
-    # 1. Fetch Live Content from Graph API
-    endpoint = f"messages/{email_id}"
-    email_data = OutlookGraphService._make_graph_request(endpoint, target_email, method='GET')
-    
-    # Ensure email_data is a dictionary for safe template lookup
-    if not isinstance(email_data, dict):
-        email_data = {}
 
-    if 'error' in email_data:
-        messages.error(request, f"Microsoft Graph Error: {email_data.get('error')}")
-        return redirect(request.META.get('HTTP_REFERER', 'outlook_dashboard'))
-
-    # 2. Handle Attachments
-    attachments = OutlookGraphService.fetch_attachments(target_email, email_id)
-    for att in attachments:
-        # Check if it's an image to provide a base64 preview
-        content_type = att.get('contentType', '').lower()
-        if 'image' in content_type:
-            raw_att = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
-            # Safeguard against raw_att not containing contentBytes
-            if isinstance(raw_att, dict) and 'contentBytes' in raw_att:
-                att['contentBytes'] = raw_att.get('contentBytes')
-
-    email_body = email_data.get('body', {}).get('content', '')
-
-    # 3. Fetch Local Data (Task, Transactions, and Manual Notes)
-    # Using .first() prevents 404s on Direct Emails (Sent Items)
+    # 1. Fetch Local Data (Task, Transactions, and Manual Notes)
+    # We fetch this first so we have access to local data even if Graph API call fails
     task = EmailDelegation.objects.filter(email_id=email_id).first()
+    inbox_item = OutlookInbox.objects.filter(email_id=email_id).first()
     
+    # 2. Fetch Live Content from Graph API with 404 safety
+    email_body = "Could not retrieve content from Outlook (Email may have been moved or archived)."
+    attachments = []
+    email_data = {}
+
+    try:
+        endpoint = f"messages/{email_id}"
+        email_data = OutlookGraphService._make_graph_request(endpoint, target_email, method='GET')
+        
+        # Check if email is missing in Outlook
+        if isinstance(email_data, dict) and email_data.get('details', {}).get('code') == 'ErrorItemNotFound':
+            if inbox_item:
+                email_body = inbox_item.body_content
+        elif isinstance(email_data, dict) and 'error' not in email_data:
+            email_body = email_data.get('body', {}).get('content', "")
+            
+            # 3. Handle Attachments (Only if email exists in Outlook)
+            attachments = OutlookGraphService.fetch_attachments(target_email, email_id)
+            for att in attachments:
+                content_type = att.get('contentType', '').lower()
+                if 'image' in content_type:
+                    raw_att = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
+                    if isinstance(raw_att, dict) and 'contentBytes' in raw_att:
+                        att['contentBytes'] = raw_att.get('contentBytes')
+        elif inbox_item:
+            email_body = inbox_item.body_content
+            
+    except Exception as e:
+        logger.error(f"Error in view_email_thread: {e}")
+        if inbox_item:
+            email_body = inbox_item.body_content
+
+    # 4. Fetch Audit Trail Data
     actions = []
     delegation_notes = []
     if task:
         actions = list(DelegationTransactionLog.objects.filter(delegation=task).select_related('user'))
         delegation_notes = list(DelegationNote.objects.filter(delegation=task).select_related('user'))
 
-    # 4. Fetch Manual Unity Notes associated with this Email ID
+    # 5. Fetch Manual Unity Notes associated with this Email ID
     manual_unity_notes = list(UnityNotes.objects.filter(attached_email_id=email_id))
 
-    # 5. Build Combined Timeline
+    # 6. Build Combined Timeline
     combined_timeline = []
-
-    # Map Action logs
     for act in actions:
         combined_timeline.append({'type': 'action', 'date': act.timestamp, 'obj': act})
-    
-    # Map Delegation/Internal notes
     for d_note in delegation_notes:
         combined_timeline.append({'type': 'del_note', 'date': d_note.created_at, 'obj': d_note})
-
-    # Map Unity Management notes (Direct Emails & Manual Logs)
     for u_note in manual_unity_notes:
         combined_timeline.append({'type': 'unity_note', 'date': u_note.date, 'obj': u_note})
 
-    # Sort timeline: Newest at the top
     combined_timeline.sort(key=lambda x: x['date'], reverse=True)
 
-    # 6. Final Context Preparation
+    # 7. Final Context Preparation
     context = {
         'task': task,
-        'email': email_data,
+        'email': email_data if 'error' not in email_data else {'subject': inbox_item.subject if inbox_item else 'Unknown Thread'},
         'email_body': email_body,
         'attachments': attachments,
         'combined_timeline': combined_timeline,
-        # Try to find a local inbox item, otherwise use the task as fallback for metadata
-        'inbox_item': OutlookInbox.objects.filter(email_id=email_id).first() or task, 
+        'inbox_item': inbox_item if inbox_item else task, 
     }
     
     return render(request, 'unity_internal_app/view_email_thread.html', context)

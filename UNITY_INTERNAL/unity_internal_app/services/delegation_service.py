@@ -118,7 +118,7 @@ def get_delegated_emails_for_user(user):
         status__in=['DEL'] # Only show currently delegated/active tasks
     ).order_by('-delegated_at')
     
-def log_delegation_transaction(delegation_id, user, subject, recipient_email, action_type='EMAIL_REPLY'):
+def log_delegation_transaction(delegation_id, user, subject, recipient_email, action_type='EMAIL_REPLY', body=None):
     """Creates a record in the DelegationTransactionLog."""
     try:
         delegation = EmailDelegation.objects.get(pk=delegation_id)
@@ -132,7 +132,8 @@ def log_delegation_transaction(delegation_id, user, subject, recipient_email, ac
             user=user,
             subject=safe_subject,
             recipient_email=safe_recipient,
-            action_type=action_type
+            action_type=action_type,
+            body=body  # 🚀 ADDED: Now properly saves the body content to the database
         )
         return True, "Transaction logged successfully."
     except EmailDelegation.DoesNotExist:

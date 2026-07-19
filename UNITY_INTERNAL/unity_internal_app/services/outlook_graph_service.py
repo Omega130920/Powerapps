@@ -184,13 +184,12 @@ class OutlookGraphService:
     def send_outlook_email(target_email, recipient_email, subject, body_content, content_type='HTML', attachments=None, cc_email=None, bcc_email=None, user=None):
         """
         Sends an email via Microsoft Graph and retrieves the newly created ID 
-        from Sent Items. Fully supports comma/semicolon multi-address string parsing for CC and BCC.
+        by fetching the most recent item in Sent Items, avoiding subject-filter errors.
         """
         
-        # --- NEW: Inject Signature ---
+        # --- Inject Signature ---
         if user and content_type.upper() == 'HTML':
             body_content += get_user_signature(user)
-        # -----------------------------
 
         email_data = {
             "message": {
@@ -199,13 +198,7 @@ class OutlookGraphService:
                     "contentType": content_type, 
                     "content": body_content
                 },
-                "toRecipients": [
-                    {
-                        "emailAddress": {
-                            "address": recipient_email.strip()
-                        }
-                    }
-                ],
+                "toRecipients": [{"emailAddress": {"address": recipient_email.strip()}}],
                 "ccRecipients": [], 
                 "bccRecipients": [], 
                 "attachments": [] 
@@ -213,41 +206,20 @@ class OutlookGraphService:
             "saveToSentItems": "true" 
         }
 
-        # 🚀 ROBUST PARSING SAFETY GUARD FOR CC RECIPIENTS
-        if cc_email:
-            # Replace commas with semicolons to uniform split constraints
-            normalized_cc = str(cc_email).replace(',', ';')
-            cc_list = [addr.strip() for addr in normalized_cc.split(';') if addr.strip()]
-            
-            for address in cc_list:
-                email_data["message"]["ccRecipients"].append({
-                    "emailAddress": {
-                        "address": address
-                    }
-                })
+        # 🚀 ROBUST PARSING FOR CC/BCC
+        for field, key in [(cc_email, "ccRecipients"), (bcc_email, "bccRecipients")]:
+            if field:
+                normalized = str(field).replace(',', ';')
+                addr_list = [addr.strip() for addr in normalized.split(';') if addr.strip()]
+                for address in addr_list:
+                    email_data["message"][key].append({"emailAddress": {"address": address}})
 
-        # 🚀 ROBUST PARSING SAFETY GUARD FOR BCC RECIPIENTS
-        if bcc_email:
-            # Replace commas with semicolons to uniform split constraints
-            normalized_bcc = str(bcc_email).replace(',', ';')
-            bcc_list = [addr.strip() for addr in normalized_bcc.split(';') if addr.strip()]
-            
-            for address in bcc_list:
-                email_data["message"]["bccRecipients"].append({
-                    "emailAddress": {
-                        "address": address
-                    }
-                })
-
-        # Process multiple attachments if they exist
+        # Process Attachments
         if attachments:
             for file in attachments:
                 try:
-                    # Read the file and encode to base64
-                    file.seek(0) # Ensure we read from the start
-                    file_content = file.read()
-                    encoded_string = base64.b64encode(file_content).decode('utf-8')
-                    
+                    file.seek(0)
+                    encoded_string = base64.b64encode(file.read()).decode('utf-8')
                     email_data["message"]["attachments"].append({
                         "@odata.type": "#microsoft.graph.fileAttachment",
                         "name": file.name,
@@ -255,15 +227,18 @@ class OutlookGraphService:
                         "contentBytes": encoded_string
                     })
                 except Exception as e:
-                    logger.error(f"Failed to package attachment '{getattr(file, 'name', 'Unknown')}': {e}")
+                    logger.error(f"Failed to package attachment: {e}")
         
+        # Send
         endpoint = "sendMail"
         send_res = OutlookGraphService._make_graph_request(endpoint, target_email, method='POST', data=email_data)
         
+        # Retrieve ID using a more reliable method
         if isinstance(send_res, dict) and send_res.get('success') is True:
             try:
-                # Retrieve the ID of the email just placed in 'Sent Items'
-                sent_endpoint = f"mailFolders/sentitems/messages?$top=1&$select=id&$filter=subject eq '{subject}'"
+                # 🚀 FIX: Get the most recent item in Sent Items instead of filtering by subject
+                # This works even if the subject changed or contains special characters
+                sent_endpoint = "mailFolders/sentitems/messages?$top=1&$select=id,subject&$orderby=receivedDateTime desc"
                 sent_check = OutlookGraphService._make_graph_request(sent_endpoint, target_email)
                 
                 if sent_check and 'value' in sent_check and len(sent_check['value']) > 0:
@@ -273,7 +248,7 @@ class OutlookGraphService:
                         'message': 'Email sent and ID retrieved.'
                     }
             except Exception as e:
-                logger.error(f"Email sent but Sent Items ID retrieval failed: {e}")
+                logger.error(f"Sent Items ID retrieval failed: {e}")
         
         return send_res
     
