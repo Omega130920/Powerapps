@@ -3094,7 +3094,7 @@ def confirmations_view(request):
             ws = wb.active
             ws.title = "Confirmations"
 
-            # 🚀 ADDED "Source" TO HEADERS 🚀
+            # 🚀 ADDED "Source" TO HEADERS (Exactly 15 columns) 🚀
             headers = [
                 'CCDates Month', 'Fund Code', 'Member Group Code', 'Member Group Name', 
                 'Active Member - (Info from FuturaSA & NOT checked by Sanlam)', 'Schedule Date', 'Final Data Received Date', 'Schedule Amount', 
@@ -3108,7 +3108,7 @@ def confirmations_view(request):
                 cell.alignment = Alignment(horizontal='center')
 
             for item in confirmation_data:
-                # Column A to I
+                # Column A to I (Exactly 9 columns)
                 bill_common = [
                     item['cc_dates_month'], item['fund_code'], item['company_code'],
                     item['company_name'], item['active_members'], item['schedule_date'],
@@ -3117,18 +3117,20 @@ def confirmations_view(request):
 
                 sources = item['source_details']
                 if not sources:
-                    # 🚀 Added extra empty string padding for the new Source column 🚀
-                    ws.append(bill_common + ['', '', '', '', '', '']) 
+                    # 🚀 Pad with exactly 6 empty strings to reach 15 columns 🚀
+                    ws.append(bill_common + [''] * 6) 
                 else:
                     for index, s in enumerate(sources):
                         # 🚀 Translate 'CREDIT' string to 'Overs Line' for the Excel export 🚀
                         export_source_text = 'Overs Line' if s.get('source') == 'CREDIT' else 'Bank'
                         
+                        # Bank data (Exactly 6 columns)
                         bank_cols = [s['date'], s['bank_total'], s['amount'], s['comment'], s['bank_ref'], export_source_text]
                         
                         if index == 0:
                             ws.append(bill_common + bank_cols)
                         else:
+                            # 🚀 Pad with exactly 9 empty strings to skip bill common data 🚀
                             ws.append([''] * 9 + bank_cols)
 
             filename = f"Confirmations_{datetime.now().strftime('%Y%m%d')}.xlsx"
