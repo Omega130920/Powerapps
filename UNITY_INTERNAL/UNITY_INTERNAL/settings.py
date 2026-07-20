@@ -161,7 +161,7 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-LOGIN_URL = 'login/' # or '/login/'
+LOGIN_URL = 'login'
 
 # ==============================================================================
 # 🔑 MICROSOFT GRAPH API SETTINGS (OUTLOOK)
