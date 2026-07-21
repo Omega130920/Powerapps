@@ -294,3 +294,47 @@ class ClaimAffordability(models.Model):
     class Meta:
         db_table = 'pssubf_claim_affordability'
         managed = False  # Set to False as you are managing this via SQL statements
+
+class SystemLog(models.Model):
+    # Dropdown choices
+    CATEGORY_CHOICES = [
+        ('Query', 'Query'),
+        ('Claim', 'Claim'),
+        ('Follow-up', 'Follow-up'),
+        ('Urgent', 'Urgent'),
+        ('Unsure', 'Unsure'),
+    ]
+
+    STATUS_CHOICES = [
+        ('In Progress', 'In Progress'),
+        ('Delegated', 'Delegated'),
+    ]
+
+    # Added MIP Number
+    mip_number = models.CharField(max_length=100, blank=True, null=True)
+    
+    # Text inputs
+    log_title = models.CharField(max_length=200)
+    
+    # New Call/Task Metadata
+    call_direction = models.CharField(max_length=50, blank=True, null=True)
+    call_method = models.CharField(max_length=50, blank=True, null=True)
+    call_type = models.CharField(max_length=150, blank=True, null=True)
+    
+    category = models.CharField(max_length=50, choices=CATEGORY_CHOICES, default='Query')
+    status = models.CharField(max_length=50, choices=STATUS_CHOICES, default='In Progress')
+    
+    # Note textarea
+    note_content = models.TextField()
+    
+    # Metadata
+    created_by = models.CharField(max_length=150)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = 'pssubf_system_log'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.mip_number} | {self.log_title}"
