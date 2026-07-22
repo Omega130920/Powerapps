@@ -187,6 +187,7 @@
                                 <th>Date</th>
                                 <th>MIP Number</th>
                                 <th>Title</th>
+                                <th>Note</th> <!-- ADDED COLUMN -->
                                 <th>Category</th>
                                 <th>Agent</th>
                             </tr>
@@ -204,6 +205,14 @@
                                     <td class="text-nowrap">{{ log.created_at|date:"Y-m-d H:i" }}</td>
                                     <td><strong>{{ log.mip_number|default:"-" }}</strong></td>
                                     <td>{{ log.log_title }}</td>
+                                    
+                                    <!-- ADDED TRUNCATED NOTE DISPLAY -->
+                                    <td>
+                                        <div class="d-inline-block text-truncate" style="max-width: 200px;" title="{{ log.note_content }}">
+                                            {{ log.note_content }}
+                                        </div>
+                                    </td>
+                                    
                                     <td>
                                         {% if log.category == 'Urgent' %}
                                             <span class="badge bg-danger">Urgent</span>
@@ -219,7 +228,8 @@
                                 </tr>
                             {% empty %}
                                 <tr>
-                                    <td colspan="5" class="text-center text-muted py-4">No logs recorded yet.</td>
+                                    <!-- UPDATED COLSPAN TO 6 -->
+                                    <td colspan="6" class="text-center text-muted py-4">No logs recorded yet.</td>
                                 </tr>
                             {% endfor %}
                         </tbody>
