@@ -43,6 +43,74 @@ def pssubf_switchboard(request):
     """
     return render(request, 'pssubf/dashboard.html')
 
+from .models import SystemLog
+
+@login_required
+def pssubf_log_view(request):
+    if request.method == 'POST':
+        # Check if action_type is "mark_complete" (from the mark complete button)
+        action_type = request.POST.get('action_type')
+        if action_type == 'mark_complete':
+            # Handle mark complete logic here if needed for this view
+            messages.success(request, "Task marked as complete.")
+            return redirect('pssubf_log_page')
+
+        # Grab the hidden ID field to check if this is an edit
+        log_id = request.POST.get('log_id')
+        
+        # Extract all form fields
+        mip_number = request.POST.get('mip_number')
+        title = request.POST.get('log_title')
+        call_direction = request.POST.get('call_direction')
+        call_method = request.POST.get('call_method')
+        call_type = request.POST.get('call_type')
+        category = request.POST.get('category')
+        status = request.POST.get('status')
+        content = request.POST.get('note_content')
+
+        if title and content:
+            if log_id:
+                # --- UPDATE EXISTING LOG ---
+                try:
+                    log_entry = SystemLog.objects.get(id=log_id)
+                    log_entry.mip_number = mip_number
+                    log_entry.log_title = title
+                    log_entry.call_direction = call_direction
+                    log_entry.call_method = call_method
+                    log_entry.call_type = call_type
+                    log_entry.category = category
+                    log_entry.status = status
+                    log_entry.note_content = content
+                    log_entry.save()
+                    messages.success(request, "Log entry updated successfully.")
+                except SystemLog.DoesNotExist:
+                    messages.error(request, "Error: The log entry could not be found.")
+            else:
+                # --- CREATE NEW LOG ---
+                SystemLog.objects.create(
+                    mip_number=mip_number,
+                    log_title=title,
+                    call_direction=call_direction,
+                    call_method=call_method,
+                    call_type=call_type,
+                    category=category,
+                    status=status,
+                    note_content=content,
+                    created_by=request.user.username
+                )
+                messages.success(request, "New internal note saved successfully.")
+                
+            return redirect('pssubf_log_page')
+        else:
+            messages.error(request, "Title and Note Content are required.")
+
+    # Fetch recent logs to populate the table (bumped to 50 for a better table view)
+    recent_logs = SystemLog.objects.all()[:50]
+    
+    return render(request, 'pssubf/Log.html', {
+        'recent_logs': recent_logs
+    })
+
 
 @login_required
 def outlook_dashboard_view(request):
@@ -1665,30 +1733,93 @@ def get_claim_details(request, claim_id):
     return JsonResponse(data)
 
 @login_required
-def get_adhoc_details(request, record_id):
-    try:
-        record = get_object_or_404(AdHocList.objects.select_related('beneficiary'), id=record_id)
-        data = {
-            'membership_number': record.beneficiary.membership_number,
-            'beneficiary_name': f"{record.beneficiary.first_name} {record.beneficiary.last_name}",
-            'guardian_name': record.beneficiary.guardian_name,
-            'dob': record.beneficiary.dob.strftime('%Y-%m-%d') if record.beneficiary.dob else '',
-            'termination_date': record.beneficiary.cessation_date.strftime('%Y-%m-%d') if record.beneficiary.cessation_date else '',
-            'title': record.title,
-            'status': record.status,
-            'claim_form_date': record.claim_form_date.strftime('%Y-%m-%d') if record.claim_form_date else '',
-            'date_paid': record.date_paid.strftime('%Y-%m-%d') if record.date_paid else '',
-            'portfolio_value': float(record.portfolio_value),
-            'portfolio_date': record.portfolio_date.strftime('%Y-%m-%d') if record.portfolio_date else '',
-            'amount_requested': float(record.amount_requested),
-            'supporting_docs_attached': record.supporting_docs_attached,
-            'comments': record.comments,
-            'stipened': float(record.beneficiary.stipened or 0),
-            'attachment_path': str(record.attachment_path) if record.attachment_path else None
-        }
-        return JsonResponse(data)
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+def ad_hoc_list_view(request):
+    """Main view for the Ad Hoc Registry with Dynamic Maturity Calculation"""
+    
+    def clean_numeric(val):
+        if not val or str(val).lower() == 'undefined' or str(val).strip() == '':
+            return 0
+        return str(val).replace('R', '').replace(',', '').replace('%', '').strip()
+
+    if request.method == 'POST':
+        action = request.POST.get('action')
+        m_num = request.POST.get('membership_number')
+        
+        try:
+            member = get_object_or_404(PssubfBeneficiary, membership_number=m_num)
+            uploaded_file = request.FILES.get('supporting_document')
+            file_name = uploaded_file.name if uploaded_file else None
+            timestamp = timezone.now().strftime('%Y-%m-%d %H:%M')
+            agent_stamp = f"\n\n--- Managed by {request.user.username} on {timestamp} ---"
+
+            if action == 'add_adhoc_entry':
+                AdHocList.objects.create(
+                    beneficiary=member,
+                    title=request.POST.get('title'),
+                    comments=(request.POST.get('comments') or "") + agent_stamp,
+                    claim_form_date=request.POST.get('claim_form_date') or None,
+                    date_paid=request.POST.get('date_paid') or None,
+                    status=request.POST.get('status', 'Created'),
+                    supporting_docs_attached=request.POST.get('supporting_docs_attached', 'No'),
+                    attachment_path=file_name,
+                    portfolio_value=clean_numeric(request.POST.get('portfolio_value')),
+                    portfolio_date=request.POST.get('portfolio_date') or None,
+                    amount_requested=clean_numeric(request.POST.get('amount_requested')),
+                )
+                messages.success(request, f"New Ad Hoc claim for Member {m_num} successfully logged.")
+
+            elif action == 'update_adhoc_entry':
+                record_id = request.POST.get('record_id')
+                record = get_object_or_404(AdHocList, id=record_id)
+                
+                if file_name:
+                    record.attachment_path = file_name
+                elif request.POST.get('remove_attachment') == 'true':
+                    record.attachment_path = None
+
+                record.title = request.POST.get('title')
+                record.status = request.POST.get('status')
+                record.claim_form_date = request.POST.get('claim_form_date') or None
+                record.date_paid = request.POST.get('date_paid') or None
+                record.supporting_docs_attached = request.POST.get('supporting_docs_attached')
+                record.portfolio_value = clean_numeric(request.POST.get('portfolio_value'))
+                record.portfolio_date = request.POST.get('portfolio_date') or None
+                record.amount_requested = clean_numeric(request.POST.get('amount_requested'))
+
+                user_comments = request.POST.get('comments') or ""
+                if agent_stamp not in (record.comments or ""):
+                    record.comments = user_comments + agent_stamp
+                else:
+                    record.comments = user_comments
+
+                record.save()
+                messages.success(request, f"Ad Hoc Record {record_id} has been updated.")
+
+            return redirect('adhoc_list')
+            
+        except Exception as e:
+            messages.error(request, f"Process Error: {str(e)}")
+
+    membership_number = request.GET.get('membership_number')
+    adhoc_records = AdHocList.objects.all().select_related('beneficiary').order_by('-date_created')
+
+    if membership_number:
+        adhoc_records = adhoc_records.filter(beneficiary__membership_number=membership_number)
+
+    # 🟢 DYNAMIC DISPLAY CALCULATION: Years to Maturity
+    for a in adhoc_records:
+        if a.beneficiary and a.beneficiary.cessation_date and a.claim_form_date:
+            diff = relativedelta(a.beneficiary.cessation_date, a.claim_form_date)
+            total_m = round((diff.years * 12) + diff.months + (diff.days / 30.44))
+            a.maturity_display = f"{total_m // 12}Y {str(total_m % 12).zfill(2)}M"
+        else:
+            a.maturity_display = "---"
+
+    context = {
+        'adhoc_list': adhoc_records,
+        'title': 'Ad Hoc Registry'
+    }
+    return render(request, 'Ad_hoc_list.html', context)
 
 from openpyxl.styles import Font, PatternFill, Alignment
 @login_required
