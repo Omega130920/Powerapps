@@ -327,7 +327,7 @@ def unity_information(request: HttpRequest, company_code):
     from django.contrib import messages
     from django.shortcuts import render, redirect
     from django.conf import settings
-    from django.template.loader import render_to_string # 🚀 ADDED THIS IMPORT 🚀
+    from django.template.loader import render_to_string 
 
     # =========================================================
     # 0. DOWNLOAD HANDLER (Matches CRM_UNITY Logic)
@@ -415,11 +415,19 @@ def unity_information(request: HttpRequest, company_code):
     
     bank_lines = bank_lines_assigned
     
-    # 🚀 NEW: Flag Manual Credits for the template
-    credit_notes = CreditNote.objects.filter(member_group_code=company_code).order_by('-ccdates_month')
+    # 🚀 NEW: Flag Manual Credits and fetch associated bank line details
+    credit_notes = CreditNote.objects.filter(member_group_code=company_code).select_related('source_bank_line').order_by('-ccdates_month')
     for note in credit_notes:
         # A credit is manual if it's not linked to a bank line or explicitly marked as manual
         note.is_manual_credit = (note.source_bank_line is None or note.note_selection == 'MANUAL')
+        
+        # Append original deposit details for the template
+        if note.source_bank_line:
+            note.original_deposit_date = note.source_bank_line.transaction_date
+            note.original_deposit_amount = note.source_bank_line.transaction_amount
+        else:
+            note.original_deposit_date = None
+            note.original_deposit_amount = None
 
     # 🚀 NEW ADDITION: Calculate Total Manual Credits Value
     manual_credits_total = credit_notes.filter(
@@ -490,7 +498,7 @@ def unity_information(request: HttpRequest, company_code):
             'type': 'Original', 
             'display_type': 'Completed' if is_completed else 'Delegated', 
             'subject': actual_subject, 
-            'assigned_to': assigned_to_name, # 🚀 UPDATED HERE
+            'assigned_to': assigned_to_name, 
             'status': item.status, 
             'email_id': item.email_id, 
             'action_user': 'System', 
@@ -520,7 +528,7 @@ def unity_information(request: HttpRequest, company_code):
             'assigned_to': reply.recipient_email, 
             'status': thread_status_map.get(reply.delegation_id, "SENT"), 
             'email_id': thread_email_id_map.get(reply.delegation_id), 
-            'action_user': action_user_name, # 🚀 UPDATED HERE
+            'action_user': action_user_name, 
             'badge_color': '#673ab7', 
             'icon': '📤'
         })
@@ -605,7 +613,7 @@ def unity_information(request: HttpRequest, company_code):
                 final_email_content = f"{email_body_html}<br>{signature_html}"
                 
                 response = OutlookGraphService.send_outlook_email(
-                    settings.OUTLOOK_EMAIL_ADDRESS, recipient, subject, final_email_content, 'HTML', # 🚀 USING final_email_content 🚀
+                    settings.OUTLOOK_EMAIL_ADDRESS, recipient, subject, final_email_content, 'HTML', 
                     attachments=attachments,
                     cc_email=cc_recipients,    
                     bcc_email=bcc_recipients   
@@ -1594,12 +1602,22 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
 
     applied_journals = JournalEntry.objects.filter(target_bill=bill_record).select_related('surplus_source')
 
-    # --- FETCH ASSIGNED CREDIT NOTES ---
+    # --- FETCH ASSIGNED CREDIT NOTES (UPDATED WITH select_related) ---
     assigned_note_ids = BillSettlement.objects.filter(
         unity_bill_source_id=bill_record.pk,
         source_credit_note_id__isnull=False
     ).values_list('source_credit_note_id', flat=True)
-    credit_notes_history = CreditNote.objects.filter(id__in=assigned_note_ids)
+    
+    credit_notes_history = CreditNote.objects.filter(id__in=assigned_note_ids).select_related('source_bank_line')
+
+    # 🚀 MAP BANK LINE DETAILS FOR TEMPLATE RENDERING 🚀
+    for note in credit_notes_history:
+        if note.source_bank_line:
+            note.original_deposit_date = note.source_bank_line.transaction_date
+            note.original_deposit_amount = note.source_bank_line.transaction_amount
+        else:
+            note.original_deposit_date = None
+            note.original_deposit_amount = None
 
     # 🚀 FINANCIAL SUMMARY HEADER CALCULATIONS 🚀
     total_bank_surplus = ReconnedBank.objects.filter(company_code=company_code).aggregate(
@@ -1751,7 +1769,7 @@ def process_cash_allocation(request, company_code, bill_id):
             original_import_bank_id=recon_line.bank_line_id,
         )
         
-        # 5. Handle the Remainder (The "Overs")
+        # 5. Handle the Remainder (The "Bank-Surplus")
         amount_left_on_source = line_unsettled - final_amount_applied
         
         if amount_left_on_source > Decimal('0.009'):
@@ -1766,21 +1784,21 @@ def process_cash_allocation(request, company_code, bill_id):
                     amount_settled=ZERO_DECIMAL,
                 )
             else:
-                # Option B: Move to CreditNote for Manager Approval
+                # Option B: Move to CreditNote as an Approved Bank-Surplus (Skipping Manager Approval)
                 CreditNote.objects.create(
                     member_group_code=company_code,
                     schedule_amount=amount_left_on_source,
-                    credit_link_status='Pending',
-                    link_request_reason="Overs credit line",
+                    credit_link_status='Approved',
+                    link_request_reason="Bank-Surplus credit line",
                     source_bank_line=recon_line,
-                    comment=f"Overs generated from R{original_bank_amount} deposit. R{final_amount_applied} used for Bill {bill_id}",
+                    comment=f"Bank-Surplus generated from R{original_bank_amount} deposit. R{final_amount_applied} used for Bill {bill_id}",
                     processed_by=request.user.username,
                     processed_date=aware_dt,
                     ccdates_month=bill_record.A_CCDatesMonth,
                     bank_stmt_date=recon_line.transaction_date,
-                    note_selection="OVERS" 
+                    note_selection="Bank-Surplus" 
                 )
-                messages.warning(request, f"R{amount_left_on_source:.2f} moved to Manager Approval.")
+                messages.success(request, f"R{amount_left_on_source:.2f} automatically approved as Bank-Surplus.")
 
         # 6. EXHAUST THE PARENT LINE
         # By setting settled to the original amount, (transaction - settled) = 0.

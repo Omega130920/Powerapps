@@ -656,6 +656,9 @@
             <thead>
                 <tr style="text-align: left; background-color: #f8f9fa;">
                     <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Segment ID</th>
+                    <!-- NEW COLUMN ADDED HERE -->
+                    <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Orig. Bank ID</th>
+                    <!-- END NEW COLUMN -->
                     <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Deposit Date</th>
                     <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Original Deposit</th>
                     <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Settled/Consumed</th>
@@ -670,6 +673,15 @@
                     <tr onclick="window.location.href='{% url 'display_bankline_review' line.id %}?source=unity'" 
                         style="cursor: pointer; border-bottom: 1px solid #eee; {% if line.is_fully_consumed %}background-color: #f9f9f9; color: #888;{% endif %}">
                         <td style="padding: 10px;">#{{ line.id }}</td>
+                        <!-- NEW COLUMN RENDERED HERE -->
+                        <td style="padding: 10px;">
+                            {% if line.bank_line_id %}
+                                #{{ line.bank_line_id }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <!-- END NEW COLUMN -->
                         <td style="padding: 10px;">{{ line.transaction_date|date:"Y-m-d" }}</td>
                         <td style="padding: 10px;">R {{ line.transaction_amount|floatformat:2 }}</td>
                         
@@ -702,11 +714,12 @@
                 <tr style="text-align: left; background-color: #f8f9fa;">
                     <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">ID / Origin</th>
                     <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Processed Date</th>
-                    <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Original Amount</th>
+                    <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Orig. Bank ID</th>
+                    <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Orig. Deposit Date</th>
+                    <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Orig. Bank Amount</th>
                     <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Requested/Used</th>
                     <th style="padding: 10px; border-bottom: 2px solid #dee2e6; color: #3f51b5;">Remaining Balance</th>
                     <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Status</th>
-                    <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -724,9 +737,26 @@
                     </td>
                     <td style="padding: 10px;">{{ note.processed_date|date:"Y-m-d" }}</td>
                     
-                    {# 🚀 UPDATED: Uses bank_deposit_amount instead of addition logic 🚀 #}
-                    <td style="padding: 10px;">
-                        R {{ note.bank_deposit_amount|default:0|floatformat:2 }}
+                    <td style="padding: 10px; color: #555;">
+                        {% if note.source_bank_line %}
+                            #{{ note.source_bank_line.bank_line_id }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td style="padding: 10px; color: #555;">
+                        {% if note.original_deposit_date %}
+                            {{ note.original_deposit_date|date:"Y-m-d" }}
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                    <td style="padding: 10px; color: #555;">
+                        {% if note.original_deposit_amount %}
+                            R {{ note.original_deposit_amount|floatformat:2 }}
+                        {% else %}
+                            -
+                        {% endif %}
                     </td>
                     
                     <td style="padding: 10px; color: #d32f2f; font-weight: bold;">
@@ -746,14 +776,6 @@
                             <span class="status-tag" style="background-color: #81c784; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px;">PARTIALLY USED</span>
                         {% else %}
                             <span class="status-tag status-open" style="background-color: #4caf50; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px;">READY</span>
-                        {% endif %}
-                    </td>
-                    
-                    <td style="padding: 10px;">
-                        {% if note.credit_link_status == 'Pending' %}
-                            <button class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #9e9e9e; color: white; border: none; border-radius: 3px; cursor: not-allowed;" disabled>🔒 Locked</button>
-                        {% else %}
-                            <a href="{% url 'assign_fiscal_date' note_id=note.id %}?context=info" class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #3f51b5; color: white; text-decoration: none; border-radius: 3px;">View</a>
                         {% endif %}
                     </td>
                 </tr>

@@ -166,6 +166,14 @@
                                     {% for source in record.source_details %}
                                         <tr class="{% if forloop.last %}bill-group-end{% endif %}">
                                             {% if forloop.first %}
+                                                                                        <!-- NEW SOURCE COLUMN -->
+                                            <td class="bank-col text-center">
+                                                {% if source.source == 'CREDIT' %}
+                                                    <span class="source-badge badge-credit">Overs Line</span>
+                                                {% else %}
+                                                    <span class="source-badge badge-bank">Bank</span>
+                                                {% endif %}
+                                            </td>
                                                 <td rowspan="{{ row_span }}">{{ record.cc_dates_month|date:"Y-m-d" }}</td>
                                                 <td rowspan="{{ row_span }}">{{ record.fund_code }}</td>
                                                 <td rowspan="{{ row_span }}">{{ record.company_code }}</td>
