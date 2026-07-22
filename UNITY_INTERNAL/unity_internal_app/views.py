@@ -1576,13 +1576,25 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
     remaining_scheduled_amount = scheduled_amount - total_credit_notes_assigned - total_surplus_applied_to_bill - total_cash_applied
     current_outstanding = max(ZERO_DECIMAL, remaining_scheduled_amount)
 
-    available_credits = CreditNote.objects.filter(
+    # --- AVAILABLE APPROVED CREDITS ---
+    available_credits = list(CreditNote.objects.filter(
         member_group_code=company_code,
         credit_link_status='Approved',
         schedule_amount__gt=ZERO_DECIMAL
-    )
+    ).select_related('source_bank_line'))
     
-    total_available_credit_value = available_credits.aggregate(t=Sum('schedule_amount'))['t'] or ZERO_DECIMAL
+    # 🚀 Hydrate Available Credits with Original Bank Info
+    for credit in available_credits:
+        if credit.source_bank_line:
+            credit.original_deposit_date = getattr(credit.source_bank_line, 'transaction_date', None) or getattr(getattr(credit.source_bank_line, 'bank_line', None), 'transaction_date', None)
+            credit.original_deposit_amount = getattr(credit.source_bank_line, 'transaction_amount', None) or getattr(getattr(credit.source_bank_line, 'bank_line', None), 'transaction_amount', None)
+            credit.orig_bank_id = getattr(credit.source_bank_line, 'bank_line_id', None) or getattr(credit.source_bank_line, 'id', None)
+        else:
+            credit.original_deposit_date = None
+            credit.original_deposit_amount = None
+            credit.orig_bank_id = None
+
+    total_available_credit_value = sum(c.schedule_amount for c in available_credits) or ZERO_DECIMAL
 
     # --- SURPLUS & JOURNALS ---
     company_bill_ids = UnityBill.objects.filter(C_Company_Code=company_code).values_list('id', flat=True)
@@ -1602,24 +1614,26 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
 
     applied_journals = JournalEntry.objects.filter(target_bill=bill_record).select_related('surplus_source')
 
-    # --- FETCH ASSIGNED CREDIT NOTES (UPDATED WITH select_related) ---
+    # --- FETCH ASSIGNED CREDIT NOTES ---
     assigned_note_ids = BillSettlement.objects.filter(
         unity_bill_source_id=bill_record.pk,
         source_credit_note_id__isnull=False
     ).values_list('source_credit_note_id', flat=True)
     
-    credit_notes_history = CreditNote.objects.filter(id__in=assigned_note_ids).select_related('source_bank_line')
+    credit_notes_history = list(CreditNote.objects.filter(id__in=assigned_note_ids).select_related('source_bank_line'))
 
-    # 🚀 MAP BANK LINE DETAILS FOR TEMPLATE RENDERING 🚀
+    # 🚀 Hydrate Assigned Credits with Original Bank Info
     for note in credit_notes_history:
         if note.source_bank_line:
-            note.original_deposit_date = note.source_bank_line.transaction_date
-            note.original_deposit_amount = note.source_bank_line.transaction_amount
+            note.original_deposit_date = getattr(note.source_bank_line, 'transaction_date', None) or getattr(getattr(note.source_bank_line, 'bank_line', None), 'transaction_date', None)
+            note.original_deposit_amount = getattr(note.source_bank_line, 'transaction_amount', None) or getattr(getattr(note.source_bank_line, 'bank_line', None), 'transaction_amount', None)
+            note.orig_bank_id = getattr(note.source_bank_line, 'bank_line_id', None) or getattr(note.source_bank_line, 'id', None)
         else:
             note.original_deposit_date = None
             note.original_deposit_amount = None
+            note.orig_bank_id = None
 
-    # 🚀 FINANCIAL SUMMARY HEADER CALCULATIONS 🚀
+    # --- FINANCIAL SUMMARY HEADER CALCULATIONS ---
     total_bank_surplus = ReconnedBank.objects.filter(company_code=company_code).aggregate(
         total=Sum(F('transaction_amount') - F('amount_settled'))
     )['total'] or ZERO_DECIMAL
@@ -1629,7 +1643,7 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
         source_bank_line__isnull=True
     ).aggregate(total=Sum('schedule_amount'))['total'] or ZERO_DECIMAL
     
-    # --- UPDATED ACTION MESSAGE LOGIC ---
+    # --- ACTION MESSAGE LOGIC ---
     total_coverage_available = total_debt + total_available_credit_value + total_available_surplus_value
     is_bill_fully_covered = total_applied >= (scheduled_amount - SAFETY_TOLERANCE)
     
@@ -1643,7 +1657,6 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
         is_proceed_enabled = False
         action_message = f"Action REQUIRED: R{current_outstanding:.2f} liability remains."
 
-    # --- FINAL CONTEXT MAPPING ---
     context = {
         'bill_record': bill_record,
         'company_code': company_code,
