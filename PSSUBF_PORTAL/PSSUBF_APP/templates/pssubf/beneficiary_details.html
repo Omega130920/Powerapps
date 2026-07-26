@@ -522,31 +522,71 @@
                         </form>
                     </div>
 
-                    <div id="notes" class="tab-pane">
-                        <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}">
-                            {% csrf_token %}
-                            <div class="mb-6 p-4 border border-white border-opacity-10 rounded-xl bg-white bg-opacity-10">
-                                <textarea name="note_text" placeholder="Add an internal note..." class="w-full bg-transparent h-20 text-sm" required></textarea>
-                                <div class="flex justify-end mt-2">
-                                    <button type="submit" name="save_note" class="text-xs font-bold uppercase text-emerald-900">Save Profile Note</button>
-                                </div>
-                            </div>
-                        </form>
-                        <div class="space-y-4">
-                            {% for note in internal_notes %}
-                            <div class="p-4 border-b border-white border-opacity-10">
-                                <div class="flex justify-between items-center mb-1">
-                                    <span class="font-bold text-emerald-900 text-sm">{{ note.agent_name }}</span>
-                                    <span class="text-[10px] opacity-60">{{ note.created_at|date:"d M Y H:i" }}</span>
-                                </div>
-                                <p class="text-sm opacity-90">{{ note.note_text }}</p>
-                            </div>
-                            {% empty %}
-                            <p class="text-center py-10 opacity-50 italic">No notes.</p>
-                            {% endfor %}
-                        </div>
-                    </div>
-                </div>
+<div id="notes" class="tab-pane">
+
+        <!-- History Table Section matching log.html style -->
+        <div class="glass-card" style="background: rgba(255, 255, 255, 0.25); border: 1px solid var(--glass-border); border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);">
+            <div class="glass-header header-dark" style="padding: 16px 20px; background: rgba(33, 37, 41, 0.85); color: white; font-weight: 700; font-size: 0.95rem; display: flex; justify-content: space-between; align-items: center;">
+                <span>LOG HISTORY FOR MEMBER {{ member.membership_number }}</span>
+                <span style="font-size: 0.8rem; font-weight: normal; opacity: 0.8;">(Click row to edit in log page)</span>
+            </div>
+            
+            <div class="table-responsive" style="overflow-x: auto; padding: 10px;">
+                <table class="custom-table" style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--glass-border);">
+                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">MIP Number</th>
+                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Action Type</th>
+                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Call Type</th>
+                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Action Method</th>
+                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Confirm Category</th>
+                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Agent</th>
+                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Internal Note</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in recent_logs %}
+                            {% if log.mip_number == member.membership_number %}
+                            <tr style="cursor: pointer; transition: background 0.2s;" 
+                                onmouseover="this.style.background='rgba(255, 255, 255, 0.5)'" 
+                                onmouseout="this.style.background='transparent'"
+                                onclick="window.location.href='{% url 'pssubf_log_page' %}?edit_id={{ log.id }}'">
+                                
+                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle; white-space: nowrap;"><strong>{{ log.mip_number|default:"-" }}</strong></td>
+                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ log.call_direction|default:"-" }}</td>
+                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ log.call_type|default:"-" }}</td>
+                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ log.call_method|default:"-" }}</td>
+                                
+                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">
+                                    {% if log.category == 'Urgent' %}
+                                        <span class="badge badge-urgent" style="background: #dc3545; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">Urgent</span>
+                                    {% elif log.category == 'Claim' %}
+                                        <span class="badge badge-claim" style="background: #0dcaf0; color: black; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">Claim</span>
+                                    {% elif log.category == 'Follow-up' %}
+                                        <span class="badge badge-followup" style="background: #ffc107; color: black; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">Follow-up</span>
+                                    {% else %}
+                                        <span class="badge badge-default" style="background: #6c757d; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">{{ log.category }}</span>
+                                    {% endif %}
+                                </td>
+
+                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ log.created_by }}</td>
+
+                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">
+                                    <span class="note-truncate" style="display: inline-block; max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle;" title="{{ log.note_content }}">
+                                        {{ log.note_content }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endif %}
+                        {% empty %}
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 30px; opacity: 0.6;">
+                                    No log entries recorded for this MIP number.
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
