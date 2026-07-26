@@ -1,5 +1,3 @@
-
-
 {% block content %}
 <style>
     :root {
@@ -195,6 +193,10 @@
     .text-danger { color: #d32f2f; }
 </style>
 
+            <a href="{% url 'pssubf_switchboard' %}" class="btn btn-light border-white rounded-pill">
+                <i class="bi bi-house me-1"></i> Back to Home Screen
+            </a>
+
 <div class="glass-container">
     <!-- Form Section -->
     <div class="glass-sidebar">
@@ -207,7 +209,6 @@
                 <form method="POST" action="{% url 'pssubf_log_page' %}" id="logForm">
                     {% csrf_token %}
                     <input type="hidden" name="log_id" id="log_id" value="">
-                    <input type="hidden" name="call_direction" value="Outbound">
                     
                     <div class="form-group">
                         <label class="form-label">MIP Number:</label>
@@ -215,30 +216,30 @@
                     </div>
 
                     <div class="form-group">
-                        <label class="form-label">Log Title <span class="text-danger">*</span></label>
-                        <input type="text" class="form-input" name="log_title" id="log_title" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">Call Method:</label>
-                        <select name="call_method" id="call_method" class="form-input" required>
-                            <option value="" disabled selected>Select Method</option>
-                            <option value="Phone">Phone</option>
-                            <option value="Emails">Emails</option>
-                            <option value="SMS">SMS</option>
-                            <option value="Letter">Letter</option>
+                        <label class="form-label">Action Type:</label>
+                        <select name="call_direction" id="call_direction" class="form-input" required onchange="updateCallTypes()">
+                            <option value="" disabled selected>Select Action Type</option>
+                            <option value="Inbound">Inbound</option>
+                            <option value="Outbound">Outbound</option>
+                            <option value="Monthly Follow up">Monthly Follow up</option>
                         </select>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">Call Type:</label>
                         <select name="call_type" id="call_type" class="form-input" required>
-                            <option value="" disabled selected>Select Type</option>
-                            <option value="Acknowledgement Letter Sent">Acknowledgement Letter Sent</option>
-                            <option value="Complete Claim Loaded">Complete Claim Loaded</option>
-                            <option value="Feedback to Beneficiary">Feedback to Beneficiary</option>
-                            <option value="Follow Up Incomplete Claim Pack">Follow Up Incomplete Claim Pack</option>
-                            <option value="Invalid ID">Invalid ID</option>
+                            <option value="" disabled selected>Select Action Type first</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Action Method:</label>
+                        <select name="call_method" id="call_method" class="form-input" required>
+                            <option value="" disabled selected>Select Method</option>
+                            <option value="Phone">Phone</option>
+                            <option value="Emails">Emails</option>
+                            <option value="SMS">SMS</option>
+                            <option value="Letter">Letter</option>
                         </select>
                     </div>
 
@@ -250,14 +251,6 @@
                             <option value="Follow-up">Follow-up</option>
                             <option value="Urgent">Urgent</option>
                             <option value="Unsure">Unsure</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">Confirm Status:</label>
-                        <select name="status" id="status" class="form-input">
-                            <option value="In Progress">In Progress</option>
-                            <option value="Delegated">Delegated</option>
                         </select>
                     </div>
 
@@ -296,12 +289,13 @@
                 <table class="custom-table">
                     <thead>
                         <tr>
-                            <th>Date</th>
                             <th>MIP Number</th>
-                            <th>Title</th>
-                            <th>Note</th> <!-- NOTE COLUMN HERE -->
-                            <th>Category</th>
+                            <th>Action Type</th>
+                            <th>Call Type</th>
+                            <th>Action Method</th>
+                            <th>Confirm Category</th>
                             <th>Agent</th>
+                            <th>Internal Note</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -309,21 +303,17 @@
                             <tr style="cursor: pointer;" 
                                 data-id="{{ log.id }}"
                                 data-mip="{{ log.mip_number|default_if_none:'' }}"
-                                data-title="{{ log.log_title }}"
+                                data-direction="{{ log.call_direction|default_if_none:'' }}"
+                                data-calltype="{{ log.call_type|default_if_none:'' }}"
+                                data-method="{{ log.call_method|default_if_none:'' }}"
                                 data-category="{{ log.category }}"
                                 data-content="{{ log.note_content }}"
                                 onclick="loadLogIntoForm(this)">
                                 
-                                <td style="white-space: nowrap;">{{ log.created_at|date:"Y-m-d H:i" }}</td>
-                                <td><strong>{{ log.mip_number|default:"-" }}</strong></td>
-                                <td>{{ log.log_title }}</td>
-                                
-                                <!-- NOTE RENDERED HERE -->
-                                <td>
-                                    <span class="note-truncate" title="{{ log.note_content }}">
-                                        {{ log.note_content }}
-                                    </span>
-                                </td>
+                                <td style="white-space: nowrap;"><strong>{{ log.mip_number|default:"-" }}</strong></td>
+                                <td>{{ log.call_direction|default:"-" }}</td>
+                                <td>{{ log.call_type|default:"-" }}</td>
+                                <td>{{ log.call_method|default:"-" }}</td>
                                 
                                 <td>
                                     {% if log.category == 'Urgent' %}
@@ -336,11 +326,18 @@
                                         <span class="badge badge-default">{{ log.category }}</span>
                                     {% endif %}
                                 </td>
+
                                 <td>{{ log.created_by }}</td>
+
+                                <td>
+                                    <span class="note-truncate" title="{{ log.note_content }}">
+                                        {{ log.note_content }}
+                                    </span>
+                                </td>
                             </tr>
                         {% empty %}
                             <tr>
-                                <td colspan="6" style="text-align: center; padding: 30px; opacity: 0.6;">
+                                <td colspan="7" style="text-align: center; padding: 30px; opacity: 0.6;">
                                     No logs recorded yet.
                                 </td>
                             </tr>
@@ -353,25 +350,112 @@
 </div>
 
 <script>
+    const dynamicCallTypes = {
+        "Inbound": [
+            "Change of contact/banking details received",
+            "Guardian/beneficiary requested proof of payment",
+            "Complaint received",
+            "How to claim - Termination",
+            "Overdue Payment - Termination Query",
+            "Fund Value Confirmation",
+            "New Claim Pack Received (Complete)",
+            "Overdue Payment - Ad-Hoc",
+            "Feedback from SALT",
+            "New Claim Pack Received (Incomplete)",
+            "Feedback from Sanlam",
+            "Fund Rules",
+            "Proof of Payment Received",
+            "SALT - New Entrance Pack Received (Incomplete)",
+            "Change in Guardianship",
+            "Duplicate Claim Received",
+            "Acknowledgement Letter Received",
+            "Claim Received from Tracing Agency",
+            "Overdue Payment - Monthly Income",
+            "How to claim - Ad Hoc",
+            "How to claim - Monthly Income",
+            "SALT - New Entrance Pack Received (Complete)",
+            "Guardian - Monthly Income Requested"
+            
+        ],
+        "Outbound": [
+            "Change of contact/banking details submitted to Sanlam",
+            "Change of guardianship submitted to Sanlam",
+            "Complaint filed and reported",
+            "Benefit statement sent",
+            "Follow up on incomplete claim",
+            "Funds Less than R10 000",
+            "Feedback to Beneficiary",
+            "Feedback to SALT",
+            "Acknowledgement Letter Sent",
+            "Feedback to Sanlam",
+            "Feedback to Guardian",
+            "Follow Up Incomplete Claim Pack",
+            "Failed Bank Validation",
+            "SALT - Return New Entrance Pack (Incomplete)",
+            "Complete Claim Loaded",
+            "Tracing Claim Sent to Sanlam",
+            "Feedback to Other",
+            "Proof of Payment Sent",
+            "Funds Depleted",
+            "New Entrance Pack Submitted to Sanlam",
+            "Sanlam - Overdue Payments",
+            "Guardian Deceased",
+            "Beneficiary Reached Maturity"
+        ],
+        "Monthly Follow up": [
+            "Beneficiary fund credit below 10k",
+            "Depleted records",
+            "Fund Credit depleted within 3months",
+            "Beneficiary turned 18years"
+        ]
+    };
+
+    function updateCallTypes() {
+        const actionTypeSelect = document.getElementById("call_direction");
+        const callTypeSelect = document.getElementById("call_type");
+        const selectedAction = actionTypeSelect.value;
+        
+        callTypeSelect.innerHTML = '<option value="" disabled selected>Select Type</option>';
+        
+        if (selectedAction && dynamicCallTypes[selectedAction]) {
+            dynamicCallTypes[selectedAction].forEach(function(optionText) {
+                const newOption = document.createElement("option");
+                newOption.value = optionText;
+                newOption.text = optionText;
+                callTypeSelect.appendChild(newOption);
+            });
+        }
+    }
+
+    function setDropdownValue(elementId, valueToSet) {
+        if (!valueToSet || valueToSet === 'None') return;
+        const selectElement = document.getElementById(elementId);
+        for (let i = 0; i < selectElement.options.length; i++) {
+            if (selectElement.options[i].value === valueToSet) {
+                selectElement.selectedIndex = i;
+                break;
+            }
+        }
+    }
+
     function loadLogIntoForm(rowElement) {
         const id = rowElement.dataset.id;
         const mip = rowElement.dataset.mip;
-        const title = rowElement.dataset.title;
+        const direction = rowElement.dataset.direction;
+        const callType = rowElement.dataset.calltype;
+        const method = rowElement.dataset.method;
         const category = rowElement.dataset.category;
         const content = rowElement.dataset.content;
 
         document.getElementById('log_id').value = id;
         document.getElementById('mip_number').value = mip !== 'None' ? mip : '';
-        document.getElementById('log_title').value = title;
         document.getElementById('note_content').value = content;
         
-        const catSelect = document.getElementById('category');
-        for (let i = 0; i < catSelect.options.length; i++) {
-            if (catSelect.options[i].value === category) {
-                catSelect.selectedIndex = i;
-                break;
-            }
-        }
+        setDropdownValue('call_direction', direction);
+        updateCallTypes();
+        setDropdownValue('call_type', callType);
+        setDropdownValue('call_method', method);
+        setDropdownValue('category', category);
         
         const header = document.getElementById('formHeader');
         header.innerHTML = '<span>EDIT INTERNAL NOTE</span>';
@@ -391,6 +475,8 @@
     function resetForm() {
         document.getElementById('logForm').reset();
         document.getElementById('log_id').value = '';
+        
+        document.getElementById("call_type").innerHTML = '<option value="" disabled selected>Select Action Type first</option>';
         
         const header = document.getElementById('formHeader');
         header.innerHTML = '<span>ADD INTERNAL NOTE & RESOLVE</span>';
