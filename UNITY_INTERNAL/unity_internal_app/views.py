@@ -310,9 +310,7 @@ def unity_list(request):
 def unity_information(request: HttpRequest, company_code):
     """
     Displays detailed information for a single record.
-    UPDATED: Now handles multiple email attachments and manual credit creation/flagging.
-    ENHANCED: Added financial summaries for Manual Credits and Claims.
-    ADDED CC/BCC HANDLING: Safely parses and transmits CC and BCC arrays.
+    UPDATED: Now filters out fully consumed and reconciled bank lines & credit notes from display.
     """
     from .models import (
         EmailDelegation, DelegationTransactionLog, UnityNotes, 
@@ -405,23 +403,28 @@ def unity_information(request: HttpRequest, company_code):
     else:
         available_surplus_value = Decimal('0.00')
     
+    # 🚀 UPDATED: Filter out fully consumed/reconciled Bank Lines
     bank_lines_assigned = ReconnedBank.objects.filter(company_code=company_code).select_related('bank_line').order_by('-transaction_date')
+    active_bank_lines = []
     for line in bank_lines_assigned:
         line.actual_bill_usage = BillSettlement.objects.filter(reconned_bank_line_id=line.id).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
         line.credit_amount = CreditNote.objects.filter(source_bank_line=line).aggregate(total=Sum('schedule_amount'))['total'] or Decimal('0.00')
         line.true_remaining_balance = line.transaction_amount - line.actual_bill_usage - line.credit_amount
         line.is_fully_consumed = (line.true_remaining_balance <= Decimal('0.009'))
         line.original_assigned_amount = line.transaction_amount 
+        
+        # Keep line only if it has remaining balance and is not reconciled
+        if not line.is_fully_consumed and str(line.recon_status).upper() != 'RECONCILED':
+            active_bank_lines.append(line)
     
-    bank_lines = bank_lines_assigned
+    bank_lines = active_bank_lines
     
-    # 🚀 NEW: Flag Manual Credits and fetch associated bank line details
-    credit_notes = CreditNote.objects.filter(member_group_code=company_code).select_related('source_bank_line').order_by('-ccdates_month')
-    for note in credit_notes:
-        # A credit is manual if it's not linked to a bank line or explicitly marked as manual
+    # 🚀 UPDATED: Filter out fully consumed/reconciled Credit Notes
+    raw_credit_notes = CreditNote.objects.filter(member_group_code=company_code).select_related('source_bank_line').order_by('-ccdates_month')
+    active_credit_notes = []
+    for note in raw_credit_notes:
         note.is_manual_credit = (note.source_bank_line is None or note.note_selection == 'MANUAL')
         
-        # Append original deposit details for the template
         if note.source_bank_line:
             note.original_deposit_date = note.source_bank_line.transaction_date
             note.original_deposit_amount = note.source_bank_line.transaction_amount
@@ -429,15 +432,25 @@ def unity_information(request: HttpRequest, company_code):
             note.original_deposit_date = None
             note.original_deposit_amount = None
 
-    # 🚀 NEW ADDITION: Calculate Total Manual Credits Value
-    manual_credits_total = credit_notes.filter(
+        # Keep note only if it has remaining schedule_amount and status is not fully reconciled
+        has_remaining_balance = (note.schedule_amount or Decimal('0.00')) > Decimal('0.009')
+        is_not_reconciled = str(note.credit_link_status).upper() != 'RECONCILED'
+
+        if has_remaining_balance and is_not_reconciled:
+            active_credit_notes.append(note)
+
+    credit_notes = active_credit_notes
+
+    # Total Manual Credits Value Calculation
+    manual_credits_total = CreditNote.objects.filter(
+        member_group_code=company_code
+    ).filter(
         Q(source_bank_line__isnull=True) | Q(note_selection='MANUAL')
     ).aggregate(total=Sum('bank_deposit_amount'))['total'] or Decimal('0.00')
 
     try:
         company_claims = UnityClaim.objects.filter(company_code=company_code).prefetch_related('notes').order_by('-claim_created_date', 'member_surname')
         
-        # 🚀 NEW ADDITION: Calculate Total Claims Value
         total_claims_value = company_claims.aggregate(total=Sum('claim_amount'))['total'] or Decimal('0.00')
 
         delegation_pks = [c.linked_email_id for c in company_claims if c.linked_email_id]
@@ -471,19 +484,16 @@ def unity_information(request: HttpRequest, company_code):
     thread_status_map = {item.id: item.status for item in all_delegations}
     thread_email_id_map = {item.id: item.email_id for item in all_delegations}
     
-    # Fetch actual subjects from the Inbox records
     inbox_records = OutlookInbox.objects.filter(email_id__in=related_string_ids)
     inbox_map = {email.email_id: email.received_at for email in inbox_records}
     inbox_subject_map = {email.email_id: email.subject for email in inbox_records}
 
-    # Process Original Delegated Tasks
     for item in all_delegations:
         if item.status in ['DLT', 'DELETED', 'TRASH']: continue
         is_completed = item.status in ['COMP', 'DONE', 'CLS']
         
         actual_subject = inbox_subject_map.get(item.email_id) or item.email_category or f"Task: {item.email_id[:12]}..."
         
-        # 🚀 ADDED: Safe lookup for assigned user to prevent DoesNotExist error on deleted users
         assigned_to_name = 'UNASSIGNED'
         if item.assigned_user_id:
             try:
@@ -506,11 +516,8 @@ def unity_information(request: HttpRequest, company_code):
             'icon': '📥'
         })
 
-    # Process Threaded Replies
     threaded_replies = DelegationTransactionLog.objects.filter(delegation_id__in=all_del_ids, action_type='REPLIED').select_related('user')
     for reply in threaded_replies:
-        
-        # 🚀 ADDED: Safe lookup for action user just in case
         action_user_name = 'System'
         if reply.user_id:
             try:
@@ -533,7 +540,6 @@ def unity_information(request: HttpRequest, company_code):
             'icon': '📤'
         })
 
-    # Process Direct Sent Emails
     direct_emails = UnityNotes.objects.filter(member_group_code__iexact=clean_lookup, communication_type='Sent Email')
     for email in direct_emails:
         outlook_id = email.attached_email_id or (email.action_notes.replace("OUTLOOK_ID:", "").strip() if email.action_notes and "OUTLOOK_ID:" in email.action_notes else None)
@@ -593,12 +599,10 @@ def unity_information(request: HttpRequest, company_code):
 
     # --- 6. HANDLE POST REQUESTS ---
     if request.method == 'POST':
-        # Action: Send Email
         if request.POST.get('email_submission_action') == 'send_email_and_log' or request.POST.get('action') == 'send_outgoing_member_note':
             subject = request.POST.get('member_email_subject_reply', 'Claim Update')
             recipient = request.POST.get('member_recipient_email')
             
-            # Capturing CC and BCC input parameters seamlessly
             cc_recipients = request.POST.get('member_cc_email', '')
             bcc_recipients = request.POST.get('member_bcc_email', '')
             
@@ -608,7 +612,6 @@ def unity_information(request: HttpRequest, company_code):
             attachments = request.FILES.getlist('attachments')
 
             if recipient and email_body_html:
-                # --- 🚀 ADDED SIGNATURE LOGIC 🚀 ---
                 signature_html = render_to_string('unity_internal_app/email_signature.html')
                 final_email_content = f"{email_body_html}<br>{signature_html}"
                 
@@ -622,7 +625,6 @@ def unity_information(request: HttpRequest, company_code):
                     attachment_count = len(attachments)
                     attach_string = f" ({attachment_count} files)" if attachment_count > 0 else ""
                     
-                    # Log uses the original email_body_html so the DB isn't flooded with signature HTML code
                     UnityNotes.objects.create(
                         member_group_code=company_code, 
                         user=request.user.username, 
@@ -637,7 +639,6 @@ def unity_information(request: HttpRequest, company_code):
                     messages.error(request, f"Graph API Error: {response.get('error')}")
             return redirect(f"{reverse('unity_information', kwargs={'company_code': company_code})}#email-log")
 
-        # Action: Create Manual Credit
         elif request.POST.get('action') == 'create_manual_credit':
             try:
                 amount = request.POST.get('amount', '0.00')
@@ -656,7 +657,6 @@ def unity_information(request: HttpRequest, company_code):
                 messages.error(request, f"Error creating manual credit: {e}")
             return redirect(f"{reverse('unity_information', kwargs={'company_code': company_code})}#bank-lines")
 
-        # Action: Update General Info
         if 'update_general_info' in request.POST and unity_record and not is_fallback:
             try:
                 unity_record.recon_contact_1_name, unity_record.recon_contact_1_email, unity_record.recon_contact_2_name, unity_record.recon_contact_2_email = request.POST.get('recon_contact_1_name'), request.POST.get('recon_contact_1_email'), request.POST.get('recon_contact_2_name'), request.POST.get('recon_contact_2_email')
@@ -669,7 +669,6 @@ def unity_information(request: HttpRequest, company_code):
                 messages.error(request, f"Error saving: {e}")
             return redirect('unity_information', company_code=company_code)
         
-        # Action: Add Note
         elif request.POST.get('note_content') or request.POST.get('action_notes'):
             try:
                 pdf_file = request.FILES.get('note_pdf_attachment')
@@ -1576,13 +1575,25 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
     remaining_scheduled_amount = scheduled_amount - total_credit_notes_assigned - total_surplus_applied_to_bill - total_cash_applied
     current_outstanding = max(ZERO_DECIMAL, remaining_scheduled_amount)
 
-    available_credits = CreditNote.objects.filter(
+    # --- AVAILABLE APPROVED CREDITS ---
+    available_credits = list(CreditNote.objects.filter(
         member_group_code=company_code,
         credit_link_status='Approved',
         schedule_amount__gt=ZERO_DECIMAL
-    )
+    ).select_related('source_bank_line'))
     
-    total_available_credit_value = available_credits.aggregate(t=Sum('schedule_amount'))['t'] or ZERO_DECIMAL
+    # 🚀 Hydrate Available Credits with Original Bank Info
+    for credit in available_credits:
+        if credit.source_bank_line:
+            credit.original_deposit_date = getattr(credit.source_bank_line, 'transaction_date', None) or getattr(getattr(credit.source_bank_line, 'bank_line', None), 'transaction_date', None)
+            credit.original_deposit_amount = getattr(credit.source_bank_line, 'transaction_amount', None) or getattr(getattr(credit.source_bank_line, 'bank_line', None), 'transaction_amount', None)
+            credit.orig_bank_id = getattr(credit.source_bank_line, 'bank_line_id', None) or getattr(credit.source_bank_line, 'id', None)
+        else:
+            credit.original_deposit_date = None
+            credit.original_deposit_amount = None
+            credit.orig_bank_id = None
+
+    total_available_credit_value = sum(c.schedule_amount for c in available_credits) or ZERO_DECIMAL
 
     # --- SURPLUS & JOURNALS ---
     company_bill_ids = UnityBill.objects.filter(C_Company_Code=company_code).values_list('id', flat=True)
@@ -1602,24 +1613,26 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
 
     applied_journals = JournalEntry.objects.filter(target_bill=bill_record).select_related('surplus_source')
 
-    # --- FETCH ASSIGNED CREDIT NOTES (UPDATED WITH select_related) ---
+    # --- FETCH ASSIGNED CREDIT NOTES ---
     assigned_note_ids = BillSettlement.objects.filter(
         unity_bill_source_id=bill_record.pk,
         source_credit_note_id__isnull=False
     ).values_list('source_credit_note_id', flat=True)
     
-    credit_notes_history = CreditNote.objects.filter(id__in=assigned_note_ids).select_related('source_bank_line')
+    credit_notes_history = list(CreditNote.objects.filter(id__in=assigned_note_ids).select_related('source_bank_line'))
 
-    # 🚀 MAP BANK LINE DETAILS FOR TEMPLATE RENDERING 🚀
+    # 🚀 Hydrate Assigned Credits with Original Bank Info
     for note in credit_notes_history:
         if note.source_bank_line:
-            note.original_deposit_date = note.source_bank_line.transaction_date
-            note.original_deposit_amount = note.source_bank_line.transaction_amount
+            note.original_deposit_date = getattr(note.source_bank_line, 'transaction_date', None) or getattr(getattr(note.source_bank_line, 'bank_line', None), 'transaction_date', None)
+            note.original_deposit_amount = getattr(note.source_bank_line, 'transaction_amount', None) or getattr(getattr(note.source_bank_line, 'bank_line', None), 'transaction_amount', None)
+            note.orig_bank_id = getattr(note.source_bank_line, 'bank_line_id', None) or getattr(note.source_bank_line, 'id', None)
         else:
             note.original_deposit_date = None
             note.original_deposit_amount = None
+            note.orig_bank_id = None
 
-    # 🚀 FINANCIAL SUMMARY HEADER CALCULATIONS 🚀
+    # --- FINANCIAL SUMMARY HEADER CALCULATIONS ---
     total_bank_surplus = ReconnedBank.objects.filter(company_code=company_code).aggregate(
         total=Sum(F('transaction_amount') - F('amount_settled'))
     )['total'] or ZERO_DECIMAL
@@ -1629,7 +1642,7 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
         source_bank_line__isnull=True
     ).aggregate(total=Sum('schedule_amount'))['total'] or ZERO_DECIMAL
     
-    # --- UPDATED ACTION MESSAGE LOGIC ---
+    # --- ACTION MESSAGE LOGIC ---
     total_coverage_available = total_debt + total_available_credit_value + total_available_surplus_value
     is_bill_fully_covered = total_applied >= (scheduled_amount - SAFETY_TOLERANCE)
     
@@ -1643,7 +1656,6 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
         is_proceed_enabled = False
         action_message = f"Action REQUIRED: R{current_outstanding:.2f} liability remains."
 
-    # --- FINAL CONTEXT MAPPING ---
     context = {
         'bill_record': bill_record,
         'company_code': company_code,

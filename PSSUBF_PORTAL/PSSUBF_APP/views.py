@@ -1281,10 +1281,13 @@ def beneficiary_details_view(request, membership_number):
     
     # FETCH SYSTEM LOGS TO POPULATE THE NOTES TAB LOGS SECTION
     recent_logs = SystemLog.objects.all()[:50]
+<<<<<<< HEAD
 
     # --- FETCH CLAIM HISTORY TIMELINE DATA ---
     claim_refs = [c.reference_no for c in claims]
     all_history = ClaimHistory.objects.filter(claim_reference__in=claim_refs).order_by('-created_at')
+=======
+>>>>>>> 10455adca384a53cade1561a01522831b26168af
 
     # LIVE PROTECTION SAFEGUARD: Look up incoming/delegated records by both group code AND tracking ID string to capture direct logs or manually linked entries
     incoming_emails = PssubfDelegate.objects.filter(
