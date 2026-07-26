@@ -95,14 +95,11 @@
 
     <h2>🗓️ {{ page_title }}</h2>
 
-    <h3>Credit Info</h3>
+    <h3>Bank Surplus</h3>
     <div class="detail-block">
+
         <div class="detail-item">
-            <strong>Current Group Name</strong>
-            <span>{{ note.member_group_name|default:"Unknown" }}</span>
-        </div>
-        <div class="detail-item">
-            <strong>Total Credit Balance</strong>
+            <strong>Remaining Balance</strong>
             <span>R {{ note.schedule_amount|floatformat:2 }}</span>
         </div>
         <div class="detail-item">

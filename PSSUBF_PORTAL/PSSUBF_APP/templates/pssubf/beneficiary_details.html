@@ -145,6 +145,11 @@
         .highlight-field { background-color: #fef08a !important; font-weight: 700; color: #1f2937; border-color: #eab308 !important; }
         .registry-table th { width: auto !important; background: rgba(255,255,255,0.1); }
         .registry-table td { font-size: 13px; }
+
+        /* Ensure the nested history expands smoothly */
+        .history-row {
+            transition: all 0.3s ease-in-out;
+        }
     </style>
 </head>
 <body id="profileBody">
@@ -344,7 +349,7 @@
                     <div id="claims_tab" class="tab-pane">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="text-emerald-900 font-bold uppercase text-sm">Linked Claim Records</h3>
-                            
+                            <span class="text-[11px] font-semibold text-emerald-800 bg-white bg-opacity-50 px-3 py-1 rounded-full shadow-sm"><i class="fas fa-hand-pointer mr-1"></i> Click any claim row to open its history</span>
                         </div>
                         <table class="w-full registry-table">
                             <thead>
@@ -352,27 +357,59 @@
                                     <th>Ref No.</th>
                                     <th>Type</th>
                                     <th>Logged Date</th>
-                                    <th>Age at Claim</th> <th>Status</th>
+                                    <th>Age at Claim</th> 
+                                    <th>Status</th>
                                     <th>Amount (R)</th>
                                     <th>Attachment</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for claim in claims %}
-                                <tr class="hover:bg-white hover:bg-opacity-10 transition">
+                                <tr class="hover:bg-white hover:bg-opacity-20 transition cursor-pointer" onclick="toggleHistory('history_{{ claim.id }}')">
                                     <td class="font-bold text-emerald-900">{{ claim.reference_no }}</td>
                                     <td>{{ claim.claim_type }}</td>
                                     <td>{{ claim.date_logged|date:"d M Y" }}</td>
-                                    <td class="font-bold text-emerald-800">{{ claim.age_display }}</td> <td><span class="text-[10px] font-black uppercase">{{ claim.status }}</span></td>
+                                    <td class="font-bold text-emerald-800">{{ claim.age_display }}</td> 
+                                    <td><span class="text-[10px] font-black uppercase">{{ claim.status }}</span></td>
                                     <td>{{ claim.amount_requested }}</td>
                                     <td>
                                         {% if claim.attachment_path %}
-                                            <a href="/media/{{ claim.attachment_path }}" target="_blank" class="inline-flex items-center gap-1.5 text-xs bg-emerald-800 hover:bg-emerald-900 text-white font-semibold py-1 px-2.5 rounded-md transition shadow-sm">
+                                            <a href="/media/{{ claim.attachment_path }}" target="_blank" onclick="event.stopPropagation()" class="inline-flex items-center gap-1.5 text-xs bg-emerald-800 hover:bg-emerald-900 text-white font-semibold py-1 px-2.5 rounded-md transition shadow-sm">
                                                 <i class="fas fa-paperclip"></i> View Doc
                                             </a>
                                         {% else %}
                                             <span class="text-xs opacity-40 italic">None Loaded</span>
                                         {% endif %}
+                                    </td>
+                                </tr>
+                                
+                                <!-- EXPANDABLE HISTORY ROW HIDDEN BY DEFAULT -->
+                                <tr id="history_{{ claim.id }}" class="history-row bg-white bg-opacity-30 border-b border-white border-opacity-20" style="display: none;">
+                                    <td colspan="7" class="py-4 px-6">
+                                        <div class="border-l-2 border-emerald-500 pl-4 space-y-3">
+                                            <h4 class="text-[10px] font-bold text-emerald-900 uppercase tracking-widest opacity-80 mb-2">Claim Ledger / History Timeline</h4>
+                                            
+                                            {% for history in claim.history_logs %}
+                                                <div class="bg-white bg-opacity-60 p-3 rounded-lg text-sm shadow-sm">
+                                                    <div class="flex justify-between items-center mb-1">
+                                                        <span class="font-bold text-emerald-900">{{ history.action_type }} <span class="opacity-60 text-xs font-normal">by {{ history.agent_name }}</span></span>
+                                                        <span class="text-[10px] opacity-70">{{ history.created_at|date:"d M Y H:i" }}</span>
+                                                    </div>
+                                                    
+                                                    {% if history.note_content %}
+                                                        <p class="text-gray-800 italic opacity-90 text-xs mb-2 leading-relaxed">"{{ history.note_content }}"</p>
+                                                    {% endif %}
+
+                                                    {% if history.attachment_path %}
+                                                        <a href="/media/{{ history.attachment_path }}" target="_blank" onclick="event.stopPropagation()" class="inline-flex items-center gap-1 text-[10px] bg-emerald-700 hover:bg-emerald-800 text-white font-bold py-1 px-3 rounded-full transition shadow-sm">
+                                                            <i class="fas fa-paperclip"></i> View Document
+                                                        </a>
+                                                    {% endif %}
+                                                </div>
+                                            {% empty %}
+                                                <span class="text-xs opacity-60 italic">No ledger entries yet.</span>
+                                            {% endfor %}
+                                        </div>
                                     </td>
                                 </tr>
                                 {% empty %}
@@ -522,31 +559,71 @@
                         </form>
                     </div>
 
-                    <div id="notes" class="tab-pane">
-                        <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}">
-                            {% csrf_token %}
-                            <div class="mb-6 p-4 border border-white border-opacity-10 rounded-xl bg-white bg-opacity-10">
-                                <textarea name="note_text" placeholder="Add an internal note..." class="w-full bg-transparent h-20 text-sm" required></textarea>
-                                <div class="flex justify-end mt-2">
-                                    <button type="submit" name="save_note" class="text-xs font-bold uppercase text-emerald-900">Save Profile Note</button>
-                                </div>
-                            </div>
-                        </form>
-                        <div class="space-y-4">
-                            {% for note in internal_notes %}
-                            <div class="p-4 border-b border-white border-opacity-10">
-                                <div class="flex justify-between items-center mb-1">
-                                    <span class="font-bold text-emerald-900 text-sm">{{ note.agent_name }}</span>
-                                    <span class="text-[10px] opacity-60">{{ note.created_at|date:"d M Y H:i" }}</span>
-                                </div>
-                                <p class="text-sm opacity-90">{{ note.note_text }}</p>
-                            </div>
-                            {% empty %}
-                            <p class="text-center py-10 opacity-50 italic">No notes.</p>
-                            {% endfor %}
-                        </div>
-                    </div>
-                </div>
+<div id="notes" class="tab-pane">
+
+        <!-- History Table Section matching log.html style -->
+        <div class="glass-card" style="background: rgba(255, 255, 255, 0.25); border: 1px solid var(--glass-border); border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);">
+            <div class="glass-header header-dark" style="padding: 16px 20px; background: rgba(33, 37, 41, 0.85); color: white; font-weight: 700; font-size: 0.95rem; display: flex; justify-content: space-between; align-items: center;">
+                <span>LOG HISTORY FOR MEMBER {{ member.membership_number }}</span>
+                <span style="font-size: 0.8rem; font-weight: normal; opacity: 0.8;">(Click row to edit in log page)</span>
+            </div>
+            
+            <div class="table-responsive" style="overflow-x: auto; padding: 10px;">
+                <table class="custom-table" style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--glass-border);">
+                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">MIP Number</th>
+                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Action Type</th>
+                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Call Type</th>
+                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Action Method</th>
+                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Confirm Category</th>
+                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Agent</th>
+                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Internal Note</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for log in recent_logs %}
+                            {% if log.mip_number == member.membership_number %}
+                            <tr style="cursor: pointer; transition: background 0.2s;" 
+                                onmouseover="this.style.background='rgba(255, 255, 255, 0.5)'" 
+                                onmouseout="this.style.background='transparent'"
+                                onclick="window.location.href='{% url 'pssubf_log_page' %}?edit_id={{ log.id }}'">
+                                
+                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle; white-space: nowrap;"><strong>{{ log.mip_number|default:"-" }}</strong></td>
+                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ log.call_direction|default:"-" }}</td>
+                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ log.call_type|default:"-" }}</td>
+                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ log.call_method|default:"-" }}</td>
+                                
+                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">
+                                    {% if log.category == 'Urgent' %}
+                                        <span class="badge badge-urgent" style="background: #dc3545; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">Urgent</span>
+                                    {% elif log.category == 'Claim' %}
+                                        <span class="badge badge-claim" style="background: #0dcaf0; color: black; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">Claim</span>
+                                    {% elif log.category == 'Follow-up' %}
+                                        <span class="badge badge-followup" style="background: #ffc107; color: black; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">Follow-up</span>
+                                    {% else %}
+                                        <span class="badge badge-default" style="background: #6c757d; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">{{ log.category }}</span>
+                                    {% endif %}
+                                </td>
+
+                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ log.created_by }}</td>
+
+                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">
+                                    <span class="note-truncate" style="display: inline-block; max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle;" title="{{ log.note_content }}">
+                                        {{ log.note_content }}
+                                    </span>
+                                </td>
+                            </tr>
+                            {% endif %}
+                        {% empty %}
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 30px; opacity: 0.6;">
+                                    No log entries recorded for this MIP number.
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
@@ -617,6 +694,16 @@
             if(id === 'claimModal') calculateClaimFullValues(document.getElementById('claim_form_date_field').value);
         }
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+
+        // Expandable History Toggle Script
+        function toggleHistory(rowId) {
+            const row = document.getElementById(rowId);
+            if (row.style.display === 'none' || row.style.display === '') {
+                row.style.display = 'table-row';
+            } else {
+                row.style.display = 'none';
+            }
+        }
 
         // Calculates dynamic age display for the form rows safely
         function calculatePopupAge(dobId, claimDateVal, targetId) {

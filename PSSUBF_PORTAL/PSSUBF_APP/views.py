@@ -24,7 +24,7 @@ from .services.outlook_graph_service import OutlookGraphService
 logger = logging.getLogger(__name__)
 
 # Import your unmanaged models
-from .models import AdHocList, ClaimAffordability, ClaimList, PssubfBeneficiary, PssubfDirectEmail, PssubfInbox, PssubfDelegate, PssubfAction, PssubfNote, PssubfProfileNote
+from .models import AdHocList, ClaimAffordability, ClaimHistory, ClaimList, PssubfBeneficiary, PssubfDirectEmail, PssubfInbox, PssubfDelegate, PssubfAction, PssubfNote, PssubfProfileNote
 # Import your verified services
 from PSSUBF_APP.services.outlook_graph_service import OutlookGraphService
 from PSSUBF_APP.services.delegation_service import delegate_pssubf_task
@@ -47,6 +47,15 @@ from .models import SystemLog
 
 @login_required
 def pssubf_log_view(request):
+    # Check if an edit_id was passed via GET parameters (from the beneficiary profile page)
+    edit_id = request.GET.get('edit_id')
+    edit_log = None
+    if edit_id:
+        try:
+            edit_log = SystemLog.objects.get(id=edit_id)
+        except SystemLog.DoesNotExist:
+            pass
+
     if request.method == 'POST':
         # Check if action_type is "mark_complete" (from the mark complete button)
         action_type = request.POST.get('action_type')
@@ -58,17 +67,19 @@ def pssubf_log_view(request):
         # Grab the hidden ID field to check if this is an edit
         log_id = request.POST.get('log_id')
         
-        # Extract all form fields
+        # Extract form fields
         mip_number = request.POST.get('mip_number')
-        title = request.POST.get('log_title')
         call_direction = request.POST.get('call_direction')
         call_method = request.POST.get('call_method')
         call_type = request.POST.get('call_type')
         category = request.POST.get('category')
-        status = request.POST.get('status')
         content = request.POST.get('note_content')
 
-        if title and content:
+        # Fallbacks for removed UI elements (title and status)
+        title = call_type if call_type else "General Note"
+        status = "In Progress"
+
+        if content:
             if log_id:
                 # --- UPDATE EXISTING LOG ---
                 try:
@@ -102,13 +113,14 @@ def pssubf_log_view(request):
                 
             return redirect('pssubf_log_page')
         else:
-            messages.error(request, "Title and Note Content are required.")
+            messages.error(request, "Note Content is required.")
 
     # Fetch recent logs to populate the table (bumped to 50 for a better table view)
     recent_logs = SystemLog.objects.all()[:50]
     
     return render(request, 'pssubf/Log.html', {
-        'recent_logs': recent_logs
+        'recent_logs': recent_logs,
+        'edit_log': edit_log
     })
 
 
@@ -430,7 +442,8 @@ def pssubf_action_view(request, email_id):
                 recipient=recipient,
                 subject=subject,
                 body=body_content,
-                attachments=attachments_payload
+                attachments=attachments_payload,
+                user=request.user
             )
 
             if isinstance(response, dict) and 'error' in response:
@@ -534,14 +547,46 @@ def pssubf_view_thread(request, email_id):
 
     actions = PssubfAction.objects.filter(task_email_id=email_id).order_by('-action_timestamp')
 
+    # Fetch related local outbound emails/replies sharing the same thread subject (using sent_at)
+    subject = email_data.get('subject', 'No Subject')
+    clean_subject = subject.replace("RE: ", "").replace("Re: ", "").strip()
+    outbound_replies = PssubfDirectEmail.objects.filter(subject__icontains=clean_subject).order_by('sent_at')
+
+    # Build chronological conversation stream for Outlook-style view
+    conversation_stream = []
+    
+    # 1. Add main incoming message
+    conversation_stream.append({
+        'sender_name': email_data.get('from', {}).get('emailAddress', {}).get('name', 'Unknown'),
+        'sender_email': email_data.get('from', {}).get('emailAddress', {}).get('address', ''),
+        'recipient': target_email,
+        'subject': subject,
+        'body': email_body,
+        'date': email_data.get('receivedDateTime'),
+        'type': 'INCOMING'
+    })
+
+    # 2. Add outbound agent replies / direct emails
+    for rep in outbound_replies:
+        conversation_stream.append({
+            'sender_name': getattr(rep, 'agent_name', 'Agent'),
+            'sender_email': getattr(rep, 'agent_name', target_email), # fallback or agent identifier
+            'recipient': getattr(rep, 'recipient', ''),
+            'subject': rep.subject,
+            'body': getattr(rep, 'body_html', ''),
+            'date': rep.sent_at,
+            'type': 'OUTGOING'
+        })
+
     return render(request, 'pssubf/thread_history.html', {
         'email_id': email_id,
-        'email_subject': email_data.get('subject', 'No Subject'),
+        'email_subject': subject,
         'sender_name': email_data.get('from', {}).get('emailAddress', {}).get('name', 'Unknown'),
         'sender_email': email_data.get('from', {}).get('emailAddress', {}).get('address', ''),
         'email_body': email_body,
         'attachments': attachments,
-        'actions': actions
+        'actions': actions,
+        'conversation_stream': conversation_stream,
     })
 
 @login_required
@@ -998,7 +1043,8 @@ def beneficiary_details_view(request, membership_number):
                         agent_name=request.user.username,
                         recipient=recipient,
                         subject=subject,
-                        body_html=body_html
+                        body_html=body_html,
+                        user=request.user
                     )
                     
                     email_id = f"DIRECT_{membership_number}_{direct_mail.id}"
@@ -1140,7 +1186,7 @@ def beneficiary_details_view(request, membership_number):
                 timestamp_string = datetime.now().strftime('%Y%m%d')
                 generated_reference = f"CLM-{timestamp_string}{random.randint(1000, 9999)}"
 
-                ClaimList.objects.create(
+                new_claim = ClaimList.objects.create(
                     beneficiary=member,
                     reference_no=generated_reference,
                     claim_type=request.POST.get('claim_type'),
@@ -1159,6 +1205,16 @@ def beneficiary_details_view(request, membership_number):
                     loaded_by_agent=request.user.username,
                     attachment_path=file_saved_path
                 )
+
+                # --- INSTANCE LOGGING: CLAIM CREATED FROM PROFILE ---
+                ClaimHistory.objects.create(
+                    claim_reference=new_claim.reference_no,
+                    action_type="Claim Logged",
+                    note_content=request.POST.get('description'),
+                    attachment_path=file_saved_path,
+                    agent_name=request.user.username
+                )
+
                 messages.success(request, f"New claim registered successfully. Reference Code: {generated_reference}")
             except Exception as e:
                 messages.error(request, f"Claim Error: {str(e)}")
@@ -1222,6 +1278,13 @@ def beneficiary_details_view(request, membership_number):
     # --- FETCH DATA FOR TABS ---
     claims = ClaimList.objects.filter(beneficiary__membership_number=membership_number).order_by('-date_logged')
     adhoc_records = AdHocList.objects.filter(beneficiary=member).order_by('-claim_form_date')
+    
+    # FETCH SYSTEM LOGS TO POPULATE THE NOTES TAB LOGS SECTION
+    recent_logs = SystemLog.objects.all()[:50]
+
+    # --- FETCH CLAIM HISTORY TIMELINE DATA ---
+    claim_refs = [c.reference_no for c in claims]
+    all_history = ClaimHistory.objects.filter(claim_reference__in=claim_refs).order_by('-created_at')
 
     # LIVE PROTECTION SAFEGUARD: Look up incoming/delegated records by both group code AND tracking ID string to capture direct logs or manually linked entries
     incoming_emails = PssubfDelegate.objects.filter(
@@ -1291,8 +1354,11 @@ def beneficiary_details_view(request, membership_number):
     internal_notes = PssubfNote.objects.filter(task_email_id__icontains=membership_number).order_by('-created_at')
     pssubf_actions = PssubfAction.objects.filter(Q(task_email_id__icontains=membership_number)).order_by('-action_timestamp')
 
-    # --- DYNAMICALLY CALCULATE DISPLAY STRINGS ---
+    # --- DYNAMICALLY CALCULATE DISPLAY STRINGS AND ATTACH HISTORY ---
     for c in claims:
+        # Attach the history ledger to the claim
+        c.history_logs = [h for h in all_history if h.claim_reference == c.reference_no]
+        
         if member.dob and c.date_logged:
             diff = relativedelta(c.date_logged, member.dob)
             total_m = round((diff.years * 12) + diff.months + (diff.days / 30.44))
@@ -1324,6 +1390,7 @@ def beneficiary_details_view(request, membership_number):
         'email_logs': combined_emails,
         'internal_notes': internal_notes,
         'pssubf_actions': pssubf_actions,
+        'recent_logs': recent_logs,  # Added to feed logs into the notes tab
         'title': f"Member Profile - {membership_number}"
     }
     return render(request, 'pssubf/beneficiary_details.html', context)
@@ -1522,8 +1589,16 @@ def claim_list_view(request):
         
         try:
             member = PssubfBeneficiary.objects.filter(membership_number=m_num).first()
+            
+            # --- CORRECT FILE STORAGE HANDLING ---
             uploaded_file = request.FILES.get('supporting_document')
-            file_name = uploaded_file.name if uploaded_file else None
+            file_saved_path = None
+            
+            if uploaded_file:
+                fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT))
+                saved_filename = fs.save(uploaded_file.name, uploaded_file)
+                file_saved_path = saved_filename # Saves properly to disk and gets path
+
             timestamp = timezone.now().strftime('%Y-%m-%d %H:%M')
             agent_stamp = f"\n\n--- Managed by {request.user.username} on {timestamp} ---"
 
@@ -1545,23 +1620,35 @@ def claim_list_view(request):
                     portfolio_value=port_val,
                     portfolio_date=request.POST.get('portfolio_date') or None,
                     amount_requested=amt_req,
-                    supporting_docs_attached=request.POST.get('supporting_docs_attached'),
+                    supporting_docs_attached="Yes" if file_saved_path else request.POST.get('supporting_docs_attached'),
                     monthly_income_payment=clean_numeric(request.POST.get('monthly_income')),
                     date_paid=request.POST.get('date_paid') or None,
                     loaded_by_agent=request.user.username,
-                    attachment_path=file_name
+                    attachment_path=file_saved_path # Saves path properly
                 )
                 new_claim.save()
+
+                # --- INSTANCE LOGGING: CLAIM CREATED ---
+                ClaimHistory.objects.create(
+                    claim_reference=new_claim.reference_no,
+                    action_type="Claim Logged",
+                    note_content=request.POST.get('description'),
+                    attachment_path=file_saved_path,
+                    agent_name=request.user.username
+                )
+
                 messages.success(request, f"Claim for Member {m_num} logged.")
 
             elif action == 'update_claim_entry':
                 claim_id = request.POST.get('claim_id')
                 claim = get_object_or_404(ClaimList, id=claim_id)
                 
-                if file_name:
-                    claim.attachment_path = file_name
+                if file_saved_path:
+                    claim.attachment_path = file_saved_path
+                    claim.supporting_docs_attached = "Yes"
                 elif request.POST.get('remove_attachment') == 'true':
                     claim.attachment_path = None
+                    claim.supporting_docs_attached = "No"
 
                 claim.guardian_name = request.POST.get('guardian_name')
                 claim.beneficiary_name = request.POST.get('beneficiary_name')
@@ -1569,15 +1656,29 @@ def claim_list_view(request):
                 claim.termination_date = request.POST.get('termination_date') or None
                 claim.date_paid = request.POST.get('date_paid') or None
                 claim.claim_type = request.POST.get('claim_type')
-                claim.description = (request.POST.get('description') or "") + agent_stamp
+                
+                new_description_note = request.POST.get('description')
+                if new_description_note:
+                    claim.description = new_description_note + agent_stamp
+                
                 claim.date_logged = request.POST.get('date_logged') or None
                 claim.status = request.POST.get('status')
                 claim.portfolio_value = clean_numeric(request.POST.get('portfolio_value'))
                 claim.portfolio_date = request.POST.get('portfolio_date') or None
                 claim.amount_requested = clean_numeric(request.POST.get('amount_requested'))
-                claim.supporting_docs_attached = request.POST.get('supporting_docs_attached')
                 claim.monthly_income_payment = clean_numeric(request.POST.get('monthly_income'))
                 claim.save()
+
+                # --- INSTANCE LOGGING: CLAIM UPDATED ---
+                if new_description_note or file_saved_path:
+                    ClaimHistory.objects.create(
+                        claim_reference=claim.reference_no,
+                        action_type="Claim Updated",
+                        note_content=new_description_note,
+                        attachment_path=file_saved_path,
+                        agent_name=request.user.username
+                    )
+
                 messages.success(request, f"Claim {claim_id} updated.")
 
             PssubfAction.objects.create(
@@ -2254,3 +2355,38 @@ def export_claims_sla_excel(claims_q, actions_q, emails_q):
     response['Content-Disposition'] = f'attachment; filename="PSSUBF_SLA_{date.today()}.xlsx"'
     wb.save(response)
     return response
+
+from django.template.loader import render_to_string
+
+def get_user_email_signature(user):
+    """
+    Maps system usernames to Full Names and renders the email signature template.
+    """
+    username = user.username if hasattr(user, 'username') else str(user)
+    
+    # Map your system usernames to the full name that should display in the signature
+    name_mapping = {
+        'LuanovanEck': 'Luano van Eck',
+        'Testuser1': 'Test Agent',
+        'omega': 'Omega System Assistant',
+        'Chris-Nicolla': 'Chris Nicolla',
+        'Athena': 'Athena',
+        'Vanessa': 'Vanessa'
+    }
+    
+    # Fallback to the username or title-case if not explicitly mapped
+    full_name = name_mapping.get(username, username.replace('_', ' ').title())
+    
+    context = {
+        'agent_full_name': full_name,
+        'username': username,
+    }
+    
+    # Renders your signature template located at pssubf/pssubf_email_signature.html
+    try:
+        signature_html = render_to_string('pssubf/pssubf_email_signature.html', context)
+    except Exception:
+        # Fallback inline signature if template path ever changes
+        signature_html = f"<br><br><p>Kind regards,<br><strong>{full_name}</strong><br>PSSUBF Administrator</p>"
+        
+    return signature_html

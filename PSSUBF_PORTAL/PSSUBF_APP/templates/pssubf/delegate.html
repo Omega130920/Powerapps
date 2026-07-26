@@ -177,12 +177,6 @@
 
 <div class="delegate-container">
     <h1><i class="bi bi-send-check-fill me-2"></i> Delegate PSSUBF Task</h1>
-    
-    {% if messages %}
-        {% for message in messages %}
-        <div class="alert alert-warning border-0 shadow-sm py-2 mb-4" style="border-radius: 12px;">{{ message }}</div>
-        {% endfor %}
-    {% endif %}
 
     <form method="post">
         {% csrf_token %}

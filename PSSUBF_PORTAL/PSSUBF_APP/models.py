@@ -338,3 +338,15 @@ class SystemLog(models.Model):
 
     def __str__(self):
         return f"{self.mip_number} | {self.log_title}"
+
+class ClaimHistory(models.Model):
+    claim_reference = models.CharField(max_length=100)
+    action_type = models.CharField(max_length=100)
+    note_content = models.TextField(blank=True, null=True)
+    attachment_path = models.CharField(max_length=255, blank=True, null=True)
+    agent_name = models.CharField(max_length=100)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'pssubf_claim_history'
+        managed = False

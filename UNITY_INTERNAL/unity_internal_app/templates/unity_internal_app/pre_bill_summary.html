@@ -130,7 +130,7 @@ Proceed to Recon (Unavailable)
 
 {% if available_credits %}
 <hr>
-<h3 style="color: #e65100;">🛡️ Available Approved Credits (Fail-Safe)</h3>
+<h3 style="color: #e65100;">🛡️ Remaining Balance</h3>
 <p style="font-size: 0.9em;">
 The manager has approved these credits specifically for <strong>{{ company_code }}</strong>. 
 Apply them here to reduce the bill liability before final reconciliation.
@@ -139,7 +139,6 @@ Apply them here to reduce the bill liability before final reconciliation.
 <thead>
 <tr style="background-color: #ff9800; color: white;">
 <th>Credit ID</th>
-<th>Reason / Description</th>
                     <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Orig. Bank ID</th>
                     <!-- END NEW COLUMN -->
                     <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Deposit Date</th>
@@ -152,7 +151,7 @@ Apply them here to reduce the bill liability before final reconciliation.
 {% for credit in available_credits %}
 <tr>
 <td>{{ credit.id }}</td>
-<td>{{ credit.link_request_reason }}</td>
+
                     <td style="padding: 10px; color: #555;">
                         {% if note.source_bank_line %}
                             #{{ note.source_bank_line.bank_line_id }}

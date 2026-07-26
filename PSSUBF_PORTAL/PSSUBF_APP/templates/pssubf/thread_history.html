@@ -52,16 +52,30 @@
             opacity: 0.8;
         }
 
-        /* --- EMAIL BODY --- */
-        .email-body { 
-            background: rgba(255, 255, 255, 0.6); 
-            border: 1px solid var(--glass-border); 
-            padding: 25px; 
-            border-radius: 16px; 
-            max-height: 550px; 
-            overflow-y: auto; 
-            line-height: 1.7; 
-            box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+        /* --- OUTLOOK THREAD CARDS --- */
+        .thread-card {
+            background: rgba(255, 255, 255, 0.65);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+            transition: 0.2s;
+        }
+
+        .thread-card.incoming {
+            border-left: 6px solid #0d6efd;
+        }
+
+        .thread-card.outgoing {
+            border-left: 6px solid var(--accent-green);
+        }
+
+        .thread-card-body {
+            padding: 25px;
+            max-height: 500px;
+            overflow-y: auto;
+            line-height: 1.7;
+            background: rgba(255, 255, 255, 0.85);
         }
 
         /* --- ACTION TRAIL --- */
@@ -127,6 +141,7 @@
         </a>
     </div>
 
+    <!-- Top Metadata / Attachments Summary -->
     <div class="email-meta-header shadow-sm">
         <div class="mb-2">
             <span class="meta-label">Subject:</span>
@@ -150,15 +165,38 @@
         {% endif %}
     </div>
 
+    <!-- Outlook-Style Conversation Stream -->
     <div class="mb-5">
-        <h5 class="text-muted small fw-bold mb-3 text-uppercase opacity-75">Message Body</h5>
-        <div class="email-body shadow-sm">
-            {{ email_body|safe }}
+        <h5 class="text-muted small fw-bold mb-3 text-uppercase opacity-75"><i class="bi bi-chat-square-text me-2"></i>Conversation Stream</h5>
+        
+        <div class="space-y-4">
+            {% for msg in conversation_stream %}
+            <div class="thread-card {% if msg.type == 'OUTGOING' %}outgoing{% else %}incoming{% endif %} mb-4 shadow-sm">
+                <!-- Card Header -->
+                <div class="px-4 py-3 bg-white bg-opacity-50 border-bottom border-white border-opacity-25 d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="badge {% if msg.type == 'OUTGOING' %}bg-success{% else %}bg-primary{% endif %} text-uppercase" style="font-size: 0.65rem;">
+                            {{ msg.type }}
+                        </span>
+                        <strong class="text-dark fs-6">{{ msg.sender_name }}</strong>
+                        <small class="text-muted">&lt;{{ msg.sender_email }}&gt;</small>
+                    </div>
+                    <div class="text-muted small">
+                        <i class="bi bi-clock me-1"></i>{{ msg.date|date:"d M Y, H:i" }}
+                    </div>
+                </div>
+                <!-- Card Body (Message Content) -->
+                <div class="thread-card-body">
+                    {{ msg.body|safe }}
+                </div>
+            </div>
+            {% endfor %}
         </div>
     </div>
 
     <hr class="border-white border-opacity-50">
 
+    <!-- Action Audit Trail -->
     <div class="mt-5">
         <h5 class="text-muted small fw-bold mb-4 text-uppercase opacity-75"><i class="bi bi-journal-check me-2"></i>Action Audit Trail</h5>
         {% for action in actions %}

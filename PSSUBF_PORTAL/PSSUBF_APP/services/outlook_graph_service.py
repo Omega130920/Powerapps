@@ -1,9 +1,41 @@
 import requests
 import logging
 from django.conf import settings
+from django.template.loader import render_to_string
 from .token_manager import get_current_access_token
 
 logger = logging.getLogger(__name__)
+
+def get_user_email_signature(user):
+    """
+    Maps system usernames to Full Names and renders the email signature template.
+    """
+    if not user:
+        full_name = "PSSUBF Administrator"
+    else:
+        username = user.username if hasattr(user, 'username') else str(user)
+        
+        # Map your system usernames to the full name that should display in the signature
+        name_mapping = {
+            'LuanovanEck': 'Luano van Eck',
+            'Testuser1': 'Test Agent',
+            'omega': 'Omega System Assistant',
+        }
+        
+        # Fallback to the username nicely formatted if not explicitly mapped
+        full_name = name_mapping.get(username, username.replace('_', ' ').title())
+    
+    context = {
+        'agent_full_name': full_name,
+    }
+    
+    # Renders your signature template located at pssubf/pssubf_email_signature.html
+    try:
+        return render_to_string('pssubf/pssubf_email_signature.html', context)
+    except Exception as e:
+        logger.error(f"Error rendering email signature template: {e}")
+        return f"<br><br><p>Kind regards,<br><strong>{full_name}</strong><br>PSSUBF Administrators</p>"
+
 
 class OutlookGraphService:
     @staticmethod
@@ -36,17 +68,25 @@ class OutlookGraphService:
             return {'error': str(e)}
 
     @staticmethod
-    def send_outlook_email(sender, recipient, subject, body, attachments=None):
+    def send_outlook_email(sender, recipient, subject, body, attachments=None, user=None):
         """
         Sends an email via Microsoft Graph API.
-        Supports HTML body and Base64 attachments.
+        Supports HTML body, Base64 attachments, and automatically appends 
+        the user's personalized HTML signature if a user is provided.
         """
         endpoint = "sendMail"
+        
+        # Automatically append the agent's signature if user context is provided
+        final_body = body
+        if user:
+            signature_html = get_user_email_signature(user)
+            final_body = body + signature_html
+
         message_payload = {
             "subject": subject,
             "body": {
                 "contentType": "HTML",
-                "content": body
+                "content": final_body
             },
             "toRecipients": [
                 {
