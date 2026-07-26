@@ -47,6 +47,15 @@ from .models import SystemLog
 
 @login_required
 def pssubf_log_view(request):
+    # Check if an edit_id was passed via GET parameters (from the beneficiary profile page)
+    edit_id = request.GET.get('edit_id')
+    edit_log = None
+    if edit_id:
+        try:
+            edit_log = SystemLog.objects.get(id=edit_id)
+        except SystemLog.DoesNotExist:
+            pass
+
     if request.method == 'POST':
         # Check if action_type is "mark_complete" (from the mark complete button)
         action_type = request.POST.get('action_type')
@@ -58,17 +67,19 @@ def pssubf_log_view(request):
         # Grab the hidden ID field to check if this is an edit
         log_id = request.POST.get('log_id')
         
-        # Extract all form fields
+        # Extract form fields
         mip_number = request.POST.get('mip_number')
-        title = request.POST.get('log_title')
         call_direction = request.POST.get('call_direction')
         call_method = request.POST.get('call_method')
         call_type = request.POST.get('call_type')
         category = request.POST.get('category')
-        status = request.POST.get('status')
         content = request.POST.get('note_content')
 
-        if title and content:
+        # Fallbacks for removed UI elements (title and status)
+        title = call_type if call_type else "General Note"
+        status = "In Progress"
+
+        if content:
             if log_id:
                 # --- UPDATE EXISTING LOG ---
                 try:
@@ -102,13 +113,14 @@ def pssubf_log_view(request):
                 
             return redirect('pssubf_log_page')
         else:
-            messages.error(request, "Title and Note Content are required.")
+            messages.error(request, "Note Content is required.")
 
     # Fetch recent logs to populate the table (bumped to 50 for a better table view)
     recent_logs = SystemLog.objects.all()[:50]
     
     return render(request, 'pssubf/Log.html', {
-        'recent_logs': recent_logs
+        'recent_logs': recent_logs,
+        'edit_log': edit_log
     })
 
 
@@ -1222,6 +1234,9 @@ def beneficiary_details_view(request, membership_number):
     # --- FETCH DATA FOR TABS ---
     claims = ClaimList.objects.filter(beneficiary__membership_number=membership_number).order_by('-date_logged')
     adhoc_records = AdHocList.objects.filter(beneficiary=member).order_by('-claim_form_date')
+    
+    # FETCH SYSTEM LOGS TO POPULATE THE NOTES TAB LOGS SECTION
+    recent_logs = SystemLog.objects.all()[:50]
 
     # LIVE PROTECTION SAFEGUARD: Look up incoming/delegated records by both group code AND tracking ID string to capture direct logs or manually linked entries
     incoming_emails = PssubfDelegate.objects.filter(
@@ -1324,6 +1339,7 @@ def beneficiary_details_view(request, membership_number):
         'email_logs': combined_emails,
         'internal_notes': internal_notes,
         'pssubf_actions': pssubf_actions,
+        'recent_logs': recent_logs,  # Added to feed logs into the notes tab
         'title': f"Member Profile - {membership_number}"
     }
     return render(request, 'pssubf/beneficiary_details.html', context)
@@ -1522,8 +1538,16 @@ def claim_list_view(request):
         
         try:
             member = PssubfBeneficiary.objects.filter(membership_number=m_num).first()
+            
+            # --- CORRECT FILE STORAGE HANDLING ---
             uploaded_file = request.FILES.get('supporting_document')
-            file_name = uploaded_file.name if uploaded_file else None
+            file_saved_path = None
+            
+            if uploaded_file:
+                fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT))
+                saved_filename = fs.save(uploaded_file.name, uploaded_file)
+                file_saved_path = saved_filename # Saves properly to disk and gets path
+
             timestamp = timezone.now().strftime('%Y-%m-%d %H:%M')
             agent_stamp = f"\n\n--- Managed by {request.user.username} on {timestamp} ---"
 
@@ -1545,11 +1569,11 @@ def claim_list_view(request):
                     portfolio_value=port_val,
                     portfolio_date=request.POST.get('portfolio_date') or None,
                     amount_requested=amt_req,
-                    supporting_docs_attached=request.POST.get('supporting_docs_attached'),
+                    supporting_docs_attached="Yes" if file_saved_path else request.POST.get('supporting_docs_attached'),
                     monthly_income_payment=clean_numeric(request.POST.get('monthly_income')),
                     date_paid=request.POST.get('date_paid') or None,
                     loaded_by_agent=request.user.username,
-                    attachment_path=file_name
+                    attachment_path=file_saved_path # Saves path properly
                 )
                 new_claim.save()
                 messages.success(request, f"Claim for Member {m_num} logged.")
@@ -1558,10 +1582,12 @@ def claim_list_view(request):
                 claim_id = request.POST.get('claim_id')
                 claim = get_object_or_404(ClaimList, id=claim_id)
                 
-                if file_name:
-                    claim.attachment_path = file_name
+                if file_saved_path:
+                    claim.attachment_path = file_saved_path
+                    claim.supporting_docs_attached = "Yes"
                 elif request.POST.get('remove_attachment') == 'true':
                     claim.attachment_path = None
+                    claim.supporting_docs_attached = "No"
 
                 claim.guardian_name = request.POST.get('guardian_name')
                 claim.beneficiary_name = request.POST.get('beneficiary_name')
@@ -1575,7 +1601,6 @@ def claim_list_view(request):
                 claim.portfolio_value = clean_numeric(request.POST.get('portfolio_value'))
                 claim.portfolio_date = request.POST.get('portfolio_date') or None
                 claim.amount_requested = clean_numeric(request.POST.get('amount_requested'))
-                claim.supporting_docs_attached = request.POST.get('supporting_docs_attached')
                 claim.monthly_income_payment = clean_numeric(request.POST.get('monthly_income'))
                 claim.save()
                 messages.success(request, f"Claim {claim_id} updated.")
