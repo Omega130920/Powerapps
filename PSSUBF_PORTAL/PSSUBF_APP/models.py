@@ -164,8 +164,11 @@ class PssubfProfileNote(models.Model):
         managed = False
         db_table = 'pssubf_profile_notes'
 
+from django.db import models
+
 class PssubfDirectEmail(models.Model):
-    membership_number = models.CharField(max_length=100)
+    # Added null=True and blank=True to prevent IntegrityErrors
+    membership_number = models.CharField(max_length=100, null=True, blank=True)
     agent_name = models.CharField(max_length=100)
     recipient = models.CharField(max_length=255)
     subject = models.CharField(max_length=255)

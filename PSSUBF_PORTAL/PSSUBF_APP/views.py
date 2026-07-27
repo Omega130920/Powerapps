@@ -451,6 +451,20 @@ def pssubf_action_view(request, email_id):
             else:
                 audit_string = "[Outbound | Email Reply Sent]"
                 
+                # --- ADDED: Log the outgoing reply into the direct email table ---
+                from django.utils import timezone
+                from .models import PssubfDirectEmail
+                
+                PssubfDirectEmail.objects.create(
+                    agent_name=request.user.username,
+                    recipient=recipient,
+                    subject=subject,
+                    body_html=body_content,
+                    sent_at=timezone.now(),
+                    membership_number=getattr(task, 'membership_number', None)
+                )
+                # -----------------------------------------------------------------
+                
                 PssubfAction.objects.create(
                     task_email_id=email_id,
                     action_user=request.user.username,
@@ -568,12 +582,46 @@ def pssubf_view_thread(request, email_id):
 
     # 2. Add outbound agent replies / direct emails
     for rep in outbound_replies:
+        # Map agent username to Full Name
+        agent_username = getattr(rep, 'agent_name', 'Agent')
+        name_mapping = {
+            'LuanovanEck': 'Luano van Eck',
+            'Testuser1': 'Test Agent',
+            'omega': 'Omega System Assistant',
+        }
+        full_name = name_mapping.get(agent_username, agent_username.replace('_', ' ').title())
+
+        # Fix formatting: Convert plain text linebreaks from the textarea into HTML <br> tags
+        raw_body = getattr(rep, 'body_html', '')
+        formatted_body = raw_body.replace('\r\n', '<br>').replace('\n', '<br>')
+
+        # Append visual signature mirror to the thread card
+        signature_html = f"""
+        <br><br>
+        <div style="font-family: Arial, sans-serif; font-size: 13px; color: #333; margin-top: 20px; border-top: 1px solid #ccc; padding-top: 10px;">
+            <table cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
+                <tr>
+                    <td style="padding-right: 20px; vertical-align: top; width: 160px;">
+                        <img src="https://futurasa.co.za/wp-content/uploads/2023/10/Futura-Logo.png" alt="Futura Logo" style="width: 150px; display: block;">
+                    </td>
+                    <td style="vertical-align: top;">
+                        <p style="margin: 0 0 4px 0; font-size: 14px;"><strong style="color: #1b5e20;">{full_name}</strong></p>
+                        <p style="margin: 0 0 6px 0; font-size: 12px; color: #555;">PSSUBF Beneficiary Operations</p>
+                        <p style="margin: 0 0 4px 0;"><strong>phone:</strong> 087 702 5950</p>
+                        <p style="margin: 0 0 4px 0;"><strong>fax:</strong> 086 225 2554</p>
+                        <p style="margin: 0 0 0 0;"><strong>Email:</strong> <a href="mailto:acvv@futurasa.co.za" style="color: #2e7d32;">acvv@futurasa.co.za</a></p>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        """
+
         conversation_stream.append({
-            'sender_name': getattr(rep, 'agent_name', 'Agent'),
-            'sender_email': getattr(rep, 'agent_name', target_email), # fallback or agent identifier
+            'sender_name': full_name,
+            'sender_email': target_email, 
             'recipient': getattr(rep, 'recipient', ''),
             'subject': rep.subject,
-            'body': getattr(rep, 'body_html', ''),
+            'body': formatted_body + signature_html,
             'date': rep.sent_at,
             'type': 'OUTGOING'
         })
