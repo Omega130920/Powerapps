@@ -1,4 +1,5 @@
 import base64
+import csv
 from datetime import date
 from email import parser
 import random
@@ -60,7 +61,6 @@ def pssubf_log_view(request):
         # Check if action_type is "mark_complete" (from the mark complete button)
         action_type = request.POST.get('action_type')
         if action_type == 'mark_complete':
-            # Handle mark complete logic here if needed for this view
             messages.success(request, "Task marked as complete.")
             return redirect('pssubf_log_page')
 
@@ -115,12 +115,64 @@ def pssubf_log_view(request):
         else:
             messages.error(request, "Note Content is required.")
 
-    # Fetch recent logs to populate the table (bumped to 50 for a better table view)
-    recent_logs = SystemLog.objects.all()[:50]
+    # Base logs queryset
+    logs_queryset = SystemLog.objects.all()
+    
+    # Retrieve Date Range parameters & action from GET request
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    action = request.GET.get('action')
+
+    if date_from:
+        try:
+            dt_from = datetime.strptime(date_from, '%Y-%m-%d')
+            logs_queryset = logs_queryset.filter(created_at__date__gte=dt_from.date())
+        except ValueError:
+            pass
+
+    if date_to:
+        try:
+            dt_to = datetime.strptime(date_to, '%Y-%m-%d')
+            logs_queryset = logs_queryset.filter(created_at__date__lte=dt_to.date())
+        except ValueError:
+            pass
+
+    # Handle Export functionality (exports all matching filtered records)
+    if action == 'export':
+        response = HttpResponse(content_type='text/csv')
+        filename = f"System_Logs_Export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        writer = csv.writer(response)
+        # Write column headers
+        writer.writerow(['ID', 'MIP Number', 'Action Type', 'Call Type', 'Action Method', 'Category', 'Status', 'Agent', 'Created At', 'Internal Note'])
+        
+        # Write log rows
+        for log in logs_queryset:
+            writer.writerow([
+                log.id,
+                log.mip_number or '',
+                log.call_direction or '',
+                log.call_type or '',
+                log.call_method or '',
+                log.category or '',
+                log.status or '',
+                log.created_by or '',
+                log.created_at.strftime('%Y-%m-%d %H:%M:%S') if log.created_at else '',
+                log.note_content or ''
+            ])
+        return response
+
+    # Pagination setup: Display 36 records per page
+    paginator = Paginator(logs_queryset, 36)
+    page_number = request.GET.get('page')
+    recent_logs = paginator.get_page(page_number)
     
     return render(request, 'pssubf/Log.html', {
         'recent_logs': recent_logs,
-        'edit_log': edit_log
+        'edit_log': edit_log,
+        'date_from': date_from or '',
+        'date_to': date_to or ''
     })
 
 

@@ -193,9 +193,11 @@
     .text-danger { color: #d32f2f; }
 </style>
 
-            <a href="{% url 'pssubf_switchboard' %}" class="btn btn-light border-white rounded-pill">
-                <i class="bi bi-house me-1"></i> Back to Home Screen
-            </a>
+<div style="padding: 15px 24px 0 24px;">
+    <a href="{% url 'pssubf_switchboard' %}" class="btn btn-light border-white rounded-pill" style="width: auto; display: inline-block; text-decoration: none; padding: 8px 20px; background: rgba(255,255,255,0.6);">
+        <i class="bi bi-house me-1"></i> Back to Home Screen
+    </a>
+</div>
 
 <div class="glass-container">
     <!-- Form Section -->
@@ -279,6 +281,30 @@
 
     <!-- History Table Section -->
     <div class="glass-main">
+        <!-- Date Range Filter & Export Card -->
+        <div class="glass-card">
+            <div class="glass-header" style="background: rgba(33, 37, 41, 0.85); color: white;">
+                <span>DATE RANGE FILTER & EXPORT</span>
+            </div>
+            <div class="glass-body" style="padding: 16px 20px;">
+                <form method="GET" action="{% url 'pssubf_log_page' %}" style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 140px;">
+                        <label class="form-label">From Date:</label>
+                        <input type="date" name="date_from" value="{{ date_from }}" class="form-input">
+                    </div>
+                    <div style="flex: 1; min-width: 140px;">
+                        <label class="form-label">To Date:</label>
+                        <input type="date" name="date_to" value="{{ date_to }}" class="form-input">
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button type="submit" class="btn btn-primary" style="margin-bottom: 0; padding: 10px 18px; width: auto;">Filter</button>
+                        <button type="submit" name="action" value="export" class="btn" style="margin-bottom: 0; padding: 10px 18px; width: auto; background: #2e7d32; color: white;">Export CSV</button>
+                        <a href="{% url 'pssubf_log_page' %}" class="btn btn-secondary" style="margin-bottom: 0; padding: 10px 14px; width: auto; display: inline-block; text-decoration: none; line-height: normal;">Reset</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <div class="glass-card">
             <div class="glass-header header-dark">
                 <span>RECENT LOGS</span>
@@ -338,13 +364,41 @@
                         {% empty %}
                             <tr>
                                 <td colspan="7" style="text-align: center; padding: 30px; opacity: 0.6;">
-                                    No logs recorded yet.
+                                    No logs recorded for the selected period.
                                 </td>
                             </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
+
+            <!-- Pagination Controls -->
+            {% if recent_logs.has_other_pages %}
+            <div style="padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--glass-border); background: rgba(255, 255, 255, 0.2);">
+                <div>
+                    <span style="font-size: 0.85rem; font-weight: 600;">
+                        Page {{ recent_logs.number }} of {{ recent_logs.paginator.num_pages }}
+                    </span>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    {% if recent_logs.has_previous %}
+                        <a href="?page={{ recent_logs.previous_page_number }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="btn btn-secondary" style="margin-bottom: 0; padding: 6px 14px; width: auto; font-size: 0.85rem; text-decoration: none; line-height: normal;">
+                            <i class="bi bi-chevron-left"></i> Previous
+                        </a>
+                    {% else %}
+                        <button class="btn btn-secondary" disabled style="margin-bottom: 0; padding: 6px 14px; width: auto; font-size: 0.85rem; opacity: 0.5; cursor: not-allowed; line-height: normal;">Previous</button>
+                    {% endif %}
+
+                    {% if recent_logs.has_next %}
+                        <a href="?page={{ recent_logs.next_page_number }}{% if date_from %}&date_from={{ date_from }}{% endif %}{% if date_to %}&date_to={{ date_to }}{% endif %}" class="btn btn-primary" style="margin-bottom: 0; padding: 6px 14px; width: auto; font-size: 0.85rem; text-decoration: none; line-height: normal;">
+                            Next <i class="bi bi-chevron-right"></i>
+                        </a>
+                    {% else %}
+                        <button class="btn btn-primary" disabled style="margin-bottom: 0; padding: 6px 14px; width: auto; font-size: 0.85rem; opacity: 0.5; cursor: not-allowed; line-height: normal;">Next</button>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
 </div>
@@ -375,7 +429,6 @@
             "How to claim - Monthly Income",
             "SALT - New Entrance Pack Received (Complete)",
             "Guardian - Monthly Income Requested"
-            
         ],
         "Outbound": [
             "Change of contact/banking details submitted to Sanlam",

@@ -299,7 +299,6 @@
                     <li data-tab-target="#adhoc_tab">Ad Hoc Registry <i class="fas fa-hand-holding-usd ml-2"></i></li>
                     <li data-tab-target="#contact">Contact Channels <i class="fas fa-phone-alt ml-2"></i></li>
                     <li data-tab-target="#guardian">Guardian Info <i class="fas fa-user-shield ml-2"></i></li>
-                    <li data-tab-target="#audit">System History <i class="fas fa-history ml-2"></i></li>
                     <li data-tab-target="#email-log">Email Log <i class="fas fa-envelope-open-text ml-2"></i></li>
                     <li data-tab-target="#direct-email">Direct Email <i class="fas fa-paper-plane ml-2"></i></li>
                     <li data-tab-target="#notes">Notes <i class="fas fa-sticky-note ml-2"></i></li>
@@ -477,12 +476,6 @@
                             <tr><th>Guardian Mobile</th><td><input type="text" value="{{ member.guardian_mobile }}" class="glass-input" readonly></td></tr>
                             <tr><th>Guardian Email</th><td><input type="email" value="{{ member.guardian_email }}" class="glass-input" readonly></td></tr>
                             <tr><th>Address</th><td><textarea class="glass-input h-32" readonly>{{ member.guardian_address }}</textarea></td></tr>
-                        </table>
-                    </div>
-
-                    <div id="audit" class="tab-pane">
-                        <table class="w-full"><thead><tr class="text-left border-b border-white border-opacity-10"><th class="py-2">User</th><th>Action</th><th>Timestamp</th></tr></thead>
-                            <tbody>{% for action in pssubf_actions %}<tr><td>{{ action.action_user }}</td><td>{{ action.action_type }}</td><td>{{ action.action_timestamp|date:"Y-m-d H:i" }}</td></tr>{% empty %}<tr><td colspan="3" class="text-center py-4 opacity-50">No activity.</td></tr>{% endfor %}</tbody>
                         </table>
                     </div>
 

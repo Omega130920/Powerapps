@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght=300;400;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; background: linear-gradient(135deg, #d1e2c4 0%, #8fcf7f 100%); min-height: 100vh; }
         .glass-card { background: rgba(255, 255, 255, 0.25); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.3); box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1); }
         .clean-input { background-color: #ffffff !important; border: 1px solid #d1d5db !important; transition: border-color 0.2s; }
@@ -245,60 +245,66 @@
     </div>
 
     <div id="pdfPrintTemplate" class="hidden p-16 max-w-4xl mx-auto bg-white text-gray-900 border border-gray-200 shadow-sm font-sans">
+        <!-- Header / Logo Area -->
         <div class="flex justify-between items-start border-b-2 border-green-800 pb-6 mb-8">
             <div>
                 <span class="text-4xl font-serif font-bold text-green-800 italic tracking-wide">futura</span>
-                <p class="text-xs text-gray-500 uppercase tracking-widest mt-1">Financial Services System</p>
+                <p class="text-xs text-gray-500 uppercase tracking-widest mt-1">Private Security Sector Umbrella Beneficiary Fund</p>
             </div>
             <div class="text-right text-xs text-gray-500">
-                <p class="font-bold text-gray-800 text-sm">AD HOC ASSESSMENT OFFICE</p>
+                <p class="font-bold text-gray-800 text-sm">BENEFICIARY OPERATIONS</p>
                 <p>System Auto-Generated Notice</p>
                 <p id="pdf_current_date"></p>
             </div>
         </div>
 
-        <div class="mb-8">
-            <h2 class="text-xl font-bold uppercase text-red-700 tracking-tight mb-2">Notice of Ad Hoc Claim Insufficiency</h2>
-            <p class="text-sm text-gray-600">This document serves as an official analytical breakdown of the requested ad-hoc benefit payout evaluation metrics.</p>
-        </div>
-
-        <div class="bg-gray-50 rounded-xl p-6 border border-gray-200 mb-8">
-            <h3 class="text-xs font-bold uppercase tracking-wider text-gray-400 mb-4">Evaluation Demographics & Balances</h3>
-            <div class="grid grid-cols-2 gap-y-4 gap-x-8 text-sm">
-                <div>
-                    <span class="block text-xs font-semibold text-gray-400 uppercase">Member Number</span>
-                    <span class="font-bold text-gray-800" id="pdf_member_number">--</span>
-                </div>
-                <div>
-                    <span class="block text-xs font-semibold text-gray-400 uppercase">Beneficiary Name</span>
-                    <span class="font-bold text-gray-800" id="pdf_beneficiary_name">--</span>
-                </div>
-                <div>
-                    <span class="block text-xs font-semibold text-gray-400 uppercase">Amount Requested</span>
-                    <span class="font-mono font-bold text-red-600" id="pdf_amount_requested">R 0.00</span>
-                </div>
-                <div>
-                    <span class="block text-xs font-semibold text-gray-400 uppercase">Affordability Engine Margin</span>
-                    <span class="font-mono font-bold text-red-600" id="pdf_affordability_result">R 0.00</span>
-                </div>
+        <!-- Demographics Block matching official template layout -->
+        <div class="bg-gray-50 rounded-xl p-6 border border-gray-200 mb-8 space-y-3 text-sm">
+            <div class="flex justify-between border-b border-gray-200 pb-2">
+                <span class="font-semibold text-gray-500 uppercase text-xs">Guardian:</span>
+                <span class="font-bold text-gray-800" id="pdf_guardian_name">--</span>
+            </div>
+            <div class="flex justify-between border-b border-gray-200 pb-2">
+                <span class="font-semibold text-gray-500 uppercase text-xs">Beneficiary:</span>
+                <span class="font-bold text-gray-800" id="pdf_beneficiary_name">--</span>
+            </div>
+            <div class="flex justify-between border-b border-gray-200 pb-2">
+                <span class="font-semibold text-gray-500 uppercase text-xs">Fund value as at <span id="pdf_val_date">--</span>:</span>
+                <span class="font-mono font-bold text-gray-800" id="pdf_fund_value">R 0.00</span>
+            </div>
+            <div class="flex justify-between">
+                <span class="font-semibold text-gray-500 uppercase text-xs">Member Number:</span>
+                <span class="font-bold text-gray-800" id="pdf_member_number">--</span>
             </div>
         </div>
 
-        <div class="border-l-4 border-red-600 bg-red-50 p-5 rounded-r-xl mb-12">
-            <div class="flex gap-3">
-                <i class="fas fa-exclamation-triangle text-red-700 text-lg mt-0.5"></i>
-                <div>
-                    <h4 class="font-bold text-red-800 text-sm uppercase">Application Status: Declined</h4>
-                    <p class="text-sm text-red-700 mt-1 leading-relaxed">
-                        Please note that the member claim <strong>cannot be approved due to insufficient funds</strong>. 
-                        The requested allocation balance exceeds the calculated long-term affordability parameters calculated inside the portfolio account engine logic.
-                    </p>
-                </div>
+        <!-- Payment Request Paragraph Content -->
+        <div class="mb-8 space-y-4 text-sm text-gray-700 leading-relaxed">
+            <p class="font-bold text-gray-900 uppercase text-xs tracking-wider">Payment request details:</p>
+            <p id="pdf_payment_notice">
+                Ad Hoc payment request submitted on <span id="pdf_claim_date">--</span> for the total value of 
+                <strong class="text-green-800 font-mono" id="pdf_amount_requested">R 0.00</strong>
+            </p>
+            <p>
+                I, the guardian of the beneficiary as indicated above, hereby acknowledge that I am aware that this ad hoc payment will result in a significant reduction in available funds of the beneficiary's account.
+            </p>
+            <p>
+                Further that the funds will not be sufficient to provide for the life expenses of the beneficiary up to age of majority. Once the funds are depleted, I, the guardian, will be responsible for any further life expenses of the beneficiary.
+            </p>
+        </div>
+
+        <!-- Signature Block matching official PDF structure -->
+        <div class="pt-16 grid grid-cols-2 gap-16 text-xs text-gray-700">
+            <div class="border-t border-gray-400 pt-2 font-bold uppercase">
+                SIGNATURE of GUARDIAN
+            </div>
+            <div class="border-t border-gray-400 pt-2 font-bold uppercase">
+                SIGNATURE DATE
             </div>
         </div>
 
-        <div class="pt-8 border-t border-gray-200 flex justify-between items-center text-xs text-gray-400">
-            <p>© Futura Systems Automated Evaluation Engine</p>
+        <div class="pt-12 border-t border-gray-200 flex justify-between items-center text-xs text-gray-400 mt-12">
+            <p>© Private Security Sector Umbrella Beneficiary Fund</p>
             <p class="italic">Confidential System Document</p>
         </div>
     </div>
@@ -470,9 +476,17 @@
         
         if (affordabilityAmt < 0) {
             document.getElementById('pdf_member_number').innerText = document.getElementById('membership_number').value || "N/A";
+            document.getElementById('pdf_guardian_name').innerText = document.getElementById('g_name').value || "N/A";
             document.getElementById('pdf_beneficiary_name').innerText = document.getElementById('b_name').value || "N/A";
+            
+            const portfolioVal = parseFloat(document.getElementById('portfolio_value').value) || 0;
+            document.getElementById('pdf_fund_value').innerText = 'R ' + portfolioVal.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+            
+            const valDate = document.getElementById('portfolio_date').value || new Date().toISOString().split('T')[0];
+            document.getElementById('pdf_val_date').innerText = valDate;
+            document.getElementById('pdf_claim_date').innerText = document.getElementById('claim_form_date').value || new Date().toISOString().split('T')[0];
+            
             document.getElementById('pdf_amount_requested').innerText = 'R ' + requestedAmount.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
-            document.getElementById('pdf_affordability_result').innerText = 'R ' + affordabilityAmt.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
             document.getElementById('pdf_current_date').innerText = new Date().toLocaleDateString('en-ZA', { day: 'numeric', month: 'short', year: 'numeric' });
             
             window.print();
