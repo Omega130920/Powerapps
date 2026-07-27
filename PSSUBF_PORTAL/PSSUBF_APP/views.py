@@ -1586,37 +1586,123 @@ from django.contrib.auth.decorators import login_required
 from pypdf import PdfReader, PdfWriter
 
 # --- Helper Function for PDF Generation ---
+# ReportLab imports for dynamic PDF generation
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import inch
+
 def generate_excess_claim_pdf(claim):
-    template_path = os.path.join(settings.BASE_DIR, 'templates', 'claim_excess_template.pdf')
-    
-    if not os.path.exists(template_path):
-        raise FileNotFoundError(f"Template not found at {template_path}")
-        
-    reader = PdfReader(template_path)
-    writer = PdfWriter()
-    writer.add_page(reader.pages[0])
-    
-    # Map database fields to PDF form fields
-    writer.update_page_form_field_values(
-        writer.pages[0], {
-            "ref_no": claim.reference_no,
-            "member_name": str(claim.beneficiary_name),
-            "amt_requested": str(claim.amount_requested),
-            "fund_value": str(claim.portfolio_value),
-            "date": timezone.now().strftime('%Y-%m-%d')
-        }
-    )
-    
     output_stream = io.BytesIO()
-    writer.write(output_stream)
+    
+    # 1. Setup Document Dimensions
+    doc = SimpleDocTemplate(
+        output_stream,
+        pagesize=A4,
+        rightMargin=1*inch,
+        leftMargin=1*inch,
+        topMargin=1*inch,
+        bottomMargin=1*inch
+    )
+
+    # 2. Configure Text Styles
+    styles = getSampleStyleSheet()
+    normal_style = styles['Normal']
+    normal_style.fontName = 'Helvetica'
+    normal_style.fontSize = 11
+    normal_style.leading = 16  # Comfortable line spacing for paragraphs
+    
+    elements = []
+
+    # 3. Add Header Logo
+    # Ensure "image001 (3).png" is saved in your static/images/ folder
+    logo_path = os.path.join(settings.BASE_DIR, 'static', 'images', 'image001 (3).png')
+    
+    if os.path.exists(logo_path):
+        img = RLImage(logo_path, width=5*inch, height=1.3*inch, kind='proportional')
+        img.hAlign = 'LEFT'
+        elements.append(img)
+        elements.append(Spacer(1, 0.4*inch))
+    else:
+        # Fallback text if the image is missing from the directory
+        elements.append(Paragraph("<b>Private Security Sector Umbrella Beneficiary Fund</b>", styles['Heading3']))
+        elements.append(Spacer(1, 0.4*inch))
+
+    # 4. Extract and Format Database Variables
+    current_date = timezone.now().strftime('%d/%m/%Y')
+    
+    # Safely get properties (fallback to empty lines if they don't exist on the model)
+    guardian_name = getattr(claim, 'guardian_name', '_________________________')
+    beneficiary_name = getattr(claim, 'beneficiary_name', '_________________________')
+    
+    fund_value_amt = getattr(claim, 'portfolio_value', 0) or 0
+    fund_value_str = f"R{float(fund_value_amt):,.2f}"
+    
+    req_amt = getattr(claim, 'amount_requested', 0) or 0
+    amt_requested_str = f"R{float(req_amt):,.2f}"
+    
+    claim_date = getattr(claim, 'created_at', timezone.now()).strftime('%d/%m/%Y')
+
+    # 5. Build Text Content
+    elements.append(Paragraph(f"{current_date}", normal_style))
+    elements.append(Spacer(1, 0.2*inch))
+    
+    elements.append(Paragraph(f"Guardian: {guardian_name}", normal_style))
+    elements.append(Paragraph(f"Beneficiary: {beneficiary_name}", normal_style))
+    elements.append(Paragraph(f"Fund value as at {current_date}: {fund_value_str}", normal_style))
+    elements.append(Spacer(1, 0.3*inch))
+    
+    elements.append(Paragraph("Payment request details:", normal_style))
+    elements.append(Paragraph(
+        f"Ad Hoc payment request submitted on {claim_date} for the total value of<br/>{amt_requested_str}", 
+        normal_style
+    ))
+    elements.append(Spacer(1, 0.3*inch))
+    
+    ack_text_1 = (
+        "I, the guardian of the beneficiary as indicated above, hereby acknowledge that I am "
+        "aware that this ad hoc payment will result in a significant reduction in available funds "
+        "of the beneficiary's account."
+    )
+    elements.append(Paragraph(ack_text_1, normal_style))
+    elements.append(Spacer(1, 0.2*inch))
+    
+    ack_text_2 = (
+        "Further that the funds will not be sufficient to provide for the life expenses of the "
+        "beneficiary up to age of majority. Once the funds are depleted, I, the guardian, will be "
+        "responsible for any further life expenses of the beneficiary."
+    )
+    elements.append(Paragraph(ack_text_2, normal_style))
+    elements.append(Spacer(1, 0.8*inch))
+    
+    # 6. Build Signature Block using a Table for structural alignment
+    sig_data = [
+        ["_________________________________", "_________________________________"],
+        ["SIGNATURE of GUARDIAN", "SIGNATURE DATE"]
+    ]
+    
+    sig_table = Table(sig_data, colWidths=[3.2*inch, 3.2*inch])
+    sig_table.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 1), (-1, 1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 1), (-1, 1), 10),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+    ]))
+    
+    elements.append(sig_table)
+
+    # 7. Generate and return the final PDF
+    doc.build(elements)
     output_stream.seek(0)
     return output_stream
+
 
 # --- PDF Download View ---
 @login_required
 def download_claim_pdf(request, claim_id):
     claim = get_object_or_404(ClaimList, id=claim_id)
     pdf_file = generate_excess_claim_pdf(claim)
+    
     response = FileResponse(pdf_file, content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="Excess_Claim_{claim.reference_no}.pdf"'
     return response
