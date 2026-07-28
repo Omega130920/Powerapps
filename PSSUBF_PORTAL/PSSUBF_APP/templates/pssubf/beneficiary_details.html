@@ -526,31 +526,51 @@
                         </table>
                     </div>
 
-                    <div id="direct-email" class="tab-pane">
-                        <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}">
-                            {% csrf_token %}
-                            <div class="space-y-4">
-                                <input type="hidden" name="action" value="send_direct_email">
-                                <input type="hidden" name="email_html_content" id="email_html_content">
-                                <div>
-                                    <label class="text-xs font-bold uppercase opacity-60">To:</label>
-                                    <input type="email" name="to_email" value="{{ member.email_1 }}" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10">
-                                </div>
-                                <div>
-                                    <label class="text-xs font-bold uppercase opacity-60">Subject:</label>
-                                    <input type="text" name="subject" value="Regarding PSSUBF Membership: {{ member.membership_number }}" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10">
-                                </div>
-                                <div id="editor" class="rich-text-editor" contenteditable="true">
-                                    <p>Dear {{ member.first_name }},</p>
-                                    <p><br></p>
-                                    <p>Kind regards,</p>
-                                </div>
-                                <div class="text-right">
-                                    <button type="submit" onclick="document.getElementById('email_html_content').value = document.getElementById('editor').innerHTML" class="action-btn bg-emerald-800 text-white">Send & Log</button>
-                                </div>
-                            </div>
-                        </form>
-                    </div>
+<div id="direct-email" class="tab-pane">
+    <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}" enctype="multipart/form-data">
+        {% csrf_token %}
+        <div class="space-y-4">
+            <input type="hidden" name="action" value="send_direct_email">
+            <input type="hidden" name="email_html_content" id="email_html_content">
+            
+            <!-- To Field -->
+            <div>
+                <label class="text-xs font-bold uppercase opacity-60">To:</label>
+                <input type="email" name="to_email" value="{{ member.email_1 }}" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10 w-full p-2 rounded">
+            </div>
+
+            <!-- BCC Field -->
+            <div>
+                <label class="text-xs font-bold uppercase opacity-60">BCC:</label>
+                <input type="email" name="bcc_email" placeholder="Optional BCC recipient" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10 w-full p-2 rounded">
+            </div>
+
+            <!-- Subject Field -->
+            <div>
+                <label class="text-xs font-bold uppercase opacity-60">Subject:</label>
+                <input type="text" name="subject" value="Regarding PSSUBF Membership: {{ member.membership_number }}" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10 w-full p-2 rounded">
+            </div>
+
+            <!-- Attachment Upload Field -->
+            <div>
+                <label class="text-xs font-bold uppercase opacity-60">Attach Files:</label>
+                <input type="file" name="attachments" multiple class="glass-input bg-white bg-opacity-20 border-white border-opacity-10 w-full p-2 rounded">
+            </div>
+
+            <!-- Rich Text Editor -->
+            <div id="editor" class="rich-text-editor p-3 bg-white bg-opacity-40 rounded" contenteditable="true" style="min-height: 150px;">
+                <p>Dear {{ member.first_name }},</p>
+                <p><br></p>
+                <p>Kind regards,</p>
+            </div>
+
+            <!-- Submit Button -->
+            <div class="text-right">
+                <button type="submit" onclick="document.getElementById('email_html_content').value = document.getElementById('editor').innerHTML" class="action-btn bg-emerald-800 text-white px-4 py-2 rounded">Send & Log</button>
+            </div>
+        </div>
+    </form>
+</div>
 
 <div id="notes" class="tab-pane">
 

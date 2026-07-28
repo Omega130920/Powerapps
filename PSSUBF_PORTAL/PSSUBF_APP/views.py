@@ -30,6 +30,16 @@ from .models import AdHocList, ClaimAffordability, ClaimHistory, ClaimList, Pssu
 from PSSUBF_APP.services.outlook_graph_service import OutlookGraphService
 from PSSUBF_APP.services.delegation_service import delegate_pssubf_task
 
+# --- HELPER FUNCTION: Safely formats plain text to HTML paragraphs ---
+def format_email_body(text):
+    if not text:
+        return ""
+    # If the text already contains HTML tags (like from a rich text editor), leave it alone.
+    if '<p>' in text.lower() or '<br' in text.lower():
+        return text
+    # Otherwise, convert plain text line breaks into HTML breaks
+    return text.replace('\r\n', '<br>').replace('\n', '<br>')
+
 def clean_numeric(val):
     if not val or str(val).lower() == 'undefined' or str(val).strip() == '': 
         return 0
@@ -467,7 +477,10 @@ def pssubf_action_view(request, email_id):
         elif action_type == 'send_reply':
             recipient = request.POST.get('reply_recipient')
             subject = request.POST.get('reply_subject')
-            body_content = request.POST.get('reply_body')
+            raw_body_content = request.POST.get('reply_body')
+            
+            # Format the email body to preserve paragraphs
+            body_content = format_email_body(raw_body_content)
             
             call_direction = "Outbound"
             call_method = "Emails"
@@ -475,10 +488,18 @@ def pssubf_action_view(request, email_id):
 
             uploaded_files = request.FILES.getlist('reply_attachments')
             attachments_payload = []
+            file_saved_path = None
             
-            for f in uploaded_files:
+            for idx, f in enumerate(uploaded_files):
+                content_bytes = f.read()
+                f.seek(0) # Reset file pointer for local saving
+                
+                # Save the first attachment locally for database thread reference
+                if idx == 0:
+                    fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT))
+                    file_saved_path = fs.save(f.name, f)
+                
                 try:
-                    content_bytes = f.read()
                     encoded_content = base64.b64encode(content_bytes).decode('utf-8')
                     attachments_payload.append({
                         "@odata.type": "#microsoft.graph.fileAttachment",
@@ -504,16 +525,14 @@ def pssubf_action_view(request, email_id):
                 audit_string = "[Outbound | Email Reply Sent]"
                 
                 # --- ADDED: Log the outgoing reply into the direct email table ---
-                from django.utils import timezone
-                from .models import PssubfDirectEmail
-                
                 PssubfDirectEmail.objects.create(
                     agent_name=request.user.username,
                     recipient=recipient,
                     subject=subject,
                     body_html=body_content,
                     sent_at=timezone.now(),
-                    membership_number=getattr(task, 'membership_number', None)
+                    membership_number=getattr(task, 'membership_number', None),
+                    attachment_path=file_saved_path  # Saved attachment reference
                 )
                 # -----------------------------------------------------------------
                 
@@ -521,13 +540,13 @@ def pssubf_action_view(request, email_id):
                     task_email_id=email_id,
                     action_user=request.user.username,
                     action_type="EMAIL_REPLY",
-                    note_content=f"{audit_string}\nTo: {recipient}\nSubject: {subject}\n\n{body_content}"
+                    note_content=f"{audit_string}\nTo: {recipient}\nSubject: {subject}\n\n{raw_body_content}"
                 )
 
                 PssubfNote.objects.create(
                     task_email_id=email_id,
                     agent_name=request.user.username,
-                    note_text=f"{audit_string} REPLY SENT TO {recipient}: {body_content}",
+                    note_text=f"{audit_string} REPLY SENT TO {recipient}: {raw_body_content}",
                     classification_at_time=getattr(task, 'email_category', 'N/A'),
                     status_at_time=task.status
                 )
@@ -594,45 +613,102 @@ def pssubf_action_view(request, email_id):
 @login_required
 def pssubf_view_thread(request, email_id):
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
-    email_data = OutlookGraphService._make_graph_request(f"messages/{email_id}", method='GET')
+    email_data = {}
+    attachments = []
     
-    email_body = email_data.get('body', {}).get('content', '')
-    attachments = OutlookGraphService.fetch_attachments(target_email, email_id)
+    # 1. Determine if this is a local Direct Email or a Graph API email
+    is_direct = str(email_id).startswith('DIRECT_')
+    local_email = None
+    root_attachment_url = None
 
-    # Replace CID with Base64 for inline images
-    for att in attachments:
-        if att.get('isInline') and att.get('contentId'):
-            cid = att.get('contentId')
-            raw_data = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
-            if raw_data and 'contentBytes' in raw_data:
-                base64_data = raw_data['contentBytes']
-                content_type = att.get('contentType', 'image/png')
-                
-                data_url = f"data:{content_type};base64,{base64_data}"
-                email_body = email_body.replace(f"cid:{cid}", data_url)
+    if is_direct:
+        # --- HANDLE LOCAL DIRECT EMAILS ---
+        try:
+            db_id = str(email_id).split('_')[-1]
+            local_email = PssubfDirectEmail.objects.get(id=db_id)
+            
+            # Reconstruct a Graph-like payload so the template can read it seamlessly
+            email_data = {
+                'subject': local_email.subject,
+                'body': {'content': getattr(local_email, 'body_html', '')},
+                'from': {
+                    'emailAddress': {
+                        'name': getattr(local_email, 'agent_name', request.user.username),
+                        'address': target_email
+                    }
+                },
+                'receivedDateTime': local_email.sent_at if hasattr(local_email, 'sent_at') else timezone.now().isoformat()
+            }
+            
+            # Check for local attachment on the root direct email
+            if hasattr(local_email, 'attachment_path') and local_email.attachment_path:
+                import os
+                filename = os.path.basename(str(local_email.attachment_path))
+                file_url = f"{settings.MEDIA_URL}{local_email.attachment_path}"
+                root_attachment_url = file_url
+                attachments.append({
+                    'name': filename,
+                    'isInline': False,
+                    'contentType': 'application/octet-stream',
+                    'local_url': file_url
+                })
+        except Exception as e:
+            email_data = {'subject': 'Error loading local email', 'body': {'content': str(e)}}
+            
+    else:
+        # --- HANDLE STANDARD OUTLOOK EMAILS ---
+        try:
+            email_data = OutlookGraphService._make_graph_request(f"messages/{email_id}", method='GET') or {}
+            attachments = OutlookGraphService.fetch_attachments(target_email, email_id) or []
+        except Exception:
+            email_data = {}
+            attachments = []
+
+    email_body = email_data.get('body', {}).get('content', '')
+
+    # Replace CID with Base64 for inline images (Only applies to actual Outlook emails)
+    if not is_direct:
+        for att in attachments:
+            if att.get('isInline') and att.get('contentId'):
+                cid = att.get('contentId')
+                raw_data = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
+                if raw_data and 'contentBytes' in raw_data:
+                    base64_data = raw_data['contentBytes']
+                    content_type = att.get('contentType', 'image/png')
+                    
+                    data_url = f"data:{content_type};base64,{base64_data}"
+                    email_body = email_body.replace(f"cid:{cid}", data_url)
 
     actions = PssubfAction.objects.filter(task_email_id=email_id).order_by('-action_timestamp')
 
-    # Fetch related local outbound emails/replies sharing the same thread subject (using sent_at)
+    # Fetch related local outbound emails/replies sharing the same thread subject
     subject = email_data.get('subject', 'No Subject')
-    clean_subject = subject.replace("RE: ", "").replace("Re: ", "").strip()
-    outbound_replies = PssubfDirectEmail.objects.filter(subject__icontains=clean_subject).order_by('sent_at')
+    clean_subject = subject.replace("RE: ", "").replace("Re: ", "").replace("FW: ", "").replace("Fw: ", "").strip()
+    
+    outbound_replies = []
+    if clean_subject and clean_subject != "No Subject":
+        qs = PssubfDirectEmail.objects.filter(subject__icontains=clean_subject)
+        # Exclude the root email if it is a local direct email to avoid duplicating it in the replies stream
+        if is_direct and local_email:
+            qs = qs.exclude(id=local_email.id)
+        outbound_replies = qs.order_by('sent_at')
 
     # Build chronological conversation stream for Outlook-style view
     conversation_stream = []
     
-    # 1. Add main incoming message
+    # Add main root message
     conversation_stream.append({
         'sender_name': email_data.get('from', {}).get('emailAddress', {}).get('name', 'Unknown'),
         'sender_email': email_data.get('from', {}).get('emailAddress', {}).get('address', ''),
-        'recipient': target_email,
+        'recipient': getattr(local_email, 'recipient', target_email) if is_direct else target_email,
         'subject': subject,
         'body': email_body,
         'date': email_data.get('receivedDateTime'),
-        'type': 'INCOMING'
+        'type': 'OUTGOING' if is_direct else 'INCOMING',
+        'attachment_url': root_attachment_url  # Passed attachment URL to stream card
     })
 
-    # 2. Add outbound agent replies / direct emails
+    # Add outbound agent replies / direct emails
     for rep in outbound_replies:
         # Map agent username to Full Name
         agent_username = getattr(rep, 'agent_name', 'Agent')
@@ -646,6 +722,11 @@ def pssubf_view_thread(request, email_id):
         # Fix formatting: Convert plain text linebreaks from the textarea into HTML <br> tags
         raw_body = getattr(rep, 'body_html', '')
         formatted_body = raw_body.replace('\r\n', '<br>').replace('\n', '<br>')
+
+        # Check if reply has a local attachment path
+        rep_attachment_url = None
+        if hasattr(rep, 'attachment_path') and rep.attachment_path:
+            rep_attachment_url = f"{settings.MEDIA_URL}{rep.attachment_path}"
 
         # Append visual signature mirror to the thread card
         signature_html = f"""
@@ -675,7 +756,8 @@ def pssubf_view_thread(request, email_id):
             'subject': rep.subject,
             'body': formatted_body + signature_html,
             'date': rep.sent_at,
-            'type': 'OUTGOING'
+            'type': 'OUTGOING',
+            'attachment_url': rep_attachment_url  # Passed attachment URL to reply card
         })
 
     return render(request, 'pssubf/thread_history.html', {
@@ -1128,41 +1210,84 @@ def beneficiary_details_view(request, membership_number):
     if request.method == 'POST':
         action = request.POST.get('action')
 
-        # --- 1. HANDLE DIRECT EMAIL (COMPOSITION TAB) ---
+# --- 1. HANDLE DIRECT EMAIL (COMPOSITION TAB) ---
         if action == 'send_direct_email':
             recipient = request.POST.get('to_email')
+            bcc_email = request.POST.get('bcc_email')
             subject = request.POST.get('subject')
-            body_html = request.POST.get('email_html_content')
+            raw_body_html = request.POST.get('email_html_content')
+            
+            # Ensure paragraphs format correctly (store raw typed body without manual signature duplication)
+            formatted_body = format_email_body(raw_body_html)
 
-            if recipient and subject and body_html:
-                result = OutlookGraphService.send_outlook_email(settings.OUTLOOK_EMAIL_ADDRESS, recipient, subject, body_html)
+            if recipient and subject and formatted_body:
+                # Capture any files attached to the direct email form
+                uploaded_files = request.FILES.getlist('attachments') 
+                if not uploaded_files and request.FILES:
+                    uploaded_files = [list(request.FILES.values())[0]]
+                
+                attachments_payload = []
+                file_saved_path = None
+                
+                for idx, f in enumerate(uploaded_files):
+                    content_bytes = f.read()
+                    f.seek(0)
+                    
+                    # Save the first file to local media folder for database referencing
+                    if idx == 0:
+                        fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT))
+                        file_saved_path = fs.save(f.name, f)
+                        
+                    try:
+                        encoded_content = base64.b64encode(content_bytes).decode('utf-8')
+                        attachments_payload.append({
+                            "@odata.type": "#microsoft.graph.fileAttachment",
+                            "name": f.name,
+                            "contentType": f.content_type,
+                            "contentBytes": encoded_content
+                        })
+                    except Exception as e:
+                        logger.error(f"Attachment encoding error: {e}")
+
+                # OutlookGraphService handles the signature automatically when user=request.user is passed
+                result = OutlookGraphService.send_outlook_email(
+                    sender=settings.OUTLOOK_EMAIL_ADDRESS,
+                    recipient=recipient, 
+                    subject=subject, 
+                    body=formatted_body,
+                    attachments=attachments_payload,
+                    user=request.user
+                )
                 
                 if result.get('success') or result == {}:
-                    direct_mail = PssubfDirectEmail.objects.create(
-                        membership_number=membership_number,
-                        agent_name=request.user.username,
-                        recipient=recipient,
-                        subject=subject,
-                        body_html=body_html,
-                        user=request.user
-                    )
+                    # Only include attachment_path if your PssubfDirectEmail model has the field defined
+                    create_kwargs = {
+                        'membership_number': membership_number,
+                        'agent_name': request.user.username,
+                        'recipient': recipient,
+                        'subject': subject,
+                        'body_html': formatted_body,
+                    }
+                    if file_saved_path:
+                        create_kwargs['attachment_path'] = file_saved_path
+
+                    direct_mail = PssubfDirectEmail.objects.create(**create_kwargs)
                     
                     email_id = f"DIRECT_{membership_number}_{direct_mail.id}"
                     PssubfInbox.objects.create(
                         email_id=email_id,
                         subject=subject,
                         sender=settings.OUTLOOK_EMAIL_ADDRESS,
-                        snippet=f"Direct Email to {recipient}",
+                        snippet=f"Direct Email to {recipient}" + (f" (BCC: {bcc_email})" if bcc_email else ""),
                         status='Sent',
-                        received_timestamp=timezone.now(),
-                        # member_group_code=membership_number
+                        received_timestamp=timezone.now()
                     )
 
                     PssubfAction.objects.create(
                         task_email_id=email_id,
                         action_type="Direct Email Sent",
                         action_user=request.user.username,
-                        note_content=f"Sent to: {recipient} | Subject: {subject}",
+                        note_content=f"Sent to: {recipient} | BCC: {bcc_email or 'None'} | Subject: {subject}",
                         action_timestamp=timezone.now()
                     )
                     messages.success(request, f"Direct email sent successfully to {recipient}.")
@@ -1386,11 +1511,11 @@ def beneficiary_details_view(request, membership_number):
     claim_refs = [c.reference_no for c in claims]
     all_history = ClaimHistory.objects.filter(claim_reference__in=claim_refs).order_by('-created_at')
 
-    # LIVE PROTECTION SAFEGUARD: Look up incoming/delegated records by both group code AND tracking ID string to capture direct logs or manually linked entries
+    # LIVE PROTECTION SAFEGUARD: Look up incoming/delegated records by group code/ID while explicitly excluding direct outgoing emails
     incoming_emails = PssubfDelegate.objects.filter(
         Q(member_group_code=membership_number) | 
         Q(email_id__icontains=membership_number)
-    )
+    ).exclude(email_id__startswith='DIRECT_')
     
     # LIVE PROTECTION SAFEGUARD: Check for outgoing entries by either numeric format or string version to defend against type mismatches on production database
     outgoing_emails = PssubfDirectEmail.objects.filter(
@@ -1437,7 +1562,7 @@ def beneficiary_details_view(request, membership_number):
             if r.note_content and "Subject: " in r.note_content:
                 try:
                     display_subject = r.note_content.split("Subject: ")[1].split("\n")[0]
-                except IndexError:  # 💡 Fixed: Standard built-in IndexError clears Pylance error
+                except IndexError:  
                     pass
 
             combined_emails.append({
@@ -1490,7 +1615,7 @@ def beneficiary_details_view(request, membership_number):
         'email_logs': combined_emails,
         'internal_notes': internal_notes,
         'pssubf_actions': pssubf_actions,
-        'recent_logs': recent_logs,  # Added to feed logs into the notes tab
+        'recent_logs': recent_logs,  
         'title': f"Member Profile - {membership_number}"
     }
     return render(request, 'pssubf/beneficiary_details.html', context)

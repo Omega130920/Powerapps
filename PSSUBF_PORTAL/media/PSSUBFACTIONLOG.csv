@@ -1,0 +1,1215 @@
+MIP Number,log tit,D - Call Direction,E - Call Method,F - Call Type,cat,na,Note,G - Created By,C - Created On
+54765798,,Inbound,Emails,How to claim - Termination,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+54765798,,Outbound,Emails,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+56935674,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+56935674,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+57767488,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+57767488,,Outbound,Emails,Acknowledgement Letter Sent,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+57430356,,Inbound,Emails,Fund Value Confirmation,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+57430356,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+54725945,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+54725945,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+54691641,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+54691641,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+57430356,,Inbound,Emails,Fund Value Confirmation,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+57430356,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+54731266,,Inbound,Phone,Overdue Payment - Termination Query,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+54731266,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+56935674,,Inbound,Emails,Fund Value Confirmation,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+56935674,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+54742914,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+54742914,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+54742922,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+54742922,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+54674307,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+54674307,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+56647581,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+56647581,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+54679070,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+54679070,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+55650681,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Vanessa Wilson,2026-06-22 00:00:00
+55650681,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Vanessa Wilson,2026-06-22 00:00:00
+57737047,,Inbound,Emails,Fund Rules,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+57737047,,Outbound,Emails,Failed Bank Validation,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+57861755,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+57861755,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+54708521,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Vanessa Wilson,2026-06-22 00:00:00
+54708521,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-06-22 00:00:00
+56311454,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+56311454,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+56642291,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+56642291,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+55260285,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+55260285,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+57430356,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+57430356,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+54672703,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Vanessa Wilson,2026-06-22 00:00:00
+54672703,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Vanessa Wilson,2026-06-22 00:00:00
+55204816,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Vanessa Wilson,2026-06-22 00:00:00
+55204816,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-06-22 00:00:00
+54649416,,Inbound,Phone,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+54649416,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+54739334,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+56935674,,Inbound,Emails,Proof of Payment Received,Query,Done,None,Vanessa Wilson,2026-06-22 00:00:00
+56935674,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Vanessa Wilson,2026-06-22 00:00:00
+54637014,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+54637014,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+54739334,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+54637014,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+54637014,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+58261376,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+58261376,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+56538214,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Vanessa Wilson,2026-06-22 00:00:00
+56538214,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-06-22 00:00:00
+54730780,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+54730780,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+54691641,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+54691641,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+54674980,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+54674980,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+54732246,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Vanessa Wilson,2026-06-22 00:00:00
+54732246,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Vanessa Wilson,2026-06-22 00:00:00
+54710432,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Vanessa Wilson,2026-06-22 00:00:00
+54710432,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Vanessa Wilson,2026-06-22 00:00:00
+57958680,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Athena Prince,2026-06-22 00:00:00
+57958680,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+54665632,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Vanessa Wilson,2026-06-22 00:00:00
+54665632,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Vanessa Wilson,2026-06-22 00:00:00
+57194282,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Vanessa Wilson,2026-06-22 00:00:00
+57194282,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Vanessa Wilson,2026-06-22 00:00:00
+56296495,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+56296495,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-06-22 00:00:00
+58443383,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Vanessa Wilson,2026-06-22 00:00:00
+58443383,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-06-22 00:00:00
+56647670,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+56647670,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-06-22 00:00:00
+57143843,,Inbound,Emails,Change in Guardianship,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+57143843,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+56647670,,Inbound,Emails,Duplicate Claim Received,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+56647670,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+57960704,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-06-23 00:00:00
+57960704,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-23 00:00:00
+58442938,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-06-23 00:00:00
+58442938,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-23 00:00:00
+55732783,,Inbound,Emails,Duplicate Claim Received,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+55732783,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+54684198,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-06-23 00:00:00
+54684198,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-06-23 00:00:00
+55731121,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-06-23 00:00:00
+55731121,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-06-23 00:00:00
+54764096,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+54764096,,Outbound,Emails,Tracing Claim Sent to Sanlam,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+57742806,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-06-23 00:00:00
+57742806,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-23 00:00:00
+56674310,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+56674310,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+57205054,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+57205054,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+56529661,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+56529661,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+57796445,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Vanessa Wilson,2026-06-23 00:00:00
+57796445,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Vanessa Wilson,2026-06-23 00:00:00
+55732783,,Inbound,Emails,Duplicate Claim Received,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+55732783,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+57981335,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+57981335,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+54736604,,Inbound,Emails,Acknowledgement Letter Received,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+54736604,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+57742806,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-06-23 00:00:00
+57742806,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-23 00:00:00
+54736604,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+54736604,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+54714491,,Inbound,Emails,How to claim - Termination,Query,Done,None,Athena Prince,2026-06-23 00:00:00
+54714491,,Outbound,Emails,Feedback to Other,Query,Done,None,Athena Prince,2026-06-23 00:00:00
+54665632,,Inbound,Phone,Overdue Payment - Termination Query,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+55669303,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Vanessa Wilson,2026-06-23 00:00:00
+55669303,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-06-23 00:00:00
+54674980,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+54674980,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+54714491,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+54714491,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+56611827,,Inbound,Emails,Duplicate Claim Received,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+56611827,,Outbound,Phone,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+54652826,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+54652826,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+55358985,,Inbound,Phone,New Claim Pack Received (Incomplete),Query,Done,None,Vanessa Wilson,2026-06-23 00:00:00
+55358985,,Outbound,Phone,Follow Up Incomplete Claim Pack,Query,Done,None,Vanessa Wilson,2026-06-23 00:00:00
+55649912,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Athena Prince,2026-06-23 00:00:00
+55649912,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-06-23 00:00:00
+55358985,,Inbound,Emails,Proof of Payment Received,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+55358985,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+55732783,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+55732783,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-06-23 00:00:00
+55628600,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+55628600,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+55023910,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Athena Prince,2026-06-24 00:00:00
+55023910,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Athena Prince,2026-06-24 00:00:00
+54659388,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Vanessa Wilson,2026-06-24 00:00:00
+54659388,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-06-24 00:00:00
+57728007,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+57728007,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+58396088,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+58396088,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+55025733,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+55025733,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+57727992,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+57727992,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+54740565,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-06-24 00:00:00
+54740565,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-24 00:00:00
+56643725,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+56643725,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+54759455,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Athena Prince,2026-06-24 00:00:00
+54759455,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-06-24 00:00:00
+54653125,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Athena Prince,2026-06-24 00:00:00
+54653125,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-06-24 00:00:00
+56399624,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Vanessa Wilson,2026-06-24 00:00:00
+56399624,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-06-24 00:00:00
+55649912,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Athena Prince,2026-06-24 00:00:00
+55649912,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Athena Prince,2026-06-24 00:00:00
+54659630,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Athena Prince,2026-06-24 00:00:00
+54659630,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Athena Prince,2026-06-24 00:00:00
+54681427,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Athena Prince,2026-06-24 00:00:00
+54681427,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-06-24 00:00:00
+54656244,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+54656244,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+58111200,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-06-24 00:00:00
+58111200,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-24 00:00:00
+58111193,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-06-24 00:00:00
+58111193,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-24 00:00:00
+54762995,,Inbound,Emails,Claim Received from Tracing Agency,Query,Done,None,Athena Prince,2026-06-24 00:00:00
+54762995,,Outbound,Emails,Tracing Claim Sent to Sanlam,Query,Done,None,Athena Prince,2026-06-24 00:00:00
+57143827,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+57143827,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+54762995,,Inbound,Emails,Claim Received from Tracing Agency,Query,Done,None,Athena Prince,2026-06-24 00:00:00
+54762995,,Outbound,Emails,Feedback to Other,Query,Done,None,Athena Prince,2026-06-24 00:00:00
+56573896,,Inbound,Phone,Overdue Payment - Termination Query,Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+56573896,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+57843002,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+57843002,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+56314808,,Inbound,Emails,How to claim - Termination,Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+56314808,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+55030106,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Vanessa Wilson,2026-06-24 00:00:00
+55030106,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-06-24 00:00:00
+54731574,,Inbound,Phone,Proof of Payment Received,Query,Done,None,Vanessa Wilson,2026-06-24 00:00:00
+54731574,,Outbound,Emails,Proof of Payment Sent,Query,Done,None,Vanessa Wilson,2026-06-24 00:00:00
+56407180,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+56407180,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+57908240,,Inbound,Phone,Overdue Payment - Monthly Income,Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+57908240,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-06-24 00:00:00
+56646406,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-06-24 00:00:00
+56646406,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-24 00:00:00
+54740013,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Athena Prince,2026-06-25 00:00:00
+54740013,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Athena Prince,2026-06-25 00:00:00
+54681427,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Athena Prince,2026-06-25 00:00:00
+54681427,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Athena Prince,2026-06-25 00:00:00
+57843002,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Athena Prince,2026-06-25 00:00:00
+57843002,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Athena Prince,2026-06-25 00:00:00
+54704406,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-06-25 00:00:00
+54704406,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-25 00:00:00
+54684198,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-06-25 00:00:00
+54684198,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-06-25 00:00:00
+54649416,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-06-25 00:00:00
+54649416,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-06-25 00:00:00
+54746998,,Inbound,Phone,Fund Value Confirmation,Query,Done,None,Vanessa Wilson,2026-06-25 00:00:00
+54746998,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-06-25 00:00:00
+57909667,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-06-25 00:00:00
+57909667,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-06-25 00:00:00
+56583056,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-06-25 00:00:00
+56583056,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-06-25 00:00:00
+54663526,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-06-25 00:00:00
+54663526,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-06-25 00:00:00
+54746998,,Inbound,Phone,How to claim - Ad Hoc,Query,Done,None,Vanessa Wilson,2026-06-25 00:00:00
+54746998,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-06-25 00:00:00
+56369143,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-06-25 00:00:00
+56369143,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-25 00:00:00
+54663964,,Inbound,Phone,Overdue Payment - Termination Query,Query,Done,None,Vanessa Wilson,2026-06-25 00:00:00
+54663964,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Vanessa Wilson,2026-06-25 00:00:00
+54637014,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Vanessa Wilson,2026-06-25 00:00:00
+54637014,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Vanessa Wilson,2026-06-25 00:00:00
+57204860,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-06-25 00:00:00
+57204860,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-25 00:00:00
+54699904,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Athena Prince,2026-06-25 00:00:00
+54699904,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Athena Prince,2026-06-25 00:00:00
+55536041,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Vanessa Wilson,2026-06-25 00:00:00
+55536041,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Vanessa Wilson,2026-06-25 00:00:00
+57958697,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-06-26 00:00:00
+57958697,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-26 00:00:00
+54740565,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-06-26 00:00:00
+54740565,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-26 00:00:00
+54653125,,Inbound,Emails,Claim Received from Tracing Agency,Query,Done,None,Athena Prince,2026-06-26 00:00:00
+54653125,,Outbound,Emails,Tracing Claim Sent to Sanlam,Query,Done,None,Athena Prince,2026-06-26 00:00:00
+57739664,,Inbound,Phone,Overdue Payment - Monthly Income,Query,Done,None,Vanessa Wilson,2026-06-26 00:00:00
+57739664,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-06-26 00:00:00
+54724698,,Inbound,Phone,How to claim - Termination,Query,Done,None,Chris-Nicolla Madlela,2026-06-26 00:00:00
+54724698,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-06-26 00:00:00
+57138676,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-06-26 00:00:00
+57138676,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-26 00:00:00
+57968781,,Inbound,Phone,New Claim Pack Received (Incomplete),Query,Done,None,Vanessa Wilson,2026-06-26 00:00:00
+57968781,,Outbound,Phone,Follow Up Incomplete Claim Pack,Query,Done,None,Vanessa Wilson,2026-06-26 00:00:00
+57900772,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Vanessa Wilson,2026-06-26 00:00:00
+57900772,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-06-26 00:00:00
+54671423,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-06-26 00:00:00
+54671423,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-06-26 00:00:00
+54740013,,Inbound,Phone,Overdue Payment - Termination Query,Query,Done,None,Vanessa Wilson,2026-06-26 00:00:00
+54740013,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Vanessa Wilson,2026-06-26 00:00:00
+54702251,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-06-26 00:00:00
+54702251,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-06-26 00:00:00
+56582376,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+56582376,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+54688783,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+54688783,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+58443383,,Inbound,Phone,Overdue Payment - Monthly Income,Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+58443383,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+54739553,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+54739553,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+58261376,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+58261376,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+55653338,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+55653338,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+56598122,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+56598122,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+56598130,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+56598130,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+54667585,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+54667585,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+57909675,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+57909675,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+57229160,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+57229160,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+57909675,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+57909675,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+56757328,,Inbound,Emails,Feedback from SALT,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+56757328,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+56646982,,Inbound,Emails,How to claim - Ad Hoc,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+56646982,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+57229152,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+57229152,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+56298211,,Inbound,Phone,Overdue Payment - Monthly Income,Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+56298211,,Outbound,Phone,Funds Depleted,Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+56298674,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+56298674,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+54655345,,Inbound,Phone,How to claim - Termination,Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+54655345,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+56646982,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Athena Prince,2026-06-29 00:00:00
+56646982,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+54737106,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+54737106,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+57909675,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+57909675,,Outbound,Phone,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+54655345,,Inbound,Phone,How to claim - Termination,Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+54655345,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+54762095,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+54762095,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+57908313,,Inbound,Phone,Overdue Payment - Termination Query,Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+57908313,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+56646982,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+56646982,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+55536041,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Athena Prince,2026-06-29 00:00:00
+55536041,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+54759455,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Athena Prince,2026-06-29 00:00:00
+54759455,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+54636942,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+54636942,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+54746292,,Inbound,Emails,Feedback from SALT,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+54746292,,Outbound,Emails,Feedback to SALT,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+54655345,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+54655345,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+56647670,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+56647670,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+56484641,,Inbound,Emails,Overdue Payment - Monthly Income,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+56484641,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+55536041,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+55536041,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+56647670,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+56647670,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-06-29 00:00:00
+55358506,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+55358506,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-06-29 00:00:00
+57742960,,Inbound,Phone,How to claim - Ad Hoc,Query,Done,None,Vanessa Wilson,2026-06-30 00:00:00
+57742960,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-06-30 00:00:00
+57742952,,Inbound,Phone,How to claim - Ad Hoc,Query,Done,None,Vanessa Wilson,2026-06-30 00:00:00
+57742952,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-06-30 00:00:00
+54731136,,Inbound,Phone,Overdue Payment - Termination Query,Query,Done,None,Vanessa Wilson,2026-06-30 00:00:00
+54731136,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Vanessa Wilson,2026-06-30 00:00:00
+54708521,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Vanessa Wilson,2026-06-30 00:00:00
+54708521,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-06-30 00:00:00
+54656244,,Inbound,Phone,New Claim Pack Received (Incomplete),Query,Done,None,Vanessa Wilson,2026-06-30 00:00:00
+54656244,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Vanessa Wilson,2026-06-30 00:00:00
+54663753,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Vanessa Wilson,2026-06-30 00:00:00
+54663753,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Vanessa Wilson,2026-06-30 00:00:00
+54702032,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Vanessa Wilson,2026-06-30 00:00:00
+54702032,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Vanessa Wilson,2026-06-30 00:00:00
+55814633,,Inbound,Phone,How to claim - Ad Hoc,Query,Done,None,Vanessa Wilson,2026-06-30 00:00:00
+55814633,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-06-30 00:00:00
+54731266,,Inbound,Phone,Overdue Payment - Termination Query,Query,Done,None,Vanessa Wilson,2026-06-30 00:00:00
+54731266,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Vanessa Wilson,2026-06-30 00:00:00
+57909667,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+57909667,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+57143843,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+57143843,,Outbound,Emails,Feedback to SALT,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+57909675,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+57909675,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+57426833,,Inbound,Emails,How to claim - Ad Hoc,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+57426833,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+54661477,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+54661477,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+54687187,,Inbound,Emails,Fund Value Confirmation,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+54687187,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+56574510,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+56574510,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+56574510,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+56574510,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+57761930,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+57761930,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+54740565,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+54740565,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+54647731,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+54647731,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+54733834,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+54733834,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+54724698,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Athena Prince,2026-07-01 00:00:00
+54724698,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+56617887,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+56617887,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+56314192,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+56314192,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+57739591,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+57739575,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+57739575,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+57739591,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+57843002,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+57843002,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+54665632,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+57742952,,Inbound,Phone,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+57742960,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+57742960,,Outbound,Phone,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+57742952,,Outbound,Phone,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+55814633,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+55814633,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+54737106,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+54737106,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+54656244,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+54656244,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+57205054,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+57205054,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+54670484,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+54670484,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+56579241,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+56579241,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+54694817,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+54694817,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+54744234,,Inbound,Phone,Fund Value Confirmation,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+54744234,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+54744234,,Inbound,Phone,How to claim - Monthly Income,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+54744234,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+57739664,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+57739664,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+54651205,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+54651205,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+54646581,,Inbound,Emails,Proof of Payment Received,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+54646581,,Outbound,Emails,Proof of Payment Sent,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+56538158,,Inbound,Phone,How to claim - Monthly Income,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+56538158,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+57968781,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+57968781,,Outbound,Emails,Acknowledgement Letter Sent,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+56399754,,Inbound,Emails,Feedback from SALT,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+56399754,,Outbound,Emails,Feedback to SALT,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+54662254,,Inbound,Emails,Proof of Payment Received,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+54662254,,Outbound,Emails,Proof of Payment Sent,Query,Done,None,Athena Prince,2026-07-01 00:00:00
+56617887,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+56617887,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-01 00:00:00
+56574510,,Inbound,Emails,How to claim - Ad Hoc,Query,Done,None,Athena Prince,2026-07-02 00:00:00
+56574510,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-02 00:00:00
+54689511,,Inbound,Emails,Proof of Payment Received,Query,Done,None,Athena Prince,2026-07-02 00:00:00
+54689511,,Outbound,Emails,Proof of Payment Sent,Query,Done,None,Athena Prince,2026-07-02 00:00:00
+54683752,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-07-02 00:00:00
+54683752,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-02 00:00:00
+56579241,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+56579241,,Outbound,Emails,Acknowledgement Letter Sent,Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+56579241,,Inbound,Emails,Acknowledgement Letter Received,Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+56579241,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+57750671,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+57750671,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+56618145,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+56618145,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+57750647,,Inbound,Phone,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-07-02 00:00:00
+57750647,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-07-02 00:00:00
+54651943,,Inbound,Emails,How to claim - Ad Hoc,Query,Done,None,Athena Prince,2026-07-02 00:00:00
+54651943,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-02 00:00:00
+54725345,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-07-02 00:00:00
+54725345,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-02 00:00:00
+55387975,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-07-02 00:00:00
+55387975,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-02 00:00:00
+55501113,,Inbound,Phone,How to claim - Termination,Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+55501113,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+57761930,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+57761930,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+54659071,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+54659071,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+55510015,,Inbound,Phone,Fund Value Confirmation,Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+55510015,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+55510007,,Inbound,Phone,Fund Value Confirmation,Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+55510007,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+55659681,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+55659681,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+57742952,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+57742952,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+54724698,,Inbound,Phone,How to claim - Termination,Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+54724698,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+54702138,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-07-02 00:00:00
+54702138,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-02 00:00:00
+54762095,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-07-02 00:00:00
+54762095,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-02 00:00:00
+56538158,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+56538158,,Outbound,Phone,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+56369143,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-07-02 00:00:00
+56369143,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-02 00:00:00
+54694817,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+54694817,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-02 00:00:00
+55510015,,Inbound,Emails,How to claim - Monthly Income,Query,Done,None,Athena Prince,2026-07-03 00:00:00
+55510015,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-03 00:00:00
+55673872,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+55673872,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+57842947,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-07-03 00:00:00
+57842947,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-03 00:00:00
+54704406,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-07-03 00:00:00
+54704406,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-03 00:00:00
+54724698,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+54724698,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+57750647,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-03 00:00:00
+57750647,,Outbound,Emails,Feedback to Other,Query,Done,None,Athena Prince,2026-07-03 00:00:00
+57731182,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+57731182,,Outbound,Phone,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+55673872,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+55673872,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+54642328,,Inbound,Emails,Fund Value Confirmation,Query,Done,None,Athena Prince,2026-07-03 00:00:00
+54642328,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-03 00:00:00
+54642328,,Inbound,Emails,Fund Value Confirmation,Query,Done,None,Athena Prince,2026-07-03 00:00:00
+54642328,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-03 00:00:00
+54683063,,Inbound,Phone,How to claim - Termination,Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+54683063,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+54644297,,Inbound,Emails,Feedback from SALT,Query,Done,None,Athena Prince,2026-07-03 00:00:00
+54644297,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-03 00:00:00
+57731182,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+57731182,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+57968781,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+57968781,,Outbound,Emails,Acknowledgement Letter Sent,Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+59095960,,Inbound,Phone,How to claim - Ad Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+59095960,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+56285940,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+56285940,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+55649912,,Inbound,Phone,Overdue Payment - Termination Query,Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+55649912,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+57731182,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-07-03 00:00:00
+57731182,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-03 00:00:00
+57739591,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+57739591,,Outbound,Emails,Acknowledgement Letter Sent,Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+57739575,,Inbound,Phone,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+57739575,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+55358506,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+55358506,,Outbound,Emails,Sanlam - Overdue Payments,Query,Done,None,Chris-Nicolla Madlela,2026-07-03 00:00:00
+54716557,,Inbound,Emails,Proof of Payment Received,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+54716557,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+54719870,,Inbound,Emails,Proof of Payment Received,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+54719870,,Outbound,Emails,Proof of Payment Sent,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+57750647,,Inbound,Emails,Proof of Payment Received,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+57750647,,Outbound,Emails,Proof of Payment Sent,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+54675830,,Inbound,Emails,Fund Value Confirmation,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+54675830,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+56311316,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+56311316,,Outbound,Emails,Acknowledgement Letter Sent,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+54670710,,Inbound,Emails,How to claim - Monthly Income,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+54670710,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+56311332,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+56311332,,Outbound,Emails,Acknowledgement Letter Sent,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+58443367,,Inbound,Phone,Overdue Payment - Monthly Income,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+55510007,,Inbound,Emails,How to claim - Ad Hoc,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+55510007,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+58443367,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+56538141,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+56538141,,Outbound,Phone,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+56538158,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+56538158,,Outbound,Phone,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+56674498,,Inbound,Emails,Overdue Payment - Monthly Income,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+56674498,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+57843384,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+57843384,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+57144020,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+57144020,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+54767166,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Athena Prince,2026-07-06 00:00:00
+54767166,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+54665721,,Inbound,Phone,How to claim - Termination,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+54665721,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+56574510,,Inbound,Emails,Duplicate Claim Received,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+56574510,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+56574510,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+56574510,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+56574510,,Inbound,Emails,Duplicate Claim Received,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+56574510,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+54762095,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+54762095,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+54683063,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+54683063,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+54672444,,Inbound,Phone,Overdue Payment - Termination Query,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+54672444,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+55831554,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+55831554,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+56311332,,Inbound,Emails,Acknowledgement Letter Received,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+56311332,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+56311316,,Inbound,Emails,Acknowledgement Letter Received,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+56311316,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+57968781,,Inbound,Phone,Acknowledgement Letter Received,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+57968781,,Outbound,Emails,Acknowledgement Letter Sent,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+57750647,,Inbound,Emails,Fund Value Confirmation,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+57750647,,Outbound,Emails,Feedback to Other,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+54665721,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Athena Prince,2026-07-06 00:00:00
+54665721,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+56574510,,Inbound,Emails,Fund Value Confirmation,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+56574510,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+55597392,,Inbound,Emails,Feedback from SALT,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+55597392,,Outbound,Emails,Feedback to SALT,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+54744234,,Inbound,Phone,Fund Rules,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+54744234,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+54674250,,Inbound,Phone,How to claim - Monthly Income,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+54674250,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+56574510,,Inbound,Emails,Fund Value Confirmation,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+56574510,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+57968781,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Athena Prince,2026-07-06 00:00:00
+57968781,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-06 00:00:00
+57739591,,Inbound,Emails,Acknowledgement Letter Received,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+57739591,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+54656244,,Inbound,Phone,Overdue Payment - Termination Query,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+54656244,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+55358985,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+55358985,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-06 00:00:00
+56281874,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56281874,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56632433,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-07 00:00:00
+56632433,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-07 00:00:00
+56632433,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Chris-Nicolla Madlela,2026-07-07 00:00:00
+56632433,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-07 00:00:00
+56574510,,Inbound,Emails,How to claim - Ad Hoc,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56574510,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56580050,,Inbound,Emails,Feedback from SALT,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56580050,,Outbound,Emails,Feedback to SALT,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56580050,,Inbound,Emails,Fund Value Confirmation,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56580050,,Outbound,Emails,Feedback to Other,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+54702138,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+54702138,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+54702138,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+54702138,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+54719068,,Inbound,Emails,Proof of Payment Received,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+54719068,,Outbound,Emails,Proof of Payment Sent,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56574510,,Inbound,Emails,How to claim - Ad Hoc,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56574510,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56674498,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56674498,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+57143843,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+57143843,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+57968781,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Athena Prince,2026-07-07 00:00:00
+57968781,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+54762095,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+54762095,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+54760475,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-07 00:00:00
+54760475,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-07 00:00:00
+57767488,,Inbound,Emails,Acknowledgement Letter Received,Query,Done,None,Chris-Nicolla Madlela,2026-07-07 00:00:00
+57767488,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-07 00:00:00
+56538141,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-07 00:00:00
+56538141,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-07 00:00:00
+56538158,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-07 00:00:00
+56538158,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-07 00:00:00
+56580026,,Inbound,Phone,How to claim - Monthly Income,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56580026,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56580026,,Inbound,Phone,Fund Value Confirmation,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56580026,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56580042,,Inbound,Phone,How to claim - Monthly Income,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56580042,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56580042,,Inbound,Phone,Fund Value Confirmation,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56580042,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56580050,,Inbound,Emails,How to claim - Monthly Income,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56580050,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56580050,,Inbound,Phone,Fund Value Confirmation,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56580050,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+54642936,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-07 00:00:00
+54642936,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-07 00:00:00
+56580034,,Inbound,Phone,How to claim - Monthly Income,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56580034,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56580034,,Inbound,Phone,Fund Value Confirmation,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56580034,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56574510,,Inbound,Emails,How to claim - Ad Hoc,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56574510,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+57968781,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Athena Prince,2026-07-07 00:00:00
+57968781,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+54672444,,Inbound,Emails,Feedback from SALT,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+54672444,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+54672444,,Inbound,Emails,Feedback from SALT,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+54672444,,Outbound,Phone,Feedback to SALT,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+58260963,,Inbound,Emails,Fund Value Confirmation,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+58260963,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+54702138,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+54702138,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+57218655,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-07 00:00:00
+57218655,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-07 00:00:00
+54653490,,Inbound,Emails,Feedback from SALT,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+54653490,,Outbound,Emails,Feedback to SALT,Query,Done,None,Athena Prince,2026-07-07 00:00:00
+56574510,,Inbound,Emails,How to claim - Ad Hoc,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+56574510,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+56580034,,Inbound,Emails,Fund Value Confirmation,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+56580034,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+57837585,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+57837585,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+54702138,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54702138,,Outbound,Emails,Failed Bank Validation,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+57843384,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+57843384,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+54651943,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+54651943,,Outbound,Emails,Guardian Deceased,Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+57750671,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+57750671,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+58111200,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+58111200,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54723303,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54723303,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54742874,,Inbound,Phone,How to claim - Ad Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+54742874,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+57731182,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+57731182,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+54731266,,Inbound,Phone,Overdue Payment - Termination Query,Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+54731266,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+57750671,,Inbound,Emails,Duplicate Claim Received,Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+57750671,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+57761930,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+57761930,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+55358871,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+55358871,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+54641356,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54641356,,Outbound,Phone,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54642563,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54642563,,Outbound,Phone,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54649546,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54649546,,Outbound,Phone,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54653903,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54653903,,Outbound,Emails,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54657710,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54657710,,Outbound,Emails,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54662668,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54662668,,Outbound,Emails,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54668946,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54668946,,Outbound,Emails,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54688094,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54688094,,Outbound,Emails,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54696680,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54696680,,Outbound,Emails,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54721376,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54721376,,Outbound,Phone,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54726300,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54726300,,Outbound,Emails,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54731663,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54731663,,Outbound,Emails,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54735227,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54735227,,Outbound,Emails,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54742614,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54742614,,Outbound,Emails,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54742622,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54742622,,Outbound,Emails,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54723344,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54723344,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+57205054,,Inbound,Emails,How to claim - Ad Hoc,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+57205054,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+57909723,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+57909723,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+56647224,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+56647224,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+54725612,,Inbound,Emails,Claim Received from Tracing Agency,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54725612,,Outbound,Emails,Tracing Claim Sent to Sanlam,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54725612,,Inbound,Emails,Claim Received from Tracing Agency,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+54725612,,Outbound,Emails,Tracing Claim Sent to Sanlam,Query,Done,None,Athena Prince,2026-07-08 00:00:00
+57205054,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+57205054,,Outbound,Emails,Acknowledgement Letter Sent,Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+54637566,,Inbound,Emails,Guardian - Monthly Income Requested,Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+54637566,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+54637558,,Inbound,Emails,Guardian - Monthly Income Requested,Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+54637558,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+57427213,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+57427213,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-08 00:00:00
+57427213,,Inbound,Emails,Duplicate Claim Received,Query,Done,None,Chris-Nicolla Madlela,2026-07-09 00:00:00
+57427213,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-09 00:00:00
+57843384,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-09 00:00:00
+57843384,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-09 00:00:00
+57750671,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-09 00:00:00
+57750671,,Outbound,Phone,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-09 00:00:00
+57900797,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-09 00:00:00
+57900797,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-09 00:00:00
+54714491,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-07-09 00:00:00
+54714491,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-09 00:00:00
+57205054,,Inbound,Emails,Acknowledgement Letter Received,Query,Done,None,Chris-Nicolla Madlela,2026-07-09 00:00:00
+57205054,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-09 00:00:00
+57900797,,Inbound,Phone,Fund Value Confirmation,Query,Done,None,Chris-Nicolla Madlela,2026-07-09 00:00:00
+57427213,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Athena Prince,2026-07-09 00:00:00
+57427213,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Athena Prince,2026-07-09 00:00:00
+57900797,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-09 00:00:00
+54689852,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-09 00:00:00
+54689852,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-09 00:00:00
+54702138,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Athena Prince,2026-07-09 00:00:00
+54702138,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-09 00:00:00
+54702138,,Inbound,Emails,Claim Received from Tracing Agency,Query,Done,None,Athena Prince,2026-07-09 00:00:00
+54702138,,Outbound,Emails,Tracing Claim Sent to Sanlam,Query,Done,None,Athena Prince,2026-07-09 00:00:00
+56617157,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-07-09 00:00:00
+56617157,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-07-09 00:00:00
+54733250,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-09 00:00:00
+54733250,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-09 00:00:00
+56573896,,Inbound,Emails,Fund Rules,Query,Done,None,Athena Prince,2026-07-09 00:00:00
+56573896,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-07-09 00:00:00
+56573896,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-07-09 00:00:00
+56573896,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-09 00:00:00
+55501113,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-09 00:00:00
+55501113,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-09 00:00:00
+54702138,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-07-09 00:00:00
+54702138,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-09 00:00:00
+54728497,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Athena Prince,2026-07-09 00:00:00
+54728497,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-09 00:00:00
+54636391,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+54636391,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+56574510,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+56574510,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+56574510,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+56574510,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+54728497,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Athena Prince,2026-07-10 00:00:00
+54728497,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Athena Prince,2026-07-10 00:00:00
+54728497,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-07-10 00:00:00
+54728497,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-10 00:00:00
+56314192,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-07-10 00:00:00
+56314192,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-07-10 00:00:00
+57750663,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+57750663,,Outbound,Emails,Acknowledgement Letter Sent,Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+57750663,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+57750663,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+56352140,,Inbound,Emails,How to claim - Termination,Query,Done,None,Athena Prince,2026-07-10 00:00:00
+56352140,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-10 00:00:00
+57750671,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+57750671,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+54742922,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+54742922,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+54742914,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+54742914,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+54725978,,Inbound,Emails,Proof of Payment Received,Query,Done,None,Athena Prince,2026-07-10 00:00:00
+54725978,,Outbound,Emails,Proof of Payment Sent,Query,Done,None,Athena Prince,2026-07-10 00:00:00
+57205054,,Inbound,Emails,Fund Value Confirmation,Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+57205054,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+54717448,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+54717448,,Outbound,Emails,Sanlam - Overdue Payments,Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+54748252,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-10 00:00:00
+54748252,,Outbound,Phone,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-10 00:00:00
+54748982,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-10 00:00:00
+54748982,,Outbound,Phone,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-10 00:00:00
+55510015,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+55510015,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+54760223,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-10 00:00:00
+54760223,,Outbound,Emails,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-10 00:00:00
+55510015,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+55510015,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+55510007,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+55510007,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+54659306,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Athena Prince,2026-07-10 00:00:00
+54659306,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-10 00:00:00
+54725661,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-07-10 00:00:00
+54725661,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-10 00:00:00
+54733250,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+54733250,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-10 00:00:00
+54746998,,Inbound,Emails,Feedback from SALT,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+54746998,,Outbound,Emails,Feedback to SALT,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+54642936,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-13 00:00:00
+54642936,,Outbound,Phone,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-13 00:00:00
+56574510,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+56574510,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+57887108,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-13 00:00:00
+57887108,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-13 00:00:00
+57218566,,Inbound,Phone,Fund Rules,Query,Done,None,Chris-Nicolla Madlela,2026-07-13 00:00:00
+57218574,,Inbound,Phone,Fund Rules,Query,Done,None,Chris-Nicolla Madlela,2026-07-13 00:00:00
+57218574,,Outbound,Emails,Guardian Deceased,Query,Done,None,Chris-Nicolla Madlela,2026-07-13 00:00:00
+57218566,,Outbound,Emails,Guardian Deceased,Query,Done,None,Chris-Nicolla Madlela,2026-07-13 00:00:00
+54724698,,Inbound,Phone,Overdue Payment - Termination Query,Query,Done,None,Chris-Nicolla Madlela,2026-07-13 00:00:00
+54724698,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-13 00:00:00
+54691641,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Chris-Nicolla Madlela,2026-07-13 00:00:00
+54691641,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-13 00:00:00
+54736604,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-13 00:00:00
+54736604,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-13 00:00:00
+54730545,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+54730545,,Outbound,Emails,Proof of Payment Sent,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+55358506,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+55358506,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+57728007,,Inbound,Phone,New Claim Pack Received (Incomplete),Query,Done,None,Vanessa Wilson,2026-07-13 00:00:00
+57728007,,Outbound,Phone,Follow Up Incomplete Claim Pack,Query,Done,None,Vanessa Wilson,2026-07-13 00:00:00
+57727992,,Inbound,Phone,New Claim Pack Received (Incomplete),Query,Done,None,Vanessa Wilson,2026-07-13 00:00:00
+57727992,,Outbound,Phone,Follow Up Incomplete Claim Pack,Query,Done,None,Vanessa Wilson,2026-07-13 00:00:00
+55025733,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+55025733,,Outbound,Phone,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+54724032,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-13 00:00:00
+54724032,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-13 00:00:00
+55191135,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+55191135,,Outbound,Emails,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+56632458,,Inbound,Phone,How to claim - Termination,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+56632458,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+54688783,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Vanessa Wilson,2026-07-13 00:00:00
+54688783,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-07-13 00:00:00
+55813126,,Inbound,Phone,How to claim - Monthly Income,Query,Done,None,Chris-Nicolla Madlela,2026-07-13 00:00:00
+55813126,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-13 00:00:00
+55857248,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+55657745,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-13 00:00:00
+55657745,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-13 00:00:00
+55857248,,Outbound,Emails,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+56496743,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+56496743,,Outbound,Emails,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+56575807,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+56575807,,Outbound,Emails,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+56937594,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+56937594,,Outbound,Phone,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+55657745,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-13 00:00:00
+55657745,,Outbound,Emails,Acknowledgement Letter Sent,Query,Done,None,Chris-Nicolla Madlela,2026-07-13 00:00:00
+57205046,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+57205046,,Outbound,Phone,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+57742790,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+57742790,,Outbound,Emails,Funds Less than R10 000,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+54638351,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+54638351,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+54640416,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+54640416,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+54641186,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+54641186,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+54642003,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+54642003,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+54646313,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+54646313,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+54648541,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+54648541,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-13 00:00:00
+54726747,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Athena Prince,2026-07-14 00:00:00
+54726747,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+55358506,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+55358506,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+55830574,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+55830574,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+56632441,,Inbound,Phone,Proof of Payment Received,Query,Done,None,Vanessa Wilson,2026-07-14 00:00:00
+56632441,,Outbound,Phone,Proof of Payment Sent,Query,Done,None,Vanessa Wilson,2026-07-14 00:00:00
+54730545,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+54730545,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+57742790,,Inbound,Emails,How to claim - Termination,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+57742790,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+57731182,,Inbound,Phone,Overdue Payment - Termination Query,Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+57731182,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+54637566,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+54637566,,Outbound,Phone,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+57843002,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+57843002,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+55656262,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+55656262,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+57900367,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+57900367,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+56632458,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+56632458,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+54669561,,Inbound,Phone,How to claim - Termination,Query,Done,None,Vanessa Wilson,2026-07-14 00:00:00
+54669561,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Vanessa Wilson,2026-07-14 00:00:00
+56298674,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+57430704,,Inbound,Emails,How to claim - Termination,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+57430704,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+56298674,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+54714548,,Inbound,Emails,How to claim - Termination,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+54714548,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+56897061,,Inbound,Emails,How to claim - Ad Hoc,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+56897061,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+54730115,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+54730115,,Outbound,Phone,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+56330084,,Inbound,Emails,How to claim - Ad Hoc,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+56330084,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+55358506,,Inbound,Emails,How to claim - Ad Hoc,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+55358506,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+55260285,,Inbound,Phone,Overdue Payment - Termination Query,Query,Done,None,Vanessa Wilson,2026-07-14 00:00:00
+55260285,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Vanessa Wilson,2026-07-14 00:00:00
+54649116,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+54649116,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+54650785,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+54650785,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+54651546,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+54651546,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+57727976,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+57727976,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+54652178,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+54652178,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+54654665,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+54654665,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+55651823,,Inbound,Phone,How to claim - Termination,Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+55651823,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+56330084,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+56330084,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+55831481,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+55831481,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+55657745,,Inbound,Emails,Acknowledgement Letter Received,Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+55657745,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+56496435,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+56496435,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Athena Prince,2026-07-14 00:00:00
+54726682,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+54726682,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Chris-Nicolla Madlela,2026-07-14 00:00:00
+54655215,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54655215,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54760467,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+54760467,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+54724032,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+54724032,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+54659606,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54659606,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54667600,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54667600,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+57750663,,Inbound,Emails,Acknowledgement Letter Received,Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+57750663,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+54669197,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54669197,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54727224,,Inbound,Emails,Proof of Payment Received,Query,Done,None,Vanessa Wilson,2026-07-15 00:00:00
+54727224,,Outbound,Emails,Proof of Payment Sent,Query,Done,None,Vanessa Wilson,2026-07-15 00:00:00
+54670257,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54670257,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54670265,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54670265,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54672890,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54672890,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54672996,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54672996,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54699904,,Inbound,Phone,Overdue Payment - Termination Query,Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+54699904,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+54737106,,Inbound,Phone,Overdue Payment - Monthly Income,Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+54737106,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+54680406,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54680406,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54683030,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54683030,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54683785,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54683785,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54685056,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54685056,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+55191135,,Inbound,Phone,Fund Value Confirmation,Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+55191135,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+54687957,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54687957,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54688750,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54688750,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54689560,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54689560,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54689641,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54689641,,Outbound,Phone,Complete Claim Loaded,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54690378,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54690378,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54690653,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54690653,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+55388006,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+55388006,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+54691877,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54691877,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54691966,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54691966,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54723596,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54723596,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54637566,,Inbound,Emails,Fund Rules,Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+54637566,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+54736604,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54736604,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Athena Prince,2026-07-15 00:00:00
+54637558,,Inbound,Emails,Fund Rules,Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+54637558,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+54730115,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+54730115,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+54646427,,Inbound,Phone,How to claim - Termination,Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+54646427,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+55814203,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+55814203,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-15 00:00:00
+56529620,,Inbound,Emails,Fund Value Confirmation,Query,Done,None,Vanessa Wilson,2026-07-15 00:00:00
+56529620,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-07-15 00:00:00
+56529612,,Inbound,Emails,Fund Value Confirmation,Query,Done,None,Vanessa Wilson,2026-07-15 00:00:00
+56529612,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-07-15 00:00:00
+56529597,,Inbound,Emails,Fund Value Confirmation,Query,Done,None,Vanessa Wilson,2026-07-15 00:00:00
+56529597,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-07-15 00:00:00
+56632441,,Inbound,Emails,Proof of Payment Received,Query,Done,None,Vanessa Wilson,2026-07-15 00:00:00
+56632441,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Vanessa Wilson,2026-07-15 00:00:00
+54739553,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54739553,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54728156,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Chris-Nicolla Madlela,2026-07-16 00:00:00
+54728156,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-16 00:00:00
+54654998,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54654998,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54696307,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54696307,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54664563,,Inbound,Emails,How to claim - Termination,Query,Done,None,Chris-Nicolla Madlela,2026-07-16 00:00:00
+54664563,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-16 00:00:00
+56632458,,Inbound,Phone,Overdue Payment - Termination Query,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+56632458,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+54699378,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54699378,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54702502,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54702502,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+56632441,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+56632441,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+54705508,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54705508,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54706812,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54706812,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54707136,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54707136,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54709226,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54709226,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54709437,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54709437,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54711486,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54711486,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54712288,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54712288,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54712596,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54712596,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54712677,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54712677,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54712888,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54712888,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54715641,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54715641,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54716751,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54716751,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54719287,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54719287,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54719976,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54719976,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54720533,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54720533,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54720947,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54720947,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54721262,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54721262,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54723506,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54723506,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54724405,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54724405,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54728034,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54728034,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54729988,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54729988,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54730261,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54730261,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54730894,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54730894,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54733494,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54733494,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54733786,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54733786,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54733956,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54733956,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54735073,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54735073,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54735908,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54735908,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54736831,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54736831,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54737877,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54737877,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54708976,,Inbound,Emails,Claim Received from Tracing Agency,Query,Done,None,Chris-Nicolla Madlela,2026-07-16 00:00:00
+54708976,,Outbound,Emails,Tracing Claim Sent to Sanlam,Query,Done,None,Chris-Nicolla Madlela,2026-07-16 00:00:00
+54738565,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54738565,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+57900367,,Inbound,Emails,Proof of Payment Received,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+57900367,,Outbound,Emails,Proof of Payment Sent,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+54738621,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54738621,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54650817,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-16 00:00:00
+54650817,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-16 00:00:00
+54744218,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54744218,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54747207,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54747207,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54747701,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54747701,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54731266,,Inbound,Phone,Overdue Payment - Termination Query,Query,Done,None,Chris-Nicolla Madlela,2026-07-16 00:00:00
+54764355,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54731266,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-16 00:00:00
+54764355,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54726171,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-16 00:00:00
+54726171,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-16 00:00:00
+54765027,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54765027,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54765457,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+54765457,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+55558236,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+55558236,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+56647224,,Inbound,Emails,Fund Value Confirmation,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+56647224,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+56617295,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+56617295,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+57143405,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+57143405,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+57143843,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+57143843,,Outbound,Phone,Failed Bank Validation,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+55358506,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-16 00:00:00
+55358506,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-16 00:00:00
+54637558,,Inbound,Emails,Fund Rules,Query,Done,None,Chris-Nicolla Madlela,2026-07-16 00:00:00
+54637558,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Chris-Nicolla Madlela,2026-07-16 00:00:00
+57143924,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+57143924,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+57843246,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+56937772,,Inbound,Phone,How to claim - Termination,Query,Done,None,Chris-Nicolla Madlela,2026-07-16 00:00:00
+57843246,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+58443383,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+56937772,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-16 00:00:00
+57886930,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+57886930,,Outbound,Emails,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+58443383,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+58396128,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+58443367,,Inbound,Phone,Overdue Payment - Monthly Income,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+58396128,,Outbound,Phone,Beneficiary Reached Maturity,Query,Done,None,Athena Prince,2026-07-16 00:00:00
+58443367,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+58443375,,Inbound,Phone,Overdue Payment - Monthly Income,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+58443375,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+57143843,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+57143843,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+56496435,,Inbound,Emails,Proof of Payment Received,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+56496435,,Outbound,Phone,Proof of Payment Sent,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+54717448,,Inbound,Emails,Proof of Payment Received,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+54717448,,Outbound,Emails,Proof of Payment Sent,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+56314192,,Inbound,Emails,Proof of Payment Received,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+56314192,,Outbound,Emails,Proof of Payment Sent,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+57143843,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+57143843,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+54646427,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-16 00:00:00
+54646427,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-16 00:00:00
+54654998,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+54654998,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+57143843,,Inbound,Emails,Feedback from Sanlam,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+57143843,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Vanessa Wilson,2026-07-16 00:00:00
+55358506,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+55358506,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+56626983,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+56626983,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+56626983,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+56626983,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+56737337,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+56737337,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+54765457,,Inbound,Phone,How to claim - Termination,Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+54765457,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+54638554,,Inbound,Emails,Guardian - Monthly Income Requested,Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+54638554,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+56737345,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+56737345,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+56737337,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+56737337,,Outbound,Emails,Acknowledgement Letter Sent,Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+57483306,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+57483306,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+54762095,,Inbound,Emails,Fund Value Confirmation,Query,Done,None,Vanessa Wilson,2026-07-17 00:00:00
+54762095,,Outbound,Emails,Feedback to Guardian,Query,Done,None,Vanessa Wilson,2026-07-17 00:00:00
+57739664,,Inbound,Emails,New Claim Pack Received (Complete),Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+57739664,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+55651823,,Inbound,Phone,Guardian - Monthly Income Requested,Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+55651823,,Outbound,Emails,Feedback to Sanlam,Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+57761930,,Inbound,Phone,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+57761930,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+57767488,,Inbound,Emails,Overdue Payment - Ad-Hoc,Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+57767488,,Outbound,Phone,Feedback to Guardian,Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+56737337,,Inbound,Emails,Acknowledgement Letter Received,Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+56737337,,Outbound,Emails,Complete Claim Loaded,Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+56643693,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+56643693,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+54731266,,Inbound,Phone,Overdue Payment - Termination Query,Query,Done,None,Vanessa Wilson,2026-07-17 00:00:00
+54731266,,Outbound,Phone,Feedback to Beneficiary,Query,Done,None,Vanessa Wilson,2026-07-17 00:00:00
+54681427,,Inbound,Emails,Overdue Payment - Termination Query,Query,Done,None,Vanessa Wilson,2026-07-17 00:00:00
+54681427,,Outbound,Emails,Feedback to Beneficiary,Query,Done,None,Vanessa Wilson,2026-07-17 00:00:00
+54658667,,Inbound,Emails,New Claim Pack Received (Incomplete),Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00
+54658667,,Outbound,Emails,Follow Up Incomplete Claim Pack,Query,Done,None,Chris-Nicolla Madlela,2026-07-17 00:00:00

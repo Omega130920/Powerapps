@@ -174,6 +174,8 @@ class PssubfDirectEmail(models.Model):
     subject = models.CharField(max_length=255)
     body_html = models.TextField()
     sent_at = models.DateTimeField(auto_now_add=True)
+    
+    attachment_path = models.CharField(max_length=255, blank=True, null=True)
 
     class Meta:
         managed = False

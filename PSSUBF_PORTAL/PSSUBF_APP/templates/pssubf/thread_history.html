@@ -151,19 +151,24 @@
             <span class="meta-label">From:</span>
             <span><strong class="text-dark">{{ sender_name }}</strong> <small class="text-muted fst-italic">&lt;{{ sender_email }}&gt;</small></span>
         </div>
-        {% if attachments %}
-        <div class="mt-3">
-            <span class="meta-label">Files:</span>
-            <div class="d-inline-flex flex-wrap gap-2">
-                {% for att in attachments %}
+    {% if attachments %}
+    <div class="mt-3">
+        <span class="meta-label">Files:</span>
+        <div class="d-inline-flex flex-wrap gap-2">
+            {% for att in attachments %}
+                {% if att.local_url %}
+                <a href="{{ att.local_url }}" target="_blank" class="attachment-pill">
+                    <i class="bi bi-paperclip me-1"></i> {{ att.name|truncatechars:25 }}
+                </a>
+                {% else %}
                 <a href="{% url 'download_pssubf_attachment' message_id=email_id attachment_id=att.id %}" class="attachment-pill">
                     <i class="bi bi-paperclip me-1"></i> {{ att.name|truncatechars:25 }}
                 </a>
-                {% endfor %}
-            </div>
+                {% endif %}
+            {% endfor %}
         </div>
-        {% endif %}
     </div>
+    {% endif %}
 
     <!-- Outlook-Style Conversation Stream -->
     <div class="mb-5">
@@ -193,6 +198,16 @@
                 <!-- Card Body (Message Content) -->
                 <div class="thread-card-body">
                     {{ msg.body|safe }}
+
+                    <!-- Render local attachment download block if present on this message stream item -->
+                    {% if msg.attachment_url %}
+                    <div class="mt-3 pt-3 border-top border-secondary border-opacity-10">
+                        <span class="text-muted small fw-bold d-block mb-2"><i class="bi bi-paperclip"></i> Attached File:</span>
+                        <a href="{{ msg.attachment_url }}" target="_blank" class="attachment-pill">
+                            <i class="bi bi-download me-1"></i> Download Attachment
+                        </a>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
             {% endfor %}
