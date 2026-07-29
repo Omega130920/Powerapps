@@ -1481,8 +1481,8 @@ def bulk_delete_recycled(request):
 @login_required
 def outlook_view_thread(request, delegation_id):
     """
-    Displays the email content and audit trail formatted for the Unity layout. 
-    Includes a global cross-reference fallback for locally synced Sent Items.
+    Displays the email content, conversation stream, attachments, and audit trail 
+    formatted for the ACVV Unity layout.
     """
     import os
     import re
@@ -1494,7 +1494,7 @@ def outlook_view_thread(request, delegation_id):
     from acvv.models import DelegationTransactionLog, EmailDelegation, DelegationNote
     from acvv.services.outlook_graph_service import OutlookGraphService
 
-    # 1. Flexible Lookup (Handles both PK and Microsoft ID)
+    # 1. Flexible Lookup (Handles both primary key ID and Microsoft email_id)
     if str(delegation_id).isdigit():
         task = get_object_or_404(EmailDelegation, Q(id=delegation_id) | Q(email_id=delegation_id))
     else:
@@ -1505,7 +1505,6 @@ def outlook_view_thread(request, delegation_id):
     email_content = ""
     attachments = []
 
-    # Helper function to detect empty bodies even if padded with blank HTML tags
     def is_visually_empty(html_string):
         if not html_string: 
             return True
@@ -1516,10 +1515,10 @@ def outlook_view_thread(request, delegation_id):
     is_local_only = False
     if not task.email_id or str(task.email_id).strip().lower() == 'none':
         is_local_only = True
-    elif str(task.email_id).startswith('SENT-') or str(task.email_id).startswith('LOCAL-') or str(task.email_id).startswith('REPLY-'):
+    elif any(str(task.email_id).startswith(prefix) for prefix in ['SENT-', 'LOCAL-', 'REPLY-', 'CLAIM-']):
         is_local_only = True
 
-    # 3. Try fetching from Microsoft Graph if it has a real ID
+    # 3. Try fetching live content from Microsoft Graph if it has a real remote ID
     if not is_local_only:
         try:
             endpoint = f"messages/{task.email_id}"
@@ -1528,34 +1527,28 @@ def outlook_view_thread(request, delegation_id):
             attachment_endpoint = f"messages/{task.email_id}/attachments"
             attachment_data = OutlookGraphService._make_graph_request(attachment_endpoint, target_email)
             
-            attachments = attachment_data.get('value', [])
+            attachments = attachment_data.get('value', []) if isinstance(attachment_data, dict) else []
             email_content = email_data.get('body', {}).get('content', "")
-        except Exception as e:
-            pass # Graph failed, let it fall through to the local fallback
+        except Exception:
+            pass 
 
-    # 4. THE MASTER FALLBACK: If Graph returned empty (or empty HTML tags)
+    # 4. Master Local Fallback if Graph returned empty content
     if is_visually_empty(email_content):
-        
-        # Check A: The task's direct local body field
+        # A) Check the direct task body
         if not is_visually_empty(getattr(task, 'body', None)):
             email_content = task.body
-            
         else:
-            # Check B: A transaction log directly attached to this task
+            # B) Check attached transaction logs
             log_attached = DelegationTransactionLog.objects.filter(delegation=task).exclude(body__isnull=True).first()
             if log_attached and not is_visually_empty(log_attached.body):
                 email_content = log_attached.body
-                
             else:
-                # Check C (The Magic Link): Search the ENTIRE system for the Microsoft email_id
+                # C) Fallback global search for the same email_id
                 if task.email_id and str(task.email_id).strip().lower() != 'none':
                     global_log = DelegationTransactionLog.objects.filter(email_id=task.email_id).exclude(body__isnull=True).first()
-                    
                     if global_log and not is_visually_empty(global_log.body):
                         email_content = global_log.body
-                        
-                        # Since we found the original send log, grab its attachment too!
-                        if not attachments and getattr(global_log, 'attachment', None) and global_log.attachment:
+                        if not attachments and getattr(global_log, 'attachment', None):
                             attachments = [{
                                 'name': os.path.basename(global_log.attachment.name),
                                 'url': global_log.attachment.url,
@@ -1563,7 +1556,7 @@ def outlook_view_thread(request, delegation_id):
                                 'is_local': True 
                             }]
 
-        # If it is STILL empty after all 3 local checks, force a visible message block
+        # D) Final failsafe if entirely empty
         if is_visually_empty(email_content):
             email_content = "<div style='padding: 15px; background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; border-radius: 6px;'><strong>No Content Found:</strong> The email body could not be fetched from Microsoft, and no local backup was found in the logs.</div>"
 
@@ -1576,9 +1569,49 @@ def outlook_view_thread(request, delegation_id):
             'is_local': True 
         }]
 
-    # 6. Fetch local Audit Trail & Combine Timeline (Unity Style)
-    actions = DelegationTransactionLog.objects.filter(delegation=task)
-    notes = DelegationNote.objects.filter(delegation=task)
+    # 6. Build Conversation Stream & Chronological Timeline
+    subject = task.subject or email_data.get('subject', 'No Subject')
+    clean_subject = subject.replace("RE: ", "").replace("Re: ", "").replace("FW: ", "").replace("Fw: ", "").strip()
+
+    related_transactions = DelegationTransactionLog.objects.filter(
+        Q(delegation=task) | Q(subject__icontains=clean_subject)
+    ).distinct().order_by('transaction_time')
+
+    conversation_stream = []
+
+    sender_info = email_data.get('from', {}).get('emailAddress', {})
+    conversation_stream.append({
+        'sender_name': sender_info.get('name', 'Unknown Sender'),
+        'sender_email': sender_info.get('address', task.sender_address or ''),
+        'recipient': target_email,
+        'subject': subject,
+        'body': mark_safe(email_content),
+        'date': email_data.get('receivedDateTime') or task.received_at,
+        'type': 'INCOMING' if not is_local_only else 'OUTGOING',
+        'attachment_url': attachments[0].get('url') if attachments and attachments[0].get('is_local') else None
+    })
+
+    for tx in related_transactions:
+        if tx.delegation_id == task.pk and tx.body:
+            continue
+        
+        tx_body = getattr(tx, 'body', '') or f"Action Performed: {tx.action_type}"
+        formatted_tx_body = mark_safe(tx_body.replace('\r\n', '<br>').replace('\n', '<br>'))
+        
+        conversation_stream.append({
+            'sender_name': tx.user.username if tx.user else 'System Agent',
+            'sender_email': target_email,
+            'recipient': tx.recipient_email,
+            'subject': tx.subject,
+            'body': formatted_tx_body,
+            'date': tx.transaction_time,
+            'type': 'OUTGOING',
+            'attachment_url': None
+        })
+
+    # 7. Audit Trail Integration (Actions & Notes)
+    actions = DelegationTransactionLog.objects.filter(delegation=task).order_by('-transaction_time')
+    notes = DelegationNote.objects.filter(delegation=task).order_by('-created_at')
     
     timeline = []
     for action in actions:
@@ -1589,24 +1622,25 @@ def outlook_view_thread(request, delegation_id):
         })
         
     for note in notes:
-        # Fallback to timezone.now() if your DelegationNote lacks a timestamp field
-        note_date = getattr(note, 'created_at', getattr(note, 'date', timezone.now()))
+        note_date = getattr(note, 'created_at', timezone.now())
         timeline.append({
             'type': 'del_note', 
             'obj': note, 
             'date': note_date
         })
     
-    # Sort by date descending (Newest first)
-    combined_timeline = sorted(timeline, key=lambda x: x['date'], reverse=True)
+    combined_timeline = sorted(timeline, key=lambda x: x['date'] if x['date'] else timezone.now(), reverse=True)
 
-    # 7. Context setup
+    # 8. Render Context
     context = {
         'task': task,
         'email': email_data,
         'email_body': mark_safe(email_content), 
         'attachments': attachments,
+        'conversation_stream': conversation_stream,
         'combined_timeline': combined_timeline,
+        'actions': actions,
+        'notes': notes,
     }
     
     return render(request, 'acvv_app/outlook_view_thread.html', context)
@@ -2052,43 +2086,169 @@ def temp_exists_list(request):
 
 @login_required
 def outlook_view_thread(request, delegation_id):
-    # 1. Flexible Lookup
-    if delegation_id.isdigit():
+    """
+    Displays the email content, conversation stream, attachments, and audit trail 
+    formatted for the ACVV Unity layout.
+    """
+    import os
+    import re
+    from django.conf import settings
+    from django.utils.safestring import mark_safe
+    from django.shortcuts import get_object_or_404
+    from django.db.models import Q
+    from django.utils import timezone
+    from acvv.models import DelegationTransactionLog, EmailDelegation, DelegationNote
+    from acvv.services.outlook_graph_service import OutlookGraphService
+
+    # 1. Flexible Lookup (Handles both primary key ID and Microsoft email_id)
+    if str(delegation_id).isdigit():
         task = get_object_or_404(EmailDelegation, Q(id=delegation_id) | Q(email_id=delegation_id))
     else:
         task = get_object_or_404(EmailDelegation, email_id=delegation_id)
 
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
+    email_data = {}
     email_content = ""
     attachments = []
 
-    # 2. FIX: Check if it is a local "SENT" ID before calling Graph API
-    if task.email_id.startswith('SENT-'):
-        email_content = f"""
-            <div class='alert alert-success'>
-                <strong>Local Record:</strong> This email was sent directly from the ACVV App. 
-                Microsoft does not provide a live preview for this specific tracking ID.
-                <br><small>Subject: {task.subject}</small>
-            </div>"""
-    else:
-        # Only call Graph API for real Microsoft IDs
-        endpoint = f"messages/{task.email_id}"
-        email_data = OutlookGraphService._make_graph_request(endpoint, target_email)
+    def is_visually_empty(html_string):
+        if not html_string: 
+            return True
+        clean_text = re.sub(r'<[^>]+>', '', str(html_string)).replace('&nbsp;', '').strip()
+        return len(clean_text) == 0
+
+    # 2. Evaluate if it's purely a local placeholder ID
+    is_local_only = False
+    if not task.email_id or str(task.email_id).strip().lower() == 'none':
+        is_local_only = True
+    elif any(str(task.email_id).startswith(prefix) for prefix in ['SENT-', 'LOCAL-', 'REPLY-', 'CLAIM-']):
+        is_local_only = True
+
+    # 3. Try fetching live content from Microsoft Graph if it has a real remote ID
+    if not is_local_only:
+        try:
+            endpoint = f"messages/{task.email_id}"
+            email_data = OutlookGraphService._make_graph_request(endpoint, target_email)
+            
+            attachment_endpoint = f"messages/{task.email_id}/attachments"
+            attachment_data = OutlookGraphService._make_graph_request(attachment_endpoint, target_email)
+            
+            attachments = attachment_data.get('value', []) if isinstance(attachment_data, dict) else []
+            email_content = email_data.get('body', {}).get('content', "")
+        except Exception:
+            pass 
+
+    # 4. Master Local Fallback if Graph returned empty content
+    if is_visually_empty(email_content):
+        # A) Check the direct task body
+        if not is_visually_empty(getattr(task, 'body', None)):
+            email_content = task.body
+        else:
+            # B) Check attached transaction logs
+            log_attached = DelegationTransactionLog.objects.filter(delegation=task).exclude(body__isnull=True).first()
+            if log_attached and not is_visually_empty(log_attached.body):
+                email_content = log_attached.body
+            else:
+                # C) Fallback global search for the same email_id
+                if task.email_id and str(task.email_id).strip().lower() != 'none':
+                    global_log = DelegationTransactionLog.objects.filter(email_id=task.email_id).exclude(body__isnull=True).first()
+                    if global_log and not is_visually_empty(global_log.body):
+                        email_content = global_log.body
+                        if not attachments and getattr(global_log, 'attachment', None):
+                            attachments = [{
+                                'name': os.path.basename(global_log.attachment.name),
+                                'url': global_log.attachment.url,
+                                'contentType': 'application/octet-stream', 
+                                'is_local': True 
+                            }]
+
+        # D) Final failsafe if entirely empty
+        if is_visually_empty(email_content):
+            email_content = "<div style='padding: 15px; background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; border-radius: 6px;'><strong>No Content Found:</strong> The email body could not be fetched from Microsoft, and no local backup was found in the logs.</div>"
+
+    # 5. Local Attachment Fallback for direct task attachments
+    if not attachments and getattr(task, 'attachment', None) and task.attachment:
+        attachments = [{
+            'name': os.path.basename(task.attachment.name),
+            'url': task.attachment.url,
+            'contentType': 'application/octet-stream', 
+            'is_local': True 
+        }]
+
+    # 6. Build Conversation Stream & Chronological Timeline
+    subject = task.subject or email_data.get('subject', 'No Subject')
+    clean_subject = subject.replace("RE: ", "").replace("Re: ", "").replace("FW: ", "").replace("Fw: ", "").strip()
+
+    related_transactions = DelegationTransactionLog.objects.filter(
+        Q(delegation=task) | Q(subject__icontains=clean_subject)
+    ).distinct().order_by('transaction_time')
+
+    conversation_stream = []
+
+    sender_info = email_data.get('from', {}).get('emailAddress', {})
+    conversation_stream.append({
+        'sender_name': sender_info.get('name', 'Unknown Sender'),
+        'sender_email': sender_info.get('address', task.sender_address or ''),
+        'recipient': target_email,
+        'subject': subject,
+        'body': mark_safe(email_content),
+        'date': email_data.get('receivedDateTime') or task.received_at,
+        'type': 'INCOMING' if not is_local_only else 'OUTGOING',
+        'attachment_url': attachments[0].get('url') if attachments and attachments[0].get('is_local') else None
+    })
+
+    for tx in related_transactions:
+        if tx.delegation_id == task.pk and tx.body:
+            continue
         
-        attachment_endpoint = f"messages/{task.email_id}/attachments"
-        attachment_data = OutlookGraphService._make_graph_request(attachment_endpoint, target_email)
-        attachments = attachment_data.get('value', [])
-        email_content = email_data.get('body', {}).get('content')
+        tx_body = getattr(tx, 'body', '') or f"Action Performed: {tx.action_type}"
+        formatted_tx_body = mark_safe(tx_body.replace('\r\n', '<br>').replace('\n', '<br>'))
+        
+        conversation_stream.append({
+            'sender_name': tx.user.username if tx.user else 'System Agent',
+            'sender_email': target_email,
+            'recipient': tx.recipient_email,
+            'subject': tx.subject,
+            'body': formatted_tx_body,
+            'date': tx.transaction_time,
+            'type': 'OUTGOING',
+            'attachment_url': None
+        })
 
-    # 3. Fetch local Audit Trail
-    actions = DelegationTransactionLog.objects.filter(delegation=task).order_by('transaction_time')
+    # 7. Audit Trail Integration (Actions & Notes)
+    actions = DelegationTransactionLog.objects.filter(delegation=task).order_by('-transaction_time')
+    notes = DelegationNote.objects.filter(delegation=task).order_by('-created_at')
+    
+    timeline = []
+    for action in actions:
+        timeline.append({
+            'type': 'action', 
+            'obj': action, 
+            'date': action.transaction_time
+        })
+        
+    for note in notes:
+        note_date = getattr(note, 'created_at', timezone.now())
+        timeline.append({
+            'type': 'del_note', 
+            'obj': note, 
+            'date': note_date
+        })
+    
+    combined_timeline = sorted(timeline, key=lambda x: x['date'] if x['date'] else timezone.now(), reverse=True)
 
+    # 8. Render Context
     context = {
         'task': task,
-        'email_body': mark_safe(email_content) if email_content else "No content available.",
+        'email': email_data,
+        'email_body': mark_safe(email_content), 
         'attachments': attachments,
+        'conversation_stream': conversation_stream,
+        'combined_timeline': combined_timeline,
         'actions': actions,
+        'notes': notes,
     }
+    
     return render(request, 'acvv_app/outlook_view_thread.html', context)
 
 @login_required
