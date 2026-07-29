@@ -6,7 +6,6 @@
     <title>Email Thread | {{ task.subject }}</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        /* --- General Page Styling --- */
         body {
             font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background-color: #f4f7f6;
@@ -49,7 +48,6 @@
             background-color: #2e7d32;
         }
 
-        /* NEW: Download EML Button Styling */
         .download-eml-button {
             padding: 10px 18px;
             background-color: #1976d2;
@@ -67,18 +65,26 @@
             background-color: #1565c0;
         }
 
-        /* --- Original Email Card --- */
+        /* --- Email Cards (Conversation Stream) --- */
         .email-thread-card {
             background: #ffffff;
             border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            margin-bottom: 40px;
-            border-left: 5px solid #1976d2;
+            margin-bottom: 30px;
             overflow: hidden; 
         }
 
+        .email-thread-card.incoming {
+            border-left: 5px solid #1976d2;
+        }
+
+        .email-thread-card.outgoing {
+            border-left: 5px solid #43a047;
+            background-color: #fafbfc;
+        }
+
         .card-header-main {
-            padding: 20px;
+            padding: 15px 20px;
             background-color: #fafafa;
             border-bottom: 1px solid #eee;
             display: flex;
@@ -87,9 +93,20 @@
         }
 
         .card-header-main h3 {
-            margin: 0 0 10px 0;
-            color: #1976d2;
+            margin: 0 0 8px 0;
+            color: #2d3748;
+            font-size: 16px;
         }
+
+        /* --- FIX: Extracted Message Badges to Classes --- */
+        .msg-badge {
+            font-size: 11px;
+            font-weight: bold;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+        .msg-badge-outgoing { background: #c6f6d5; color: #22543d; }
+        .msg-badge-incoming { background: #bee3f8; color: #2a4365; }
 
         .card-body-content {
             padding: 25px;
@@ -100,11 +117,10 @@
         /* --- ATTACHMENT SECTION --- */
         .attachment-section {
             background-color: #f8fafc;
-            padding: 15px 25px;
+            padding: 12px 25px;
             border-top: 1px solid #edf2f7;
         }
 
-        /* Updated Attachment Pill to act as a container */
         .attachment-pill {
             display: inline-flex;
             align-items: center;
@@ -119,7 +135,6 @@
             font-weight: 500;
         }
 
-        /* New buttons for explicit View and Download */
         .att-action-btn {
             margin-left: 6px;
             padding: 4px 10px;
@@ -175,6 +190,11 @@
             z-index: 2;
             box-shadow: 0 0 0 3px #f4f7f6;
         }
+        
+        /* --- FIX: Extracted Timeline Icon Colors to Classes --- */
+        .icon-action { background-color: #2f855a; }
+        .icon-note { background-color: #b7791f; }
+        .icon-primary { background-color: #2b6cb0; }
 
         .badge-status {
             display: inline-block;
@@ -189,7 +209,6 @@
         .bg-delegated { background-color: #ebf8ff; color: #2b6cb0; }
         .bg-note { background-color: #fefcbf; color: #b7791f; }
         .bg-complete { background-color: #f0fff4; color: #2f855a; }
-        .bg-restore { background-color: #fff5f5; color: #c53030; }
 
         .event-meta {
             display: block;
@@ -211,13 +230,13 @@
 
 <div class="thread-page-wrapper">
     
+    <!-- Action Bar -->
     <div class="action-bar">
         <div>
             <h1 style="margin:0; color: #2e7d32;">Communication History</h1>
             <p style="margin:0; color: #666;">Ref: {{ task.mip_names|default:"N/A" }}</p>
         </div>
         <div class="button-group">
-            <!-- UPDATE THE LINE BELOW -->
             <a href="{% url 'download_acvv_email' delegation_id=task.email_id %}" class="download-eml-button">
                 <i class="fas fa-file-download"></i> Download Full Email (.eml)
             </a>
@@ -225,90 +244,96 @@
         </div>
     </div>
 
-    <div class="email-thread-card">
+    <!-- Conversation Stream Loop -->
+    {% for msg in conversation_stream %}
+    <div class="email-thread-card {% if msg.type == 'OUTGOING' %}outgoing{% else %}incoming{% endif %}">
         <div class="card-header-main">
             <div>
-                <h3>{{ task.subject }}</h3>
-                <div style="font-size: 14px; color: #4a5568;">
-                    <strong>Sender:</strong> {{ inbox_item.sender|default:"System" }} <br>
-                    <strong>Original Arrival:</strong> {{ inbox_item.received_timestamp|date:"d M Y, H:i" }}
+                <h3>{{ msg.subject }}</h3>
+                <div style="font-size: 13px; color: #4a5568;">
+                    <strong>From:</strong> {{ msg.sender_name }} &lt;{{ msg.sender_email }}&gt;<br>
+                    <strong>To:</strong> {{ msg.recipient }}<br>
+                    <strong>Date:</strong> {{ msg.date|date:"d M Y, H:i" }}
                 </div>
             </div>
-            <a href="{% url 'download_acvv_email' delegation_id=task.email_id %}" title="Download as .eml file" style="color: #1976d2; font-size: 20px;">
-                <i class="fas fa-file-export"></i>
-            </a>
+            <!-- FIX: Applied class logic instead of inline style -->
+            <span class="msg-badge {% if msg.type == 'OUTGOING' %}msg-badge-outgoing{% else %}msg-badge-incoming{% endif %}">
+                {{ msg.type }}
+            </span>
         </div>
         <div class="card-body-content">
-            {{ email_body|safe }}
+            {{ msg.body|safe }}
         </div>
 
-        {# --- ATTACHMENT SECTION --- #}
-        {% if attachments %}
+        {% if msg.attachment_url %}
         <div class="attachment-section">
-            <div style="margin-bottom: 10px; font-size: 13px; font-weight: bold; color: #4a5568;">
-                <i class="fas fa-paperclip" style="color: #1976d2; margin-right: 5px;"></i> Original Attachments:
-            </div>
-            <div style="display: flex; flex-wrap: wrap;">
-                {% for att in attachments %}
-                <div class="attachment-pill">
-                    {% if att.contentBytes %}
-                        <img src="data:{{ att.contentType }};base64,{{ att.contentBytes }}" 
-                             style="height: 18px; width: 18px; border-radius: 2px; margin-right: 8px; object-fit: cover;">
-                    {% else %}
-                        <i class="fas fa-file-alt" style="margin-right: 8px; color: #718096;"></i>
-                    {% endif %}
-                    
-                    {{ att.name }}
-                    <span style="font-weight: normal; color: #a0aec0; margin-left: 5px;">({{ att.size|filesizeformat }})</span>
-                    
-                    <div style="margin-left: 12px; border-left: 1px solid #e2e8f0; padding-left: 8px; display: flex; gap: 4px;">
-                        <a href="{% url 'download_attachment' message_id=email_id attachment_id=att.id %}" target="_blank" class="att-action-btn" title="View in Browser">
-                            <i class="fas fa-eye"></i> View
-                        </a>
-                        <a href="{% url 'download_attachment' message_id=email_id attachment_id=att.id %}" download class="att-action-btn" title="Download File">
-                            <i class="fas fa-download"></i> Download
-                        </a>
-                    </div>
-                </div>
-                {% endfor %}
+            <div class="attachment-pill">
+                <i class="fas fa-paperclip" style="margin-right: 8px; color: #1976d2;"></i>
+                Attached File
+                <a href="{{ msg.attachment_url }}" target="_blank" class="att-action-btn">
+                    <i class="fas fa-download"></i> Download
+                </a>
             </div>
         </div>
         {% endif %}
     </div>
+    {% endfor %}
 
-    <h2 style="font-size: 1.2em; color: #4a5568; margin-bottom: 20px; padding-left: 10px;">Activity Timeline</h2>
+    <!-- Standard Attachments block if present -->
+    {% if attachments and not conversation_stream %}
+    <div class="email-thread-card">
+        <div class="attachment-section">
+            <div style="margin-bottom: 10px; font-weight: bold; color: #4a5568;">Attachments:</div>
+            {% for att in attachments %}
+            <div class="attachment-pill">
+                <i class="fas fa-file-alt" style="margin-right: 8px; color: #718096;"></i>
+                {{ att.name|default:"Attachment" }}
+                {% if att.url %}
+                <a href="{{ att.url }}" target="_blank" class="att-action-btn"><i class="fas fa-download"></i> Download</a>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Audit Timeline Section -->
+    <h2 style="font-size: 1.2em; color: #4a5568; margin: 30px 0 20px 10px;">Activity Timeline & Notes</h2>
 
     <div class="timeline-container">
+        <!-- Initial Task Creation Event -->
         <div class="timeline-event">
-            <div class="timeline-icon" style="background-color: #2b6cb0;"></div>
-            <span class="badge-status bg-delegated">Delegation Created</span>
+            <div class="timeline-icon icon-primary"></div>
+            <span class="badge-status bg-delegated">Task Logged / Assigned</span>
             <p class="event-text">
-                Task was delegated to <strong>{{ task.delegated_to }}</strong> by <strong>{{ task.delegated_by }}</strong>.
+                Task assigned to <strong>{{ task.assigned_user.username|default:"Unassigned" }}</strong>.
             </p>
             <span class="event-meta">
-                Date: {{ task.received_timestamp|date:"d M Y, H:i" }}
+                Date: {{ task.received_at|date:"d M Y, H:i" }}
             </span>
         </div>
 
-        {% for action in actions %}
+        <!-- Combined Timeline Loop (Actions & Notes) -->
+        {% for item in combined_timeline %}
         <div class="timeline-event">
-            <div class="timeline-icon" 
-                 style="background-color: {% if action.action_type == 'complete' %}#2f855a{% else %}#b7791f{% endif %};">
-            </div>
+            <!-- FIX: Applied class logic instead of inline style -->
+            <div class="timeline-icon {% if item.type == 'action' %}icon-action{% else %}icon-note{% endif %}"></div>
             
-            <span class="badge-status 
-                {% if action.action_type == 'complete' %}bg-complete
-                {% elif action.action_type == 'add_note' %}bg-note
-                {% else %}bg-restore{% endif %}">
-                {{ action.action_type|title }}
+            <span class="badge-status {% if item.type == 'action' %}bg-complete{% else %}bg-note{% endif %}">
+                {% if item.type == 'action' %}Action: {{ item.obj.action_type }}{% else %}Internal Note{% endif %}
             </span>
 
             <p class="event-text">
-                {{ action.note_content|safe }}
+                {% if item.type == 'action' %}
+                    <strong>Subject:</strong> {{ item.obj.subject }}<br>
+                    <strong>Recipient:</strong> {{ item.obj.recipient_email }}
+                {% else %}
+                    {{ item.obj.content|safe }}
+                {% endif %}
             </p>
             
             <span class="event-meta">
-                User: <strong>{{ action.action_user }}</strong> | {{ action.action_timestamp|date:"d M Y, H:i" }}
+                User: <strong>{{ item.obj.user.username|default:"System" }}</strong> | {{ item.date|date:"d M Y, H:i" }}
             </span>
         </div>
         {% endfor %}
