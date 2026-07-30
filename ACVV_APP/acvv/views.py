@@ -216,13 +216,35 @@ def send_email_view(request):
             return render(request, 'acvv_app/send_email_form.html', {'target_email': target_email})
         
         # --- NEW: GENERATE AND APPEND SIGNATURE ---
-        # 1. Define context (Update logo_url to your actual absolute URL if needed)
+        current_username = request.user.username.lower()
+        current_firstname = request.user.first_name.lower() if request.user.first_name else ""
+        
+        # Default fallback
+        agent_name = request.user.get_full_name() or request.user.username.replace('_', ' ').title()
+        agent_title = "Administrator"
+
+        # Match Specific Agents
+        if 'timothy' in current_username or 'timothy' in current_firstname:
+            agent_name = "Timothy Davids"
+            agent_title = "Indexing Specialist"
+        elif 'jesica' in current_username or 'jessica' in current_username or 'jesica' in current_firstname:
+            agent_name = "Jesica Haynes"
+            agent_title = "Reconciliations Specialist"
+        elif 'luanovaneck' in current_username or 'luano' in current_firstname:
+            agent_name = "Luano van Eck"
+            agent_title = "Developer"
+        elif 'omega' in current_username:
+            agent_name = "Omega System Assistant"
+            agent_title = "Automated System"
+
         signature_context = {
             'request': request,
+            'agent_name': agent_name,
+            'agent_title': agent_title,
             'logo_url': 'https://acvv.futurasa.co.za/static/images/futura_logo.png'
         }
         
-        # 2. Render the signature HTML from your template
+        from django.template.loader import render_to_string
         signature_html = render_to_string('acvv_app/acvv_email_signature.html', signature_context)
         
         # 3. Combine the typed body with the rendered signature
@@ -338,10 +360,35 @@ def outlook_delegated_action(request, delegation_id):
             body = request.POST.get('reply_body')
             
             # --- NEW: GENERATE AND APPEND SIGNATURE ---
+            current_username = request.user.username.lower()
+            current_firstname = request.user.first_name.lower() if request.user.first_name else ""
+            
+            # Default fallback
+            agent_name = request.user.get_full_name() or request.user.username.replace('_', ' ').title()
+            agent_title = "Administrator"
+
+            # Match Specific Agents
+            if 'timothy' in current_username or 'timothy' in current_firstname:
+                agent_name = "Timothy Davids"
+                agent_title = "Indexing Specialist"
+            elif 'jesica' in current_username or 'jessica' in current_username or 'jesica' in current_firstname:
+                agent_name = "Jesica Haynes"
+                agent_title = "Reconciliations Specialist"
+            elif 'luanovaneck' in current_username or 'luano' in current_firstname:
+                agent_name = "Luano van Eck"
+                agent_title = "Developer"
+            elif 'omega' in current_username:
+                agent_name = "Omega System Assistant"
+                agent_title = "Automated System"
+
             signature_context = {
                 'request': request,
+                'agent_name': agent_name,
+                'agent_title': agent_title,
                 'logo_url': 'https://acvv.futurasa.co.za/static/images/futura_logo.png'
             }
+            
+            from django.template.loader import render_to_string
             signature_html = render_to_string('acvv_app/acvv_email_signature.html', signature_context)
             full_html_body = f"<div>{body}</div><br><br>{signature_html}"
             # ------------------------------------------
@@ -2610,12 +2657,46 @@ def send_acvv_direct_email(request, company_code):
             recipient_list = [email.strip() for email in re.split('[;,]', recipient_raw) if email.strip()]
             clean_recipient_str = ", ".join(recipient_list)
 
+            # --- NEW: GENERATE AND APPEND SIGNATURE ---
+            current_username = request.user.username.lower()
+            current_firstname = request.user.first_name.lower() if request.user.first_name else ""
+            
+            # Default fallback
+            agent_name = request.user.get_full_name() or request.user.username.replace('_', ' ').title()
+            agent_title = "Administrator"
+
+            # Match Specific Agents
+            if 'timothy' in current_username or 'timothy' in current_firstname:
+                agent_name = "Timothy Davids"
+                agent_title = "Indexing Specialist"
+            elif 'jesica' in current_username or 'jessica' in current_username or 'jesica' in current_firstname:
+                agent_name = "Jesica Haynes"
+                agent_title = "Reconciliations Specialist"
+            elif 'luanovaneck' in current_username or 'luano' in current_firstname:
+                agent_name = "Luano van Eck"
+                agent_title = "Developer"
+            elif 'omega' in current_username:
+                agent_name = "Omega System Assistant"
+                agent_title = "Automated System"
+
+            signature_context = {
+                'request': request,
+                'agent_name': agent_name,
+                'agent_title': agent_title,
+                'logo_url': 'https://acvv.futurasa.co.za/static/images/futura_logo.png'
+            }
+            
+            from django.template.loader import render_to_string
+            signature_html = render_to_string('acvv_app/acvv_email_signature.html', signature_context)
+            full_html_body = f"<div>{body}</div><br><br>{signature_html}"
+            # ------------------------------------------
+
             # Pass the full 'attachments' list instead of just [0]
             result = OutlookGraphService.send_outlook_email(
                 target_email, 
                 recipient_list, 
                 subject, 
-                body, 
+                full_html_body, 
                 content_type='Html', 
                 attachments=attachments,
                 user=request.user
@@ -2629,7 +2710,7 @@ def send_acvv_direct_email(request, company_code):
                 EmailDelegation.objects.create(
                     email_id=new_ms_id,
                     subject=subject,
-                    body=body, 
+                    body=full_html_body, 
                     attachment=attachments[0] if attachments else None, 
                     sender_address=target_email,
                     assigned_user=request.user,
