@@ -1,8 +1,16 @@
 <div style="font-family: Arial, sans-serif; font-size: 13px; color: #333; margin-top: 20px; border-top: 1px solid #ccc; padding-top: 10px;">
+    
+    <!-- DYNAMIC AGENT INFO INJECTED HERE -->
+    <div style="margin-bottom: 12px;">
+        <strong style="font-size: 15px; color: #000;">{{ agent_name }}</strong><br>
+        <span style="color: #555;">{{ agent_title }}</span>
+    </div>
+
     <table cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
         <tr>
             <td style="padding-right: 20px;">
-                <img src="https://your-website.co.za/static/images/futura-logo.png" alt="Futura Logo" style="width: 150px; display: block;">
+                <!-- DYNAMIC LOGO URL APPLIED HERE -->
+                <img src="{{ logo_url }}" alt="Futura Logo" style="width: 150px; display: block;">
             </td>
             <td>
                 <p style="margin: 0 0 4px 0;"><strong>phone direct:</strong> 087 702 5941</p>
