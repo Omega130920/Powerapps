@@ -1261,13 +1261,48 @@ def save_global_claim(request):
         if recipient and subject and body:
             target_email = settings.OUTLOOK_EMAIL_ADDRESS
             
+            # --- NEW: GENERATE AND APPEND SIGNATURE ---
+            current_username = request.user.username.lower()
+            current_firstname = request.user.first_name.lower() if request.user.first_name else ""
+            
+            agent_name = request.user.get_full_name() or request.user.username.replace('_', ' ').title()
+            agent_title = "Administrator"
+
+            if 'timothy' in current_username or 'timothy' in current_firstname:
+                agent_name = "Timothy Davids"
+                agent_title = "Indexing Specialist"
+            elif 'jesica' in current_username or 'jessica' in current_username or 'jesica' in current_firstname:
+                agent_name = "Jesica Haynes"
+                agent_title = "Reconciliations Specialist"
+            elif 'luanovaneck' in current_username or 'luano' in current_firstname:
+                agent_name = "Luano van Eck"
+                agent_title = "Developer"
+            elif 'omega' in current_username:
+                agent_name = "Omega System Assistant"
+                agent_title = "Automated System"
+
+            signature_context = {
+                'request': request,
+                'agent_name': agent_name,
+                'agent_title': agent_title,
+                'logo_url': 'https://acvv.futurasa.co.za/static/images/futura_logo.png'
+            }
+            
+            from django.template.loader import render_to_string
+            signature_html = render_to_string('acvv_app/acvv_email_signature.html', signature_context)
+            full_html_body = f"<div>{body}</div><br><br>{signature_html}"
+            # ------------------------------------------
+
+            # --- FIX: Convert the single file to a list for the updated Graph Service ---
+            attachment_list = [email_attachment] if email_attachment else []
+
             result = OutlookGraphService.send_outlook_email(
                 target_email, 
                 recipient, 
                 subject, 
-                body, 
+                full_html_body, 
                 content_type='Html',
-                attachment=email_attachment,
+                attachments=attachment_list,
                 user=request.user
             )
             
@@ -1290,7 +1325,7 @@ def save_global_claim(request):
                     EmailDelegation.objects.create(
                         email_id=new_ms_id,
                         subject=subject,
-                        body=body,
+                        body=full_html_body,
                         attachment=email_attachment,
                         sender_address=target_email,
                         assigned_user=request.user,
