@@ -98,4 +98,6 @@ urlpatterns = [
     # Excel Export View
     path('sla-report/export/', views.export_sla_report_excel, name='export_sla_excel'),
     path('admin-billing/export/', views.export_admin_billing_excel, name='export_admin_billing_excel'),
+    path('journal-bankline/<int:recon_id>/', views.journal_bankline_view, name='journal_bankline'),
+    path('apply-bank-journal/<int:bill_id>/', views.apply_bank_journal_to_bill, name='apply_bank_journal_to_bill'),
 ]

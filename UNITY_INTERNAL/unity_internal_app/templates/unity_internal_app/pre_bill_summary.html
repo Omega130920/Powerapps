@@ -128,6 +128,47 @@ Proceed to Recon (Unavailable)
 </button>
 {% endif %}
 
+{# --- 🚀 SECTION: AVAILABLE BANK JOURNALS --- #}
+{% if available_bank_journals %}
+<hr>
+<h3 style="color: #2e7d32;">📖 Staged Bank Journals (Available)</h3>
+<p style="font-size: 0.9em;">
+These amounts were explicitly extracted/journaled from bank lines for <strong>{{ company_code }}</strong> and are ready to be assigned to this bill.
+</p>
+<table style="background-color: #f1f8e9; border: 1px solid #c8e6c9;">
+<thead>
+<tr style="background-color: #388e3c; color: white;">
+    <th style="padding: 10px;">Journal ID</th>
+    <th style="padding: 10px;">Source Bank Line ID</th>
+    <th style="padding: 10px;">Extracted Date</th>
+    <th style="padding: 10px;">Extracted By</th>
+    <th style="padding: 10px;">Available Amount</th>
+    <th style="padding: 10px;">Action</th>
+</tr>
+</thead>
+<tbody>
+{% for journal in available_bank_journals %}
+<tr>
+    <td style="padding: 10px;">#{{ journal.id }}</td>
+    <td style="padding: 10px;">#{{ journal.source_bank_line_id }}</td>
+    <td style="padding: 10px;">{{ journal.created_at|date:"Y-m-d H:i" }}</td>
+    <td style="padding: 10px;">{{ journal.created_by }}</td>
+    <td style="padding: 10px; font-weight: bold; color: #2e7d32;">R {{ journal.amount|floatformat:2 }}</td>
+    <td style="padding: 10px;">
+        <form action="{% url 'apply_bank_journal_to_bill' bill_id=bill_record.id %}" method="POST">
+            {% csrf_token %}
+            <input type="hidden" name="journal_id" value="{{ journal.id }}">
+            <div class="allocation-form-group">
+                <button type="submit" class="action-button" style="background-color: #2e7d32;">Apply Journal (R {{ journal.amount|floatformat:2 }})</button>
+            </div>
+        </form>
+    </td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% endif %}
+
 {% if available_credits %}
 <hr>
 <h3 style="color: #e65100;">🛡️ Remaining Balance</h3>
@@ -139,10 +180,9 @@ Apply them here to reduce the bill liability before final reconciliation.
 <thead>
 <tr style="background-color: #ff9800; color: white;">
 <th>Credit ID</th>
-                    <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Orig. Bank ID</th>
-                    <!-- END NEW COLUMN -->
-                    <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Deposit Date</th>
-                    <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Original Deposit</th>
+<th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Orig. Bank ID</th>
+<th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Deposit Date</th>
+<th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Original Deposit</th>
 <th>Available Balance</th>
 <th>Action</th>
 </tr>
@@ -151,28 +191,27 @@ Apply them here to reduce the bill liability before final reconciliation.
 {% for credit in available_credits %}
 <tr>
 <td>{{ credit.id }}</td>
-
-                    <td style="padding: 10px; color: #555;">
-                        {% if note.source_bank_line %}
-                            #{{ note.source_bank_line.bank_line_id }}
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
-                    <td style="padding: 10px; color: #555;">
-                        {% if note.original_deposit_date %}
-                            {{ note.original_deposit_date|date:"Y-m-d" }}
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
-                    <td style="padding: 10px; color: #555;">
-                        {% if note.original_deposit_amount %}
-                            R {{ note.original_deposit_amount|floatformat:2 }}
-                        {% else %}
-                            -
-                        {% endif %}
-                    </td>
+<td style="padding: 10px; color: #555;">
+    {% if credit.source_bank_line %}
+        #{{ credit.source_bank_line.bank_line_id }}
+    {% else %}
+        -
+    {% endif %}
+</td>
+<td style="padding: 10px; color: #555;">
+    {% if credit.original_deposit_date %}
+        {{ credit.original_deposit_date|date:"Y-m-d" }}
+    {% else %}
+        -
+    {% endif %}
+</td>
+<td style="padding: 10px; color: #555;">
+    {% if credit.original_deposit_amount %}
+        R {{ credit.original_deposit_amount|floatformat:2 }}
+    {% else %}
+        -
+    {% endif %}
+</td>
 <td style="font-weight: bold; color: #e65100;">R {{ credit.schedule_amount|floatformat:2 }}</td>
 <td>
 <form action="{% url 'apply_available_credit' bill_id=bill_record.id %}" method="POST">
@@ -264,49 +303,49 @@ Description: {{ line.bank_line.transaction_description|truncatechars:100 }}
 <h3 style="color: #3f51b5;">💲 Associated Credit Notes ({{ credit_notes|length }} items)</h3>
 <p>These are credit portions that have been approved by the manager and applied to this specific bill.</p>
 <table class="credit-note-table" style="background-color: #f0f8ff; border: 1px solid #b3e0ff;">
-    <thead>
-        <tr>
-            <th>ID</th>
-            <th>Processed Date</th>
-            <th>Original Amount</th>
-            <th style="background-color: #283593;">Applied to Bill</th>
-            <th>Remaining Balance</th>
-            <th>Status</th>
-            <th>Imported By</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for note in credit_notes %}
-        <tr {% if not note.fiscal_date %}style="background-color: #fff3cd;"{% endif %}>
-            <td>{{ note.id }}</td>
-            <td>{{ note.processed_date|date:"Y-m-d"|default:"N/A" }}</td>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Processed Date</th>
+            <th>Original Amount</th>
+            <th style="background-color: #283593;">Applied to Bill</th>
+            <th>Remaining Balance</th>
+            <th>Status</th>
+            <th>Imported By</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for note in credit_notes %}
+        <tr {% if not note.fiscal_date %}style="background-color: #fff3cd;"{% endif %}>
+            <td>{{ note.id }}</td>
+            <td>{{ note.processed_date|date:"Y-m-d"|default:"N/A" }}</td>
 
-            <td>R {{ note.schedule_amount|add:note.requested_amount|floatformat:2 }}</td>
+            <td>R {{ note.schedule_amount|add:note.requested_amount|floatformat:2 }}</td>
 
-            <td style="font-weight: bold; color: white; background-color: #3949ab;">
-                R {{ note.requested_amount|default:"0.00"|floatformat:2 }}
-            </td>
+            <td style="font-weight: bold; color: white; background-color: #3949ab;">
+                R {{ note.requested_amount|default:"0.00"|floatformat:2 }}
+            </td>
 
-            <td style="color: #1b5e20; font-weight: bold;">
-                R {{ note.schedule_amount|default:"0.00"|floatformat:2 }}
-            </td>
+            <td style="color: #1b5e20; font-weight: bold;">
+                R {{ note.schedule_amount|default:"0.00"|floatformat:2 }}
+            </td>
 
-            <td>
-                {% if note.schedule_amount > 0 %}
-                    <span style="color: #f57f17; font-weight: bold;">PARTIAL</span>
-                {% else %}
-                    <span style="color: #388e3c; font-weight: bold;">FULLY USED</span>
-                {% endif %}
-            </td>
-            <td>{{ note.processed_by }}</td>
-        </tr>
-        {% endfor %}
-        <tr style="background-color: #e8eaf6; font-weight: bold;">
-            <td colspan="3" style="text-align: right;">Total Credit Applied:</td>
-            <td style="color: #283593; background-color: #c5cae9;">R {{ total_credit_notes_assigned|floatformat:2 }}</td>
-            <td colspan="3"></td>
-        </tr>
-    </tbody>
+            <td>
+                {% if note.schedule_amount > 0 %}
+                    <span style="color: #f57f17; font-weight: bold;">PARTIAL</span>
+                {% else %}
+                    <span style="color: #388e3c; font-weight: bold;">FULLY USED</span>
+                {% endif %}
+            </td>
+            <td>{{ note.processed_by }}</td>
+        </tr>
+        {% endfor %}
+        <tr style="background-color: #e8eaf6; font-weight: bold;">
+            <td colspan="3" style="text-align: right;">Total Credit Applied:</td>
+            <td style="color: #283593; background-color: #c5cae9;">R {{ total_credit_notes_assigned|floatformat:2 }}</td>
+            <td colspan="3"></td>
+        </tr>
+    </tbody>
 </table>
 <hr>
 {% endif %}
@@ -422,7 +461,6 @@ Remove
 </div>
 
 <script>
-// 🚀 ADDED: Modal Trigger Functions
 function openFinalizeModal() {
     document.getElementById('finalizeModal').style.display = 'block';
 }
@@ -431,7 +469,6 @@ function closeFinalizeModal() {
     document.getElementById('finalizeModal').style.display = 'none';
 }
 
-// Close if user clicks outside the modal
 window.onclick = function(event) {
     let modal = document.getElementById('finalizeModal');
     if (event.target == modal) {
@@ -440,86 +477,85 @@ window.onclick = function(event) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    const checkboxes = document.querySelectorAll('.recon-radio');
-    const amountInputs = document.querySelectorAll('.amount-input');
-    
-    const outstandingDisplay = document.getElementById('dynamic-outstanding');
-    const outstandingSmall = document.getElementById('dynamic-outstanding-small');
-    
-    const scheduledAmount = parseFloat("{{ scheduled_amount|default:0 }}");
-    const creditAllocated = parseFloat("{{ total_credit_notes_assigned|default:0 }}");
-    const journalAllocated = parseFloat("{{ total_journal_assigned|default:0 }}");
-    const cashAlreadyInDB = parseFloat("{{ total_cash_applied|default:0 }}");
-    
-    // NEW: Factor in available credits that are sitting there ready to be applied
-    const availableCreditTotal = parseFloat("{{ total_available_credit|default:0 }}");
+    const checkboxes = document.querySelectorAll('.recon-radio');
+    const amountInputs = document.querySelectorAll('.amount-input');
+    
+    const outstandingDisplay = document.getElementById('dynamic-outstanding');
+    
+    const scheduledAmount = parseFloat("{{ scheduled_amount|default:0 }}");
+    const creditAllocated = parseFloat("{{ total_credit_notes_assigned|default:0 }}");
+    const journalAllocated = parseFloat("{{ total_journal_assigned|default:0 }}");
+    const cashAlreadyInDB = parseFloat("{{ total_cash_applied|default:0 }}");
+    
+    // 🚀 NEW: Get applied bank journals total from the backend context
+    const appliedBankJournals = parseFloat("{{ applied_bank_journals|default:0 }}");
+    
+    const availableCreditTotal = parseFloat("{{ total_available_credit|default:0 }}");
 
-    function calculateLiveOutstanding() {
-        let currentTypedCash = 0;
-        
-        amountInputs.forEach(input => {
-            const val = parseFloat(input.value);
-            if (!isNaN(val)) {
-                currentTypedCash += val;
-            }
-        });
+    function calculateLiveOutstanding() {
+        let currentTypedCash = 0;
+        
+        amountInputs.forEach(input => {
+            const val = parseFloat(input.value);
+            if (!isNaN(val)) {
+                currentTypedCash += val;
+            }
+        });
 
-        // The "Outstanding" logic: We subtract EVERYTHING that is applied. 
-        // We do NOT subtract 'availableCreditTotal' here because it hasn't been applied yet,
-        // but it helps the user see how much Cash they still need to type in.
-        let remaining = scheduledAmount - creditAllocated - journalAllocated - cashAlreadyInDB - currentTypedCash;
-        
-        if (remaining < 0) remaining = 0;
+        // 🚀 UPDATED FORMULA: Subtract appliedBankJournals so live calculations account for applied journals
+        let remaining = scheduledAmount - creditAllocated - journalAllocated - appliedBankJournals - cashAlreadyInDB - currentTypedCash;
+        
+        if (remaining < 0) remaining = 0;
 
-        const formatted = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(remaining);
-        outstandingDisplay.innerText = formatted;
-        
-        if (remaining <= 0.01) {
-            outstandingDisplay.style.color = "#4CAF50"; 
-        } else {
-            outstandingDisplay.style.color = "white";
-        }
-    }
+        const formatted = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(remaining);
+        outstandingDisplay.innerText = formatted;
+        
+        if (remaining <= 0.01) {
+            outstandingDisplay.style.color = "#4CAF50"; 
+        } else {
+            outstandingDisplay.style.color = "white";
+        }
+    }
 
-    checkboxes.forEach(box => {
-        box.type = "checkbox";
+    checkboxes.forEach(box => {
+        box.type = "checkbox";
 
-        box.addEventListener('change', function() {
-            const lineId = this.value; 
-            const maxOnLine = parseFloat(this.dataset.maxAmount); 
-            const targetInput = document.getElementById('amount-' + lineId);
+        box.addEventListener('change', function() {
+            const lineId = this.value; 
+            const maxOnLine = parseFloat(this.dataset.maxAmount); 
+            const targetInput = document.getElementById('amount-' + lineId);
 
-            if (this.checked) {
-                if (targetInput.value === "" || targetInput.value === "0") {
-                    let otherTyped = 0;
-                    amountInputs.forEach(i => { if(i.id !== targetInput.id) otherTyped += parseFloat(i.value || 0); });
-                    
-                    let stillNeeded = scheduledAmount - (creditAllocated + journalAllocated + cashAlreadyInDB + otherTyped);
-                    let fillVal = Math.min(maxOnLine, Math.max(0, stillNeeded));
-                    targetInput.value = fillVal.toFixed(2);
-                }
-            } else {
-                targetInput.value = '';
-            }
-            calculateLiveOutstanding();
-        });
-    });
+            if (this.checked) {
+                if (targetInput.value === "" || targetInput.value === "0") {
+                    let otherTyped = 0;
+                    amountInputs.forEach(i => { if(i.id !== targetInput.id) otherTyped += parseFloat(i.value || 0); });
+                    
+                    let stillNeeded = scheduledAmount - (creditAllocated + journalAllocated + appliedBankJournals + cashAlreadyInDB + otherTyped);
+                    let fillVal = Math.min(maxOnLine, Math.max(0, stillNeeded));
+                    targetInput.value = fillVal.toFixed(2);
+                }
+            } else {
+                targetInput.value = '';
+            }
+            calculateLiveOutstanding();
+        });
+    });
 
-    amountInputs.forEach(input => {
-        input.addEventListener('input', function() {
-            const row = this.closest('tr');
-            const box = row.querySelector('.recon-radio');
-            
-            if (parseFloat(this.value) > 0) {
-                box.checked = true;
-            } else if (this.value === "") {
-                box.checked = false;
-            }
-            calculateLiveOutstanding();
-        });
-    });
+    amountInputs.forEach(input => {
+        input.addEventListener('input', function() {
+            const row = this.closest('tr');
+            const box = row.querySelector('.recon-radio');
+            
+            if (parseFloat(this.value) > 0) {
+                box.checked = true;
+            } else if (this.value === "") {
+                box.checked = false;
+            }
+            calculateLiveOutstanding();
+        });
+    });
 
-    calculateLiveOutstanding();
+    calculateLiveOutstanding();
 });
 </script>
 </body>

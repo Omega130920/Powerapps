@@ -1,0 +1,167 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Journal Bank Line - {{ company_code }}</title>
+    <style>
+        /* --- 1. Main Layout (Fixed Screen) --- */
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
+            margin: 0; padding: 0; color: #333;
+            height: 100vh; width: 100vw;
+            overflow: hidden; 
+            display: flex; justify-content: center; align-items: center;
+            box-sizing: border-box;
+        }
+
+        /* --- 2. The Card Container --- */
+        .container { 
+            width: 95%; height: 90vh;
+            background-color: #fff; border-radius: 8px; 
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15); 
+            padding: 30px; box-sizing: border-box;
+            overflow-y: auto; display: flex; flex-direction: column;
+        }
+
+        /* Scrollbar Styling */
+        .container::-webkit-scrollbar { width: 8px; }
+        .container::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 8px; }
+        .container::-webkit-scrollbar-thumb { background: #81c784; border-radius: 8px; }
+        .container::-webkit-scrollbar-thumb:hover { background: #66bb6a; }
+
+        /* --- 3. Typography --- */
+        h2 { color: #1b5e20; border-bottom: 2px solid #aed581; padding-bottom: 15px; margin-top: 0; font-size: 1.8rem; }
+        h3 { color: #2e7d32; margin-top: 25px; font-size: 1.2rem; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* --- 4. Details Grid --- */
+        .detail-block { 
+            background: #f1f8e9; border: 1px solid #c5e1a5; border-radius: 8px; padding: 20px;
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;
+        }
+        .detail-item { display: flex; flex-direction: column; }
+        .detail-item strong { color: #1b5e20; font-size: 0.85em; text-transform: uppercase; margin-bottom: 4px; opacity: 0.8; }
+        .detail-item span { font-size: 1.1em; font-weight: 500; color: #333; }
+
+        hr { border: 0; border-top: 1px solid #e0e0e0; margin: 30px 0; }
+
+        /* --- 5. Form Styles --- */
+        .form-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 600; color: #2e7d32; }
+        
+        input[type="text"], input[type="number"], input[type="date"], textarea, select {
+            width: 100%; padding: 12px; border: 1px solid #ced4da; border-radius: 6px;
+            box-sizing: border-box; font-size: 1em; background-color: #fafafa; transition: all 0.3s ease;
+        }
+        input:focus, textarea:focus, select:focus {
+            border-color: #4CAF50; background-color: #fff; outline: none;
+            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+        }
+        textarea { resize: vertical; min-height: 100px; }
+        small { display: block; margin-top: 5px; font-size: 0.85em; }
+
+        /* --- 6. Buttons --- */
+        .button-row { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; display: flex; align-items: center; gap: 15px; }
+        
+        .submit-button {
+            padding: 12px 30px; background-color: #2e7d32; color: white; border: none; border-radius: 6px;
+            font-size: 1em; font-weight: bold; cursor: pointer; transition: background 0.3s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .submit-button:hover { background-color: #1b5e20; transform: translateY(-1px); }
+        
+        .back-link {
+            text-decoration: none; color: #555; padding: 10px 20px; border-radius: 6px;
+            background-color: #e0e0e0; font-weight: 600; transition: background 0.3s;
+        }
+        .back-link:hover { background-color: #d5d5d5; color: #333; }
+        .top-nav { margin-bottom: 20px; }
+        .top-nav a { text-decoration: none; color: #666; font-size: 0.9em; }
+        .top-nav a:hover { color: #2e7d32; text-decoration: underline; }
+        
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+    </style>
+</head>
+<body>
+
+{% block content %}
+<div class="container">
+    <div class="top-nav">
+        <a href="{% url 'unity_information' company_code %}">← Back to Information</a>
+    </div>
+
+    <h2>🏦 Journal Bank Line - {{ company_code }}</h2>
+
+    <h3>Bank Line Details</h3>
+    <div class="detail-block">
+        <div class="detail-item">
+            <strong>Transaction Date</strong>
+            <span>{{ recon_line.transaction_date|date:"Y-m-d" }}</span>
+        </div>
+        <div class="detail-item">
+            <strong>Description</strong>
+            <span>
+                {% if recon_line.bank_line %}
+                    {{ recon_line.bank_line.transaction_description }}
+                {% else %}
+                    N/A
+                {% endif %}
+            </span>
+        </div>
+        <div class="detail-item">
+            <strong>Original Deposit</strong>
+            <span>R {{ recon_line.transaction_amount }}</span>
+        </div>
+        <div class="detail-item">
+            <strong>Available to Journal</strong>
+            <span style="color: #2e7d32; font-weight: bold; font-size: 1.2em;">R {{ available_balance }}</span>
+        </div>
+    </div>
+
+    <hr>
+    
+    <h3>Stage Journal Amount</h3>
+    <form method="POST" action="{% url 'journal_bankline' recon_line.id %}">
+        {% csrf_token %}
+        
+        <div class="grid-2">
+            <!-- Amount Input -->
+            <div class="form-group">
+                <label for="journal_amount">Amount to Journal (R)</label>
+                <input type="number" step="0.01" max="{{ available_balance }}" id="journal_amount" name="journal_amount" placeholder="e.g. 200.00" required>
+                <small style="color: #666;">You cannot exceed the available balance of R {{ available_balance }}</small>
+            </div>
+
+            <!-- Target Bill Dropdown (RESTORED) -->
+            <div class="form-group">
+                <label for="target_bill_id">Select Target Bill</label>
+                <select id="target_bill_id" name="target_bill_id" required>
+                    <option value="" disabled selected>-- Select an Open Bill --</option>
+                    {% for bill in open_bills %}
+                        <option value="{{ bill.id }}">
+                            Bill #{{ bill.id }} | Fiscal: {{ bill.A_CCDatesMonth|date:"Y-m" }} | Scheduled: R {{ bill.H_Schedule_Amount }}
+                        </option>
+                    {% empty %}
+                        <option value="" disabled>No open bills found for this member group.</option>
+                    {% endfor %}
+                </select>
+                <small style="color: #666;">Choose the bill where this staged journal will appear.</small>
+            </div>
+        </div>
+
+        <div class="button-row">
+            <button type="submit" class="submit-button" {% if not open_bills %}disabled{% endif %}>Stage Journal Amount</button>
+            <a href="{% url 'unity_information' company_code %}" class="back-link">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+</body>
+</html>

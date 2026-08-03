@@ -656,13 +656,16 @@
             <thead>
                 <tr style="text-align: left; background-color: #f8f9fa;">
                     <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Segment ID</th>
-                    <!-- NEW COLUMN ADDED HERE -->
                     <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Orig. Bank ID</th>
-                    <!-- END NEW COLUMN -->
                     <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Deposit Date</th>
                     <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Original Deposit</th>
-                    <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Settled/Consumed</th>
-                    <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Remaining Balance</th>
+                    
+                    {# --- HIDDEN: Bill Usage & Credits Columns --- #}
+
+                    <!-- 🚀 JOURNALS & AVAILABLE BALANCE -->
+                    <th style="padding: 10px; border-bottom: 2px solid #dee2e6;" title="Extracted to Staged Journals">Journals</th>
+                    <th style="padding: 10px; border-bottom: 2px solid #dee2e6; color: #2e7d32;">Available Balance</th>
+                    
                     <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Status</th>
                     <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Review Note</th>
                     <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Action</th>
@@ -673,7 +676,6 @@
                     <tr onclick="window.location.href='{% url 'display_bankline_review' line.id %}?source=unity'" 
                         style="cursor: pointer; border-bottom: 1px solid #eee; {% if line.is_fully_consumed %}background-color: #f9f9f9; color: #888;{% endif %}">
                         <td style="padding: 10px;">#{{ line.id }}</td>
-                        <!-- NEW COLUMN RENDERED HERE -->
                         <td style="padding: 10px;">
                             {% if line.bank_line_id %}
                                 #{{ line.bank_line_id }}
@@ -681,22 +683,29 @@
                                 -
                             {% endif %}
                         </td>
-                        <!-- END NEW COLUMN -->
                         <td style="padding: 10px;">{{ line.transaction_date|date:"Y-m-d" }}</td>
                         <td style="padding: 10px;">R {{ line.transaction_amount|floatformat:2 }}</td>
                         
-                        <td style="padding: 10px; color: #ff9800; font-weight: bold;">
-                            R {{ line.actual_bill_usage|default:0|floatformat:2 }}
+                        {# --- HIDDEN: Bill Usage & Credits Data Cells --- #}
+
+                        <!-- 🚀 JOURNALS & AVAILABLE BALANCE DATA CELLS -->
+                        <td style="padding: 10px; color: {% if line.journal_amount > 0 %}#4527a0{% else %}#888{% endif %}; font-weight: bold;">
+                            R {{ line.journal_amount|default:0|floatformat:2 }}
                         </td>
 
-                        <td style="padding: 10px; color: {% if line.credit_amount > 0 %}#1b5e20{% else %}#888{% endif %}; font-weight: bold;">
-                            R {{ line.credit_amount|default:0|floatformat:2 }}
+                        <td style="padding: 10px; color: #2e7d32; font-weight: bold; font-size: 1.05em;">
+                            R {{ line.available_balance|default:0|floatformat:2 }}
                         </td>
 
                         <td style="padding: 10px;"><span class="status-tag status-{{ line.recon_status|lower|cut:' '|cut:'-' }}">{{ line.recon_status }}</span></td>
                         <td style="padding: 10px;">{{ line.review_note|default:"-"|truncatechars:20 }}</td>
-                        <td style="padding: 10px;">
-                            <a href="{% url 'display_bankline_review' line.id %}?source=unity" class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #3f51b5; color: white; text-decoration: none; border-radius: 3px;" onclick="event.stopPropagation();">Review</a>
+                        
+                        <td style="padding: 10px; white-space: nowrap;">
+                            <a href="{% url 'display_bankline_review' line.id %}?source=unity" class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #3f51b5; color: white; text-decoration: none; border-radius: 3px; margin-right: 3px;" onclick="event.stopPropagation();">Review</a>
+                            
+                            {% if not line.is_fully_consumed %}
+                                <a href="{% url 'journal_bankline' line.id %}" class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #2e7d32; color: white; text-decoration: none; border-radius: 3px;" onclick="event.stopPropagation();">Journal</a>
+                            {% endif %}
                         </td>
                     </tr>
                 {% endfor %}
@@ -734,7 +743,6 @@
                         {% endif %}
                     </td>
 
-                    
                     <td style="padding: 10px; color: #555;">
                         {% if note.source_bank_line %}
                             #{{ note.source_bank_line.bank_line_id }}
@@ -788,7 +796,6 @@
 <div id="company-claims" class="tab-pane">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
         <h2>Company Claims</h2>
-        <button type="button" class="dashboard-button" onclick="openClaimModal()">➕ New Claim</button>
     </div>
 
     {% if company_claims %}
@@ -819,31 +826,7 @@
                     <td><span class="status-tag {% if claim.claim_status == 'Paid' %}status-reconcomplete{% else %}status-open{% endif %}">{{ claim.claim_status }}</span></td>
                     <td>{{ claim.claim_allocation }}</td>
                     <td>
-                        <button class="dashboard-button"
-                            style="padding: 4px 8px; font-size: 11px;"
-                            onclick="editClaim(this)"
-                            data-id="{{ claim.id }}"
-                            data-id_number="{{ claim.id_number }}"
-                            data-member_name="{{ claim.member_name }}"
-                            data-member_surname="{{ claim.member_surname }}"
-                            data-mip_number="{{ claim.mip_number|default:'' }}" 
-                            data-claim_type="{{ claim.claim_type }}"
-                            data-exit_reason="{{ claim.exit_reason }}"
-                            data-claim_allocation="{{ claim.claim_allocation }}"
-                            data-claim_status="{{ claim.claim_status }}"
-                            data-payment_option="{{ claim.payment_option }}"
-                            data-claim_amount="{{ claim.claim_amount|default:'' }}" 
-                            data-claim_created_date="{{ claim.claim_created_date|date:'Y-m-d' }}"
-                            data-last_contribution_date="{{ claim.last_contribution_date|date:'Y-m-d' }}"
-                            data-date_submitted="{{ claim.date_submitted|date:'Y-m-d' }}"
-                            data-date_paid="{{ claim.date_paid|date:'Y-m-d' }}"
-                            data-linked_email_id="{{ claim.linked_email_id|default:'' }}"
-                            data-vested_pot_available="{{ claim.vested_pot_available }}"
-                            data-vested_pot_paid_date="{{ claim.vested_pot_paid_date|date:'Y-m-d' }}"
-                            data-savings_pot_available="{{ claim.savings_pot_available }}"
-                            data-savings_pot_paid_date="{{ claim.savings_pot_paid_date|date:'Y-m-d' }}"
-                            data-infund_cert_date="{{ claim.infund_preservation_cert_received_date|date:'Y-m-d' }}"
-                            >Edit</button>
+                        <!-- 🚀 HIDDEN: Edit button has been removed from view -->
                         
                         {% if claim.linked_email_id %}
                         <template id="email-content-{{ claim.id }}">
@@ -1149,10 +1132,12 @@
                     <th>Bill Date (ID)</th>
                     <th>Active Members</th>
                     <th>Schedule Amount</th>
-                    <th style="color: #1976d2; background-color: #e3f2fd;">Bank Assigned (Original)</th>
+                    
+                    {# --- HIDDEN: Bank Assigned (Original) & Surplus Created (Overs) --- #}
+
                     <th style="color: #388e3c; background-color: #c8e6c9;">Bank Settled (Consumed)</th>
                     <th style="color: #e65100; background-color: #fff3e0;">Applied Credit</th>
-                    <th style="color: #512da8; background-color: #ede7f6;">Surplus Created (Overs)</th>
+                    
                     <th>Status</th>
                     <th>Conf. Date</th> <th>Action</th>
                 </tr>
@@ -1164,9 +1149,7 @@
                     <td>{{ record.E_Active_Members }}</td>
                     <td>R {{ record.H_Schedule_Amount|default:"0.00"|floatformat:2 }}</td>
                     
-                    <td style="font-weight: bold; color: #1976d2;">
-                        R {{ record.bank_assigned_total|default:"0.00"|floatformat:2 }}
-                    </td>
+                    {# --- HIDDEN: Bank Assigned & Surplus Data Cells --- #}
 
                     <td style="font-weight: bold; color: #388e3c;">
                         R {{ record.bankline_total|default:"0.00"|floatformat:2 }}
@@ -1174,10 +1157,6 @@
 
                     <td style="font-weight: bold; color: #e65100; background-color: #fff3e0;">
                         R {{ record.credit_allocated|default:"0.00"|floatformat:2 }}
-                    </td>
-
-                    <td style="font-weight: bold; color: #512da8;">
-                        R {{ record.surplus_created|default:"0.00"|floatformat:2 }}
                     </td>
 
                     <td><span class="status-tag status-{{ record.display_status|lower|cut:' ' }}">{{ record.display_status }}</span></td>

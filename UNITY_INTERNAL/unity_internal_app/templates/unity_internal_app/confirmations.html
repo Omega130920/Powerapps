@@ -136,7 +136,6 @@
                         <th style="width: 100px;" class="amount-col bank-col">Allocated</th>
                         <th style="width: 180px;" class="bank-col">Recon Note</th>
                         <th style="width: 120px;" class="bank-col">Bank Ref</th>
-                        
                     </tr>
                 </thead>
                 <tbody>
@@ -146,6 +145,7 @@
 
                                 {% if source_count == 0 %}
                                     <tr class="bill-group-end">
+                                        <td class="bank-col text-center">-</td>
                                         <td>{{ record.cc_dates_month|date:"Y-m-d" }}</td>
                                         <td>{{ record.fund_code }}</td>
                                         <td>{{ record.company_code }}</td>
@@ -160,13 +160,11 @@
                                         <td class="amount-col bank-col">-</td> 
                                         <td class="bank-col">-</td> 
                                         <td class="bank-col">-</td> 
-                                        <td class="bank-col text-center">-</td> 
                                     </tr>
                                 {% else %}
                                     {% for source in record.source_details %}
                                         <tr class="{% if forloop.last %}bill-group-end{% endif %}">
-                                            {% if forloop.first %}
-                                                                                        <!-- NEW SOURCE COLUMN -->
+                                            <!-- Source Badge Column (Rendered once per loop row) -->
                                             <td class="bank-col text-center">
                                                 {% if source.source == 'CREDIT' %}
                                                     <span class="source-badge badge-credit">Overs Line</span>
@@ -174,6 +172,8 @@
                                                     <span class="source-badge badge-bank">Bank</span>
                                                 {% endif %}
                                             </td>
+
+                                            {% if forloop.first %}
                                                 <td rowspan="{{ row_span }}">{{ record.cc_dates_month|date:"Y-m-d" }}</td>
                                                 <td rowspan="{{ row_span }}">{{ record.fund_code }}</td>
                                                 <td rowspan="{{ row_span }}">{{ record.company_code }}</td>
@@ -182,24 +182,15 @@
                                                 <td rowspan="{{ row_span }}">{{ record.schedule_date|date:"Y-m-d"|default:"-" }}</td>
                                                 <td rowspan="{{ row_span }}">{{ record.final_date|date:"Y-m-d"|default:"-" }}</td>
                                                 <td rowspan="{{ row_span }}" class="amount-col">R {{ record.schedule_amount }}</td>
-                                                <td rowspan="{{ row_span }}">
-                                                    {{ record.confirmed_date|date:"Y-m-d"|default:"-" }}
-                                                </td>
+                                                <td rowspan="{{ row_span }}">{{ record.confirmed_date|date:"Y-m-d"|default:"-" }}</td>
                                             {% endif %}
+
+                                            <!-- Bank/Source Specific Information Columns -->
                                             <td class="bank-col">{{ source.date|date:"Y-m-d" }}</td>
                                             <td class="amount-col bank-col">R {{ source.bank_total }}</td>
                                             <td class="amount-col bank-col">R {{ source.amount }}</td>
                                             <td class="bank-col" style="font-style: italic; color: #555;">{{ source.comment|default:"-" }}</td>
                                             <td class="bank-col">{{ source.bank_ref|default:"-" }}</td>
-                                            
-                                            <!-- NEW SOURCE COLUMN -->
-                                            <td class="bank-col text-center">
-                                                {% if source.source == 'CREDIT' %}
-                                                    <span class="source-badge badge-credit">Overs Line</span>
-                                                {% else %}
-                                                    <span class="source-badge badge-bank">Bank</span>
-                                                {% endif %}
-                                            </td>
                                         </tr>
                                     {% endfor %}
                                 {% endif %}
@@ -208,7 +199,6 @@
                         {% endwith %}
                     {% empty %}
                         <tr>
-                            <!-- Updated colspan to 15 to accommodate the new Source column -->
                             <td colspan="15" class="text-center" style="padding: 40px; color: #757575;">No records found matching the criteria.</td>
                         </tr>
                     {% endfor %}

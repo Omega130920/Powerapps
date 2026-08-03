@@ -65,7 +65,7 @@ from django.utils.safestring import mark_safe # for the email body & signature
 from django.http import HttpResponse
 
 # Import all models and forms
-from .models import BillSettlement, CreditNote, DelegationNote, DelegationTransactionLog, EmailDelegation, ImportBank, JournalEntry, OutlookInbox, ReconnedBank, ScheduleSurplus, UnityBill, UnityClaimNote, UnityMgListing, ClientNotes, InternalFunds, UnityNotes, UnityClaim
+from .models import BankJournalEntry, BillSettlement, CreditNote, DelegationNote, DelegationTransactionLog, EmailDelegation, ImportBank, JournalEntry, OutlookInbox, ReconnedBank, ScheduleSurplus, UnityBill, UnityClaimNote, UnityMgListing, ClientNotes, InternalFunds, UnityNotes, UnityClaim
 from .forms import AddMemberForm, FiscalDateAssignmentForm, PreBillForm, UnityClaimForm
 
 from reportlab.pdfgen import canvas
@@ -316,7 +316,7 @@ def unity_information(request: HttpRequest, company_code):
         EmailDelegation, DelegationTransactionLog, UnityNotes, 
         OutlookInbox, CreditNote, BillSettlement, ReconnedBank,
         UnityMgListing, InternalFunds, ClientNotes, UnityBill,
-        ScheduleSurplus, JournalEntry, UnityClaim
+        ScheduleSurplus, JournalEntry, UnityClaim, BankJournalEntry
     )
     from django.db.models import Q, Sum
     from decimal import Decimal
@@ -409,8 +409,13 @@ def unity_information(request: HttpRequest, company_code):
     for line in bank_lines_assigned:
         line.actual_bill_usage = BillSettlement.objects.filter(reconned_bank_line_id=line.id).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
         line.credit_amount = CreditNote.objects.filter(source_bank_line=line).aggregate(total=Sum('schedule_amount'))['total'] or Decimal('0.00')
+        
+        # 🚀 NEW: Calculate total extracted to journals and update available balance
+        line.journal_amount = BankJournalEntry.objects.filter(source_bank_line=line).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        line.available_balance = line.transaction_amount - line.amount_settled
+        
         line.true_remaining_balance = line.transaction_amount - line.actual_bill_usage - line.credit_amount
-        line.is_fully_consumed = (line.true_remaining_balance <= Decimal('0.009'))
+        line.is_fully_consumed = (line.available_balance <= Decimal('0.009'))
         line.original_assigned_amount = line.transaction_amount 
         
         # Keep line only if it has remaining balance and is not reconciled
@@ -1545,6 +1550,7 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
     """
     Summarizes the current state of a bill's debt reconciliation.
     """
+    from django.db.models import F
     bill_record = get_object_or_404(UnityBill, id=bill_id, C_Company_Code=company_code)
     
     # --- CALCULATE AVAILABLE DEBT (Cash) ---
@@ -1556,14 +1562,31 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
         unity_bill_source_id=bill_record.pk
     ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
     
+    # Exclude journals from standard cash to prevent double-counting
     total_cash_applied = BillSettlement.objects.filter(
         unity_bill_source_id=bill_record.pk,
-        reconned_bank_line_id__isnull=False 
+        reconned_bank_line_id__isnull=False,
+        source_bank_journal_id__isnull=True  
     ).aggregate(total_cash=Sum('settled_amount'))['total_cash'] or ZERO_DECIMAL
 
     total_credit_notes_assigned = BillSettlement.objects.filter(
         unity_bill_source_id=bill_record.pk,
         source_credit_note_id__isnull=False
+    ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
+
+    # --- 🚀 FETCH AVAILABLE STAGED BANK JOURNALS (Targeted to this Bill) ---
+    available_bank_journals = list(BankJournalEntry.objects.filter(
+        company_code=company_code,
+        target_bill=bill_record,  # Only pulls journals explicitly staged for THIS bill
+        status='AVAILABLE'
+    ).select_related('source_bank_line'))
+    
+    total_available_bank_journals_value = sum(j.amount for j in available_bank_journals) or ZERO_DECIMAL
+
+    # --- FETCH APPLIED BANK JOURNALS (Assigned to this bill) ---
+    applied_bank_journals = BillSettlement.objects.filter(
+        unity_bill_source_id=bill_record.pk,
+        source_bank_journal_id__isnull=False
     ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
 
     total_surplus_applied_to_bill = JournalEntry.objects.filter(
@@ -1572,7 +1595,7 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
 
     # --- MATH UPDATES ---
     scheduled_amount = bill_record.H_Schedule_Amount or ZERO_DECIMAL
-    remaining_scheduled_amount = scheduled_amount - total_credit_notes_assigned - total_surplus_applied_to_bill - total_cash_applied
+    remaining_scheduled_amount = scheduled_amount - total_credit_notes_assigned - total_surplus_applied_to_bill - total_cash_applied - applied_bank_journals
     current_outstanding = max(ZERO_DECIMAL, remaining_scheduled_amount)
 
     # --- AVAILABLE APPROVED CREDITS ---
@@ -1582,7 +1605,7 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
         schedule_amount__gt=ZERO_DECIMAL
     ).select_related('source_bank_line'))
     
-    # 🚀 Hydrate Available Credits with Original Bank Info
+    # Hydrate Available Credits with Original Bank Info
     for credit in available_credits:
         if credit.source_bank_line:
             credit.original_deposit_date = getattr(credit.source_bank_line, 'transaction_date', None) or getattr(getattr(credit.source_bank_line, 'bank_line', None), 'transaction_date', None)
@@ -1621,7 +1644,7 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
     
     credit_notes_history = list(CreditNote.objects.filter(id__in=assigned_note_ids).select_related('source_bank_line'))
 
-    # 🚀 Hydrate Assigned Credits with Original Bank Info
+    # Hydrate Assigned Credits with Original Bank Info
     for note in credit_notes_history:
         if note.source_bank_line:
             note.original_deposit_date = getattr(note.source_bank_line, 'transaction_date', None) or getattr(getattr(note.source_bank_line, 'bank_line', None), 'transaction_date', None)
@@ -1643,7 +1666,7 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
     ).aggregate(total=Sum('schedule_amount'))['total'] or ZERO_DECIMAL
     
     # --- ACTION MESSAGE LOGIC ---
-    total_coverage_available = total_debt + total_available_credit_value + total_available_surplus_value
+    total_coverage_available = total_debt + total_available_credit_value + total_available_surplus_value + total_available_bank_journals_value
     is_bill_fully_covered = total_applied >= (scheduled_amount - SAFETY_TOLERANCE)
     
     if is_bill_fully_covered:
@@ -1672,6 +1695,8 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
         'credit_notes': credit_notes_history,
         'available_surpluses': available_surpluses,
         'applied_journals': applied_journals,
+        'available_bank_journals': available_bank_journals,  
+        'applied_bank_journals': applied_bank_journals,  # 🚀 Added to context so template script reads it
         'action_message': action_message,
         'is_proceed_enabled': is_proceed_enabled,
         'available_surplus': total_bank_surplus,
@@ -2827,8 +2852,9 @@ from django.contrib.auth.decorators import login_required
 @login_required
 def global_history_overview(request):
     """
-    Renders a high-level overview of ALL Reconciled Bill History.
-    UPDATED: Now filters by I_Submitted_Date and pulls Schedule/Final dates.
+    Renders a high-level overview of ALL Bill History.
+    UPDATED: Now includes BOTH reconciled and unreconciled bills, 
+    and filters using an OR condition across Schedule Date and Submitted Date.
     """
     from decimal import Decimal
     from collections import defaultdict
@@ -2836,7 +2862,7 @@ def global_history_overview(request):
     from django.db import connection
     from django.contrib import messages
     from django.shortcuts import render
-    from django.db.models import Sum
+    from django.db.models import Sum, Q
     from .models import UnityBill, BillSettlement, JournalEntry
 
     # Ensure ZERO_DECIMAL is defined for the sum() function later
@@ -2858,22 +2884,31 @@ def global_history_overview(request):
         
     T1_TABLE = 'bill_settlement'
 
-    # --- 1. Base Query ---
-    all_bills_queryset = UnityBill.objects.filter(
-        is_reconciled=True
-    ).exclude(
+    # --- 1. Base Query (Now includes BOTH Reconciled and Unreconciled) ---
+    all_bills_queryset = UnityBill.objects.exclude(
         E_Active_Members=0
     ).exclude(
         H_Schedule_Amount=0
     )
 
-    # --- 2. Filter by I_Submitted_Date ---
-    if filter_start_date:
-        all_bills_queryset = all_bills_queryset.filter(I_Submitted_Date__gte=filter_start_date)
-    if filter_end_date:
-        all_bills_queryset = all_bills_queryset.filter(I_Submitted_Date__lte=filter_end_date)
+    # --- 2. Filter by BOTH G_Schedule_Date OR I_Submitted_Date ---
+    if filter_start_date and filter_end_date:
+        all_bills_queryset = all_bills_queryset.filter(
+            Q(I_Submitted_Date__range=(filter_start_date, filter_end_date)) |
+            Q(G_Schedule_Date__range=(filter_start_date, filter_end_date))
+        )
+    elif filter_start_date:
+        all_bills_queryset = all_bills_queryset.filter(
+            Q(I_Submitted_Date__gte=filter_start_date) |
+            Q(G_Schedule_Date__gte=filter_start_date)
+        )
+    elif filter_end_date:
+        all_bills_queryset = all_bills_queryset.filter(
+            Q(I_Submitted_Date__lte=filter_end_date) |
+            Q(G_Schedule_Date__lte=filter_end_date)
+        )
 
-    all_bills = list(all_bills_queryset.order_by('-I_Submitted_Date', 'C_Company_Code'))
+    all_bills = list(all_bills_queryset.order_by('-G_Schedule_Date', 'C_Company_Code'))
     final_bill_ids = [bill.id for bill in all_bills]
     
     # --- 3. Fetch Granular Settlements ---
@@ -2897,7 +2932,7 @@ def global_history_overview(request):
             for row in cursor.fetchall():
                 if row[1]:
                     deposits_by_bill[row[0]].append({'date': row[1], 'amount': row[2], 'type': 'Cash'})
-            
+        
         journal_queryset = JournalEntry.objects.filter(target_bill__in=final_bill_ids)
         for je in journal_queryset:
             deposits_by_bill[je.target_bill_id].append({
@@ -2918,25 +2953,30 @@ def global_history_overview(request):
             cash_journal_settled = sum((d['amount'] for d in deposits), start=ZERO_DECIMAL)
             credit_settled = credits_map.get(bill.id, ZERO_DECIMAL)
             
-            # Use I_Submitted_Date as the key anchor for sorting/history
-            latest_date = bill.I_Submitted_Date or date(1900, 1, 1)
+            # Determine sort anchor based on whichever date is newer/present
+            submit_dt = bill.I_Submitted_Date or date(1900, 1, 1)
+            sched_dt = bill.G_Schedule_Date or date(1900, 1, 1)
+            latest_date = max(submit_dt, sched_dt)
+            
+            # 🚀 NEW: Dynamic status formatting for Reconciled vs Unreconciled
+            status_name = 'RECON COMPLETE' if bill.is_reconciled else 'UNRECONCILED'
+            status_class = 'badge-success' if bill.is_reconciled else 'badge-warning'
             
             final_records.append({
                 'bill': bill,
-                # 🚀 NEW: Explicitly pulling the dates through so the template/export can read them
                 'final_date': bill.J_Final_Date,
                 'schedule_date': bill.G_Schedule_Date,
                 'confirmed_date': bill.I_Submitted_Date,
                 
                 'deposits': deposits,
-                'status_name': 'RECON COMPLETE',
-                'status_class': 'badge-success',
-                'is_settled': True,
+                'status_name': status_name,
+                'status_class': status_class,
+                'is_settled': bill.is_reconciled,
                 'total_settled': cash_journal_settled + credit_settled,
                 'latest_date': latest_date, 
             })
 
-    # 🚀 SORTING LOGIC: Newest I_Submitted_Date first
+    # 🚀 SORTING LOGIC: Newest date first
     final_records.sort(key=lambda x: x['latest_date'], reverse=True)
 
     context = {
@@ -6148,3 +6188,190 @@ def export_sla_report_excel(request):
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     wb.save(response)
     return response
+
+
+@login_required
+@transaction.atomic
+def stage_bank_journal(request, recon_id):
+    """
+    Extracts a portion of an available bank line and stages it as a BankJournalEntry 
+    for the specific member group to use later.
+    """
+    if request.method != 'POST':
+        return redirect('dashboard')
+
+    amount_str = request.POST.get('journal_amount')
+    recon_line = get_object_or_404(ReconnedBank.objects.select_for_update(), pk=recon_id)
+    company_code = recon_line.company_code
+
+    try:
+        journal_amount = Decimal(amount_str)
+        if journal_amount <= Decimal('0.00'):
+            raise ValueError("Amount must be greater than zero.")
+
+        # Check if the bank line actually has enough money left
+        line_unsettled = recon_line.transaction_amount - recon_line.amount_settled
+        if journal_amount > (line_unsettled + Decimal('0.0001')):
+            messages.error(request, f"Cannot journal R{journal_amount}. Only R{line_unsettled:.2f} remains.")
+            return redirect('unity_information', company_code=company_code)
+
+        # 1. Deduct the amount from the bank line's available balance
+        recon_line.amount_settled += journal_amount
+        
+        # If the line is fully consumed by this journal, mark it reconciled
+        if recon_line.amount_settled >= (recon_line.transaction_amount - Decimal('0.0001')):
+            recon_line.recon_status = 'Reconciled'
+        recon_line.save()
+
+        # 2. Create the Staged Journal Entry (Target Bill is NULL)
+        BankJournalEntry.objects.create(
+            source_bank_line=recon_line,
+            company_code=company_code,
+            amount=journal_amount,
+            created_by=request.user.username,
+            status='AVAILABLE'
+        )
+
+        messages.success(request, f"Successfully journaled R{journal_amount} to {company_code}'s staging pool.")
+        
+    except Exception as e:
+        messages.error(request, f"Journaling failed: {str(e)}")
+
+    return redirect('unity_information', company_code=company_code)
+
+@login_required
+@transaction.atomic
+def apply_bank_journal_to_bill(request, bill_id):
+    """
+    Applies an available (staged) BankJournalEntry to an open UnityBill 
+    without double-consuming the parent bank line's amount_settled.
+    """
+    if request.method != 'POST':
+        return redirect('dashboard')
+
+    journal_id = request.POST.get('journal_id')
+    target_bill = get_object_or_404(UnityBill.objects.select_for_update(), pk=bill_id)
+    company_code = target_bill.C_Company_Code
+
+    try:
+        # 1. Fetch the staged journal
+        journal = get_object_or_404(BankJournalEntry.objects.select_for_update(), pk=journal_id, status='AVAILABLE')
+        recon_line = journal.source_bank_line
+
+        # 2. Mark the Staged Journal as APPLIED
+        journal.target_bill = target_bill
+        journal.status = 'APPLIED'
+        journal.save()
+
+        # 3. Create the audit trail entry in BillSettlement
+        settlement_kwargs = {
+            'reconned_bank_line': recon_line,
+            'unity_bill_source': target_bill,
+            'settled_amount': journal.amount,
+            'settlement_date': timezone.now(),
+            'confirmed_by': request.user
+        }
+        
+        if hasattr(BillSettlement, 'source_bank_journal'):
+            settlement_kwargs['source_bank_journal'] = journal
+        elif hasattr(BillSettlement, 'source_bank_journal_id'):
+            settlement_kwargs['source_bank_journal_id'] = journal.id
+
+        BillSettlement.objects.create(**settlement_kwargs)
+
+        # NOTE: We DO NOT modify recon_line.amount_settled here 
+        # because the bank line was already debited/consumed when the journal was initially staged!
+
+        # 4. Check if bill is fully settled
+        total_applied = BillSettlement.objects.filter(
+            unity_bill_source_id=target_bill.pk
+        ).aggregate(t=Sum('settled_amount'))['t'] or Decimal('0.00')
+
+        if total_applied >= ((target_bill.H_Schedule_Amount or Decimal('0.00')) - Decimal('0.01')):
+            target_bill.is_reconciled = True
+            target_bill.J_Final_Date = timezone.now().date()
+            target_bill.save()
+            messages.success(request, f"Successfully applied R{journal.amount} journal. Bill #{target_bill.id} is now fully reconciled and closed.")
+        else:
+            messages.success(request, f"Successfully applied R{journal.amount} journal to Bill #{target_bill.id}.")
+
+    except Exception as e:
+        messages.error(request, f"Error applying bank journal: {str(e)}")
+
+    return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
+
+@login_required
+@transaction.atomic
+def journal_bankline_view(request, recon_id):
+    """
+    Renders journal.html to allow users to extract a specific amount 
+    from a bank line and stage it for a specific open bill.
+    """
+    from decimal import Decimal
+    from django.db.models import Sum
+    
+    recon_line = get_object_or_404(ReconnedBank.objects.select_for_update(), pk=recon_id)
+    company_code = recon_line.company_code
+    available_balance = recon_line.transaction_amount - recon_line.amount_settled
+    
+    # Fetch open bills for the dropdown
+    open_bills = []
+    billing_queryset = UnityBill.objects.filter(C_Company_Code=company_code).order_by('-A_CCDatesMonth')
+    for bill in billing_queryset:
+        total_covered = BillSettlement.objects.filter(
+            unity_bill_source_id=bill.id
+        ).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
+        
+        if not bill.is_reconciled and total_covered < (bill.H_Schedule_Amount or Decimal('0.00')):
+            open_bills.append(bill)
+
+    if request.method == 'POST':
+        amount_str = request.POST.get('journal_amount')
+        target_bill_id = request.POST.get('target_bill_id')
+        
+        try:
+            journal_amount = Decimal(amount_str)
+            if journal_amount <= Decimal('0.00'):
+                raise ValueError("Amount must be greater than zero.")
+                
+            if journal_amount > (available_balance + Decimal('0.0001')):
+                messages.error(request, f"Insufficient funds. Only R{available_balance:.2f} is available.")
+                return redirect('journal_bankline', recon_id=recon_id)
+                
+            if not target_bill_id:
+                raise ValueError("You must select a target bill.")
+                
+            target_bill = get_object_or_404(UnityBill, id=target_bill_id, C_Company_Code=company_code)
+                
+            # --- STAGING EXECUTION ---
+            
+            # A. Deduct from the parent Bank Line's available balance
+            recon_line.amount_settled += journal_amount
+            if recon_line.amount_settled >= (recon_line.transaction_amount - Decimal('0.0001')):
+                recon_line.recon_status = 'Reconciled'
+            recon_line.save()
+            
+            # B. Create the Staged Journal Entry (Target Bill is assigned, Status = AVAILABLE)
+            BankJournalEntry.objects.create(
+                source_bank_line=recon_line,
+                company_code=company_code,
+                target_bill=target_bill,  # 🚀 Linked to the specific bill here!
+                amount=journal_amount,
+                created_by=request.user.username,
+                status='AVAILABLE'
+            )
+            
+            messages.success(request, f"Successfully staged R{journal_amount} for Bill #{target_bill.id}. It is ready to be applied in the Pre-Bill Summary.")
+            return redirect('unity_information', company_code=company_code)
+            
+        except Exception as e:
+            messages.error(request, f"Error processing journal: {str(e)}")
+            return redirect('journal_bankline', recon_id=recon_id)
+
+    context = {
+        'recon_line': recon_line,
+        'company_code': company_code,
+        'available_balance': available_balance,
+        'open_bills': open_bills  # 🚀 Passed to the template
+    }
+    return render(request, 'unity_internal_app/journal.html', context)

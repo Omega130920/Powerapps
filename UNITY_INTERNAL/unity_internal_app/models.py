@@ -221,8 +221,8 @@ class ReconnedBank(models.Model):
 # --- CORRECTED MODEL: BillSettlement (FK Linkage to new ReconnedBank PK) ---
 class BillSettlement(models.Model):
     """
-    Unmanaged table linking a settled ReconnedBank line, Credit Note, or Surplus 
-    to its UnityBill funding source. Now acts as the unified audit ledger.
+    Unmanaged table linking a settled ReconnedBank line, Credit Note, Surplus, 
+    or Bank Journal to its UnityBill funding source. Now acts as the unified audit ledger.
     """
     id = models.AutoField(primary_key=True) 
     
@@ -271,6 +271,13 @@ class BillSettlement(models.Model):
         blank=True, 
         null=True,
     )
+
+    # --- 🚀 NEW FIELD FOR BANK JOURNALS ---
+    source_bank_journal_id = models.IntegerField(
+        db_column='source_bank_journal_id', 
+        blank=True, 
+        null=True,
+    )
     
     confirmed_by = models.ForeignKey(
         'auth.User',
@@ -289,6 +296,46 @@ class BillSettlement(models.Model):
 
     def __str__(self):
         return f"Settled R{self.settled_amount} for Bill {self.unity_bill_source.id}"
+
+
+# --- NEW UNMANAGED MODEL: BankJournalEntry ---
+class BankJournalEntry(models.Model):
+    """
+    Unmanaged table to store manual journal extracts from specific bank lines 
+    applied directly to open UnityBills.
+    """
+    id = models.AutoField(primary_key=True)
+    
+    source_bank_line = models.ForeignKey(
+        'ReconnedBank', 
+        on_delete=models.DO_NOTHING, 
+        db_column='source_bank_line_id',
+        related_name='staged_journals'
+    )
+    
+    company_code = models.CharField(max_length=225, db_column='company_code')
+    
+    target_bill = models.ForeignKey(
+        'UnityBill', 
+        on_delete=models.DO_NOTHING, 
+        null=True, 
+        blank=True, 
+        db_column='target_bill_id',
+        related_name='received_bank_journals'
+    )
+    
+    amount = models.DecimalField(max_digits=15, decimal_places=2, db_column='amount')
+    created_at = models.DateTimeField(auto_now_add=True, db_column='created_at')
+    created_by = models.CharField(max_length=100, db_column='created_by')
+    status = models.CharField(max_length=20, default='AVAILABLE', db_column='status')
+
+    class Meta:
+        managed = False  
+        db_table = 'bank_journal_entry'
+        verbose_name = 'Bank Journal Entry'
+
+    def __str__(self):
+        return f"Bank Journal: R{self.amount} for {self.company_code} ({self.status})"
 
 # --- NEW UNMANAGED MODEL: Pre_bill Staging (UNMANAGED) ---
 class Pre_bill(models.Model):
@@ -878,3 +925,4 @@ class BankLineNote(models.Model):
         managed = False  # Critical for your setup
         db_table = 'bank_line_notes'
         ordering = ['-created_at']
+        
