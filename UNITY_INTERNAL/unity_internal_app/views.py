@@ -4745,10 +4745,12 @@ def export_two_pot_tracking(request):
 @login_required
 def export_global_claims_excel(request):
     """
-    UPDATED: Matches the global_history_overview search parameters 
-    (Filtering by both G_Schedule_Date and I_Submitted_Date).
+    UPDATED: Matches both the global_history_overview search parameters 
+    and the detailed bank/settlement statement breakdown of the confirmations view.
     """
-    from datetime import datetime
+    from datetime import datetime, date
+    from collections import defaultdict
+    from django.db import connection
     from django.db.models import Q
     import openpyxl
     from openpyxl.styles import PatternFill, Font, Border, Side, Alignment
@@ -4794,8 +4796,58 @@ def export_global_claims_excel(request):
         )
 
     bills_queryset = bills_queryset.order_by('-G_Schedule_Date', 'C_Company_Code')
+    final_bills = list(bills_queryset)
+    final_bill_ids = [bill.id for bill in final_bills]
 
-    # 3. Build Excel Workbook
+    # 3. Fetch Granular Bank & Settlement Details (Just like Confirmations)
+    source_details_map = defaultdict(list)
+    if final_bill_ids:
+        settlements = BillSettlement.objects.filter(
+            unity_bill_source_id__in=final_bill_ids
+        ).order_by('settlement_date')
+
+        for settlement in settlements:
+            source = {}
+            source['amount'] = settlement.settled_amount 
+
+            if settlement.reconned_bank_line:
+                bank_line = settlement.reconned_bank_line
+                source['date'] = bank_line.transaction_date
+                source['type'] = 'Bank Line'
+                source['source'] = 'BANK'
+                source['bank_total'] = bank_line.transaction_amount
+                source['bank_ref'] = getattr(bank_line, 'statement_reference', 
+                                     getattr(bank_line, 'reference', 
+                                     getattr(bank_line, 'description', '-')))
+            elif settlement.source_credit_note_id:
+                try:
+                    credit_note = CreditNote.objects.get(id=settlement.source_credit_note_id)
+                    source['date'] = credit_note.bank_stmt_date or (settlement.settlement_date.date() if settlement.settlement_date else None)
+                    source['type'] = 'Credit Note'
+                    source['source'] = 'CREDIT'
+                    source['bank_total'] = credit_note.credit_amount
+                    source['bank_ref'] = getattr(credit_note, 'credit_note_number', '-')
+                except Exception:
+                    source['date'] = settlement.settlement_date.date() if settlement.settlement_date else None
+                    source['type'] = 'Credit Note (Source Missing)'
+                    source['source'] = 'CREDIT'
+                    source['bank_total'] = settlement.settled_amount
+                    source['bank_ref'] = "-"
+            else:
+                source['date'] = settlement.settlement_date.date() if settlement.settlement_date else None
+                source['type'] = 'Other Source'
+                source['source'] = 'OTHER'
+                source['bank_total'] = settlement.settled_amount
+                source['bank_ref'] = "-"
+
+            source['comment'] = getattr(settlement, 'settlement_note', '')
+            source_details_map[settlement.unity_bill_source_id].append(source)
+
+        # Sort sources per bill by date
+        for bill_id in source_details_map:
+            source_details_map[bill_id].sort(key=lambda x: x['date'] if x['date'] else date(1900, 1, 1))
+
+    # 4. Build Excel Workbook
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Global Bill History"
@@ -4810,10 +4862,12 @@ def export_global_claims_excel(request):
     )
     header_font = Font(bold=True, size=11)
 
-    # 4. Headers (Row 1)
+    # 5. Headers (Row 1) - Extended layout to safely display bank data segments
     headers = [
-        "Company Code", "Company Name", "Active Members", "Schedule Date", 
-        "Final Date", "Submitted Date", "Schedule Amount", "Status"
+        'CCDates Month', 'Fund Code', 'Company Code', 'Company Name', 
+        'Active Members', 'Schedule Date', 'Final Date', 'Schedule Amount', 
+        'Confirmed Date', 'Bank Statement Date', 'Bank Deposit Amount', 
+        'Allocated Amount', 'Comment', 'Deposit Reference', 'Status', 'Source'
     ]
     ws.append(headers)
     
@@ -4823,37 +4877,61 @@ def export_global_claims_excel(request):
         cell.border = thin_border
         cell.alignment = Alignment(horizontal='center', vertical='center')
 
-    # 5. Add Data Rows
-    for bill in bills_queryset:
+    # 6. Add Data Rows (Handling Multi-line split bank deposits cleanly)
+    for bill in final_bills:
         schedule_date = bill.G_Schedule_Date.strftime('%Y-%m-%d') if bill.G_Schedule_Date else ''
         final_date = bill.J_Final_Date.strftime('%Y-%m-%d') if bill.J_Final_Date else ''
         submitted_date = bill.I_Submitted_Date.strftime('%Y-%m-%d') if bill.I_Submitted_Date else ''
-        
         status_name = 'RECON COMPLETE' if bill.is_reconciled else 'UNRECONCILED'
 
-        row_data = [
+        bill_common = [
+            bill.A_CCDatesMonth.strftime('%Y-%m-%d') if hasattr(bill, 'A_CCDatesMonth') and bill.A_CCDatesMonth else '', 
+            getattr(bill, 'B_Fund_Co', ''), 
             bill.C_Company_Code,
-            bill.D_Company_Name if hasattr(bill, 'D_Company_Name') else '',
-            bill.E_Active_Members,
+            getattr(bill, 'D_Company_Name', ''), 
+            bill.E_Active_Members or 0, 
             schedule_date,
-            final_date,
-            submitted_date,
+            final_date, 
             float(bill.H_Schedule_Amount or 0),
-            status_name
+            submitted_date
         ]
-        ws.append(row_data)
 
-        # Apply borders and alignment to data rows
+        sources = source_details_map.get(bill.pk, [])
+        if not sources:
+            # Pad empty bank data columns + Status + Source
+            ws.append(bill_common + [''] * 5 + [status_name, ''])
+        else:
+            for index, s in enumerate(sources):
+                export_source_text = 'Overs Line' if s.get('source') == 'CREDIT' else 'Bank'
+                bank_stmt_date = s['date'].strftime('%Y-%m-%d') if s.get('date') else ''
+                
+                bank_cols = [
+                    bank_stmt_date, 
+                    float(s.get('bank_total', 0)), 
+                    float(s.get('amount', 0)), 
+                    s.get('comment', ''), 
+                    s.get('bank_ref', '-'), 
+                    status_name, 
+                    export_source_text
+                ]
+                
+                if index == 0:
+                    ws.append(bill_common + bank_cols)
+                else:
+                    # Skip repeating base bill details for subsequent split bank entries
+                    ws.append([''] * len(bill_common) + bank_cols)
+
+        # Apply thin borders to the newly added rows
         for cell in ws[ws.max_row]:
             cell.border = thin_border
             cell.alignment = Alignment(vertical='center')
 
-    # 6. Set column widths for professional spacing
-    column_widths = [15, 35, 15, 15, 15, 15, 18, 18]
+    # 7. Set column widths for professional spacing
+    column_widths = [15, 12, 15, 30, 15, 15, 15, 18, 15, 18, 18, 18, 25, 20, 18, 15]
     for i, width in enumerate(column_widths):
         ws.column_dimensions[get_column_letter(i+1)].width = width
 
-    # 7. Generate Response
+    # 8. Generate Response
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = 'attachment; filename="Global_Bill_History_Export.xlsx"'
     wb.save(response)
