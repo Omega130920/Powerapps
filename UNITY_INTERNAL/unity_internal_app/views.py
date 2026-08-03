@@ -4745,35 +4745,62 @@ def export_two_pot_tracking(request):
 @login_required
 def export_global_claims_excel(request):
     """
-    STRICT: Excludes all 'Two Pot' claims.
-    Format: Green Audit Spreadsheet matching the database-style layout.
+    UPDATED: Matches the global_history_overview search parameters 
+    (Filtering by both G_Schedule_Date and I_Submitted_Date).
     """
-    query = request.GET.get('q')
-    
-    # 1. Filter: Exclude 'Two Pot' to keep this as a standard audit export
-    claims_queryset = UnityClaim.objects.exclude(claim_type='Two Pot').order_by('-claim_created_date')
+    from datetime import datetime
+    from django.db.models import Q
+    import openpyxl
+    from openpyxl.styles import PatternFill, Font, Border, Side, Alignment
+    from openpyxl.utils import get_column_letter
+    from django.http import HttpResponse
 
-    if query:
-        claims_queryset = claims_queryset.filter(
-            Q(id_number__icontains=query) | 
-            Q(member_surname__icontains=query) | 
-            Q(company_code__icontains=query) |
-            Q(mip_number__icontains=query)
+    start_date_str = request.GET.get('start_date')
+    end_date_str = request.GET.get('end_date')
+    
+    filter_start_date = None
+    filter_end_date = None
+    
+    try:
+        if start_date_str:
+            filter_start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        if end_date_str:
+            filter_end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+    except ValueError:
+        pass
+
+    # 1. Base Query matching the overview rules (Both Reconciled and Unreconciled, excluding zeros)
+    bills_queryset = UnityBill.objects.exclude(
+        E_Active_Members=0
+    ).exclude(
+        H_Schedule_Amount=0
+    )
+
+    # 2. Filter using the dual Schedule Date OR Submitted Date logic
+    if filter_start_date and filter_end_date:
+        bills_queryset = bills_queryset.filter(
+            Q(I_Submitted_Date__range=(filter_start_date, filter_end_date)) |
+            Q(G_Schedule_Date__range=(filter_start_date, filter_end_date))
+        )
+    elif filter_start_date:
+        bills_queryset = bills_queryset.filter(
+            Q(I_Submitted_Date__gte=filter_start_date) |
+            Q(G_Schedule_Date__gte=filter_start_date)
+        )
+    elif filter_end_date:
+        bills_queryset = bills_queryset.filter(
+            Q(I_Submitted_Date__lte=filter_end_date) |
+            Q(G_Schedule_Date__lte=filter_end_date)
         )
 
-    # 2. Map Branch Names
-    company_codes = claims_queryset.values_list('company_code', flat=True).distinct()
-    mg_map = {
-        item['a_company_code']: item['b_company_name'] 
-        for item in UnityMgListing.objects.filter(a_company_code__in=company_codes).values('a_company_code', 'b_company_name')
-    }
+    bills_queryset = bills_queryset.order_by('-G_Schedule_Date', 'C_Company_Code')
 
+    # 3. Build Excel Workbook
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Withdrawal Audit"
+    ws.title = "Global Bill History"
 
     # --- Styles Definition ---
-    # Light green fill matching the dashboard style
     green_fill = PatternFill(start_color="C8E6C9", end_color="C8E6C9", fill_type="solid")
     thin_border = Border(
         left=Side(style='thin'), 
@@ -4783,11 +4810,10 @@ def export_global_claims_excel(request):
     )
     header_font = Font(bold=True, size=11)
 
-    # 3. Headers (Row 1) - Standard Audit Layout
+    # 4. Headers (Row 1)
     headers = [
-        "Co Code", "Branch", "Agent", "MIP Number", "ID Number", 
-        "Name", "Surname", "Type", "Status", "Exit Reason", 
-        "Created", "Submitted", "Paid"
+        "Company Code", "Company Name", "Active Members", "Schedule Date", 
+        "Final Date", "Submitted Date", "Schedule Amount", "Status"
     ]
     ws.append(headers)
     
@@ -4797,45 +4823,39 @@ def export_global_claims_excel(request):
         cell.border = thin_border
         cell.alignment = Alignment(horizontal='center', vertical='center')
 
-    # 4. Add Data
-    for claim in claims_queryset:
-        branch_name = mg_map.get(claim.company_code, "Unknown Group")
+    # 5. Add Data Rows
+    for bill in bills_queryset:
+        schedule_date = bill.G_Schedule_Date.strftime('%Y-%m-%d') if bill.G_Schedule_Date else ''
+        final_date = bill.J_Final_Date.strftime('%Y-%m-%d') if bill.J_Final_Date else ''
+        submitted_date = bill.I_Submitted_Date.strftime('%Y-%m-%d') if bill.I_Submitted_Date else ''
         
-        # Safe Date Formatting to prevent NoneType errors
-        created = claim.claim_created_date.strftime('%Y-%m-%d') if claim.claim_created_date else ''
-        submitted = claim.date_submitted.strftime('%Y-%m-%d') if claim.date_submitted else ''
-        paid = claim.date_paid.strftime('%Y-%m-%d') if claim.date_paid else ''
+        status_name = 'RECON COMPLETE' if bill.is_reconciled else 'UNRECONCILED'
 
         row_data = [
-            claim.company_code,
-            branch_name,
-            claim.agent if claim.agent else '',
-            claim.mip_number if claim.mip_number else '',
-            claim.id_number,
-            claim.member_name,
-            claim.member_surname,
-            claim.claim_type,
-            claim.claim_status,
-            claim.exit_reason if claim.exit_reason else '',
-            created,
-            submitted,
-            paid
+            bill.C_Company_Code,
+            bill.D_Company_Name if hasattr(bill, 'D_Company_Name') else '',
+            bill.E_Active_Members,
+            schedule_date,
+            final_date,
+            submitted_date,
+            float(bill.H_Schedule_Amount or 0),
+            status_name
         ]
         ws.append(row_data)
 
-        # Apply borders to data rows
+        # Apply borders and alignment to data rows
         for cell in ws[ws.max_row]:
             cell.border = thin_border
             cell.alignment = Alignment(vertical='center')
 
-    # 5. Set column widths for professional spacing
-    column_widths = [12, 35, 20, 15, 20, 20, 20, 15, 15, 20, 15, 15, 15]
+    # 6. Set column widths for professional spacing
+    column_widths = [15, 35, 15, 15, 15, 15, 18, 18]
     for i, width in enumerate(column_widths):
         ws.column_dimensions[get_column_letter(i+1)].width = width
 
-    # 6. Generate Response
+    # 7. Generate Response
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = 'attachment; filename="Global_Claims_Audit_Export.xlsx"'
+    response['Content-Disposition'] = 'attachment; filename="Global_Bill_History_Export.xlsx"'
     wb.save(response)
     return response
 
