@@ -2655,195 +2655,163 @@ from django.contrib.auth.decorators import login_required
 @login_required
 def export_global_history_csv(request):
     """
-    Exports the payment history for Bills that had settlement activity 
-    in a horizontal format (pivoted deposits).
-    Matches the high-performance logic of global_history_overview.
+    Export for the Section 13A / Global History Report.
+    Pulls all records matching the exact search and date criteria.
     """
-    import csv
-    from collections import defaultdict
-    from datetime import datetime, date
     from decimal import Decimal
+    from datetime import datetime, date
+    from collections import defaultdict
+    from django.db.models import Q
+    import openpyxl
+    from openpyxl.styles import PatternFill, Font, Border, Side, Alignment
+    from openpyxl.utils import get_column_letter
     from django.http import HttpResponse
-    from django.db import connection
-    from .models import UnityBill, BillSettlement, CreditNote, JournalEntry
-    
-    ZERO_DECIMAL = Decimal('0.00')
-    TWO_PLACES = Decimal('0.01')
-    MAX_DEPOSITS = 5 
 
-    # --- Helper to normalize dates from raw SQL ---
-    def normalize_date(val):
-        if not val:
-            return date(1900, 1, 1) # Fallback
-        if isinstance(val, str):
-            try:
-                # Handle standard DB string format
-                return datetime.strptime(val[:10], '%Y-%m-%d').date()
-            except ValueError:
-                return date(1900, 1, 1)
-        if isinstance(val, datetime):
-            return val.date()
-        return val
-
-    # --- Date Filtering Logic ---
     start_date_str = request.GET.get('start_date')
     end_date_str = request.GET.get('end_date')
     
-    filter_start_date = None
-    filter_end_date = None
-    
-    try:
-        if start_date_str:
-            filter_start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-        if end_date_str:
-            filter_end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
-    except ValueError:
-        return HttpResponse("Invalid date format provided for filtering.", status=400)
-    
-    # --- 1. Determine Bill IDs to Display ---
-    all_bills_queryset = UnityBill.objects.filter(
-        is_reconciled=True
-    ).exclude(
-        E_Active_Members=0
-    ).exclude(
-        H_Schedule_Amount=0
-    )
-    
-    if filter_start_date:
-        all_bills_queryset = all_bills_queryset.filter(I_Submitted_Date__gte=filter_start_date)
-    if filter_end_date:
-        all_bills_queryset = all_bills_queryset.filter(I_Submitted_Date__lte=filter_end_date)
-            
-    all_bills = list(all_bills_queryset.order_by('C_Company_Code', '-I_Submitted_Date'))
-    filtered_bill_ids = [bill.id for bill in all_bills]
-    
-    # --- 2. Fetch ALL Granular Settlements (Optimized to match view) ---
-    deposits_by_bill = defaultdict(list)
+    # Safely parse dates (YYYY-MM-DD or DD/MM/YYYY)
+    def parse_date(date_string):
+        if not date_string:
+            return None
+        for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%Y/%m/%d'):
+            try:
+                return datetime.strptime(date_string, fmt).date()
+            except ValueError:
+                pass
+        return None
 
-    if filtered_bill_ids:
-        id_placeholders = ', '.join(['%s'] * len(filtered_bill_ids))
-        
-        # A. Cash Deposits (Raw SQL for speed and accurate Bank Line dates)
-        sql_query_cash = f"""
-        SELECT T1.unity_bill_source_id, T3.DATE, T1.settled_amount
-        FROM bill_settlement T1
-        LEFT JOIN reconned_bank T2 ON T1.reconned_bank_line_id = T2.bank_line_id
-        LEFT JOIN importbank T3 ON T2.bank_line_id = T3.id
-        WHERE T1.unity_bill_source_id IN ({id_placeholders})
-        """
-        with connection.cursor() as cursor:
-            cursor.execute(sql_query_cash, filtered_bill_ids)
-            for row in cursor.fetchall():
-                if row[1]: # If date exists
-                    deposits_by_bill[row[0]].append({
-                        'date': normalize_date(row[1]), 
-                        'amount': Decimal(str(row[2] or 0))
-                    })
+    filter_start_date = parse_date(start_date_str)
+    filter_end_date = parse_date(end_date_str)
 
-        # B. Journal Entries
-        journal_queryset = JournalEntry.objects.filter(target_bill__in=filtered_bill_ids)
-        for je in journal_queryset:
-            if je.allocation_date:
-                deposits_by_bill[je.target_bill_id].append({
-                    'date': normalize_date(je.allocation_date),
-                    'amount': je.amount or ZERO_DECIMAL,
-                })
+    # Base Query 
+    bills_queryset = UnityBill.objects.exclude(E_Active_Members=0).exclude(H_Schedule_Amount=0)
 
-        # C. Credit Notes (Using Dictionary Mapping to avoid Foreign Key errors)
-        cn_settlements = BillSettlement.objects.filter(
-            unity_bill_source_id__in=filtered_bill_ids,
-            source_credit_note_id__isnull=False
+    if filter_start_date and filter_end_date:
+        bills_queryset = bills_queryset.filter(
+            Q(I_Submitted_Date__range=(filter_start_date, filter_end_date)) |
+            Q(G_Schedule_Date__range=(filter_start_date, filter_end_date))
         )
-        
-        # Fetch the actual credit notes into a dictionary
-        credit_ids = cn_settlements.values_list('source_credit_note_id', flat=True).distinct()
-        credit_note_details = {cn.id: cn for cn in CreditNote.objects.filter(id__in=credit_ids)}
-        
-        for s in cn_settlements:
-            cn = credit_note_details.get(s.source_credit_note_id)
-            
-            # Use credit note fiscal date, fallback to settlement date
-            d_date = None
-            if cn and cn.fiscal_date:
-                d_date = cn.fiscal_date
+    elif filter_start_date:
+        bills_queryset = bills_queryset.filter(
+            Q(I_Submitted_Date__gte=filter_start_date) |
+            Q(G_Schedule_Date__gte=filter_start_date)
+        )
+    elif filter_end_date:
+        bills_queryset = bills_queryset.filter(
+            Q(I_Submitted_Date__lte=filter_end_date) |
+            Q(G_Schedule_Date__lte=filter_end_date)
+        )
+
+    all_bills = list(bills_queryset.order_by('-G_Schedule_Date', 'C_Company_Code').distinct())
+    final_bill_ids = [bill.id for bill in all_bills]
+
+    # Fetch Granular Bank & Settlement Details
+    source_details_map = defaultdict(list)
+    if final_bill_ids:
+        settlements = BillSettlement.objects.filter(unity_bill_source_id__in=final_bill_ids).order_by('settlement_date')
+
+        for settlement in settlements:
+            source = {'amount': settlement.settled_amount}
+
+            if settlement.reconned_bank_line:
+                bank_line = settlement.reconned_bank_line
+                source['date'] = bank_line.transaction_date
+                source['type'] = 'Bank Line'
+                source['source'] = 'BANK'
+                source['bank_total'] = bank_line.transaction_amount
+                source['bank_ref'] = getattr(bank_line, 'statement_reference', 
+                                     getattr(bank_line, 'reference', getattr(bank_line, 'description', '-')))
+            elif settlement.source_credit_note_id:
+                try:
+                    from .models import CreditNote
+                    credit_note = CreditNote.objects.get(id=settlement.source_credit_note_id)
+                    source['date'] = credit_note.bank_stmt_date or (settlement.settlement_date.date() if settlement.settlement_date else None)
+                    source['type'] = 'Credit Note'
+                    source['source'] = 'CREDIT'
+                    source['bank_total'] = credit_note.credit_amount
+                    source['bank_ref'] = getattr(credit_note, 'credit_note_number', '-')
+                except Exception:
+                    source['date'] = settlement.settlement_date.date() if settlement.settlement_date else None
+                    source['type'] = 'Credit Note (Source Missing)'
+                    source['source'] = 'CREDIT'
+                    source['bank_total'] = settlement.settled_amount
+                    source['bank_ref'] = "-"
             else:
-                d_date = s.settlement_date
-                
-            deposits_by_bill[s.unity_bill_source_id].append({
-                'date': normalize_date(d_date),
-                'amount': s.settled_amount or ZERO_DECIMAL
-            })
+                source['date'] = settlement.settlement_date.date() if settlement.settlement_date else None
+                source['type'] = 'Other Source'
+                source['source'] = 'OTHER'
+                source['bank_total'] = settlement.settled_amount
+                source['bank_ref'] = "-"
 
-    # --- 3. Generate CSV Response ---
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = 'attachment; filename="Global_Horizontal_Payments_DOWNLOAD.csv"'
+            source['comment'] = getattr(settlement, 'settlement_note', '')
+            source_details_map[settlement.unity_bill_source_id].append(source)
 
-    writer = csv.writer(response)
-    
-    # Static headers
-    base_headers = [
-        'CCDatesMonth', 'Fund Code', 'Company Code', 'Company Name',
-        'Active Members', 'Prebill Date', 'Schedule Date', 'Schedule_Amount',
-        'Submitted_Date', 'J_Final_Date'
+        for bill_id in source_details_map:
+            source_details_map[bill_id].sort(key=lambda x: x['date'] if x['date'] else date(1900, 1, 1))
+
+    # Build Excel Workbook
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Global Bill History"
+
+    green_fill = PatternFill(start_color="C8E6C9", end_color="C8E6C9", fill_type="solid")
+    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+    header_font = Font(bold=True, size=11)
+
+    headers = [
+        'CCDates Month', 'Fund Code', 'Company Code', 'Company Name', 
+        'Active Members', 'Schedule Date', 'Final Date', 'Schedule Amount', 
+        'Confirmed Date', 'Bank Statement Date', 'Bank Deposit Amount', 
+        'Allocated Amount', 'Comment', 'Deposit Reference', 'Status', 'Source'
     ]
+    ws.append(headers)
     
-    # Date (Stmt_Date) comes first, then Amount (Deposit_Amount)
-    payment_headers = [
-        'L_Bank_Stmt_Date', 'M_Bank_Deposit_Amount',
-        'N_Add_Bank_Stmt_Date', 'O_Add_Bank_Deposit_Amount',
-        'P_Add_Bank_Stmt_Date', 'Q_Add_Bank_Deposit_Amount',
-        'R_Add_Bank_Stmt_Date', 'S_Add_Bank_Deposit_Amount',
-        'T_Add_Bank_Stmt_Date', 'U_Add_Bank_Deposit_Amount'
-    ]
-    
-    writer.writerow(base_headers + payment_headers)
-    CSV_DATE_FORMAT = '%d/%m/%Y'
+    for cell in ws[1]:
+        cell.fill = green_fill
+        cell.font = header_font
+        cell.border = thin_border
+        cell.alignment = Alignment(horizontal='center', vertical='center')
 
     for bill in all_bills:
-        deposits = deposits_by_bill.get(bill.id, [])
-        total_settled = sum((d['amount'] for d in deposits), start=ZERO_DECIMAL)
-        
-        # Ensure only fully reconciled/settled bills appear if required
-        if total_settled < (bill.H_Schedule_Amount or ZERO_DECIMAL):
-            continue
+        schedule_date = bill.G_Schedule_Date.strftime('%Y-%m-%d') if bill.G_Schedule_Date else ''
+        final_date = bill.J_Final_Date.strftime('%Y-%m-%d') if bill.J_Final_Date else ''
+        submitted_date = bill.I_Submitted_Date.strftime('%Y-%m-%d') if bill.I_Submitted_Date else ''
+        status_name = 'RECON COMPLETE' if bill.is_reconciled else 'UNRECONCILED'
 
-        row_data = [
-            bill.A_CCDatesMonth.strftime(CSV_DATE_FORMAT) if getattr(bill, 'A_CCDatesMonth', None) else '',
-            getattr(bill, 'B_Fund_Co', ''), 
-            bill.C_Company_Code or '',
-            getattr(bill, 'D_Company_Name', ''),
-            bill.E_Active_Members or 0,
-            bill.F_Pre_Bill_Date.strftime(CSV_DATE_FORMAT) if getattr(bill, 'F_Pre_Bill_Date', None) else '',
-            bill.G_Schedule_Date.strftime(CSV_DATE_FORMAT) if getattr(bill, 'G_Schedule_Date', None) else '',
-            str((bill.H_Schedule_Amount or ZERO_DECIMAL).quantize(TWO_PLACES)),
-            bill.I_Submitted_Date.strftime(CSV_DATE_FORMAT) if getattr(bill, 'I_Submitted_Date', None) else '',
-            bill.J_Final_Date.strftime(CSV_DATE_FORMAT) if getattr(bill, 'J_Final_Date', None) else '',
+        bill_common = [
+            bill.A_CCDatesMonth.strftime('%Y-%m-%d') if hasattr(bill, 'A_CCDatesMonth') and bill.A_CCDatesMonth else '', 
+            getattr(bill, 'B_Fund_Co', ''), bill.C_Company_Code, getattr(bill, 'D_Company_Name', ''), 
+            bill.E_Active_Members or 0, schedule_date, final_date, float(bill.H_Schedule_Amount or 0), submitted_date
         ]
-        
-        payment_data = [''] * len(payment_headers)
-        
-        # Sort deposits safely
-        deposits.sort(key=lambda d: d['date'])
 
-        # Aligning payments: Even indices = Date, Odd indices = Amount
-        for i in range(MAX_DEPOSITS):
-            if i < len(deposits):
-                deposit = deposits[i]
-                
-                # Check against our fallback 1900 date just in case
-                if deposit['date'].year == 1900:
-                    date_str = ''
+        sources = source_details_map.get(bill.pk, [])
+        if not sources:
+            ws.append(bill_common + [''] * 5 + [status_name, ''])
+        else:
+            for index, s in enumerate(sources):
+                export_source_text = 'Overs Line' if s.get('source') == 'CREDIT' else 'Bank'
+                bank_stmt_date = s['date'].strftime('%Y-%m-%d') if s.get('date') else ''
+                bank_cols = [
+                    bank_stmt_date, float(s.get('bank_total', 0) or 0), float(s.get('amount', 0) or 0), 
+                    s.get('comment', ''), s.get('bank_ref', '-'), status_name, export_source_text
+                ]
+                if index == 0:
+                    ws.append(bill_common + bank_cols)
                 else:
-                    date_str = deposit['date'].strftime(CSV_DATE_FORMAT)
-                    
-                amount_str = str(deposit['amount'].quantize(TWO_PLACES))
-                
-                # Column sequence: L(Date), M(Amount), N(Date), O(Amount)...
-                payment_data[i * 2] = date_str
-                payment_data[i * 2 + 1] = amount_str
+                    ws.append([''] * len(bill_common) + bank_cols)
 
-        writer.writerow(row_data + payment_data)
+        for cell in ws[ws.max_row]:
+            cell.border = thin_border
+            cell.alignment = Alignment(vertical='center')
 
+    column_widths = [15, 12, 15, 30, 15, 15, 15, 18, 15, 18, 18, 18, 25, 20, 18, 15]
+    for i, width in enumerate(column_widths):
+        ws.column_dimensions[get_column_letter(i+1)].width = width
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename="Section_13A_Report_Export.xlsx"'
+    wb.save(response)
     return response
 
 
@@ -4745,18 +4713,19 @@ def export_two_pot_tracking(request):
 @login_required
 def export_global_claims_excel(request):
     """
-    UPDATED: Matches both the global_history_overview search parameters 
-    and the detailed bank/settlement statement breakdown of the confirmations view.
+    100% matched to global_history_overview search parameters.
+    Includes the detailed bank/settlement statement breakdown.
     """
+    from decimal import Decimal
     from datetime import datetime, date
     from collections import defaultdict
-    from django.db import connection
     from django.db.models import Q
     import openpyxl
     from openpyxl.styles import PatternFill, Font, Border, Side, Alignment
     from openpyxl.utils import get_column_letter
     from django.http import HttpResponse
 
+    # --- 1. Date Filtering inputs (Exactly matching overview) ---
     start_date_str = request.GET.get('start_date')
     end_date_str = request.GET.get('end_date')
     
@@ -4771,35 +4740,33 @@ def export_global_claims_excel(request):
     except ValueError:
         pass
 
-    # 1. Base Query matching the overview rules (Both Reconciled and Unreconciled, excluding zeros)
-    bills_queryset = UnityBill.objects.exclude(
+    # --- 2. Base Query (Now identical to global_history_overview) ---
+    all_bills_queryset = UnityBill.objects.exclude(
         E_Active_Members=0
     ).exclude(
         H_Schedule_Amount=0
     )
 
-    # 2. Filter using the dual Schedule Date OR Submitted Date logic
     if filter_start_date and filter_end_date:
-        bills_queryset = bills_queryset.filter(
+        all_bills_queryset = all_bills_queryset.filter(
             Q(I_Submitted_Date__range=(filter_start_date, filter_end_date)) |
             Q(G_Schedule_Date__range=(filter_start_date, filter_end_date))
         )
     elif filter_start_date:
-        bills_queryset = bills_queryset.filter(
+        all_bills_queryset = all_bills_queryset.filter(
             Q(I_Submitted_Date__gte=filter_start_date) |
             Q(G_Schedule_Date__gte=filter_start_date)
         )
     elif filter_end_date:
-        bills_queryset = bills_queryset.filter(
+        all_bills_queryset = all_bills_queryset.filter(
             Q(I_Submitted_Date__lte=filter_end_date) |
             Q(G_Schedule_Date__lte=filter_end_date)
         )
 
-    bills_queryset = bills_queryset.order_by('-G_Schedule_Date', 'C_Company_Code')
-    final_bills = list(bills_queryset)
-    final_bill_ids = [bill.id for bill in final_bills]
+    all_bills = list(all_bills_queryset.order_by('-G_Schedule_Date', 'C_Company_Code'))
+    final_bill_ids = [bill.id for bill in all_bills]
 
-    # 3. Fetch Granular Bank & Settlement Details (Just like Confirmations)
+    # --- 3. Fetch Granular Bank & Settlement Details ---
     source_details_map = defaultdict(list)
     if final_bill_ids:
         settlements = BillSettlement.objects.filter(
@@ -4821,6 +4788,8 @@ def export_global_claims_excel(request):
                                      getattr(bank_line, 'description', '-')))
             elif settlement.source_credit_note_id:
                 try:
+                    # Using dynamic import or assuming CreditNote is imported globally
+                    from .models import CreditNote
                     credit_note = CreditNote.objects.get(id=settlement.source_credit_note_id)
                     source['date'] = credit_note.bank_stmt_date or (settlement.settlement_date.date() if settlement.settlement_date else None)
                     source['type'] = 'Credit Note'
@@ -4847,7 +4816,7 @@ def export_global_claims_excel(request):
         for bill_id in source_details_map:
             source_details_map[bill_id].sort(key=lambda x: x['date'] if x['date'] else date(1900, 1, 1))
 
-    # 4. Build Excel Workbook
+    # --- 4. Build Excel Workbook ---
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "Global Bill History"
@@ -4862,7 +4831,7 @@ def export_global_claims_excel(request):
     )
     header_font = Font(bold=True, size=11)
 
-    # 5. Headers (Row 1) - Extended layout to safely display bank data segments
+    # --- 5. Headers (Row 1) ---
     headers = [
         'CCDates Month', 'Fund Code', 'Company Code', 'Company Name', 
         'Active Members', 'Schedule Date', 'Final Date', 'Schedule Amount', 
@@ -4877,8 +4846,8 @@ def export_global_claims_excel(request):
         cell.border = thin_border
         cell.alignment = Alignment(horizontal='center', vertical='center')
 
-    # 6. Add Data Rows (Handling Multi-line split bank deposits cleanly)
-    for bill in final_bills:
+    # --- 6. Add Data Rows ---
+    for bill in all_bills:
         schedule_date = bill.G_Schedule_Date.strftime('%Y-%m-%d') if bill.G_Schedule_Date else ''
         final_date = bill.J_Final_Date.strftime('%Y-%m-%d') if bill.J_Final_Date else ''
         submitted_date = bill.I_Submitted_Date.strftime('%Y-%m-%d') if bill.I_Submitted_Date else ''
@@ -4907,8 +4876,8 @@ def export_global_claims_excel(request):
                 
                 bank_cols = [
                     bank_stmt_date, 
-                    float(s.get('bank_total', 0)), 
-                    float(s.get('amount', 0)), 
+                    float(s.get('bank_total', 0) or 0), 
+                    float(s.get('amount', 0) or 0), 
                     s.get('comment', ''), 
                     s.get('bank_ref', '-'), 
                     status_name, 
@@ -4918,20 +4887,19 @@ def export_global_claims_excel(request):
                 if index == 0:
                     ws.append(bill_common + bank_cols)
                 else:
-                    # Skip repeating base bill details for subsequent split bank entries
                     ws.append([''] * len(bill_common) + bank_cols)
 
-        # Apply thin borders to the newly added rows
+        # Apply borders
         for cell in ws[ws.max_row]:
             cell.border = thin_border
             cell.alignment = Alignment(vertical='center')
 
-    # 7. Set column widths for professional spacing
+    # --- 7. Column Formatting ---
     column_widths = [15, 12, 15, 30, 15, 15, 15, 18, 15, 18, 18, 18, 25, 20, 18, 15]
     for i, width in enumerate(column_widths):
         ws.column_dimensions[get_column_letter(i+1)].width = width
 
-    # 8. Generate Response
+    # --- 8. Generate Response ---
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = 'attachment; filename="Global_Bill_History_Export.xlsx"'
     wb.save(response)
