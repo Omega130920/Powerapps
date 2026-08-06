@@ -134,8 +134,9 @@
                         <th style="width: 85px;" class="bank-col">Bank Date</th>
                         <th style="width: 100px;" class="amount-col bank-col">Bank Deposit</th>
                         <th style="width: 100px;" class="amount-col bank-col">Allocated</th>
-                        <th style="width: 180px;" class="bank-col">Recon Note</th>
+                        <th style="width: 150px;" class="bank-col">Bank Desc</th> <!-- 🚀 Added -->
                         <th style="width: 120px;" class="bank-col">Bank Ref</th>
+                        <th style="width: 120px;" class="bank-col">Recon Note</th> <!-- Narrowed slightly to fit desc -->
                     </tr>
                 </thead>
                 <tbody>
@@ -158,13 +159,13 @@
                                         <td class="bank-col">-</td> 
                                         <td class="amount-col bank-col">-</td> 
                                         <td class="amount-col bank-col">-</td> 
+                                        <td class="bank-col">-</td> <!-- 🚀 Added -->
                                         <td class="bank-col">-</td> 
                                         <td class="bank-col">-</td> 
                                     </tr>
                                 {% else %}
                                     {% for source in record.source_details %}
                                         <tr class="{% if forloop.last %}bill-group-end{% endif %}">
-                                            <!-- Source Badge Column (Rendered once per loop row) -->
                                             <td class="bank-col text-center">
                                                 {% if source.source == 'CREDIT' %}
                                                     <span class="source-badge badge-credit">Overs Line</span>
@@ -185,12 +186,12 @@
                                                 <td rowspan="{{ row_span }}">{{ record.confirmed_date|date:"Y-m-d"|default:"-" }}</td>
                                             {% endif %}
 
-                                            <!-- Bank/Source Specific Information Columns -->
                                             <td class="bank-col">{{ source.date|date:"Y-m-d" }}</td>
                                             <td class="amount-col bank-col">R {{ source.bank_total }}</td>
                                             <td class="amount-col bank-col">R {{ source.amount }}</td>
-                                            <td class="bank-col" style="font-style: italic; color: #555;">{{ source.comment|default:"-" }}</td>
+                                            <td class="bank-col">{{ source.description|default:"-" }}</td> <!-- 🚀 Added -->
                                             <td class="bank-col">{{ source.bank_ref|default:"-" }}</td>
+                                            <td class="bank-col" style="font-style: italic; color: #555;">{{ source.comment|default:"-" }}</td>
                                         </tr>
                                     {% endfor %}
                                 {% endif %}
@@ -199,7 +200,7 @@
                         {% endwith %}
                     {% empty %}
                         <tr>
-                            <td colspan="15" class="text-center" style="padding: 40px; color: #757575;">No records found matching the criteria.</td>
+                            <td colspan="16" class="text-center" style="padding: 40px; color: #757575;">No records found matching the criteria.</td> <!-- 🚀 Updated colspan -->
                         </tr>
                     {% endfor %}
                 </tbody>
