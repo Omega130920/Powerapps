@@ -3594,6 +3594,16 @@ def save_global_claim(request):
     if request.method == 'POST':
         post_data = request.POST.copy()
         
+        # 🚀 1. EXTRACT OFFENDING FIELDS BEFORE THE FORM SEES THEM 🚀
+        # This completely hides the dropdown values from Django's strict choice validation.
+        manual_claim_status = post_data.get('claim_status')
+        if 'claim_status' in post_data:
+            del post_data['claim_status']
+            
+        manual_claim_allocation = post_data.get('claim_allocation')
+        if 'claim_allocation' in post_data:
+            del post_data['claim_allocation']
+        
         # --- SAFE DATE CLEANER ---
         # This strips out 'None' or empty strings to prevent database errors
         def clean_date(val):
@@ -3618,8 +3628,11 @@ def save_global_claim(request):
         else:
             form = UnityClaimForm(post_data, request.FILES)
 
+        # Ensure the form knows these fields are not required
         if 'claim_allocation' in form.fields:
             form.fields['claim_allocation'].required = False
+        if 'claim_status' in form.fields:
+            form.fields['claim_status'].required = False
 
         if form.is_valid():
             saved_claim = form.save(commit=False)
@@ -3630,7 +3643,14 @@ def save_global_claim(request):
 
             saved_claim.agent = post_data.get('agent')
             
-            # --- Save the Date App Extracted (Handled by form, but explicitly set here for safety) ---
+            # 🚀 2. INJECT THE STATUS BACK IN 🚀
+            # Now that form validation is safely passed, we force the status into the database.
+            if manual_claim_status:
+                saved_claim.claim_status = manual_claim_status
+            if manual_claim_allocation:
+                saved_claim.claim_allocation = manual_claim_allocation
+            
+            # --- Save the Date App Extracted ---
             if post_data.get('date_app_extracted'):
                 saved_claim.date_app_extracted = post_data.get('date_app_extracted')
 
@@ -3724,6 +3744,7 @@ def save_global_claim(request):
             return redirect(redirect_url)
             
         else:
+            print("FORM ERRORS:", form.errors)
             messages.error(request, f"Could not save claim: {form.errors}")
             return redirect(redirect_url)
             

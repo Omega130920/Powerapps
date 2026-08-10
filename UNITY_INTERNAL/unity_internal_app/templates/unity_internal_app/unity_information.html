@@ -650,7 +650,13 @@
 <div id="bank-lines" class="tab-pane">
     
     {# --- BANK LINES SECTION --- #}
-    <h2 style="color: #388e3c; border-bottom: 2px solid #aed581; padding-bottom: 5px;">Associated Bank Lines (Cash Segments)</h2>
+    <h2 style="display: flex; justify-content: space-between; align-items: center; color: #388e3c; border-bottom: 2px solid #aed581; padding-bottom: 5px;">
+        <span>Associated Bank Lines (Cash Segments)</span>
+        <span style="font-size: 0.8em; background-color: #e8f5e9; padding: 4px 12px; border-radius: 5px; border: 1px solid #a5d6a7; color: #1b5e20;">
+            Total: <strong id="bank-lines-total">R 0.00</strong>
+        </span>
+    </h2>
+
     {% if bank_lines %}
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
             <thead>
@@ -711,6 +717,22 @@
                 {% endfor %}
             </tbody>
         </table>
+
+        <!-- 🚀 SCRIPT TO CALCULATE TOTAL BANK LINES DYNAMICALLY 🚀 -->
+        <script>
+            document.addEventListener("DOMContentLoaded", function() {
+                let bankTotal = 0.00;
+                
+                // Inject Django variables directly into JS safely
+                {% for line in bank_lines %}
+                    bankTotal += parseFloat("{{ line.transaction_amount|default:0 }}");
+                {% endfor %}
+                
+                // Format the number to exactly 2 decimal places
+                document.getElementById("bank-lines-total").innerText = "R " + bankTotal.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            });
+        </script>
+
     {% else %}
         <p class="empty-message" style="padding: 20px; text-align: center; background: #f8f9fa; color: #777;">No reconciled bank lines found.</p>
     {% endif %}
