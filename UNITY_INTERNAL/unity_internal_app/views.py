@@ -3594,8 +3594,10 @@ def save_global_claim(request):
     if request.method == 'POST':
         post_data = request.POST.copy()
         
-        # 🚀 1. EXTRACT OFFENDING FIELDS BEFORE THE FORM SEES THEM 🚀
-        # This completely hides the dropdown values from Django's strict choice validation.
+        # 🚀 DEBUGGING: Check if the file is actually reaching Django 🚀
+        print("RECEIVED FILES:", request.FILES) 
+        
+        # 1. EXTRACT OFFENDING FIELDS BEFORE THE FORM SEES THEM
         manual_claim_status = post_data.get('claim_status')
         if 'claim_status' in post_data:
             del post_data['claim_status']
@@ -3605,7 +3607,6 @@ def save_global_claim(request):
             del post_data['claim_allocation']
         
         # --- SAFE DATE CLEANER ---
-        # This strips out 'None' or empty strings to prevent database errors
         def clean_date(val):
             return val if val and val.strip() and val.strip() != 'None' else None
             
@@ -3643,14 +3644,12 @@ def save_global_claim(request):
 
             saved_claim.agent = post_data.get('agent')
             
-            # 🚀 2. INJECT THE STATUS BACK IN 🚀
-            # Now that form validation is safely passed, we force the status into the database.
+            # 2. INJECT THE STATUS BACK IN 
             if manual_claim_status:
                 saved_claim.claim_status = manual_claim_status
             if manual_claim_allocation:
                 saved_claim.claim_allocation = manual_claim_allocation
             
-            # --- Save the Date App Extracted ---
             if post_data.get('date_app_extracted'):
                 saved_claim.date_app_extracted = post_data.get('date_app_extracted')
 
@@ -3661,38 +3660,31 @@ def save_global_claim(request):
                 if not saved_claim.claim_allocation:
                     saved_claim.claim_allocation = "Two Pot"
                 
-                # Checkbox Handling
                 saved_claim.vested_pot_available = (post_data.get('vested_pot_available') == 'on')
                 saved_claim.savings_pot_available = (post_data.get('savings_pot_available') == 'on')
                 
-                # Pot Dates
                 saved_claim.vested_pot_paid_date = post_data.get('vested_pot_paid_date')
                 saved_claim.savings_pot_paid_date = post_data.get('savings_pot_paid_date')
                 
-                # Cert Date
                 cert_date = post_data.get('infund_preservation_cert_received_date') or post_data.get('infund_cert_date')
                 if cert_date:
                     saved_claim.infund_preservation_cert_received_date = cert_date
 
-                # Amount
                 amount = post_data.get('claim_amount')
                 try:
                     saved_claim.claim_amount = float(amount) if amount and amount.strip() else 0.00
                 except ValueError:
                     saved_claim.claim_amount = 0.00
 
-            # --- Link Email ---
             new_linked_email_id = post_data.get('linked_email_id')
             if new_linked_email_id and new_linked_email_id.strip():
                 saved_claim.linked_email_id = new_linked_email_id
 
-            # --- Attachments ---
             if 'claim_attachment' in request.FILES:
                 saved_claim.claim_attachment = request.FILES['claim_attachment']
 
             saved_claim.save()
 
-            # --- EMAIL SENDING LOGIC ---
             if post_data.get('email_submission_action') == 'send_email_and_log':
                 recipient = post_data.get('member_recipient_email', '').strip()
                 subject = post_data.get('member_email_subject_reply', '').strip()
@@ -3724,9 +3716,11 @@ def save_global_claim(request):
                     except Exception as e:
                         messages.error(request, f"Email system error: {str(e)}")
 
-            # --- Handle Manual Notes ---
+            # --- Handle Manual Notes & Attachments ---
             note_desc = post_data.get('note_description')
             note_type = post_data.get('note_selection', 'General Note')
+            
+            # Grabbing the file from request.FILES
             note_file = request.FILES.get('note_attachment')
 
             if (note_desc and note_desc.strip()) or note_file:
@@ -3736,8 +3730,11 @@ def save_global_claim(request):
                     note_description=note_desc.strip() if note_desc else "Document Attached",
                     created_by=request.user
                 )
+                
+                # 🚀 If the file exists, link it to the model before saving
                 if note_file:
                     new_note.note_attachment = note_file
+                    
                 new_note.save()
 
             messages.success(request, f"Claim for {saved_claim.member_surname} saved successfully.")
@@ -4723,113 +4720,34 @@ def export_two_pot_tracking(request):
 @login_required
 def export_global_claims_excel(request):
     """
-    100% matched to global_history_overview search parameters.
-    Includes the detailed bank/settlement statement breakdown.
+    Exports the Global Claims register to an Excel spreadsheet, 
+    respecting active search filters.
     """
-    from decimal import Decimal
     from datetime import datetime, date
-    from collections import defaultdict
     from django.db.models import Q
     import openpyxl
     from openpyxl.styles import PatternFill, Font, Border, Side, Alignment
     from openpyxl.utils import get_column_letter
     from django.http import HttpResponse
 
-    # --- 1. Date Filtering inputs (Exactly matching overview) ---
-    start_date_str = request.GET.get('start_date')
-    end_date_str = request.GET.get('end_date')
-    
-    filter_start_date = None
-    filter_end_date = None
-    
-    try:
-        if start_date_str:
-            filter_start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
-        if end_date_str:
-            filter_end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
-    except ValueError:
-        pass
+    # --- 1. Search Filtering (Matches global_claims view) ---
+    search_query = request.GET.get('q', '').strip()
+    claims_queryset = UnityClaim.objects.all()
 
-    # --- 2. Base Query (Now identical to global_history_overview) ---
-    all_bills_queryset = UnityBill.objects.exclude(
-        E_Active_Members=0
-    ).exclude(
-        H_Schedule_Amount=0
-    )
-
-    if filter_start_date and filter_end_date:
-        all_bills_queryset = all_bills_queryset.filter(
-            Q(I_Submitted_Date__range=(filter_start_date, filter_end_date)) |
-            Q(G_Schedule_Date__range=(filter_start_date, filter_end_date))
-        )
-    elif filter_start_date:
-        all_bills_queryset = all_bills_queryset.filter(
-            Q(I_Submitted_Date__gte=filter_start_date) |
-            Q(G_Schedule_Date__gte=filter_start_date)
-        )
-    elif filter_end_date:
-        all_bills_queryset = all_bills_queryset.filter(
-            Q(I_Submitted_Date__lte=filter_end_date) |
-            Q(G_Schedule_Date__lte=filter_end_date)
+    if search_query:
+        claims_queryset = claims_queryset.filter(
+            Q(id_number__icontains=search_query) |
+            Q(member_surname__icontains=search_query) |
+            Q(company_code__icontains=search_query) |
+            Q(member_name__icontains=search_query)
         )
 
-    all_bills = list(all_bills_queryset.order_by('-G_Schedule_Date', 'C_Company_Code'))
-    final_bill_ids = [bill.id for bill in all_bills]
+    claims = list(claims_queryset.order_by('-claim_created_date', 'member_surname'))
 
-    # --- 3. Fetch Granular Bank & Settlement Details ---
-    source_details_map = defaultdict(list)
-    if final_bill_ids:
-        settlements = BillSettlement.objects.filter(
-            unity_bill_source_id__in=final_bill_ids
-        ).order_by('settlement_date')
-
-        for settlement in settlements:
-            source = {}
-            source['amount'] = settlement.settled_amount 
-
-            if settlement.reconned_bank_line:
-                bank_line = settlement.reconned_bank_line
-                source['date'] = bank_line.transaction_date
-                source['type'] = 'Bank Line'
-                source['source'] = 'BANK'
-                source['bank_total'] = bank_line.transaction_amount
-                source['bank_ref'] = getattr(bank_line, 'statement_reference', 
-                                     getattr(bank_line, 'reference', 
-                                     getattr(bank_line, 'description', '-')))
-            elif settlement.source_credit_note_id:
-                try:
-                    # Using dynamic import or assuming CreditNote is imported globally
-                    from .models import CreditNote
-                    credit_note = CreditNote.objects.get(id=settlement.source_credit_note_id)
-                    source['date'] = credit_note.bank_stmt_date or (settlement.settlement_date.date() if settlement.settlement_date else None)
-                    source['type'] = 'Credit Note'
-                    source['source'] = 'CREDIT'
-                    source['bank_total'] = credit_note.credit_amount
-                    source['bank_ref'] = getattr(credit_note, 'credit_note_number', '-')
-                except Exception:
-                    source['date'] = settlement.settlement_date.date() if settlement.settlement_date else None
-                    source['type'] = 'Credit Note (Source Missing)'
-                    source['source'] = 'CREDIT'
-                    source['bank_total'] = settlement.settled_amount
-                    source['bank_ref'] = "-"
-            else:
-                source['date'] = settlement.settlement_date.date() if settlement.settlement_date else None
-                source['type'] = 'Other Source'
-                source['source'] = 'OTHER'
-                source['bank_total'] = settlement.settled_amount
-                source['bank_ref'] = "-"
-
-            source['comment'] = getattr(settlement, 'settlement_note', '')
-            source_details_map[settlement.unity_bill_source_id].append(source)
-
-        # Sort sources per bill by date
-        for bill_id in source_details_map:
-            source_details_map[bill_id].sort(key=lambda x: x['date'] if x['date'] else date(1900, 1, 1))
-
-    # --- 4. Build Excel Workbook ---
+    # --- 2. Build Excel Workbook ---
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Global Bill History"
+    ws.title = "Global Claims Register"
 
     # --- Styles Definition ---
     green_fill = PatternFill(start_color="C8E6C9", end_color="C8E6C9", fill_type="solid")
@@ -4841,12 +4759,14 @@ def export_global_claims_excel(request):
     )
     header_font = Font(bold=True, size=11)
 
-    # --- 5. Headers (Row 1) ---
+    # --- 3. Headers (Row 1) ---
     headers = [
-        'CCDates Month', 'Fund Code', 'Company Code', 'Company Name', 
-        'Active Members', 'Schedule Date', 'Final Date', 'Schedule Amount', 
-        'Confirmed Date', 'Bank Statement Date', 'Bank Deposit Amount', 
-        'Allocated Amount', 'Comment', 'Deposit Reference', 'Status', 'Source'
+        'Company Code', 'Agent', 'Member Name', 'Member Surname', 
+        'ID Number', 'MIP Number', 'Claim Type', 'Exit Reason', 
+        'Claim Allocation', 'Claim Status', 'Payment Option', 
+        'Claim Amount', 'Created Date', 'Last Contrib. Date', 
+        'Date Submitted', 'Date Paid', 'Vested Pot Paid Date', 
+        'Savings Pot Paid Date', 'In-Fund Cert Date'
     ]
     ws.append(headers)
     
@@ -4856,62 +4776,44 @@ def export_global_claims_excel(request):
         cell.border = thin_border
         cell.alignment = Alignment(horizontal='center', vertical='center')
 
-    # --- 6. Add Data Rows ---
-    for bill in all_bills:
-        schedule_date = bill.G_Schedule_Date.strftime('%Y-%m-%d') if bill.G_Schedule_Date else ''
-        final_date = bill.J_Final_Date.strftime('%Y-%m-%d') if bill.J_Final_Date else ''
-        submitted_date = bill.I_Submitted_Date.strftime('%Y-%m-%d') if bill.I_Submitted_Date else ''
-        status_name = 'RECON COMPLETE' if bill.is_reconciled else 'UNRECONCILED'
-
-        bill_common = [
-            bill.A_CCDatesMonth.strftime('%Y-%m-%d') if hasattr(bill, 'A_CCDatesMonth') and bill.A_CCDatesMonth else '', 
-            getattr(bill, 'B_Fund_Co', ''), 
-            bill.C_Company_Code,
-            getattr(bill, 'D_Company_Name', ''), 
-            bill.E_Active_Members or 0, 
-            schedule_date,
-            final_date, 
-            float(bill.H_Schedule_Amount or 0),
-            submitted_date
+    # --- 4. Add Data Rows ---
+    for claim in claims:
+        row_data = [
+            getattr(claim, 'company_code', ''),
+            getattr(claim, 'agent', ''),
+            getattr(claim, 'member_name', ''),
+            getattr(claim, 'member_surname', ''),
+            getattr(claim, 'id_number', ''),
+            getattr(claim, 'mip_number', '') or '',
+            getattr(claim, 'claim_type', ''),
+            getattr(claim, 'exit_reason', '') or '',
+            getattr(claim, 'claim_allocation', '') or '',
+            getattr(claim, 'claim_status', ''),
+            getattr(claim, 'payment_option', '') or '',
+            float(claim.claim_amount or 0),
+            claim.claim_created_date.strftime('%Y-%m-%d') if claim.claim_created_date else '',
+            claim.last_contribution_date.strftime('%Y-%m-%d') if claim.last_contribution_date else '',
+            claim.date_submitted.strftime('%Y-%m-%d') if claim.date_submitted else '',
+            claim.date_paid.strftime('%Y-%m-%d') if claim.date_paid else '',
+            claim.vested_pot_paid_date.strftime('%Y-%m-%d') if getattr(claim, 'vested_pot_paid_date', None) else '',
+            claim.savings_pot_paid_date.strftime('%Y-%m-%d') if getattr(claim, 'savings_pot_paid_date', None) else '',
+            claim.infund_preservation_cert_received_date.strftime('%Y-%m-%d') if getattr(claim, 'infund_preservation_cert_received_date', None) else '',
         ]
+        ws.append(row_data)
 
-        sources = source_details_map.get(bill.pk, [])
-        if not sources:
-            # Pad empty bank data columns + Status + Source
-            ws.append(bill_common + [''] * 5 + [status_name, ''])
-        else:
-            for index, s in enumerate(sources):
-                export_source_text = 'Overs Line' if s.get('source') == 'CREDIT' else 'Bank'
-                bank_stmt_date = s['date'].strftime('%Y-%m-%d') if s.get('date') else ''
-                
-                bank_cols = [
-                    bank_stmt_date, 
-                    float(s.get('bank_total', 0) or 0), 
-                    float(s.get('amount', 0) or 0), 
-                    s.get('comment', ''), 
-                    s.get('bank_ref', '-'), 
-                    status_name, 
-                    export_source_text
-                ]
-                
-                if index == 0:
-                    ws.append(bill_common + bank_cols)
-                else:
-                    ws.append([''] * len(bill_common) + bank_cols)
-
-        # Apply borders
+        # Apply borders & vertical centering to the row
         for cell in ws[ws.max_row]:
             cell.border = thin_border
             cell.alignment = Alignment(vertical='center')
 
-    # --- 7. Column Formatting ---
-    column_widths = [15, 12, 15, 30, 15, 15, 15, 18, 15, 18, 18, 18, 25, 20, 18, 15]
+    # --- 5. Column Formatting / Widths ---
+    column_widths = [15, 15, 20, 20, 18, 15, 15, 18, 20, 18, 25, 15, 15, 15, 15, 15, 18, 18, 18]
     for i, width in enumerate(column_widths):
         ws.column_dimensions[get_column_letter(i+1)].width = width
 
-    # --- 8. Generate Response ---
+    # --- 6. Generate Response ---
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-    response['Content-Disposition'] = 'attachment; filename="Global_Bill_History_Export.xlsx"'
+    response['Content-Disposition'] = 'attachment; filename="Global_Claims_Register_Export.xlsx"'
     wb.save(response)
     return response
 

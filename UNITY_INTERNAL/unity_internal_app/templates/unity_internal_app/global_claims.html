@@ -172,7 +172,20 @@ tr:hover {background-color: #f1f8e9;}
                         
                         <template id="notes-data-{{ claim.id }}">
                             {% for note in claim.notes.all %}
-                                <tr><td>{{ note.note_description|linebreaksbr }}</td><td>{{ note.note_selection }}</td><td>{{ note.created_at|date:"Y-m-d H:i" }}</td><td>{{ note.created_by.username }}</td></tr>
+                                <tr>
+                                    <td>
+                                        {{ note.note_description|linebreaksbr }}
+                                        {% if note.note_attachment %}
+                                            <br>
+                                            <a href="{{ note.note_attachment.url }}" target="_blank" class="dashboard-button" style="display: inline-block; padding: 6px 14px; font-size: 12px; background-color: #1e88e5; border-color: #1e88e5; margin-top: 8px; text-decoration: none; font-weight: bold;">
+                                                <i class="fas fa-paperclip"></i> View Document
+                                            </a>
+                                        {% endif %}
+                                    </td>
+                                    <td>{{ note.note_selection }}</td>
+                                    <td>{{ note.created_at|date:"Y-m-d H:i" }}</td>
+                                    <td>{{ note.created_by.username }}</td>
+                                </tr>
                             {% empty %}
                                 <tr><td colspan="4" style="text-align:center; color:#777;">No notes found.</td></tr>
                             {% endfor %}
@@ -402,12 +415,13 @@ tr:hover {background-color: #f1f8e9;}
                         <option value="CLAIM DOCUMENTS REQUESTED">CLAIM DOCUMENTS REQUESTED</option>
                         <option value="SUBMITTED VIA E-MAIL">SUBMITTED VIA E-MAIL</option>
                         <option value="SUBMITTED ONLINE">SUBMITTED ONLINE</option>
+                        <option value="FEEDBACK TO EMPLOYER/MEMBER">FEEDBACK TO EMPLOYER/MEMBER</option>
                     </select>
                     <textarea name="note_description" id="note_description" rows="4" class="form-input" placeholder="Add specific details..."></textarea>
                     
                     <div style="margin-top: 15px; padding: 10px; border: 1px dashed var(--primary-green); border-radius: 8px; background: #fff;">
                         <label style="font-weight: bold; color: var(--accent-green); display: block; margin-bottom: 5px;"><i class="fas fa-paperclip"></i> Claim Attachment (File)</label>
-                        <input type="file" name="claim_attachment" class="form-input" style="border: none; padding: 5px;">
+                        <input type="file" name="note_attachment" class="form-input" style="border: none; padding: 5px;">
                     </div>
                 </div>
 

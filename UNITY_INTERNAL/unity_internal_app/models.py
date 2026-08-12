@@ -779,6 +779,7 @@ class UnityClaimNote(models.Model):
     note_description = models.TextField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    note_attachment = models.FileField(upload_to='claim_notes/', blank=True, null=True)
 
     def __str__(self):
         return f"Note for Claim {self.claim.id} - {self.created_at}"
