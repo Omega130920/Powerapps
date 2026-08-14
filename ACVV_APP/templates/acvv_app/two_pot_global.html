@@ -103,7 +103,7 @@
                     <th style="width: 12%;">ID Number</th>
                     <th style="width: 22%;">Status</th>
                     <th style="width: 12%;">Created</th>
-                    <th style="width: 8%; text-align: right;">Action</th>
+                    <th style="width: 14%; text-align: right;">Action</th>
                 </tr>
             </thead>
             <tbody>
@@ -120,7 +120,7 @@
                         {% endif %}
                     </td>
                     <td>{{ claim.claim_created_date|date:"Y-m-d" }}</td>
-                    <td style="text-align: right;">
+                    <td style="text-align: right; white-space: nowrap;">
                         <button class="dashboard-button" style="padding: 4px 10px; font-size: 11px; background-color: #f7931e;" 
                             onclick="editClaim(this)" 
                             data-id="{{ claim.id }}"
@@ -147,6 +147,15 @@
                             data-last_contribution_date="{{ claim.last_contribution_date|date:'Y-m-d' }}"
                             data-date_paid="{{ claim.date_paid|date:'Y-m-d' }}"
                         >Edit</button>
+
+                        <!-- DELETE BUTTON FORM -->
+                        <form action="{% url 'delete_global_claim' claim.id %}" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this Two-Pot claim? This action cannot be undone.');">
+                            {% csrf_token %}
+                            <button type="submit" class="dashboard-button" style="padding: 4px 10px; font-size: 11px; background-color: #d32f2f; margin-left: 4px;" title="Delete Claim">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                        <!-- END DELETE BUTTON -->
 
                         <template id="notes-data-{{ claim.id }}">
                             {% for note in claim.notes.all %}
@@ -310,14 +319,12 @@
                 </div>
             </div>
 
-            {# --- UPDATED LAYOUT SECTION: Syncing Created logic to match Extracted Date --- #}
             <div style="margin-bottom: 15px;">
                 <div>
                     <label style="font-weight:bold;">Created *</label>
                     <input type="date" name="claim_created_date" id="claim_created_date_fallback" class="form-input" required value="{% now 'Y-m-d' %}" onchange="document.getElementById('claim_created_date').value = this.value;">
                 </div>
                 
-                {# Hidden inputs continue to map values cleanly behind the scenes #}
                 <input type="hidden" name="last_contribution_date" id="last_contribution_date">
                 <input type="hidden" name="date_submitted_fallback" id="date_submitted_fallback">
                 <input type="hidden" name="date_paid" id="date_paid">
@@ -421,7 +428,6 @@
         if(editor && hidden) hidden.value = editor.value.replace(/\n/g, '<br>');
     }
 
-    // Toggle logic update for visibility tracking rules
     function togglePotVisibility() {
         const vestedCb = document.getElementById('id_vested_pot_available');
         const savingsCb = document.getElementById('id_savings_pot_available');
@@ -471,12 +477,10 @@
         document.getElementById('email-composition-container').style.display = 'none';
         document.getElementById('div_two_pot_withdrawal_details').style.display = 'none';
         
-        // Auto-select agent dropdown based on logged-in user
         const agentSel = document.getElementById('agent_input');
         const userAgent = "{% if 'jesica' in request.user.username|lower or 'jessica' in request.user.first_name|lower %}JH{% elif 'timothy' in request.user.username|lower or 'timothy' in request.user.first_name|lower %}TD{% endif %}";
         if (userAgent) { agentSel.value = userAgent; }
         
-        // Standard defaults initialization - Sync both dates
         const todayStr = new Date().toISOString().split('T')[0];
         document.getElementById('claim_created_date').value = todayStr;
         document.getElementById('claim_created_date_fallback').value = todayStr;
@@ -484,7 +488,6 @@
         document.getElementById('modalTitle').innerText = "New Two-Pot Entry";
         document.getElementById('claim_notes_tbody').innerHTML = '<tr><td colspan="5" style="text-align:center;">New record.</td></tr>';
         
-        // Initialize visibility checks
         togglePotVisibility();
         modal.style.display = 'block';
     }
@@ -496,7 +499,6 @@
         document.getElementById('linked_email_id').value = d.linked_email_id || '';
         document.getElementById('company_code_input').value = d.company_code;
         
-        // Populate Dropdown for Agent
         document.getElementById('agent_input').value = d.agent;
         
         document.querySelector('input[name="id_number"]').value = d.id_number;
@@ -508,7 +510,6 @@
         document.querySelector('select[name="payment_option"]').value = d.payment_option;
         document.querySelector('input[name="claim_amount"]').value = d.claim_amount;
         
-        // Populate synchronized extraction date parameters
         document.getElementById('claim_created_date').value = d.claim_created_date;
         document.getElementById('claim_created_date_fallback').value = d.claim_created_date;
 
@@ -518,7 +519,6 @@
         document.getElementById('informed_er_select').value = d.informed_er || 'NO';
         document.getElementById('submitted_by_agent_select').value = d.submitted_by_agent || '';
 
-        // Hydrate validation parameters cleanly into hidden layouts
         document.getElementById('id_vested_pot_available').checked = (d.vested_pot_available === 'True');
         document.getElementById('id_vested_pot_paid_date').value = d.vested_pot_paid_date || '';
         document.getElementById('id_savings_pot_available').checked = (d.savings_pot_available === 'True');
@@ -534,7 +534,6 @@
             notesTrg.appendChild(notesSrc.content.cloneNode(true));
         }
         
-        // Execute dynamic visibility loop processing
         togglePotVisibility();
         document.getElementById('claimModal').style.display = 'block';
     }
@@ -561,10 +560,6 @@
         
         window.location.href = `${url}?q=${encodeURIComponent(q)}&start_date=${start}&end_date=${end}`;
     }
-
-    document.getElementById('company_code_input').addEventListener('input', function() {
-        // Agent auto-fill remains bypassed so it locks to logged-in initials.
-    });
 
     window.onclick = function(e) {
         if (e.target == document.getElementById('claimModal') || e.target == document.getElementById('emailPreviewModal')) {
