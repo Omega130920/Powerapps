@@ -114,6 +114,32 @@ def login_view(request):
     form = AuthenticationForm()
     return render(request, 'login.html', {'form': form})
 
+
+
+from django.shortcuts import get_object_or_404, redirect
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+# Make sure your other imports remain at the top
+
+@login_required
+def delete_global_claim(request, claim_id):
+    """
+    Deletes a claim and redirects back to the appropriate dashboard 
+    (Global Claims or Two Pot) based on the claim_type.
+    """
+    claim = get_object_or_404(UnityClaim, pk=claim_id)
+    
+    # Determine the correct dashboard to return to before we delete the object
+    redirect_url = 'global_two_pot' if claim.claim_type == 'Two Pot' else 'global_claims'
+    
+    if request.method == 'POST':
+        member_name = f"{claim.member_name} {claim.member_surname}"
+        claim.delete()
+        messages.success(request, f"Claim for {member_name} was successfully deleted.")
+    
+    return redirect(redirect_url)
+    
+
 @login_required
 def dashboard(request):
     """Displays the user dashboard with notification badges."""
