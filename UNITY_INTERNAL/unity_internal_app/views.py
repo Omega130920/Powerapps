@@ -4721,7 +4721,7 @@ def export_two_pot_tracking(request):
 def export_global_claims_excel(request):
     """
     Exports the Global Claims register to an Excel spreadsheet, 
-    respecting active search filters.
+    respecting active search filters, but EXCLUDING 'Two Pot' claims.
     """
     from datetime import datetime, date
     from django.db.models import Q
@@ -4732,7 +4732,9 @@ def export_global_claims_excel(request):
 
     # --- 1. Search Filtering (Matches global_claims view) ---
     search_query = request.GET.get('q', '').strip()
-    claims_queryset = UnityClaim.objects.all()
+    
+    # 🚀 EXCLUDE 'Two Pot' claims from the global export 🚀
+    claims_queryset = UnityClaim.objects.exclude(claim_type='Two Pot')
 
     if search_query:
         claims_queryset = claims_queryset.filter(
