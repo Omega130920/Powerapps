@@ -117,7 +117,7 @@ tr:hover {background-color: #f1f8e9;}
                     <th style="width: 12%;">Allocation</th>
                     <th style="width: 12%;">Type</th>
                     <th style="width: 8%;">Status</th>
-                    <th style="text-align: right; width: 8%;">Action</th>
+                    <th style="text-align: right; width: 10%;">Action</th>
                 </tr>
             </thead>
             <tbody id="claimsTableBody">
@@ -137,13 +137,13 @@ tr:hover {background-color: #f1f8e9;}
                         {% endif %}
                     </td>
                     <td>
-                        <span class="status-tag {% if claim.claim_status == 'Paid' %}status-reconcomplete{% elif claim.claim_status == 'Incomplete' or claim.claim_status == 'incomplete' %}status-incomplete{% else %}status-open{% endif %}">
+                        <span class="status-tag {% if claim.claim_status == 'Paid' %}status-reconcomplete{% elif claim.claim_status|lower == 'incomplete' %}status-incomplete{% else %}status-open{% endif %}">
                             {{ claim.claim_status }}
                         </span>
                     </td>
-                    <td style="text-align: right;">
+                    <td style="text-align: right; white-space: nowrap;">
                         <button class="dashboard-button" 
-                                style="padding: 6px 12px; font-size: 11px; background-color: #f7931e; border-color: #f7931e;"
+                                style="padding: 6px 10px; font-size: 11px; background-color: #f7931e; border-color: #f7931e;"
                                 onclick="editClaim(this)"
                                 data-id="{{ claim.id }}"
                                 data-company_code="{{ claim.company_code }}"
@@ -169,6 +169,15 @@ tr:hover {background-color: #f1f8e9;}
                                 data-savings_pot_paid_date="{{ claim.savings_pot_paid_date|date:'Y-m-d' }}"
                                 data-infund_cert_date="{{ claim.infund_preservation_cert_received_date|date:'Y-m-d' }}"
                                 >Edit</button>
+
+                        <!-- DELETE BUTTON FORM -->
+                        <form action="{% url 'delete_global_claim' claim.id %}" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this global claim? This action cannot be undone.');">
+                            {% csrf_token %}
+                            <button type="submit" class="dashboard-button" style="padding: 6px 10px; font-size: 11px; background-color: #d32f2f; margin-left: 5px;" title="Delete Claim">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                        <!-- END DELETE BUTTON -->
                         
                         <template id="notes-data-{{ claim.id }}">
                             {% for note in claim.notes.all %}
@@ -416,6 +425,18 @@ tr:hover {background-color: #f1f8e9;}
                         <option value="SUBMITTED VIA E-MAIL">SUBMITTED VIA E-MAIL</option>
                         <option value="SUBMITTED ONLINE">SUBMITTED ONLINE</option>
                         <option value="FEEDBACK TO EMPLOYER/MEMBER">FEEDBACK TO EMPLOYER/MEMBER</option>
+                        <option value="Contribution Query - Sanlam">Contribution Query - Sanlam</option>
+                        <option value="Contribution Query - To Employer">Contribution Query - To Employer</option>
+                        <option value="Contribtion Query Feedback - to Sanlam">Contribtion Query Feedback - to Sanlam</option>
+                        <option value="Follow up incomplete claim">Follow up incomplete claim</option>
+                        <option value="Incomplete claim form received">Incomplete claim form received</option>
+                        <option value="Not on pending claims - Bill to be submitted">Not on pending claims - Bill to be submitted</option>
+                        <option value="Tax Query - Sanlam">Tax Query - Sanlam</option>
+                        <option value="Tax Query - Feedback">Tax Query - Feedback</option>
+                        <option value="Sent Benefit letters to Employer/Member">Sent Benefit letters to Employer/Member</option>
+                        <option value="Claim Finalised - Sent Final Benefit Letters">Claim Finalised - Sent Final Benefit Letters</option>
+                        <option value="Claim Submitted - Follow up with Sanlam">Claim Submitted - Follow up with Sanlam</option>
+                        <option value="Claim Submitted - Feedback from Sanlam">Claim Submitted - Feedback from Sanlam</option>
                     </select>
                     <textarea name="note_description" id="note_description" rows="4" class="form-input" placeholder="Add specific details..."></textarea>
                     
@@ -605,6 +626,17 @@ tr:hover {background-color: #f1f8e9;}
                 document.getElementById('agent_input').value = opts[i].getAttribute('data-agent') || '';
                 break;
             }
+        }
+    });
+
+    // CRITICAL: Sync visual textarea with hidden email submission input
+    document.getElementById('main_claim_form').addEventListener('submit', function() {
+        const visualEditor = document.getElementById('member_email_body_editor');
+        const hiddenInput = document.getElementById('email_body_html_content');
+        
+        if (visualEditor && hiddenInput) {
+            // Converts standard text newlines to HTML <br> tags so formatting is preserved
+            hiddenInput.value = visualEditor.value.replace(/\n/g, '<br>');
         }
     });
 

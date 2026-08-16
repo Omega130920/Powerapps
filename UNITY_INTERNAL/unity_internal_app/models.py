@@ -900,6 +900,9 @@ class OutlookInbox(models.Model):
     sender_address = models.CharField(max_length=255, null=True, blank=True, db_column='sender_address')
     body_content = models.TextField(null=True, blank=True, db_column='body_content')
     received_at = models.DateTimeField(null=True, blank=True, db_column='received_at')
+    # 🚀 ADD THESE FIELDS 🚀
+    cc_addresses = models.TextField(blank=True, null=True)
+    bcc_addresses = models.TextField(blank=True, null=True)
 
     class Meta:
         managed = False

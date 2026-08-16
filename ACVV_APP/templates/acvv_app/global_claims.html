@@ -88,11 +88,11 @@ tr:hover {background-color: #f1f8e9;}
                     <th style="width: 8%;">Code</th>
                     <th style="width: 10%;">Agent</th>
                     <th style="width: 12%;">ID Number</th>
-                    <th style="width: 20%;">Surname, Name</th>
+                    <th style="width: 18%;">Surname, Name</th>
                     <th style="width: 10%;">Created</th>
-                    <th style="width: 15%;">Type</th>
-                    <th style="width: 15%;">Status</th>
-                    <th style="text-align: right; width: 10%;">Action</th>
+                    <th style="width: 14%;">Type</th>
+                    <th style="width: 14%;">Status</th>
+                    <th style="text-align: right; width: 14%;">Action</th>
                 </tr>
             </thead>
             <tbody id="claimsTableBody">
@@ -114,9 +114,9 @@ tr:hover {background-color: #f1f8e9;}
                             {{ claim.claim_status }}
                         </span>
                     </td>
-                    <td style="text-align: right;">
+                    <td style="text-align: right; white-space: nowrap;">
                         <button class="dashboard-button" 
-                                style="padding: 6px 12px; font-size: 11px; background-color: #f7931e; border-color: #f7931e;"
+                                style="padding: 6px 10px; font-size: 11px; background-color: #f7931e; border-color: #f7931e;"
                                 onclick="editClaim(this)"
                                 data-id="{{ claim.id }}"
                                 data-company_code="{{ claim.company_code }}"
@@ -142,6 +142,15 @@ tr:hover {background-color: #f1f8e9;}
                                 data-savings_pot_paid_date="{{ claim.savings_pot_paid_date|date:'Y-m-d' }}"
                                 data-infund_cert_date="{{ claim.infund_cert_date|date:'Y-m-d' }}"
                                 >Edit</button>
+
+                        <!-- DELETE BUTTON FORM -->
+                        <form action="{% url 'delete_global_claim' claim.id %}" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this claim? This action cannot be undone.');">
+                            {% csrf_token %}
+                            <button type="submit" class="dashboard-button" style="padding: 6px 10px; font-size: 11px; background-color: #d32f2f; border-color: #d32f2f; margin-left: 4px;" title="Delete Claim">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                        <!-- END DELETE BUTTON -->
                     </td>
                 </tr>
                 {% endfor %}
@@ -234,7 +243,6 @@ tr:hover {background-color: #f1f8e9;}
                             <option value="Death">Death</option>
                             <option value="Funeral">Funeral</option>
                             <option value="Claim">Claim</option>
-
                             <option value="Two Pot">Two Pot</option>
                         </select>
                     </div>
@@ -438,7 +446,6 @@ tr:hover {background-color: #f1f8e9;}
         const type = document.getElementById('claim_type_select').value;
         const isTwoPot = (type === 'Two Pot');
         
-        // MIP Number is always visible, but only required (compulsory) for Two Pot
         const mipInput = document.querySelector('input[name="mip_number"]');
         const mipAsterisk = document.getElementById('mip_asterisk');
         if (isTwoPot) {
@@ -463,7 +470,6 @@ tr:hover {background-color: #f1f8e9;}
         document.getElementById('modal_claim_id').value = '';
         document.getElementById('main_claim_form').reset(); 
         
-        // Auto-select agent dropdown based on logged-in user
         const agentSel = document.getElementById('agent_input');
         const userAgent = "{% if 'jesica' in request.user.username|lower or 'jessica' in request.user.first_name|lower %}JH{% elif 'timothy' in request.user.username|lower or 'timothy' in request.user.first_name|lower %}TD{% endif %}";
         if (userAgent) { agentSel.value = userAgent; }
@@ -479,7 +485,6 @@ tr:hover {background-color: #f1f8e9;}
         document.getElementById('modal_claim_id').value = data.id;
         document.getElementById('company_code_input').value = data.company_code;
         
-        // Ensure the dropdown is set to the correct agent on edit
         document.getElementById('agent_input').value = data.agent;
         
         document.querySelector('input[name="id_number"]').value = data.id_number;
@@ -490,7 +495,6 @@ tr:hover {background-color: #f1f8e9;}
         document.getElementById('claim_type_select').value = data.claim_type;
         toggleTwoPotLogic(); 
 
-        // Ensure all dropdowns are set using the helper
         setSelectValue('claim_status', data.claim_status);
         setSelectValue('payment_option', data.payment_option);
         setSelectValue('exit_reason', data.exit_reason);
@@ -502,7 +506,6 @@ tr:hover {background-color: #f1f8e9;}
         document.querySelector('input[name="date_submitted"]').value = data.date_submitted;
         document.querySelector('input[name="date_paid"]').value = data.date_paid;
 
-        // Checkboxes and Date fields
         document.getElementById('id_vested_pot_available').checked = (data.vested_pot_available === 'True');
         document.getElementById('id_savings_pot_available').checked = (data.savings_pot_available === 'True');
         document.getElementById('id_vested_pot_paid_date').value = data.vested_pot_paid_date;
@@ -510,7 +513,6 @@ tr:hover {background-color: #f1f8e9;}
         document.getElementById('id_infund_cert_date').value = data.infund_cert_date;
         document.getElementById('linked_email_id').value = data.linked_email_id;
 
-        // Run visibility toggles AFTER setting values so the UI updates
         togglePotVisibility();
         toggleWithdrawalSubFields();
 
@@ -527,7 +529,6 @@ tr:hover {background-color: #f1f8e9;}
     function setSelectValue(name, val) {
         const sel = document.querySelector(`select[name="${name}"]`);
         if (sel) {
-            // Check if value exists in options to prevent errors
             sel.value = (val === 'None' || !val) ? "" : val;
         }
     }

@@ -653,7 +653,7 @@
     <h2 style="display: flex; justify-content: space-between; align-items: center; color: #388e3c; border-bottom: 2px solid #aed581; padding-bottom: 5px;">
         <span>Associated Bank Lines (Cash Segments)</span>
         <span style="font-size: 0.8em; background-color: #e8f5e9; padding: 4px 12px; border-radius: 5px; border: 1px solid #a5d6a7; color: #1b5e20;">
-            Total: <strong id="bank-lines-total">R 0.00</strong>
+            Total Available: <strong id="bank-lines-total">R 0.00</strong>
         </span>
     </h2>
 
@@ -718,14 +718,14 @@
             </tbody>
         </table>
 
-        <!-- 🚀 SCRIPT TO CALCULATE TOTAL BANK LINES DYNAMICALLY 🚀 -->
+        <!-- 🚀 SCRIPT TO CALCULATE TOTAL AVAILABLE BALANCE DYNAMICALLY 🚀 -->
         <script>
             document.addEventListener("DOMContentLoaded", function() {
                 let bankTotal = 0.00;
                 
-                // Inject Django variables directly into JS safely
+                // Summing up line.available_balance instead of transaction_amount
                 {% for line in bank_lines %}
-                    bankTotal += parseFloat("{{ line.transaction_amount|default:0 }}");
+                    bankTotal += parseFloat("{{ line.available_balance|default:0 }}");
                 {% endfor %}
                 
                 // Format the number to exactly 2 decimal places

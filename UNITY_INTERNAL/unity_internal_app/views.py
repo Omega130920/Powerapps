@@ -114,6 +114,32 @@ def login_view(request):
     form = AuthenticationForm()
     return render(request, 'login.html', {'form': form})
 
+
+
+from django.shortcuts import get_object_or_404, redirect
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+# Make sure your other imports remain at the top
+
+@login_required
+def delete_global_claim(request, claim_id):
+    """
+    Deletes a claim and redirects back to the appropriate dashboard 
+    (Global Claims or Two Pot) based on the claim_type.
+    """
+    claim = get_object_or_404(UnityClaim, pk=claim_id)
+    
+    # Determine the correct dashboard to return to before we delete the object
+    redirect_url = 'global_two_pot' if claim.claim_type == 'Two Pot' else 'global_claims'
+    
+    if request.method == 'POST':
+        member_name = f"{claim.member_name} {claim.member_surname}"
+        claim.delete()
+        messages.success(request, f"Claim for {member_name} was successfully deleted.")
+    
+    return redirect(redirect_url)
+    
+
 @login_required
 def dashboard(request):
     """Displays the user dashboard with notification badges."""
@@ -3989,6 +4015,8 @@ def outlook_delegated_action(request, delegation_id):
     Updated to support newline-to-HTML conversion for email bodies.
     """
     from django.template.loader import render_to_string 
+    # 🚀 NEW: Import your local inbox model here (Adjust if your model is named UnityInbox)
+    from .models import OutlookInbox 
     
     delegation = get_object_or_404(EmailDelegation, pk=delegation_id)
     
@@ -4133,9 +4161,13 @@ def outlook_delegated_action(request, delegation_id):
         else:
             email_display = email_data
 
+    # 🚀 NEW: Fetch the local inbox record using the delegation's email_id 🚀
+    local_inbox = OutlookInbox.objects.filter(email_id=delegation.email_id).first()
+
     context = {
         'delegation': delegation,
         'email': email_display,
+        'local_inbox': local_inbox,  # 🚀 NEW: Pass the local inbox data to the template 🚀
         'attachments': attachments,
         'notes': delegation.notes.all().order_by('-created_at'),
         'target_email': target_email,
@@ -4721,7 +4753,7 @@ def export_two_pot_tracking(request):
 def export_global_claims_excel(request):
     """
     Exports the Global Claims register to an Excel spreadsheet, 
-    respecting active search filters.
+    respecting active search filters, but EXCLUDING 'Two Pot' claims.
     """
     from datetime import datetime, date
     from django.db.models import Q
@@ -4732,7 +4764,9 @@ def export_global_claims_excel(request):
 
     # --- 1. Search Filtering (Matches global_claims view) ---
     search_query = request.GET.get('q', '').strip()
-    claims_queryset = UnityClaim.objects.all()
+    
+    # 🚀 EXCLUDE 'Two Pot' claims from the global export 🚀
+    claims_queryset = UnityClaim.objects.exclude(claim_type='Two Pot')
 
     if search_query:
         claims_queryset = claims_queryset.filter(

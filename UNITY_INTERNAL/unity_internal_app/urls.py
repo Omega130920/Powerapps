@@ -94,6 +94,7 @@ urlpatterns = [
     path('bank/bulk-process/', views.process_bulk_allocation, name='process_bulk_allocation'),
     path('bank/bulk-billing/', views.bulk_billing_dashboard, name='bulk_billing_dashboard'),
     path('sla-report/', views.sla_report_view, name='sla_report'),
+    path('claim/delete/<int:claim_id>/', views.delete_global_claim, name='delete_global_claim'),
 
     # Excel Export View
     path('sla-report/export/', views.export_sla_report_excel, name='export_sla_excel'),

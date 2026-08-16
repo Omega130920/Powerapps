@@ -144,12 +144,26 @@ class OutlookGraphService:
                 body = msg.get('body', {}).get('content')
                 received_str = msg.get('receivedDateTime')
 
+                # Extract CC and BCC recipients from Microsoft's JSON structure
+                cc_list = [
+                    recip.get('emailAddress', {}).get('address', '') 
+                    for recip in msg.get('ccRecipients', []) 
+                    if recip.get('emailAddress', {}).get('address')
+                ]
+                bcc_list = [
+                    recip.get('emailAddress', {}).get('address', '') 
+                    for recip in msg.get('bccRecipients', []) 
+                    if recip.get('emailAddress', {}).get('address')
+                ]
+
                 OutlookInbox.objects.update_or_create(
                     email_id=email_id,
                     defaults={
                         'subject': subject,
                         'sender_name': sender_name,
                         'sender_address': sender_addr,
+                        'cc_addresses': ", ".join(cc_list),
+                        'bcc_addresses': ", ".join(bcc_list),
                         'body_content': body,
                         'received_at': parser.isoparse(received_str) if received_str else None
                     }
@@ -169,7 +183,7 @@ class OutlookGraphService:
         """
         endpoint = (
             f"mailFolders/inbox/messages?$top={top_count}"
-            "&$select=subject,from,receivedDateTime,isRead,body"
+            "&$select=subject,from,receivedDateTime,isRead,body,ccRecipients,bccRecipients"
             "&$orderby=receivedDateTime desc"
         )
         

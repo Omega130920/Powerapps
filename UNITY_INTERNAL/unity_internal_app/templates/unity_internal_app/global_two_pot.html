@@ -155,6 +155,15 @@
                             data-infund_cert_date="{{ claim.infund_preservation_cert_received_date|date:'Y-m-d' }}"
                         >Edit</button>
 
+                        <!-- DELETE BUTTON FORM -->
+                        <form action="{% url 'delete_global_claim' claim.id %}" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this claim? This action cannot be undone.');">
+                            {% csrf_token %}
+                            <button type="submit" class="dashboard-button" style="padding: 4px 10px; font-size: 11px; background-color: #d32f2f; margin-left: 5px;" title="Delete Claim">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                        <!-- END DELETE BUTTON -->
+
                         <template id="notes-data-{{ claim.id }}">
                             {% for note in claim.notes.all %}
                                 <tr>

@@ -75,6 +75,28 @@ def login_view(request):
 from acvv.services.outlook_graph_service import OutlookGraphService
 
 @login_required
+def delete_global_claim(request, claim_id):
+    """Securely delete an ACVV claim (supports both Two-Pot and standard global claims)."""
+    if request.method == 'POST':
+        claim = get_object_or_404(AcvvClaim, id=claim_id)
+        claim_type = claim.claim_type
+        member_name = f"{claim.member_surname}, {claim.member_name}"
+        
+        try:
+            claim.delete()
+            messages.success(request, f"Claim for {member_name} has been successfully deleted.")
+        except Exception as e:
+            print(f"\n❌ [CRITICAL DATABASE DELETE ERROR]: {str(e)}\n")
+            messages.error(request, f"Failed to delete claim: {str(e)}")
+            
+        # Redirect back to the correct dashboard depending on claim type
+        if claim_type == 'Two Pot':
+            return redirect('global_two_pot')
+        return redirect('global_claims')
+        
+    return redirect('global_claims')
+
+@login_required
 def test_graph_access(request):
     # This calls the root level without looking into a specific email item
     # It checks if the app can even "talk" to the mailbox at all

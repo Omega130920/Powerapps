@@ -31,6 +31,7 @@ urlpatterns = [
     path('global-claims/', views.global_claims_view, name='global_claims'),
     path('two-pot-global/', views.global_two_pot_view, name='global_two_pot'),
     path('save-global-claim/', views.save_global_claim, name='save_global_claim'),
+    path('delete-global-claim/<int:claim_id>/', views.delete_global_claim, name='delete_global_claim'),
     path('export-claims-excel/', views.export_global_claims_excel, name='export_global_claims_excel'),
     path('acvv-records/<str:company_code>/save-claim/', views.save_acvv_claim, name='save_acvv_claim'),
     
