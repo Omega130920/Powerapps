@@ -4583,13 +4583,15 @@ def get_branch_map(claims_queryset):
 @login_required
 def export_two_pot_invoice(request):
     """
-    Report 1: Spesifieke faktuur-formaat vir Cecile.
+    Report 1: Spesifieke faktuur-formaat vir Cecile (Only exports qualified 'YES' claims).
     """
     query = request.GET.get('q')
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
 
-    claims = UnityClaim.objects.filter(claim_type='Two Pot').order_by('claim_created_date')
+    # 🚀 Filter only 'Two Pot' claims where qualified is 'YES'
+    claims = UnityClaim.objects.filter(claim_type='Two Pot', qualified__iexact='YES').order_by('claim_created_date')
+    
     if query:
         claims = claims.filter(Q(id_number__icontains=query) | Q(member_surname__icontains=query))
     if start_date and end_date:
@@ -4632,12 +4634,17 @@ def export_two_pot_invoice(request):
             claim.company_code,
             branch_map.get(claim.company_code, ""),
             claim.agent or "",
-            "yes" if is_paid else "no",
+            "YES",  # Since it's filtered to only qualified rows, this will always be YES
             claim.date_submitted.strftime('%d/%m/%Y') if claim.date_submitted else '',
             "YES" if is_paid else "NO",
             "R37.95",
             "SUBMIT ONLINE"
         ])
+
+        # Apply borders to the appended row
+        for cell in ws[ws.max_row]:
+            cell.border = thin_border
+            cell.alignment = Alignment(vertical='center', horizontal='left')
 
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = f'attachment; filename="Two_Pot_Invoice_{timezone.now().strftime("%Y%m%d")}.xlsx"'
@@ -4708,7 +4715,9 @@ def export_two_pot_tracking(request):
     for claim in claims_queryset:
         initials = "".join([n[0] for n in claim.member_name.split() if n]) if claim.member_name else ""
         is_paid = str(claim.claim_status).upper().strip() == "PAID"
-        qualified_val = "YES" if is_paid else "NO"
+        
+        # 🚀 Pull the actual qualified value from the database column (fallback to 'NO' if empty)
+        qualified_val = str(claim.qualified or "NO").upper().strip()
         
         if is_paid:
             submit_date_label = claim.date_submitted.strftime('%d.%m.%Y') if claim.date_submitted else "Pending"
@@ -4725,7 +4734,7 @@ def export_two_pot_tracking(request):
             branch_map.get(claim.company_code, "Unknown"),
             "Savings Form Request",
             "Savings Form Submitted" if is_paid else "Member Emergency Savings Pot Withdrawal Requested",
-            qualified_val,
+            qualified_val,  # 🚀 Uses the actual database qualification status (YES or NO)
             submit_date_label,
             "YES" if is_paid else "",
             float(claim.claim_amount or 0),
