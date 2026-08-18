@@ -163,18 +163,20 @@
         </div>
     </div>
 
+    <!-- CLAIM MODAL -->
     <div id="claimModal" class="modal">
         <div class="modal-content">
             <div class="p-5 border-b flex justify-between items-center bg-white">
                 <div class="flex items-center gap-4">
                     <span class="text-2xl font-serif font-bold text-green-700 italic">futura</span>
-                    <h2 class="text-2xl font-light tracking-tight text-gray-800">Create New Claim</h2>
+                    <h2 class="text-2xl font-light tracking-tight text-gray-800">Create/Edit Claim</h2>
                 </div>
                 <button type="button" onclick="closeModal('claimModal')" class="text-gray-400 hover:text-red-600 transition text-3xl">&times;</button>
             </div>
-            <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}" enctype="multipart/form-data" class="p-8 grid grid-cols-1 md:grid-cols-4 gap-6 overflow-y-auto max-h-[85vh]">
+            <form id="claimForm" method="POST" action="{% url 'claim_list' %}" enctype="multipart/form-data" class="p-8 grid grid-cols-1 md:grid-cols-4 gap-6 overflow-y-auto max-h-[85vh]">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="add_claim_entry">
+                <input type="hidden" name="record_id" id="claim_record_id" value="">
                 <input type="hidden" name="next" value="{{ request.path }}">
                 <input type="hidden" name="membership_number" value="{{ member.membership_number }}">
                 <input type="hidden" id="claim_calc_stipend" value="{{ member.stipened }}">
@@ -224,16 +226,18 @@
         </div>
     </div>
 
+    <!-- AD HOC MODAL -->
     <div id="adhocModal" class="modal">
         <div class="modal-content">
             <div class="p-5 border-b bg-white flex flex-col items-center relative">
                 <button type="button" onclick="closeModal('adhocModal')" class="absolute right-5 top-5 text-gray-400 hover:text-red-600 transition text-3xl">&times;</button>
                 <p class="text-sm font-semibold text-gray-500">ID/Passport: {{ member.id_number }}</p>
-                <h2 class="text-3xl font-light tracking-tight text-gray-800">Create New Ad Hoc Claim</h2>
+                <h2 class="text-3xl font-light tracking-tight text-gray-800">Create/Edit Ad Hoc Claim</h2>
             </div>
-            <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}" enctype="multipart/form-data" class="p-8 grid grid-cols-1 md:grid-cols-4 gap-4 overflow-y-auto max-h-[85vh]">
+            <form id="adhocForm" method="POST" action="{% url 'adhoc_list' %}" enctype="multipart/form-data" class="p-8 grid grid-cols-1 md:grid-cols-4 gap-4 overflow-y-auto max-h-[85vh]">
                 {% csrf_token %}
                 <input type="hidden" name="action" value="add_adhoc_entry">
+                <input type="hidden" name="record_id" id="adhoc_record_id" value="">
                 <input type="hidden" name="next" value="{{ request.path }}">
                 <input type="hidden" name="membership_number" value="{{ member.membership_number }}">
                 <input type="hidden" id="calc_stipend" value="{{ member.stipened }}">
@@ -348,7 +352,14 @@
                     <div id="claims_tab" class="tab-pane">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="text-emerald-900 font-bold uppercase text-sm">Linked Claim Records</h3>
-                            <span class="text-[11px] font-semibold text-emerald-800 bg-white bg-opacity-50 px-3 py-1 rounded-full shadow-sm"><i class="fas fa-hand-pointer mr-1"></i> Click any claim row to open its history</span>
+                            <div class="flex gap-3 items-center">
+                                <span class="text-[11px] font-semibold text-emerald-800 bg-white bg-opacity-50 px-3 py-1 rounded-full shadow-sm">
+                                    <i class="fas fa-hand-pointer mr-1"></i> Click any claim row to open its history
+                                </span>
+                                <button type="button" onclick="openClaimModal()" class="px-4 py-2 bg-emerald-700 text-white text-xs font-bold rounded-lg shadow hover:bg-emerald-800 transition">
+                                    <i class="fas fa-plus mr-1"></i> New Claim
+                                </button>
+                            </div>
                         </div>
                         <table class="w-full registry-table">
                             <thead>
@@ -359,7 +370,7 @@
                                     <th>Age at Claim</th> 
                                     <th>Status</th>
                                     <th>Amount (R)</th>
-                                    <th>Attachment</th>
+                                    <th>Attachment & Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -372,13 +383,18 @@
                                     <td><span class="text-[10px] font-black uppercase">{{ claim.status }}</span></td>
                                     <td>{{ claim.amount_requested }}</td>
                                     <td>
-                                        {% if claim.attachment_path %}
-                                            <a href="/media/{{ claim.attachment_path }}" target="_blank" onclick="event.stopPropagation()" class="inline-flex items-center gap-1.5 text-xs bg-emerald-800 hover:bg-emerald-900 text-white font-semibold py-1 px-2.5 rounded-md transition shadow-sm">
-                                                <i class="fas fa-paperclip"></i> View Doc
-                                            </a>
-                                        {% else %}
-                                            <span class="text-xs opacity-40 italic">None Loaded</span>
-                                        {% endif %}
+                                        <div class="flex items-center gap-2">
+                                            {% if claim.attachment_path %}
+                                                <a href="/media/{{ claim.attachment_path }}" target="_blank" onclick="event.stopPropagation()" class="inline-flex items-center justify-center w-7 h-7 bg-emerald-800 hover:bg-emerald-900 text-white rounded-md transition shadow-sm" title="View Document">
+                                                    <i class="fas fa-paperclip"></i>
+                                                </a>
+                                            {% else %}
+                                                <span class="text-xs opacity-40 italic">None</span>
+                                            {% endif %}
+                                            <button type="button" onclick="event.stopPropagation(); openClaimModal('{{ claim.id }}')" class="inline-flex items-center gap-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1 px-2.5 rounded-md transition shadow-sm">
+                                                <i class="fas fa-edit"></i> Edit
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                                 
@@ -421,16 +437,19 @@
                     <div id="adhoc_tab" class="tab-pane">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="text-emerald-900 font-bold uppercase text-sm">Linked Ad Hoc Records</h3>
-                            
+                            <button type="button" onclick="openAdHocModal()" class="px-4 py-2 bg-emerald-700 text-white text-xs font-bold rounded-lg shadow hover:bg-emerald-800 transition">
+                                <i class="fas fa-plus mr-1"></i> Add Ad Hoc Entry
+                            </button>
                         </div>
                         <table class="w-full registry-table">
                             <thead>
                                 <tr class="border-b border-white border-opacity-20">
                                     <th>Reason</th>
                                     <th>Claim Date</th>
-                                    <th>Maturity</th> <th>Status</th>
+                                    <th>Maturity</th> 
+                                    <th>Status</th>
                                     <th>Requested (R)</th>
-                                    <th>Attachment</th>
+                                    <th>Attachment & Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -438,16 +457,22 @@
                                 <tr class="hover:bg-white hover:bg-opacity-10 transition">
                                     <td class="font-bold text-emerald-900">{{ adhoc.title }}</td>
                                     <td>{{ adhoc.claim_form_date|date:"d M Y" }}</td>
-                                    <td class="font-bold text-emerald-800">{{ adhoc.maturity_display }}</td> <td><span class="text-[10px] font-black uppercase">{{ adhoc.status }}</span></td>
+                                    <td class="font-bold text-emerald-800">{{ adhoc.maturity_display }}</td> 
+                                    <td><span class="text-[10px] font-black uppercase">{{ adhoc.status }}</span></td>
                                     <td>{{ adhoc.amount_requested }}</td>
                                     <td>
-                                        {% if adhoc.supporting_document %}
-                                            <a href="/media/{{ adhoc.supporting_document }}" target="_blank" class="inline-flex items-center gap-1.5 text-xs bg-emerald-800 hover:bg-emerald-900 text-white font-semibold py-1 px-2.5 rounded-md transition shadow-sm">
-                                                <i class="fas fa-file-alt"></i> View File
-                                            </a>
-                                        {% else %}
-                                            <span class="text-xs opacity-40 italic">None Loaded</span>
-                                        {% endif %}
+                                        <div class="flex items-center gap-2">
+                                            {% if adhoc.supporting_document %}
+                                                <a href="/media/{{ adhoc.supporting_document }}" target="_blank" onclick="event.stopPropagation()" class="inline-flex items-center justify-center w-7 h-7 bg-emerald-800 hover:bg-emerald-900 text-white rounded-md transition shadow-sm" title="View Document">
+                                                    <i class="fas fa-paperclip"></i>
+                                                </a>
+                                            {% else %}
+                                                <span class="text-xs opacity-40 italic">None</span>
+                                            {% endif %}
+                                            <button type="button" onclick="event.stopPropagation(); openAdHocModal('{{ adhoc.id }}')" class="inline-flex items-center gap-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold py-1 px-2.5 rounded-md transition shadow-sm">
+                                                <i class="fas fa-edit"></i> Edit
+                                            </button>
+                                        </div>
                                     </td>
                                 </tr>
                                 {% empty %}
@@ -479,7 +504,7 @@
                         </table>
                     </div>
 
-<div id="email-log" class="tab-pane">
+                    <div id="email-log" class="tab-pane">
                         <table class="w-full">
                             <thead>
                                 <tr class="text-left border-b border-white border-opacity-10">
@@ -526,117 +551,120 @@
                         </table>
                     </div>
 
-<div id="direct-email" class="tab-pane">
-    <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}" enctype="multipart/form-data">
-        {% csrf_token %}
-        <div class="space-y-4">
-            <input type="hidden" name="action" value="send_direct_email">
-            <input type="hidden" name="email_html_content" id="email_html_content">
-            
-            <!-- To Field -->
-            <div>
-                <label class="text-xs font-bold uppercase opacity-60">To:</label>
-                <input type="email" name="to_email" value="{{ member.email_1 }}" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10 w-full p-2 rounded">
-            </div>
-
-            <!-- BCC Field -->
-            <div>
-                <label class="text-xs font-bold uppercase opacity-60">BCC:</label>
-                <input type="email" name="bcc_email" placeholder="Optional BCC recipient" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10 w-full p-2 rounded">
-            </div>
-
-            <!-- Subject Field -->
-            <div>
-                <label class="text-xs font-bold uppercase opacity-60">Subject:</label>
-                <input type="text" name="subject" value="Regarding PSSUBF Membership: {{ member.membership_number }}" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10 w-full p-2 rounded">
-            </div>
-
-            <!-- Attachment Upload Field -->
-            <div>
-                <label class="text-xs font-bold uppercase opacity-60">Attach Files:</label>
-                <input type="file" name="attachments" multiple class="glass-input bg-white bg-opacity-20 border-white border-opacity-10 w-full p-2 rounded">
-            </div>
-
-            <!-- Rich Text Editor -->
-            <div id="editor" class="rich-text-editor p-3 bg-white bg-opacity-40 rounded" contenteditable="true" style="min-height: 150px;">
-                <p>Dear {{ member.first_name }},</p>
-                <p><br></p>
-                <p>Kind regards,</p>
-            </div>
-
-            <!-- Submit Button -->
-            <div class="text-right">
-                <button type="submit" onclick="document.getElementById('email_html_content').value = document.getElementById('editor').innerHTML" class="action-btn bg-emerald-800 text-white px-4 py-2 rounded">Send & Log</button>
-            </div>
-        </div>
-    </form>
-</div>
-
-<div id="notes" class="tab-pane">
-
-        <!-- History Table Section matching log.html style -->
-        <div class="glass-card" style="background: rgba(255, 255, 255, 0.25); border: 1px solid var(--glass-border); border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);">
-            <div class="glass-header header-dark" style="padding: 16px 20px; background: rgba(33, 37, 41, 0.85); color: white; font-weight: 700; font-size: 0.95rem; display: flex; justify-content: space-between; align-items: center;">
-                <span>LOG HISTORY FOR MEMBER {{ member.membership_number }}</span>
-                <span style="font-size: 0.8rem; font-weight: normal; opacity: 0.8;">(Click row to edit in log page)</span>
-            </div>
-            
-            <div class="table-responsive" style="overflow-x: auto; padding: 10px;">
-                <table class="custom-table" style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
-                    <thead>
-                        <tr style="border-bottom: 2px solid var(--glass-border);">
-                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">MIP Number</th>
-                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Action Type</th>
-                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Call Type</th>
-                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Action Method</th>
-                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Confirm Category</th>
-                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Agent</th>
-                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Internal Note</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for log in recent_logs %}
-                            {% if log.mip_number == member.membership_number %}
-                            <tr style="cursor: pointer; transition: background 0.2s;" 
-                                onmouseover="this.style.background='rgba(255, 255, 255, 0.5)'" 
-                                onmouseout="this.style.background='transparent'"
-                                onclick="window.location.href='{% url 'pssubf_log_page' %}?edit_id={{ log.id }}'">
+                    <div id="direct-email" class="tab-pane">
+                        <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}" enctype="multipart/form-data">
+                            {% csrf_token %}
+                            <div class="space-y-4">
+                                <input type="hidden" name="action" value="send_direct_email">
+                                <input type="hidden" name="email_html_content" id="email_html_content">
                                 
-                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle; white-space: nowrap;"><strong>{{ log.mip_number|default:"-" }}</strong></td>
-                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ log.call_direction|default:"-" }}</td>
-                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ log.call_type|default:"-" }}</td>
-                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ log.call_method|default:"-" }}</td>
-                                
-                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">
-                                    {% if log.category == 'Urgent' %}
-                                        <span class="badge badge-urgent" style="background: #dc3545; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">Urgent</span>
-                                    {% elif log.category == 'Claim' %}
-                                        <span class="badge badge-claim" style="background: #0dcaf0; color: black; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">Claim</span>
-                                    {% elif log.category == 'Follow-up' %}
-                                        <span class="badge badge-followup" style="background: #ffc107; color: black; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">Follow-up</span>
-                                    {% else %}
-                                        <span class="badge badge-default" style="background: #6c757d; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">{{ log.category }}</span>
-                                    {% endif %}
-                                </td>
+                                <!-- To Field -->
+                                <div>
+                                    <label class="text-xs font-bold uppercase opacity-60">To:</label>
+                                    <input type="email" name="to_email" value="{{ member.email_1 }}" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10 w-full p-2 rounded">
+                                </div>
 
-                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ log.created_by }}</td>
+                                <!-- BCC Field -->
+                                <div>
+                                    <label class="text-xs font-bold uppercase opacity-60">BCC:</label>
+                                    <input type="email" name="bcc_email" placeholder="Optional BCC recipient" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10 w-full p-2 rounded">
+                                </div>
 
-                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">
-                                    <span class="note-truncate" style="display: inline-block; max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle;" title="{{ log.note_content }}">
-                                        {{ log.note_content }}
-                                    </span>
-                                </td>
-                            </tr>
-                            {% endif %}
-                        {% empty %}
-                            <tr>
-                                <td colspan="7" style="text-align: center; padding: 30px; opacity: 0.6;">
-                                    No log entries recorded for this MIP number.
-                                </td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                                <!-- Subject Field -->
+                                <div>
+                                    <label class="text-xs font-bold uppercase opacity-60">Subject:</label>
+                                    <input type="text" name="subject" value="Regarding PSSUBF Membership: {{ member.membership_number }}" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10 w-full p-2 rounded">
+                                </div>
+
+                                <!-- Attachment Upload Field -->
+                                <div>
+                                    <label class="text-xs font-bold uppercase opacity-60">Attach Files:</label>
+                                    <input type="file" name="attachments" multiple class="glass-input bg-white bg-opacity-20 border-white border-opacity-10 w-full p-2 rounded">
+                                </div>
+
+                                <!-- Rich Text Editor -->
+                                <div id="editor" class="rich-text-editor p-3 bg-white bg-opacity-40 rounded" contenteditable="true" style="min-height: 150px;">
+                                    <p>Dear {{ member.first_name }},</p>
+                                    <p><br></p>
+                                    <p>Kind regards,</p>
+                                </div>
+
+                                <!-- Submit Button -->
+                                <div class="text-right">
+                                    <button type="submit" onclick="document.getElementById('email_html_content').value = document.getElementById('editor').innerHTML" class="action-btn bg-emerald-800 text-white px-4 py-2 rounded">Send & Log</button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    <div id="notes" class="tab-pane">
+                        <!-- History Table Section matching log.html style -->
+                        <div class="glass-card" style="background: rgba(255, 255, 255, 0.25); border: 1px solid var(--glass-border); border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);">
+                            <div class="glass-header header-dark" style="padding: 16px 20px; background: rgba(33, 37, 41, 0.85); color: white; font-weight: 700; font-size: 0.95rem; display: flex; justify-content: space-between; align-items: center;">
+                                <span>LOG HISTORY FOR MEMBER {{ member.membership_number }}</span>
+                                <span style="font-size: 0.8rem; font-weight: normal; opacity: 0.8;">(Click row to edit in log page)</span>
+                            </div>
+                            
+                            <div class="table-responsive" style="overflow-x: auto; padding: 10px;">
+                                <table class="custom-table" style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                                    <thead>
+                                        <tr style="border-bottom: 2px solid var(--glass-border);">
+                                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">MIP Number</th>
+                                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Action Type</th>
+                                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Call Type</th>
+                                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Action Method</th>
+                                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Confirm Category</th>
+                                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Agent</th>
+                                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Internal Note</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for log in recent_logs %}
+                                            {% if log.mip_number == member.membership_number %}
+                                            <tr style="cursor: pointer; transition: background 0.2s;" 
+                                                onmouseover="this.style.background='rgba(255, 255, 255, 0.5)'" 
+                                                onmouseout="this.style.background='transparent'"
+                                                onclick="window.location.href='{% url 'pssubf_log_page' %}?edit_id={{ log.id }}'">
+                                                
+                                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle; white-space: nowrap;"><strong>{{ log.mip_number|default:"-" }}</strong></td>
+                                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ log.call_direction|default:"-" }}</td>
+                                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ log.call_type|default:"-" }}</td>
+                                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ log.call_method|default:"-" }}</td>
+                                                
+                                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">
+                                                    {% if log.category == 'Urgent' %}
+                                                        <span class="badge badge-urgent" style="background: #dc3545; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">Urgent</span>
+                                                    {% elif log.category == 'Claim' %}
+                                                        <span class="badge badge-claim" style="background: #0dcaf0; color: black; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">Claim</span>
+                                                    {% elif log.category == 'Follow-up' %}
+                                                        <span class="badge badge-followup" style="background: #ffc107; color: black; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">Follow-up</span>
+                                                    {% else %}
+                                                        <span class="badge badge-default" style="background: #6c757d; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">{{ log.category }}</span>
+                                                    {% endif %}
+                                                </td>
+
+                                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ log.created_by }}</td>
+
+                                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">
+                                                    <span class="note-truncate" style="display: inline-block; max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle;" title="{{ log.note_content }}">
+                                                        {{ log.note_content }}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                            {% endif %}
+                                        {% empty %}
+                                            <tr>
+                                                <td colspan="7" style="text-align: center; padding: 30px; opacity: 0.6;">
+                                                    No log entries recorded for this MIP number.
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -703,9 +731,70 @@
 
         function openModal(id) { 
             document.getElementById(id).style.display = 'block'; 
-            if(id === 'adhocModal') calculateAdHocFullValues(document.getElementById('claim_form_date').value);
-            if(id === 'claimModal') calculateClaimFullValues(document.getElementById('claim_form_date_field').value);
         }
+
+        function openClaimModal(recordId = null) {
+            const modal = document.getElementById('claimModal');
+            const form = document.getElementById('claimForm');
+            modal.style.display = 'block';
+
+            if (recordId && recordId !== 'None') {
+                form.querySelector('[name="action"]').value = "update_claim_entry";
+                document.getElementById('claim_record_id').value = recordId;
+
+                fetch(`/get-claim-details/${recordId}/`)
+                    .then(res => res.json())
+                    .then(data => {
+                        form.querySelector('[name="claim_type"]').value = data.claim_type || '';
+                        document.getElementById('claim_form_date_field').value = data.date_logged || '';
+                        document.getElementById('claim_portfolio').value = data.portfolio_value || 0;
+                        form.querySelector('[name="portfolio_date"]').value = data.portfolio_date || '';
+                        document.getElementById('claim_req').value = data.amount_requested || 0;
+                        form.querySelector('[name="description"]').value = data.description || '';
+                        
+                        calculateClaimFullValues(data.date_logged || '');
+                    })
+                    .catch(err => console.error("Error fetching claim details:", err));
+            } else {
+                form.reset();
+                form.querySelector('[name="action"]').value = "add_claim_entry";
+                document.getElementById('claim_record_id').value = "";
+                document.getElementById('claim_pop_afford').value = "Awaiting data...";
+                document.getElementById('pop_claim_age').value = "";
+            }
+        }
+
+        function openAdHocModal(recordId = null) {
+            const modal = document.getElementById('adhocModal');
+            const form = document.getElementById('adhocForm');
+            modal.style.display = 'block';
+
+            if (recordId && recordId !== 'None') {
+                form.querySelector('[name="action"]').value = "update_adhoc_entry";
+                document.getElementById('adhoc_record_id').value = recordId;
+
+                fetch(`/get-adhoc-details/${recordId}/`)
+                    .then(res => res.json())
+                    .then(data => {
+                        document.getElementById('claim_form_date').value = data.claim_form_date || '';
+                        form.querySelector('[name="title"]').value = data.title || '';
+                        document.getElementById('adhoc_portfolio').value = data.portfolio_value || 0;
+                        document.getElementById('adhoc_req').value = data.amount_requested || 0;
+                        form.querySelector('[name="comments"]').value = data.comments || '';
+                        
+                        calculateAdHocFullValues(data.claim_form_date || '');
+                    })
+                    .catch(err => console.error("Error fetching ad hoc details:", err));
+            } else {
+                form.reset();
+                form.querySelector('[name="action"]').value = "add_adhoc_entry";
+                document.getElementById('adhoc_record_id').value = "";
+                document.getElementById('pop_afford').value = "Awaiting data...";
+                document.getElementById('pop_adhoc_age').value = "";
+                document.getElementById('pop_maturity_display').value = "";
+            }
+        }
+
         function closeModal(id) { document.getElementById(id).style.display = 'none'; }
 
         // Expandable History Toggle Script
@@ -811,6 +900,42 @@
         }
 
         window.onclick = function(event) { if (event.target.classList.contains('modal')) { event.target.style.display = "none"; } }
+
+        // 🟢 AJAX INTERCEPTION FOR CLAIMS FORM (Fixed [object HTMLInputElement] bug)
+        document.getElementById('claimForm').addEventListener('submit', function(e) {
+            e.preventDefault(); 
+            let formData = new FormData(this);
+
+            fetch(this.getAttribute('action'), {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            }).then(response => {
+                if (response.ok) {
+                    location.reload(); 
+                } else {
+                    alert('Error saving claim record.');
+                }
+            }).catch(err => console.error('Submission error:', err));
+        });
+
+        // 🟢 AJAX INTERCEPTION FOR AD HOC FORM (Fixed [object HTMLInputElement] bug)
+        document.getElementById('adhocForm').addEventListener('submit', function(e) {
+            e.preventDefault(); 
+            let formData = new FormData(this);
+
+            fetch(this.getAttribute('action'), {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            }).then(response => {
+                if (response.ok) {
+                    location.reload(); 
+                } else {
+                    alert('Error saving ad hoc record.');
+                }
+            }).catch(err => console.error('Submission error:', err));
+        });
     </script>
 </body>
 </html>

@@ -49,16 +49,23 @@
     <form method="GET" action="{% url 'claim_list' %}" class="max-w-full mx-auto glass-card p-4 rounded-xl mb-6 flex flex-wrap items-center gap-3">
         <button type="button" onclick="window.location.href='{% url 'claim_list' %}'" class="p-2 text-green-800 hover:rotate-180 transition-transform duration-500 text-xl"><i class="fas fa-sync-alt"></i></button>
         
-        <div class="flex items-center bg-white rounded shadow-sm border border-gray-300">
-            <input type="date" name="date_filter" class="p-2 outline-none text-sm w-40">
-            <span class="bg-green-600 p-2.5 text-white"><i class="fas fa-calendar-alt"></i></span>
+        <!-- From Date Filter -->
+        <div class="flex items-center bg-white rounded shadow-sm border border-gray-300 overflow-hidden">
+            <span class="bg-green-700 px-3 py-2 text-white text-xs font-bold uppercase flex items-center">From</span>
+            <input type="date" name="date_from" value="{{ request.GET.date_from|default:'' }}" class="p-2 outline-none text-sm w-36">
+        </div>
+
+        <!-- To Date Filter -->
+        <div class="flex items-center bg-white rounded shadow-sm border border-gray-300 overflow-hidden">
+            <span class="bg-green-700 px-3 py-2 text-white text-xs font-bold uppercase flex items-center">To</span>
+            <input type="date" name="date_to" value="{{ request.GET.date_to|default:'' }}" class="p-2 outline-none text-sm w-36">
         </div>
 
         <select name="status_filter" class="p-2 border-r-8 border-green-600 rounded bg-white text-sm outline-none min-w-[160px] shadow-sm">
             <option value="">Claim Status</option>
-            <option>Created</option>
-            <option>Paid</option>
-            <option>Rejected</option>
+            <option value="Created" {% if request.GET.status_filter == 'Created' %}selected{% endif %}>Created</option>
+            <option value="Paid" {% if request.GET.status_filter == 'Paid' %}selected{% endif %}>Paid</option>
+            <option value="Rejected" {% if request.GET.status_filter == 'Rejected' %}selected{% endif %}>Rejected</option>
         </select>
 
         <div class="flex-grow">

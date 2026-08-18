@@ -1887,7 +1887,7 @@ def download_claim_pdf(request, claim_id):
 # --- Main Claims View ---
 @login_required
 def claim_list_view(request):
-    """Main view for the full Claim Registry with Dynamic Age Calculation"""
+    """Main view for the full Claim Registry with Dynamic Age Calculation and Filters"""
     
     def clean_numeric(val):
         if not val or str(val).lower() == 'undefined' or str(val).strip() == '':
@@ -1935,7 +1935,7 @@ def claim_list_view(request):
                     monthly_income_payment=clean_numeric(request.POST.get('monthly_income')),
                     date_paid=request.POST.get('date_paid') or None,
                     loaded_by_agent=request.user.username,
-                    attachment_path=file_saved_path # Saves path properly
+                    attachment_path=file_saved_path
                 )
                 new_claim.save()
 
@@ -1992,11 +1992,18 @@ def claim_list_view(request):
 
                 messages.success(request, f"Claim {claim_id} updated.")
 
+            elif action == 'delete_claim_entry':
+                claim_id = request.POST.get('claim_id')
+                claim = get_object_or_404(ClaimList, id=claim_id)
+                claim_ref = claim.reference_no
+                claim.delete()
+                messages.success(request, f"Claim {claim_ref} deleted successfully.")
+
             PssubfAction.objects.create(
-                task_email_id=f"CLAIM_{m_num}",
+                task_email_id=f"CLAIM_{m_num or 'GENERAL'}",
                 action_type="Claim Record Managed",
                 action_user=request.user.username,
-                note_content=f"Action: {action} | Status: {request.POST.get('status')}",
+                note_content=f"Action: {action} | Status: {request.POST.get('status', 'N/A')}",
                 action_timestamp=timezone.now()
             )
             return redirect('claim_list')
@@ -2004,12 +2011,25 @@ def claim_list_view(request):
         except Exception as e:
             messages.error(request, f"Error: {str(e)}")
 
-    # Fetching logic
+    # Fetching & Filtering Logic
     membership_number = request.GET.get('membership_number')
+    status_filter = request.GET.get('status_filter')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+
     claims = ClaimList.objects.all().select_related('beneficiary').order_by('-date_logged')
     
     if membership_number:
-        claims = claims.filter(beneficiary__membership_number=membership_number)
+        claims = claims.filter(beneficiary__membership_number__icontains=membership_number)
+    
+    if status_filter:
+        claims = claims.filter(status=status_filter)
+        
+    if date_from:
+        claims = claims.filter(date_logged__gte=date_from)
+        
+    if date_to:
+        claims = claims.filter(date_logged__lte=date_to)
 
     # DYNAMIC DISPLAY CALCULATION: Age at Claim
     for c in claims:
