@@ -3458,15 +3458,39 @@ def global_claims_view(request):
     Integrated: Email Pre-loading for instant preview (No AJAX required).
     """
     query = request.GET.get('q')
-    base_claims = UnityClaim.objects.exclude(claim_type='Two Pot')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    
+    # Start with the base queryset and annotate the Last Action Date (LAD)
+    # Note: Assuming the related field on your model is 'created_at' based on your HTML template.
+    base_claims = UnityClaim.objects.exclude(claim_type='Two Pot').annotate(
+        lad_date=Max('notes__created_at')
+    )
 
+    # 1. Apply Text Search Filter
     if query:
-        claims = base_claims.filter(
+        base_claims = base_claims.filter(
             Q(id_number__icontains=query) | 
             Q(member_surname__icontains=query) | 
             Q(company_code__icontains=query)
-        ).order_by('-claim_created_date')
+        )
+
+    # 2. Apply Date Filters (Filtering on claim_created_date)
+    if date_from:
+        base_claims = base_claims.filter(claim_created_date__gte=date_from)
+        
+    if date_to:
+        base_claims = base_claims.filter(claim_created_date__lte=date_to)
+
+    # 🚀 CALCULATE THE TRUE TOTAL HERE (Before slicing or pagination)
+    total_claims_count = base_claims.count()
+
+    # 3. Apply Ordering and Default Limits
+    # If any filter is active, return all matching results (to allow pagination to handle the rest)
+    if query or date_from or date_to:
+        claims = base_claims.order_by('-claim_created_date')
     else:
+        # If no filters are applied, just show the top 50 recent claims to save load time
         claims = base_claims.order_by('-claim_created_date')[:50] 
 
     # --- 1. PRE-FETCH EMAIL CONTENT FOR TABLE ICONS ---
@@ -3493,7 +3517,7 @@ def global_claims_view(request):
 
     all_companies = UnityMgListing.objects.values('a_company_code', 'b_company_name', 'c_agent')
     
-    # --- 🚀 ADDED: Fetch users for the Agent Dropdown ---
+    # --- 🚀 Fetch users for the Agent Dropdown ---
     available_users = User.objects.filter(is_active=True).order_by('username')
 
     # --- 2. FETCH DELEGATIONS FOR MODAL DROPDOWN ---
@@ -3516,12 +3540,15 @@ def global_claims_view(request):
 
     context = {
         'claims': claims,
+        'total_claims_count': total_claims_count,
         'all_companies': all_companies,
         'my_delegated_emails': my_delegated_emails,
-        'available_users': available_users, # 🚀 Added to context
+        'available_users': available_users, 
         'is_two_pot_view': False
     }
+    
     return render(request, 'unity_internal_app/global_claims.html', context)
+
 
 @login_required
 def global_two_pot_view(request):
@@ -4762,20 +4789,24 @@ def export_two_pot_tracking(request):
 def export_global_claims_excel(request):
     """
     Exports the Global Claims register to an Excel spreadsheet, 
-    respecting active search filters, but EXCLUDING 'Two Pot' claims.
+    respecting active search and date filters, but EXCLUDING 'Two Pot' claims.
     """
     from datetime import datetime, date
-    from django.db.models import Q
+    from django.db.models import Q, Max
     import openpyxl
     from openpyxl.styles import PatternFill, Font, Border, Side, Alignment
     from openpyxl.utils import get_column_letter
     from django.http import HttpResponse
 
-    # --- 1. Search Filtering (Matches global_claims view) ---
+    # --- 1. Search & Date Filtering (Matches global_claims view) ---
     search_query = request.GET.get('q', '').strip()
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
     
-    # 🚀 EXCLUDE 'Two Pot' claims from the global export 🚀
-    claims_queryset = UnityClaim.objects.exclude(claim_type='Two Pot')
+    # Start with base queryset and annotate LAD
+    claims_queryset = UnityClaim.objects.exclude(claim_type='Two Pot').annotate(
+        lad_date=Max('notes__created_at')
+    )
 
     if search_query:
         claims_queryset = claims_queryset.filter(
@@ -4784,6 +4815,12 @@ def export_global_claims_excel(request):
             Q(company_code__icontains=search_query) |
             Q(member_name__icontains=search_query)
         )
+
+    if date_from:
+        claims_queryset = claims_queryset.filter(claim_created_date__gte=date_from)
+        
+    if date_to:
+        claims_queryset = claims_queryset.filter(claim_created_date__lte=date_to)
 
     claims = list(claims_queryset.order_by('-claim_created_date', 'member_surname'))
 
@@ -4808,7 +4845,7 @@ def export_global_claims_excel(request):
         'ID Number', 'MIP Number', 'Claim Type', 'Exit Reason', 
         'Claim Allocation', 'Claim Status', 'Payment Option', 
         'Claim Amount', 'Created Date', 'Last Contrib. Date', 
-        'Date Submitted', 'Date Paid', 'Vested Pot Paid Date', 
+        'Date Submitted', 'Date Paid', 'LAD', 'Vested Pot Paid Date', 
         'Savings Pot Paid Date', 'In-Fund Cert Date'
     ]
     ws.append(headers)
@@ -4838,6 +4875,7 @@ def export_global_claims_excel(request):
             claim.last_contribution_date.strftime('%Y-%m-%d') if claim.last_contribution_date else '',
             claim.date_submitted.strftime('%Y-%m-%d') if claim.date_submitted else '',
             claim.date_paid.strftime('%Y-%m-%d') if claim.date_paid else '',
+            claim.lad_date.strftime('%Y-%m-%d') if getattr(claim, 'lad_date', None) else '',
             claim.vested_pot_paid_date.strftime('%Y-%m-%d') if getattr(claim, 'vested_pot_paid_date', None) else '',
             claim.savings_pot_paid_date.strftime('%Y-%m-%d') if getattr(claim, 'savings_pot_paid_date', None) else '',
             claim.infund_preservation_cert_received_date.strftime('%Y-%m-%d') if getattr(claim, 'infund_preservation_cert_received_date', None) else '',
@@ -4849,8 +4887,8 @@ def export_global_claims_excel(request):
             cell.border = thin_border
             cell.alignment = Alignment(vertical='center')
 
-    # --- 5. Column Formatting / Widths ---
-    column_widths = [15, 15, 20, 20, 18, 15, 15, 18, 20, 18, 25, 15, 15, 15, 15, 15, 18, 18, 18]
+    # --- 5. Column Formatting / Widths (Expanded to 20 columns to fit LAD) ---
+    column_widths = [15, 15, 20, 20, 18, 15, 15, 18, 20, 18, 25, 15, 15, 15, 15, 15, 15, 18, 18, 18]
     for i, width in enumerate(column_widths):
         ws.column_dimensions[get_column_letter(i+1)].width = width
 
