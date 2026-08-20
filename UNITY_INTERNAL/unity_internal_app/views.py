@@ -628,7 +628,7 @@ def unity_information(request: HttpRequest, company_code):
 
     my_delegated_emails = EmailDelegation.objects.filter(assigned_user=request.user).exclude(status__in=['COMP', 'CLS', 'DONE']).order_by('-received_at')
 
-    # --- 6. HANDLE POST REQUESTS ---
+# --- 6. HANDLE POST REQUESTS ---
     if request.method == 'POST':
         if request.POST.get('email_submission_action') == 'send_email_and_log' or request.POST.get('action') == 'send_outgoing_member_note':
             subject = request.POST.get('member_email_subject_reply', 'Claim Update')
@@ -643,11 +643,17 @@ def unity_information(request: HttpRequest, company_code):
             attachments = request.FILES.getlist('attachments')
 
             if recipient and email_body_html:
-                signature_html = render_to_string('unity_internal_app/email_signature.html')
-                final_email_content = f"{email_body_html}<br>{signature_html}"
+                # 🚀 FIX: Removed manual signature rendering. Services.py handles it now.
+                # signature_html = render_to_string('unity_internal_app/email_signature.html')
+                # final_email_content = f"{email_body_html}<br>{signature_html}"
                 
                 response = OutlookGraphService.send_outlook_email(
-                    settings.OUTLOOK_EMAIL_ADDRESS, recipient, subject, final_email_content, 'HTML', 
+                    target_email=settings.OUTLOOK_EMAIL_ADDRESS, 
+                    recipient_email=recipient, 
+                    subject=subject, 
+                    body_content=email_body_html, # 🚀 Pass raw HTML body without signature attached
+                    content_type='HTML', 
+                    user=request.user, # 🚀 Pass user so services.py knows whose signature to inject
                     attachments=attachments,
                     cc_email=cc_recipients,    
                     bcc_email=bcc_recipients   
@@ -3579,6 +3585,9 @@ def global_two_pot_view(request):
         except ValueError:
             pass
 
+    # 🚀 NEW: Get the total count after filters are applied
+    total_claims_count = base_claims.count()
+
     paginator = Paginator(base_claims, 12) 
     page_number = request.GET.get('page')
     try:
@@ -3637,6 +3646,7 @@ def global_two_pot_view(request):
         'search_query': query, 
         'start_date': start_date,
         'end_date': end_date,
+        'total_claims_count': total_claims_count, # 🚀 NEW: Passed to template
     }
     return render(request, 'unity_internal_app/global_two_pot.html', context)
 
@@ -3745,16 +3755,16 @@ def save_global_claim(request):
 
                 if recipient and subject:
                     formatted_body = raw_body.replace('\n', '<br>')
-                    signature_html = render_to_string('unity_internal_app/email_signature.html')
-                    final_email_content = f"{formatted_body}<br>{signature_html}"
+                    # 🚀 FIX: Removed signature rendering here as well.
                     
                     try:
                         result = OutlookGraphService.send_outlook_email(
                             target_email=settings.OUTLOOK_EMAIL_ADDRESS,
                             recipient_email=recipient,
                             subject=subject,
-                            body_content=final_email_content,
-                            content_type='HTML'
+                            body_content=formatted_body, # 🚀 Pass formatted body only
+                            content_type='HTML',
+                            user=request.user # 🚀 Pass user for service-level signature generation
                         )
                         if result.get('success'):
                             UnityClaimNote.objects.create(
@@ -3918,19 +3928,14 @@ def send_email_view(request):
             messages.error(request, "All fields are required.")
             return render(request, 'unity_internal_app/send_email_form.html', {'target_email': target_email})
         
-        # --- 🚀 INTEGRATE SIGNATURE 🚀 ---
-        # 1. Render the signature template
-        signature_html = render_to_string('unity_internal_app/email_signature.html')
+        # 🚀 FIX: Removed local signature template rendering.
         
-        # 2. Append the signature to the user-provided body
-        final_body_html = f"{body_html}<br>{signature_html}"
-        
-        # Call the service function with the combined HTML content
+        # Call the service function with the raw user body
         response = OutlookGraphService.send_outlook_email(
             target_email=sender, 
             recipient_email=recipient, 
             subject=subject, 
-            body_content=final_body_html, # Using the combined content
+            body_content=body_html, # 🚀 Pass body directly; services.py appends the correct signature
             content_type='HTML',
             user=request.user
         )
@@ -4039,20 +4044,13 @@ def outlook_delegated_box(request):
 def outlook_delegated_action(request, delegation_id):
     """
     Handles Notes, Replies, Metadata Updates, RESTORATION, and COMPLETION.
-    Updated to support newline-to-HTML conversion for email bodies.
+    Updated to support newline-to-HTML conversion for email bodies and TO/CC/BCC tracking.
     """
-    from django.template.loader import render_to_string 
-    # 🚀 NEW: Import your local inbox model here (Adjust if your model is named UnityInbox)
-    from .models import OutlookInbox 
-    
     delegation = get_object_or_404(EmailDelegation, pk=delegation_id)
     
-    # --- ROLE-BASED ACCESS CONTROL ---
+    # We leave is_manager here solely for the template context, 
+    # but the authorization block restricting access has been removed.
     is_manager = request.user.username.lower() == 'omega' or request.user.is_superuser
-    
-    if not is_manager and delegation.assigned_user != request.user:
-        messages.error(request, "Access restricted. You are not assigned to this task.")
-        return redirect('outlook_delegated_box')
 
     target_email = settings.OUTLOOK_EMAIL_ADDRESS 
 
@@ -4115,37 +4113,40 @@ def outlook_delegated_action(request, delegation_id):
         # --- 5. HANDLE REPLY/SEND EMAIL ---
         elif 'reply_recipient' in request.POST:
             recipient = request.POST.get('reply_recipient')
+            
+            # 🚀 Capture CC and BCC from the form 🚀
+            member_cc_email = request.POST.get('member_cc_email', '')
+            member_bcc_email = request.POST.get('member_bcc_email', '')
+            
             raw_subject = request.POST.get('reply_subject')
             subject = raw_subject if raw_subject else f"Reply: {delegation.email_category or 'Task Action'}"
             
-            # 🚀 FIX: Convert textarea newlines to HTML <br> tags
+            # 🚀 Convert textarea newlines to HTML <br> tags
             raw_body = request.POST.get('reply_body', '')
             formatted_body = raw_body.replace('\r\n', '<br>').replace('\n', '<br>')
             
             action_destination = request.POST.get('action_notes', 'EMAIL_REPLY')
-            cc_recipients = request.POST.get('member_cc_email', '')
-            bcc_recipients = request.POST.get('member_bcc_email', '')
             log_type = request.POST.get('email_log_type', 'REPLY') 
             reply_files = request.FILES.getlist('reply_files')
 
-            signature_html = render_to_string('unity_internal_app/email_signature.html')
-            final_body_html = f"{formatted_body}<br>{signature_html}"
+            # 🚀 FIX: Removed the HTML template render. Services.py handles it now.
 
+            # Call the service to send the email with CC and BCC included
             response = OutlookGraphService.send_outlook_email(
                 target_email=target_email, 
                 recipient_email=recipient, 
                 subject=subject, 
-                body_content=final_body_html,
+                body_content=formatted_body, # 🚀 Just pass the raw formatted body
                 content_type='HTML',
                 user=request.user,
                 attachments=reply_files,
-                cc_email=cc_recipients,
-                bcc_email=bcc_recipients
+                cc_email=member_cc_email,   # 🚀 Pass CC parameter
+                bcc_email=member_bcc_email  # 🚀 Pass BCC parameter
             )
             
             if response.get('success'):
                 final_action_type = 'REPLIED' if log_type == 'REPLY' else action_destination
-                tracking_metadata = f"{subject} | CC: {cc_recipients or 'None'} | BCC: {bcc_recipients or 'None'}"
+                tracking_metadata = f"{subject} | CC: {member_cc_email or 'None'} | BCC: {member_bcc_email or 'None'}"
                 
                 log_delegation_transaction(
                     delegation_id, 
@@ -4153,7 +4154,7 @@ def outlook_delegated_action(request, delegation_id):
                     tracking_metadata, 
                     recipient, 
                     action_type=final_action_type,
-                    body=final_body_html  # 🚀 ADDED: Passes the body to the logger
+                    body=formatted_body  # 🚀 Passes the body to the logger without the double signature
                 )
                 
                 file_count = len(reply_files)
@@ -4188,13 +4189,13 @@ def outlook_delegated_action(request, delegation_id):
         else:
             email_display = email_data
 
-    # 🚀 NEW: Fetch the local inbox record using the delegation's email_id 🚀
+    # 🚀 Fetch the local inbox record using the delegation's email_id 🚀
     local_inbox = OutlookInbox.objects.filter(email_id=delegation.email_id).first()
 
     context = {
         'delegation': delegation,
         'email': email_display,
-        'local_inbox': local_inbox,  # 🚀 NEW: Pass the local inbox data to the template 🚀
+        'local_inbox': local_inbox,  # 🚀 Pass the local inbox data to the template 🚀
         'attachments': attachments,
         'notes': delegation.notes.all().order_by('-created_at'),
         'target_email': target_email,

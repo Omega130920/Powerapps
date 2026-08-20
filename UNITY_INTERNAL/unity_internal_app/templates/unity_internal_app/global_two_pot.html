@@ -75,7 +75,15 @@
 <div class="container">
     <div class="dashboard-header">
         <a href="{% url 'dashboard' %}" class="dashboard-button" style="background-color: #757575;">Back to Home Screen</a>
-        <h1>💰 Two-Pot Claims Register</h1>
+        
+        <!-- 🚀 NEW: Added the Total Count Badge -->
+        <h1>
+            💰 Two-Pot Claims Register 
+            <span style="font-size: 14px; background: #e8f5e9; padding: 5px 12px; border-radius: 20px; color: #2e7d32; border: 1px solid #c8e6c9; vertical-align: middle; margin-left: 10px; font-weight: bold;">
+                Total: {{ total_claims_count }}
+            </span>
+        </h1>
+        
         <button type="button" class="dashboard-button" style="background-color: #2e7d32;" onclick="openClaimModal()">➕ New Two-Pot</button>
     </div>
 

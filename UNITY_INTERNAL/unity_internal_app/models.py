@@ -898,9 +898,12 @@ class OutlookInbox(models.Model):
     subject = models.CharField(max_length=512, null=True, blank=True, db_column='subject')
     sender_name = models.CharField(max_length=255, null=True, blank=True, db_column='sender_name')
     sender_address = models.CharField(max_length=255, null=True, blank=True, db_column='sender_address')
+    
+    # 🚀 ADDED TO FIELD 🚀
+    to_addresses = models.TextField(blank=True, null=True)
+    
     body_content = models.TextField(null=True, blank=True, db_column='body_content')
     received_at = models.DateTimeField(null=True, blank=True, db_column='received_at')
-    # 🚀 ADD THESE FIELDS 🚀
     cc_addresses = models.TextField(blank=True, null=True)
     bcc_addresses = models.TextField(blank=True, null=True)
 

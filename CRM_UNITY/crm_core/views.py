@@ -306,9 +306,6 @@ def email_registry_view(request):
     """
     MANAGER (omega) ONLY: Email List shows ALL emails and their current statuses.
     """
-    if request.user.username.lower() not in ['omega', 'manager']:
-        return redirect('dashboard')
-    
     all_emails = CrmDelegateTo.objects.all().order_by('-received_timestamp')
     return render(request, 'email_registry.html', {'emails': all_emails})
 
@@ -317,8 +314,6 @@ def recycle_bin_view(request):
     """
     MANAGER (omega) ONLY: Recycle Bin shows tasks marked as recycled.
     """
-    if request.user.username.lower() not in ['omega', 'manager']:
-        return redirect('dashboard')
         
     tasks = CrmDelegateTo.objects.filter(is_recycled=True)
     return render(request, 'recycle_bin.html', {'tasks': tasks})
@@ -881,9 +876,6 @@ def add_member(request):
 @login_required
 def import_global_data(request):
     """Excel master file import handler with status tracking and record processing."""
-    # 1. Access Control
-    if request.user.username.lower() not in ['omega', 'manager']:
-        return redirect('dashboard')
 
     if request.method == 'POST' and 'master_file' in request.FILES:
         master_file = request.FILES['master_file']
@@ -1275,8 +1267,6 @@ from django.db.models import Count
 
 @login_required
 def delegation_report_view(request):
-    if request.user.username.lower() not in ['omega', 'manager']:
-        return redirect('dashboard')
 
     # 1. Get Date Filters
     date_query, start_date, end_date = get_date_filters(request)
@@ -1492,9 +1482,6 @@ def email_registry_view(request):
     MANAGER (omega) ONLY: Email Registry / Delegations Overview.
     Shows all emails, their statuses, and allows searching/pagination.
     """
-    if request.user.username.lower() not in ['omega', 'manager']:
-        messages.error(request, "Access restricted to management.")
-        return redirect('dashboard')
     
     # 1. Get all delegated tasks from the database
     # We order by received_timestamp descending so newest items are on top
@@ -1516,9 +1503,6 @@ def recycle_bin_view(request):
     MANAGER (omega) ONLY: View items marked for Recycle Bin.
     Filters by the status string 'Recycled'.
     """
-    if request.user.username.lower() not in ['omega', 'manager']:
-        messages.error(request, "Access restricted.")
-        return redirect('dashboard')
 
     # Status must match the 'final_status' variable in your service layer
     recycled_items = CrmDelegateTo.objects.filter(
@@ -1774,9 +1758,6 @@ def export_delegation_report_excel(request):
 
 @login_required
 def final_sla_report_view(request):
-    # Added "and not request.user.is_superuser" so newly promoted admins aren't kicked out
-    if request.user.username.lower() not in ['omega', 'manager'] and not request.user.is_superuser:
-        return redirect('dashboard')
 
     start_str = request.GET.get('start_date')
     end_str = request.GET.get('end_date')

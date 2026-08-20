@@ -159,7 +159,17 @@
                     </div>
                 </div>
 
-                {# 🚀 NEW: DISPLAY CC AND BCC FIELDS BELOW SENDER 🚀 #}
+                {# 🚀 NEW: DISPLAY TO FIELDS 🚀 #}
+                {% if local_inbox.to_addresses %}
+                <div class="info-group" style="grid-column: 1 / -1;">
+                    <span class="form-label" style="margin-top: 0;">To Address(es):</span>
+                    <div class="form-control" style="background-color: #e3f2fd; border: 1px solid #90caf9; min-height: 40px; display: flex; align-items: center; color: #1565c0; font-weight: bold;">
+                        {{ local_inbox.to_addresses }}
+                    </div>
+                </div>
+                {% endif %}
+
+                {# DISPLAY CC AND BCC FIELDS #}
                 {% if local_inbox.cc_addresses %}
                 <div class="info-group">
                     <span class="form-label" style="margin-top: 0;">Cc Address(es):</span>
@@ -248,7 +258,6 @@
                             <input type="email" class="form-control" name="reply_recipient" value="{{ email.from.emailAddress.address }}" required>
                         </div>
                         
-                        {# --- 🚀 ADDED CC & BCC ROW TARGETS FOR LIVE CAPTURE --- #}
                         <div class="form-group">
                             <label class="form-label">Cc:</label>
                             <input type="text" class="form-control" name="member_cc_email" placeholder="Enter Cc email addresses...">

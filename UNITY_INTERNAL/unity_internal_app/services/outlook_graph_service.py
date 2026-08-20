@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 # The base URL for the Microsoft Graph API
 GRAPH_API_URL = "https://graph.microsoft.com/v1.0"
 
-# --- NEW: Signature Generator ---
+# --- Signature Generator ---
 def get_user_signature(user):
-    """Generates the specific HTML signature based on the user's name."""
+    """Generates the specific HTML signature combining user details and company layout."""
     if not user:
         return ""
 
@@ -21,7 +21,7 @@ def get_user_signature(user):
     team = {
         'jesica': ('Jesica Haynes', 'Reconciliations Specialist'),
         'timothy': ('Timothy Davids', 'Indexing Specialist'),
-        'mymoena': ('Mymoena', 'Job Title'),  # Update Titles as needed
+        'mymoena': ('Mymoena', 'Job Title'), 
         'chantal': ('Chantal', 'Job Title'),
         'karen': ('Karen', 'Job Title'),
         'samantha': ('Samantha', 'Job Title'),
@@ -36,34 +36,49 @@ def get_user_signature(user):
 
     user_key = user.username.lower() if hasattr(user, 'username') else ""
     first_name = user.first_name.lower() if hasattr(user, 'first_name') and user.first_name else ""
-    
+
     found_user = team.get(user_key) or team.get(first_name)
+    
+    # Always use a public web URL for email signatures so external clients can render it
     logo_url = "https://futurasa.co.za/wp-content/uploads/2021/04/futura-logo.png"
 
     if found_user:
         full_name, title = found_user
         return f"""
-        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 12px; color: #333; margin-top: 30px; padding-top: 15px;">
-            <div style="color: #4CAF50; font-size: 15px; font-weight: bold; margin-bottom: 2px;">{full_name}</div>
-            <div style="margin-bottom: 12px; color: #333;">{title}</div>
-            <img src="{logo_url}" alt="Futura" width="130" style="display: block; margin-bottom: 5px;">
-            <div style="font-size: 11px; color: #666; margin-top: 15px;">
-                <p>Futura SA is a Level 1 B-BBEE contributor, committed to transformation and inclusive growth.</p>
-                <p style="font-size: 8.5px; color: #000; text-align: justify; line-height: 1.4;">
-                <strong>Disclaimer:</strong> Futura SA Administrators (Pty) Ltd is an authorized Financial Services Provider licensed by the Financial Sector Conduct Authority in terms of the FAIS Act. License Number 18287 and a licensed Section 13B Administrator number 24/760.
-                </p>
-            </div>
+        <div style="font-family: Arial, sans-serif; font-size: 13px; color: #333; margin-top: 30px; border-top: 1px solid #ccc; padding-top: 15px;">
+            <table cellpadding="0" cellspacing="0" border="0" style="width: 100%; max-width: 650px;">
+                <tr>
+                    <td style="padding-right: 20px; vertical-align: top; width: 200px;">
+                        <div style="color: #4CAF50; font-size: 16px; font-weight: bold; margin-bottom: 2px;">{full_name}</div>
+                        <div style="margin-bottom: 12px; color: #555; font-size: 12px;">{title}</div>
+                        <img src="{logo_url}" alt="Futura Logo" style="width: 150px; display: block;">
+                    </td>
+                    <td style="vertical-align: top; border-left: 1px solid #eee; padding-left: 20px;">
+                        <p style="margin: 0 0 4px 0; font-size: 12px;"><strong>phone:</strong> 087 702 5904</p>
+                        <p style="margin: 0 0 4px 0; font-size: 12px;"><strong>mobile:</strong></p>
+                        <p style="margin: 0 0 4px 0; font-size: 12px;"><strong>fax:</strong> 086 565 4597</p>
+                        <p style="margin: 0 0 0 0; font-size: 12px;"><strong>Email:</strong> <a href="mailto:unityeb@futurasa.co.za" style="color: #2e7d32; text-decoration: none;">unityeb@futurasa.co.za</a></p>
+                    </td>
+                </tr>
+            </table>
+            
+            <p style="margin: 15px 0 10px 0; font-size: 11px; font-weight: bold; color: #000;">
+                Futura SA is a Level 1 B-BBEE contributor, committed to transformation and inclusive growth.
+            </p>
+            
+            <p style="font-size: 9.5px; color: #666; line-height: 1.4; text-align: justify;">
+                <strong>Disclaimer:</strong> Futura SA Administrators (Pty) Ltd is an authorized Financial Services Provider licensed by the Financial Sector Conduct Authority in terms of the FAIS Act. License Number 18287 and a licensed Section 13B Administrator number 24/760. This transmission is confidential and intended solely for the person or organization to whom it is addressed. If you have received this transmission in error, please notify us immediately by e-mail at <a href="mailto:info@futurasa.co.za" style="color: #666; text-decoration: none;">info@futurasa.co.za</a>.
+            </p>
         </div>
         """
-    
-    # Fallback Signature for Test Users (testuser1, testuser2, etc.)
+
+    # Fallback Signature for Users not in the dictionary
     return f"""
-    <div style="font-family: sans-serif; font-size: 12px; margin-top: 20px;">
+    <div style="font-family: Arial, sans-serif; font-size: 12px; margin-top: 20px; color: #333;">
         Kind regards,<br>
         <strong>{user.first_name or user.username}</strong>
     </div>
     """
-# --------------------------------
 
 class OutlookGraphService:
     """
@@ -78,13 +93,13 @@ class OutlookGraphService:
         Supports is_raw for binary/MIME content (returns response.content).
         """
         access_token = get_current_access_token()
-        
+
         if not access_token:
             logger.error("ERROR: Failed to retrieve or refresh access token.")
             return {'error': 'Authentication failed: Missing or expired token.'}
 
         url = f"{GRAPH_API_URL}/users/{target_email}/{endpoint}"
-        
+
         headers = {
             'Authorization': f'Bearer {access_token}',
             'Content-Type': 'application/json'
@@ -97,10 +112,9 @@ class OutlookGraphService:
                 response = requests.post(url, headers=headers, data=json.dumps(data))
             else:
                 return {'error': f"Unsupported HTTP method: {method}"}
-            
+
             response.raise_for_status() 
 
-            # If we need the raw binary content (e.g., for .eml files or attachment /$value)
             if is_raw:
                 return response.content
 
@@ -112,15 +126,15 @@ class OutlookGraphService:
         except requests.exceptions.HTTPError as e:
             status_code = e.response.status_code
             logger.error(f"Graph API HTTP Error {status_code}: {e.response.text}")
-            
+
             try:
                 error_details = e.response.json()
             except:
                 error_details = e.response.text if e.response.text else str(e)
-                
+
             return {'error': f"Graph API Error: Status {status_code}", 
                     'details': error_details}
-            
+
         except requests.exceptions.RequestException as e:
             logger.error(f"Network/Connection Error: {e}")
             return {'error': f"Network Error: {str(e)}"}
@@ -130,10 +144,11 @@ class OutlookGraphService:
     @staticmethod
     def sync_to_local_inbox(messages_data):
         """
-        saves or updates emails into the local unmanaged MySQL table 'unity_internal_inbox'.
+        Saves or updates emails into the local unmanaged MySQL table 'unity_internal_inbox',
+        capturing 'To' recipients alongside CC and BCC.
         """
         from ..models import OutlookInbox 
-        
+
         sync_count = 0
         for msg in messages_data:
             try:
@@ -144,7 +159,14 @@ class OutlookGraphService:
                 body = msg.get('body', {}).get('content')
                 received_str = msg.get('receivedDateTime')
 
-                # Extract CC and BCC recipients from Microsoft's JSON structure
+                # Extract To recipients
+                to_list = [
+                    recip.get('emailAddress', {}).get('address', '') 
+                    for recip in msg.get('toRecipients', []) 
+                    if recip.get('emailAddress', {}).get('address')
+                ]
+
+                # Extract CC and BCC recipients
                 cc_list = [
                     recip.get('emailAddress', {}).get('address', '') 
                     for recip in msg.get('ccRecipients', []) 
@@ -162,6 +184,7 @@ class OutlookGraphService:
                         'subject': subject,
                         'sender_name': sender_name,
                         'sender_address': sender_addr,
+                        'to_addresses': ", ".join(to_list),  # 🚀 Added To field mapping
                         'cc_addresses': ", ".join(cc_list),
                         'bcc_addresses': ", ".join(bcc_list),
                         'body_content': body,
@@ -171,7 +194,7 @@ class OutlookGraphService:
                 sync_count += 1
             except Exception as e:
                 logger.error(f"Failed to sync email {msg.get('id')}: {e}")
-        
+
         return sync_count
 
     # --- Public Service Functions ---
@@ -183,24 +206,24 @@ class OutlookGraphService:
         """
         endpoint = (
             f"mailFolders/inbox/messages?$top={top_count}"
-            "&$select=subject,from,receivedDateTime,isRead,body,ccRecipients,bccRecipients"
+            "&$select=subject,from,receivedDateTime,isRead,body,toRecipients,ccRecipients,bccRecipients"
             "&$orderby=receivedDateTime desc"
         )
-        
+
         response = OutlookGraphService._make_graph_request(endpoint, target_email)
-        
+
         if isinstance(response, dict) and 'value' in response:
             OutlookGraphService.sync_to_local_inbox(response['value'])
-            
+
         return response
 
     @staticmethod
     def send_outlook_email(target_email, recipient_email, subject, body_content, content_type='HTML', attachments=None, cc_email=None, bcc_email=None, user=None):
         """
-        Sends an email via Microsoft Graph and retrieves the newly created ID 
-        by fetching the most recent item in Sent Items, avoiding subject-filter errors.
+        Sends an email via Microsoft Graph, handling To, CC, BCC recipients 
+        and retrieving the newly created item ID from Sent Items.
         """
-        
+
         # --- Inject Signature ---
         if user and content_type.upper() == 'HTML':
             body_content += get_user_signature(user)
@@ -220,7 +243,17 @@ class OutlookGraphService:
             "saveToSentItems": "true" 
         }
 
-        # 🚀 ROBUST PARSING FOR CC/BCC
+        # 🚀 ROBUST PARSING FOR TO, CC, AND BCC MULTIPLE RECIPIENTS
+        for field, key in [(recipient_email, "toRecipients"), (cc_email, "ccRecipients"), (bcc_email, "bccRecipients")]:
+            if field and key != "toRecipients": # toRecipients primary is handled, but supports comma/semi-colon split if needed globally
+                pass
+
+        # If multiple comma/semicolon separated emails are passed to recipient_email:
+        if recipient_email and (',' in recipient_email or ';' in recipient_email):
+            normalized_to = str(recipient_email).replace(',', ';')
+            to_addr_list = [addr.strip() for addr in normalized_to.split(';') if addr.strip()]
+            email_data["message"]["toRecipients"] = [{"emailAddress": {"address": addr}} for addr in to_addr_list]
+
         for field, key in [(cc_email, "ccRecipients"), (bcc_email, "bccRecipients")]:
             if field:
                 normalized = str(field).replace(',', ';')
@@ -242,19 +275,17 @@ class OutlookGraphService:
                     })
                 except Exception as e:
                     logger.error(f"Failed to package attachment: {e}")
-        
+
         # Send
         endpoint = "sendMail"
         send_res = OutlookGraphService._make_graph_request(endpoint, target_email, method='POST', data=email_data)
-        
-        # Retrieve ID using a more reliable method
+
+        # Retrieve ID using Sent Items
         if isinstance(send_res, dict) and send_res.get('success') is True:
             try:
-                # 🚀 FIX: Get the most recent item in Sent Items instead of filtering by subject
-                # This works even if the subject changed or contains special characters
                 sent_endpoint = "mailFolders/sentitems/messages?$top=1&$select=id,subject&$orderby=receivedDateTime desc"
                 sent_check = OutlookGraphService._make_graph_request(sent_endpoint, target_email)
-                
+
                 if sent_check and 'value' in sent_check and len(sent_check['value']) > 0:
                     return {
                         'success': True, 
@@ -263,41 +294,28 @@ class OutlookGraphService:
                     }
             except Exception as e:
                 logger.error(f"Sent Items ID retrieval failed: {e}")
-        
+
         return send_res
-    
+
     # --- Attachment & Raw Content Handling ---
 
     @staticmethod
     def fetch_attachments(target_email, message_id):
-        """
-        Fetches metadata for attachments.
-        """
         endpoint = f"messages/{message_id}/attachments"
         response = OutlookGraphService._make_graph_request(endpoint, target_email)
         return response.get('value', []) if isinstance(response, dict) else []
 
     @staticmethod
     def get_attachment_raw(target_email, message_id, attachment_id):
-        """
-        Fetches specific attachment metadata (JSON).
-        """
         endpoint = f"messages/{message_id}/attachments/{attachment_id}"
         return OutlookGraphService._make_graph_request(endpoint, target_email)
 
     @staticmethod
     def get_attachment_mime(target_email, message_id, attachment_id):
-        """
-        Fetches the raw binary content of an attachment using the /$value segment.
-        Required for ItemAttachments (nested emails).
-        """
         endpoint = f"messages/{message_id}/attachments/{attachment_id}/$value"
         return OutlookGraphService._make_graph_request(endpoint, target_email, is_raw=True)
 
     @staticmethod
     def fetch_raw_eml(target_email, message_id):
-        """
-        Fetches the raw MIME content of a main message for .eml download.
-        """
         endpoint = f"messages/{message_id}/$value"
         return OutlookGraphService._make_graph_request(endpoint, target_email, is_raw=True)
