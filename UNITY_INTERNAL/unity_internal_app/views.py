@@ -3160,6 +3160,7 @@ def confirmations_view(request):
             ws = wb.active
             ws.title = "Confirmations"
 
+            # 🚀 Added 'Fund Code' to headers
             headers = [
                 'CCDates Month', 'Fund Code', 'Member Group Code', 'Member Group Name', 
                 'Active Member - (Info from FuturaSA & NOT checked by Sanlam)', 'Schedule Date', 'Final Data Received Date', 'Schedule Amount', 
@@ -3173,8 +3174,9 @@ def confirmations_view(request):
                 cell.alignment = Alignment(horizontal='center')
 
             for item in confirmation_data:
+                # 🚀 Hardcoded 'SS00151.1' as the second element corresponding to 'Fund Code'
                 bill_common = [
-                    item['cc_dates_month'], item['fund_code'], item['company_code'],
+                    item['cc_dates_month'], 'SS00151.1', item['company_code'],
                     item['company_name'], item['active_members'], item['schedule_date'],
                     item['final_date'], item['schedule_amount'], item['confirmed_date']
                 ]

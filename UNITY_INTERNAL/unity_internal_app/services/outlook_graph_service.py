@@ -21,8 +21,8 @@ def get_user_signature(user):
     team = {
         'jesica': ('Jesica Haynes', 'Reconciliations Specialist'),
         'timothy': ('Timothy Davids', 'Indexing Specialist'),
-        'mymoena': ('Mymoena', 'Job Title'), 
-        'chantal': ('Chantal', 'Job Title'),
+        'mymoena': ('Mymoena', 'Senior Administrator '), 
+        'chantal': ('Chantal', 'Reconciliations Specialist'),
         'karen': ('Karen', 'Job Title'),
         'samantha': ('Samantha', 'Job Title'),
         'lorraine': ('Lorraine', 'Job Title'),
@@ -223,6 +223,8 @@ class OutlookGraphService:
         Sends an email via Microsoft Graph, handling To, CC, BCC recipients 
         and retrieving the newly created item ID from Sent Items.
         """
+        import mimetypes
+        import base64
 
         # --- Inject Signature ---
         if user and content_type.upper() == 'HTML':
@@ -266,11 +268,30 @@ class OutlookGraphService:
             for file in attachments:
                 try:
                     file.seek(0)
+                    
+                    # 🚀 NEW: Robust MIME Type Checking for .eml and .msg files
+                    # 1. Try to get the content type from Django's uploaded file object
+                    attachment_content_type = getattr(file, 'content_type', '')
+                    
+                    # 2. If it's empty or a generic binary stream, try to guess it natively
+                    if not attachment_content_type or attachment_content_type == 'application/octet-stream':
+                        attachment_content_type, _ = mimetypes.guess_type(file.name)
+                        
+                    # 3. If Python STILL can't guess it, apply our manual fallbacks for Outlook formats
+                    if not attachment_content_type:
+                        if file.name.lower().endswith('.eml'):
+                            attachment_content_type = 'message/rfc822'
+                        elif file.name.lower().endswith('.msg'):
+                            attachment_content_type = 'application/vnd.ms-outlook'
+                        else:
+                            attachment_content_type = 'application/octet-stream'
+
                     encoded_string = base64.b64encode(file.read()).decode('utf-8')
+                    
                     email_data["message"]["attachments"].append({
                         "@odata.type": "#microsoft.graph.fileAttachment",
                         "name": file.name,
-                        "contentType": getattr(file, 'content_type', 'application/octet-stream'),
+                        "contentType": attachment_content_type, # 🚀 Uses our new robust variable
                         "contentBytes": encoded_string
                     })
                 except Exception as e:
