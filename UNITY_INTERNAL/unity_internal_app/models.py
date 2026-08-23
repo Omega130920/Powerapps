@@ -824,7 +824,7 @@ class OutlookToken(models.Model):
 # 2. Email Delegation Status (Required by delegation_service.py)
 class EmailDelegation(models.Model):
     """The master status table for an email task."""
-    email_id = models.CharField(max_length=255, unique=True)
+    email_id = models.CharField(max_length=255, db_collation='utf8mb4_bin')
     
     # ForeignKey links to the standard Django User table
     assigned_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='delegated_tasks')
@@ -894,7 +894,7 @@ class OutlookInbox(models.Model):
     Unmanaged model to store a local copy of every email fetched from Graph API.
     Ensures subjects and bodies are permanently available for the Master Archive.
     """
-    email_id = models.CharField(max_length=255, primary_key=True, db_column='email_id')
+    email_id = models.CharField(max_length=255, primary_key=True, db_collation='utf8mb4_bin')
     subject = models.CharField(max_length=512, null=True, blank=True, db_column='subject')
     sender_name = models.CharField(max_length=255, null=True, blank=True, db_column='sender_name')
     sender_address = models.CharField(max_length=255, null=True, blank=True, db_column='sender_address')

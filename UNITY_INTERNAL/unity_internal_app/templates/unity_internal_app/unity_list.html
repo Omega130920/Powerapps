@@ -44,7 +44,6 @@
     .return-button:hover{
         background-color: #66bb6a;
     }
-    /* New Export Button Styles */
     .btn {
         display: inline-block;
         padding: 10px 20px;
@@ -55,13 +54,21 @@
         transition: background-color 0.3s ease;
         font-size: 1em;
         border: 1px solid transparent;
+        margin-right: 5px; /* Added spacing between buttons */
     }
     .btn-success {
-        background-color: #2e7d32; /* Darker green for Excel */
+        background-color: #2e7d32;
         border-color: #2e7d32;
     }
     .btn-success:hover {
         background-color: #1b5e20;
+    }
+    .btn-primary {
+        background-color: #1565c0;
+        border-color: #1565c0;
+    }
+    .btn-primary:hover {
+        background-color: #0d47a1;
     }
     
     /* --- TABLE STYLES --- */
@@ -169,6 +176,11 @@
         <a href="{% url 'dashboard' %}" class="return-button">Back to Home Screen</a>
         
         <div class="header-actions">
+            <!-- 🚀 NEW: Add New Member Group Button -->
+            <button type="button" class="btn btn-primary" onclick="document.getElementById('addMemberModal').style.display='block'">
+                <i class="fas fa-plus"></i> Add New Member Group
+            </button>
+
             <a href="{% url 'export_unity_list_excel' %}" class="btn btn-success">
                 <i class="fas fa-file-excel"></i> Export to Excel
             </a>
@@ -316,6 +328,55 @@
     </table>
 </div>
 
+<!-- 🚀 NEW: ADD NEW MEMBER MODAL -->
+<div id="addMemberModal" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000;">
+    <div style="background: white; width: 90%; max-width: 550px; margin: 80px auto; padding: 30px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);">
+        <h3 style="color: #1b5e20; border-bottom: 2px solid #aed581; padding-bottom: 10px; margin-top: 0;">Add New Member Group</h3>
+        
+        <form method="POST" action="{% url 'unity_list' %}">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="add_new_member_group">
+            
+            <div style="margin-bottom: 15px;">
+                <label style="font-weight:bold; display:block; margin-bottom:5px;">Company Code *</label>
+                <input type="text" name="new_company_code" required style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;" placeholder="e.g. 1510083">
+            </div>
+            
+            <div style="margin-bottom: 15px;">
+                <label style="font-weight:bold; display:block; margin-bottom:5px;">Company Name *</label>
+                <input type="text" name="new_company_name" required style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;" placeholder="e.g. Castleton Plett">
+            </div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 25px;">
+                <div>
+                    <label style="font-weight:bold; display:block; margin-bottom:5px;">Agent</label>
+                    <select name="new_agent" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+                        <option value="">-- Select Agent --</option>
+                        {% for agent in distinct_agent %}
+                            {% if agent %}
+                                <option value="{{ agent }}">{{ agent }}</option>
+                            {% endif %}
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label style="font-weight:bold; display:block; margin-bottom:5px;">Status</label>
+                    <select name="new_status" style="width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box;">
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                        <option value="Pending">Pending</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div style="text-align: right; border-top: 1px solid #eee; padding-top: 15px;">
+                <button type="button" onclick="document.getElementById('addMemberModal').style.display='none'" style="background: #757575; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; margin-right: 10px;">Cancel</button>
+                <button type="submit" style="background: #2e7d32; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold;">Save Member</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         const tableBody = document.getElementById('unity-table-body');
@@ -326,6 +387,14 @@
                 window.location.href = `{% url 'unity_information' '123' %}`.replace('123', companyCode);
             }
         });
+    });
+
+    // 🚀 NEW: Close Modal When Clicking Outside
+    window.addEventListener('click', function(event) {
+        var modal = document.getElementById('addMemberModal');
+        if (event.target == modal) {
+            modal.style.display = "none";
+        }
     });
 
     function applyFilters() {

@@ -209,18 +209,48 @@ def unity_list(request):
     """
     Displays a list combining InternalFunds and UnityMgListing.
     Calculates the 'Current Status' and 'Current Fiscal' based on the latest UnityBill.
+    Includes POST handling to create a new Member Group (Company).
     """
+    from django.contrib import messages
+    from django.shortcuts import redirect
     
-    # 1. Fetch Base Records
+    # --- 1. HANDLE POST REQUEST TO ADD NEW MEMBER GROUP ---
+    if request.method == 'POST' and request.POST.get('action') == 'add_new_member_group':
+        try:
+            new_code = request.POST.get('new_company_code', '').strip()
+            new_name = request.POST.get('new_company_name', '').strip()
+            new_agent = request.POST.get('new_agent', '')
+            new_status = request.POST.get('new_status', 'Active')
+            
+            if new_code and new_name:
+                # Check if it already exists to prevent duplicates
+                if not UnityMgListing.objects.filter(a_company_code=new_code).exists():
+                    UnityMgListing.objects.create(
+                        a_company_code=new_code,
+                        b_company_name=new_name,
+                        c_agent=new_agent,
+                        d_company_status=new_status,
+                    )
+                    messages.success(request, f"Successfully added new Member Group: {new_code} - {new_name}")
+                else:
+                    messages.warning(request, f"Member Group with code '{new_code}' already exists.")
+            else:
+                messages.error(request, "Company Code and Name are required fields.")
+        except Exception as e:
+            messages.error(request, f"Error adding new member group: {e}")
+        
+        return redirect('unity_list')
+
+    # --- 2. Fetch Base Records ---
     internal_funds_records = InternalFunds.objects.all()
     unity_listing_map = {
         record.a_company_code: record for record in UnityMgListing.objects.all()
     }
     
-    # 2. Manual Calculation Setup
+    # --- 3. Manual Calculation Setup ---
     bill_map = dict(UnityBill.objects.values_list('id', 'C_Company_Code'))
     
-    # Aggregate Surplus & Allocation (Keep your existing logic here)
+    # Aggregate Surplus & Allocation
     surplus_map = defaultdict(Decimal)
     for s in ScheduleSurplus.objects.values('unity_bill_source_id', 'surplus_amount'):
         b_id = s['unity_bill_source_id']
@@ -233,12 +263,10 @@ def unity_list(request):
         if b_id in bill_map:
             allocation_map[bill_map[b_id]] += (a['amount'] or Decimal('0.00'))
 
-    # --- NEW: Calculate "Current Billing Status" AND "Fiscal Date" Map ---
+    # Calculate "Current Billing Status" AND "Fiscal Date" Map
     billing_status_map = {}
-    fiscal_date_map = {} # This will store the latest A_CCDatesMonth
+    fiscal_date_map = {} 
     
-    # Order by date so the latest bill for each company is processed last 
-    # and overwrites previous entries in our maps.
     all_bills = UnityBill.objects.all().order_by('A_CCDatesMonth')
     
     for b in all_bills:
@@ -261,12 +289,10 @@ def unity_list(request):
             
         billing_status_map[code] = status
         
-        # UPDATE: Capture the Fiscal Date from the Bill
         if b.A_CCDatesMonth:
-            # Storing as string to match the Varchar type of the fallback column
             fiscal_date_map[code] = b.A_CCDatesMonth.strftime('%Y-%m-%d')
 
-    # 3. Build Combined List
+    # --- 4. Build Combined List ---
     combined_records = []
     
     # Phase 1: InternalFunds
@@ -276,7 +302,6 @@ def unity_list(request):
         
         active_surplus_value = surplus_map.get(company_code, Decimal('0.00')) - allocation_map.get(company_code, Decimal('0.00'))
         
-        # PRIORITY LOGIC FOR FISCAL DATE: Bill Date -> Listing Date -> "N/A"
         final_fiscal = fiscal_date_map.get(company_code)
         if not final_fiscal and detail_record:
             final_fiscal = detail_record.g_current_fiscal
@@ -300,7 +325,6 @@ def unity_list(request):
     for company_code, detail_record in unity_listing_map.items():
         active_surplus_value = surplus_map.get(company_code, Decimal('0.00')) - allocation_map.get(company_code, Decimal('0.00'))
         
-        # PRIORITY LOGIC FOR FISCAL DATE: Bill Date -> Listing Date
         final_fiscal = fiscal_date_map.get(company_code) or detail_record.g_current_fiscal
 
         combined_records.append({
@@ -318,7 +342,7 @@ def unity_list(request):
             'active_surplus': active_surplus_value,
         })
         
-    # 4. Context for Rendering
+    # --- 5. Context for Rendering ---
     context = {
         'unity_records': combined_records,
         'distinct_source': InternalFunds.objects.values_list('Source', flat=True).distinct().exclude(Source__isnull=True),
@@ -3037,7 +3061,7 @@ def unallocate_surplus(request, bill_id):
 def confirmations_view(request):
     """
     Displays bills ready for daily confirmation review.
-    UPDATED: Correctly targets the 'importbank' table for Transaction_description.
+    UPDATED: Targets 'transaction_description' with lowercase naming to match the model attributes.
     """
     from decimal import Decimal
     from datetime import datetime, date, timedelta
@@ -3078,7 +3102,13 @@ def confirmations_view(request):
         confirmation_data = []
         
         for bill in review_bills:
-            settlements = BillSettlement.objects.filter(unity_bill_source_id=bill.pk).order_by('settlement_date')
+            settlements = BillSettlement.objects.filter(
+                unity_bill_source_id=bill.pk
+            ).select_related(
+                'reconned_bank_line', 
+                'reconned_bank_line__bank_line'
+            ).order_by('settlement_date')
+            
             source_details = []
             
             for settlement in settlements:
@@ -3086,18 +3116,22 @@ def confirmations_view(request):
 
                 if settlement.reconned_bank_line:
                     recon_record = settlement.reconned_bank_line
-                    import_record = recon_record.bank_line  # 🚀 THIS IS THE importbank TABLE
+                    
+                    try:
+                        import_record = recon_record.bank_line  # 🚀 THIS IS THE importbank TABLE
+                    except Exception:
+                        import_record = None
 
                     source['date'] = recon_record.transaction_date
                     source['type'] = 'Bank Line'
                     source['source'] = 'BANK'  
                     source['bank_total'] = recon_record.transaction_amount
                     
-                    # 🚀 PULL FROM importbank 🚀
+                    # 🚀 PULL transaction_description (lowercase 't') FROM importbank
                     if import_record:
-                        raw_desc = getattr(import_record, 'Transaction_description', '-')
+                        raw_desc = getattr(import_record, 'transaction_description', '-') or '-'
                         source['description'] = raw_desc 
-                        source['bank_ref'] = getattr(import_record, 'Statement_reference', raw_desc)
+                        source['bank_ref'] = raw_desc  
                     else:
                         source['description'] = "-"
                         source['bank_ref'] = "-"
@@ -3160,7 +3194,6 @@ def confirmations_view(request):
             ws = wb.active
             ws.title = "Confirmations"
 
-            # 🚀 Added 'Fund Code' to headers
             headers = [
                 'CCDates Month', 'Fund Code', 'Member Group Code', 'Member Group Name', 
                 'Active Member - (Info from FuturaSA & NOT checked by Sanlam)', 'Schedule Date', 'Final Data Received Date', 'Schedule Amount', 
@@ -3174,7 +3207,6 @@ def confirmations_view(request):
                 cell.alignment = Alignment(horizontal='center')
 
             for item in confirmation_data:
-                # 🚀 Hardcoded 'SS00151.1' as the second element corresponding to 'Fund Code'
                 bill_common = [
                     item['cc_dates_month'], 'SS00151.1', item['company_code'],
                     item['company_name'], item['active_members'], item['schedule_date'],
