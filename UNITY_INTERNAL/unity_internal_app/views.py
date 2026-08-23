@@ -3061,7 +3061,7 @@ def unallocate_surplus(request, bill_id):
 def confirmations_view(request):
     """
     Displays bills ready for daily confirmation review.
-    UPDATED: Targets 'transaction_description' with lowercase naming to match the model attributes.
+    UPDATED: Removed 'Deposit Reference' from Excel export headers and mapping.
     """
     from decimal import Decimal
     from datetime import datetime, date, timedelta
@@ -3194,11 +3194,12 @@ def confirmations_view(request):
             ws = wb.active
             ws.title = "Confirmations"
 
+            # 🚀 Removed 'Deposit Reference' from headers
             headers = [
                 'CCDates Month', 'Fund Code', 'Member Group Code', 'Member Group Name', 
                 'Active Member - (Info from FuturaSA & NOT checked by Sanlam)', 'Schedule Date', 'Final Data Received Date', 'Schedule Amount', 
                 'Confirmed Date', 'Bank Statement Date', 'Bank Deposit Amount', 
-                'Allocated Amount', 'Comment', 'Deposit Reference', 'Bank Description', 'Source'
+                'Allocated Amount', 'Comment', 'Bank Description', 'Source'
             ]
             ws.append(headers)
 
@@ -3215,11 +3216,12 @@ def confirmations_view(request):
 
                 sources = item['source_details']
                 if not sources:
-                    ws.append(bill_common + [''] * 7)
+                    ws.append(bill_common + [''] * 6)
                 else:
                     for index, s in enumerate(sources):
                         export_source_text = 'Overs Line' if s.get('source') == 'CREDIT' else 'Bank'
-                        bank_cols = [s['date'], s['bank_total'], s['amount'], s['comment'], s['bank_ref'], s.get('description', ''), export_source_text]
+                        # 🚀 Removed bank_ref from export columns, mapping strictly to description and source text
+                        bank_cols = [s['date'], s['bank_total'], s['amount'], s['comment'], s.get('description', ''), export_source_text]
                         
                         if index == 0:
                             ws.append(bill_common + bank_cols)
