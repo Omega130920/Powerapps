@@ -4778,15 +4778,15 @@ def export_two_pot_tracking(request):
 
     for claim in claims_queryset:
         initials = "".join([n[0] for n in claim.member_name.split() if n]) if claim.member_name else ""
-        is_paid = str(claim.claim_status).upper().strip() == "PAID"
         
         # 🚀 Pull the actual qualified value from the database column (fallback to 'NO' if empty)
         qualified_val = str(claim.qualified or "NO").upper().strip()
         
-        if is_paid:
-            submit_date_label = claim.date_submitted.strftime('%d.%m.%Y') if claim.date_submitted else "Pending"
-        else:
-            submit_date_label = "Withdrawal Not Allowed"
+        # 🚀 Pull claim status directly from the dropdown field
+        claim_status_val = claim.claim_status if claim.claim_status else ""
+        
+        # 🚀 Fix: Use date_submitted_online instead of date_submitted
+        submit_date_label = claim.date_submitted_online.strftime('%d.%m.%Y') if claim.date_submitted_online else ""
 
         row = [
             claim.claim_created_date.strftime('%d/%m/%Y') if claim.claim_created_date else '',
@@ -4797,10 +4797,10 @@ def export_two_pot_tracking(request):
             claim.company_code,
             branch_map.get(claim.company_code, "Unknown"),
             "Savings Form Request",
-            "Savings Form Submitted" if is_paid else "Member Emergency Savings Pot Withdrawal Requested",
-            qualified_val,  # 🚀 Uses the actual database qualification status (YES or NO)
-            submit_date_label,
-            "YES" if is_paid else "",
+            claim_status_val,  # 🚀 From Claim Status Dropdown selection
+            qualified_val,     # 🚀 Qualified Status (YES / NO)
+            submit_date_label, # 🚀 Uses the correct date_submitted_online field
+            "YES" if qualified_val == "YES" else "",  # 🚀 Linked to Qualified Y/N check
             float(claim.claim_amount or 0),
             "37.95",
             claim.notes.last().note_description if claim.notes.exists() else ""
