@@ -71,11 +71,20 @@ tr:hover {background-color: #f1f8e9;}
         <button type="button" class="dashboard-button" onclick="openGlobalClaimModal()">➕ New Claim</button>
     </div>
 
-    <form method="GET" action="" class="search-container">
+    <!-- UPDATED SEARCH CONTAINER -->
+    <form method="GET" action="" class="search-container" style="flex-wrap: wrap; align-items: center;">
         <input type="text" name="q" class="search-input" placeholder="Search by ID Number, Surname, or Company Code..." value="{{ request.GET.q|default:'' }}">
+        
+        <label style="font-weight: bold; color: var(--accent-green); margin-left: 10px;">From:</label>
+        <input type="date" name="from_date" class="search-input" style="flex: 0 0 auto; width: 130px;" value="{{ request.GET.from_date|default:'' }}">
+        
+        <label style="font-weight: bold; color: var(--accent-green);">To:</label>
+        <input type="date" name="to_date" class="search-input" style="flex: 0 0 auto; width: 130px;" value="{{ request.GET.to_date|default:'' }}">
+
         <button type="button" class="dashboard-button" style="background-color: #217346;" onclick="triggerGlobalExport()">📊 Export Excel</button>
         <button type="submit" class="dashboard-button">Search</button>
-        {% if request.GET.q %}
+        
+        {% if request.GET.q or request.GET.from_date or request.GET.to_date %}
             <a href="." class="dashboard-button" style="background-color: #757575; border-color: #757575;">Clear</a>
         {% endif %}
     </form>
@@ -182,11 +191,13 @@ tr:hover {background-color: #f1f8e9;}
         {% if page_obj.has_other_pages %}
         <div class="pagination-nav">
             {% if page_obj.has_previous %}
-                <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="dashboard-button" style="background-color: #757575;">&laquo; Previous</a>
+                <!-- UPDATED PAGINATION PREVIOUS LINK -->
+                <a href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.from_date %}&from_date={{ request.GET.from_date }}{% endif %}{% if request.GET.to_date %}&to_date={{ request.GET.to_date }}{% endif %}" class="dashboard-button" style="background-color: #757575;">&laquo; Previous</a>
             {% endif %}
             <span style="font-weight: bold; color: #1b5e20;">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
             {% if page_obj.has_next %}
-                <a href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" class="dashboard-button" style="background-color: #757575;">Next &raquo;</a>
+                <!-- UPDATED PAGINATION NEXT LINK -->
+                <a href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.from_date %}&from_date={{ request.GET.from_date }}{% endif %}{% if request.GET.to_date %}&to_date={{ request.GET.to_date }}{% endif %}" class="dashboard-button" style="background-color: #757575;">Next &raquo;</a>
             {% endif %}
         </div>
         {% endif %}
@@ -439,11 +450,23 @@ tr:hover {background-color: #f1f8e9;}
 </div>
 
 <script>
+    // UPDATED EXPORT FUNCTION
     function triggerGlobalExport() {
-        const searchParams = new URLSearchParams(window.location.search);
-        const query = searchParams.get('q') || document.querySelector('input[name="q"]').value || '';
+        const query = document.querySelector('input[name="q"]').value || '';
+        const fromDate = document.querySelector('input[name="from_date"]').value || '';
+        const toDate = document.querySelector('input[name="to_date"]').value || '';
+        
         let exportUrl = "{% url 'export_global_claims_excel' %}";
-        if (query) { exportUrl += "?q=" + encodeURIComponent(query); }
+        const params = new URLSearchParams();
+        
+        if (query) params.append('q', query);
+        if (fromDate) params.append('from_date', fromDate);
+        if (toDate) params.append('to_date', toDate);
+        
+        if (params.toString()) {
+            exportUrl += "?" + params.toString();
+        }
+        
         window.location.href = exportUrl;
     }
 

@@ -1087,20 +1087,27 @@ def global_two_pot_view(request):
 def global_claims_view(request):
     """Register for ALL claims EXCEPT Two Pot."""
     query = request.GET.get('q')
+    from_date = request.GET.get('from_date')
+    to_date = request.GET.get('to_date')
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     
     base_claims = AcvvClaim.objects.exclude(claim_type='Two Pot')
 
+    # Apply text search filter if provided
     if query:
-        # If searching, we fetch all matching results before paginating
-        claims_list = base_claims.filter(
+        base_claims = base_claims.filter(
             Q(id_number__icontains=query) | 
             Q(member_surname__icontains=query) | 
             Q(company_code__icontains=query)
-        ).order_by('-claim_created_date')
-    else:
-        # Removed the [:50] limit so pagination can access all records
-        claims_list = base_claims.order_by('-claim_created_date')
+        )
+
+    # --- NEW: Apply Date Range Filters ---
+    if from_date:
+        base_claims = base_claims.filter(claim_created_date__gte=from_date)
+    if to_date:
+        base_claims = base_claims.filter(claim_created_date__lte=to_date)
+
+    claims_list = base_claims.order_by('-claim_created_date')
 
     # --- Setup Pagination ---
     # Show 36 claims per page as requested
@@ -1130,8 +1137,8 @@ def global_claims_view(request):
                         claim.email_preview_date = email_data.get('receivedDateTime')
 
     return render(request, 'acvv_app/global_claims.html', {
-        'claims': current_page_claims,   # The specific 36 items to display
-        'page_obj': page_obj,            # The paginator object needed for the HTML buttons
+        'claims': current_page_claims,    # The specific 36 items to display
+        'page_obj': page_obj,             # The paginator object needed for the HTML buttons
         'all_companies': Globalacvv.objects.values('mip_names', 'branch_code'),
         'my_delegated_emails': EmailDelegation.objects.filter(assigned_user=request.user).exclude(status='DLT'),
         'is_two_pot_view': False 
@@ -1387,6 +1394,8 @@ def export_global_claims_excel(request):
     Excludes 'Two Pot' claims. Includes newly added Pot fields and Last Contribution Date.
     """
     query = request.GET.get('q')
+    from_date = request.GET.get('from_date')
+    to_date = request.GET.get('to_date')
     
     # 1. Fetch claims excluding 'Two Pot'
     claims = AcvvClaim.objects.all().exclude(claim_type='Two Pot').order_by('claim_created_date')
@@ -1397,6 +1406,12 @@ def export_global_claims_excel(request):
             Q(member_surname__icontains=query) | 
             Q(company_code__icontains=query)
         )
+
+    # --- NEW: Apply Date Range Filters to Excel Export ---
+    if from_date:
+        claims = claims.filter(claim_created_date__gte=from_date)
+    if to_date:
+        claims = claims.filter(claim_created_date__lte=to_date)
 
     wb = openpyxl.Workbook()
     ws = wb.active
@@ -1440,16 +1455,16 @@ def export_global_claims_excel(request):
     # 3. Data Rows
     for c in claims:
         row = [
-            c.company_code,                                                      # Co Code
-            '',                                                                  # Branch
-            c.agent if hasattr(c, 'agent') else '',                              # Agent
-            c.mip_number if hasattr(c, 'mip_number') else '',                    # MIP Number
-            c.id_number,                                                         # ID Number
-            c.member_name,                                                       # Name
-            c.member_surname,                                                    # Surname
-            c.claim_type,                                                        # Type
-            c.claim_status,                                                      # Status
-            c.exit_reason if hasattr(c, 'exit_reason') else '',                  # Exit Reason
+            c.company_code,                                              # Co Code
+            '',                                                          # Branch
+            c.agent if hasattr(c, 'agent') else '',                      # Agent
+            c.mip_number if hasattr(c, 'mip_number') else '',            # MIP Number
+            c.id_number,                                                 # ID Number
+            c.member_name,                                               # Name
+            c.member_surname,                                            # Surname
+            c.claim_type,                                                # Type
+            c.claim_status,                                              # Status
+            c.exit_reason if hasattr(c, 'exit_reason') else '',          # Exit Reason
             
             # --- NEW MISSING FIELD ADDED HERE ---
             c.last_contribution_date.strftime('%Y-%m-%d') if getattr(c, 'last_contribution_date', None) else '', 
@@ -1458,7 +1473,7 @@ def export_global_claims_excel(request):
             c.date_submitted.strftime('%Y-%m-%d') if getattr(c, 'date_submitted', None) else '', # Submitted
             c.date_paid.strftime('%Y-%m-%d') if getattr(c, 'date_paid', None) else '',              # Paid
             c.last_reconciled.strftime('%Y-%m-%d') if getattr(c, 'last_reconciled', None) else '', # Last Reconciled
-            c.claim_allocation if hasattr(c, 'claim_allocation') else '',         # Claim Allocation
+            c.claim_allocation if hasattr(c, 'claim_allocation') else '',        # Claim Allocation
             
             # --- NEW POT FIELDS ---
             'Yes' if getattr(c, 'vested_pot_available', False) else 'No',        # Vested Pot Available
