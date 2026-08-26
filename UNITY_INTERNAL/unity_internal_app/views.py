@@ -42,7 +42,7 @@ from datetime import datetime, time
 from django.template.loader import render_to_string  # Add this at the top
 
 # Import the new Graph API service functions
-from .services.outlook_graph_service import OutlookGraphService
+from .services.outlook_graph_service import OutlookGraphService, get_user_signature
 
 # Import Delegation Service functions
 from .services.delegation_service import (
@@ -1478,7 +1478,7 @@ def update_bankline_details(request, recon_id):
     sends a custom email, and logs the interaction to UnityNotes.
     """
     from .models import ReconnedBank, UnityNotes, BankLineNote
-    from .services import OutlookGraphService
+    from .services import OutlookGraphService, get_user_signature
     from django.conf import settings
     from django.utils import timezone 
     
@@ -3964,8 +3964,6 @@ def send_email_view(request):
             messages.error(request, "All fields are required.")
             return render(request, 'unity_internal_app/send_email_form.html', {'target_email': target_email})
         
-        # 🚀 FIX: Removed local signature template rendering.
-        
         # Call the service function with the raw user body
         response = OutlookGraphService.send_outlook_email(
             target_email=sender, 
@@ -4080,12 +4078,12 @@ def outlook_delegated_box(request):
 def outlook_delegated_action(request, delegation_id):
     """
     Handles Notes, Replies, Metadata Updates, RESTORATION, and COMPLETION.
-    Updated to support newline-to-HTML conversion for email bodies and TO/CC/BCC tracking.
+    Updated to support newline-to-HTML conversion for email bodies, TO/CC/BCC tracking,
+    and injecting original email history into the reply.
     """
     delegation = get_object_or_404(EmailDelegation, pk=delegation_id)
     
-    # We leave is_manager here solely for the template context, 
-    # but the authorization block restricting access has been removed.
+    # We leave is_manager here solely for the template context
     is_manager = request.user.username.lower() == 'omega' or request.user.is_superuser
 
     target_email = settings.OUTLOOK_EMAIL_ADDRESS 
@@ -4150,14 +4148,14 @@ def outlook_delegated_action(request, delegation_id):
         elif 'reply_recipient' in request.POST:
             recipient = request.POST.get('reply_recipient')
             
-            # 🚀 Capture CC and BCC from the form 🚀
+            # Capture CC and BCC from the form 
             member_cc_email = request.POST.get('member_cc_email', '')
             member_bcc_email = request.POST.get('member_bcc_email', '')
             
             raw_subject = request.POST.get('reply_subject')
             subject = raw_subject if raw_subject else f"Reply: {delegation.email_category or 'Task Action'}"
             
-            # 🚀 Convert textarea newlines to HTML <br> tags
+            # Convert textarea newlines to HTML <br> tags
             raw_body = request.POST.get('reply_body', '')
             formatted_body = raw_body.replace('\r\n', '<br>').replace('\n', '<br>')
             
@@ -4165,19 +4163,45 @@ def outlook_delegated_action(request, delegation_id):
             log_type = request.POST.get('email_log_type', 'REPLY') 
             reply_files = request.FILES.getlist('reply_files')
 
-            # 🚀 FIX: Removed the HTML template render. Services.py handles it now.
+            # 🚀 1. GET THE SIGNATURE FIRST
+            user_signature = get_user_signature(request.user)
+
+            # 🚀 2. CONSTRUCT THE FULL EMAIL THREAD
+            try:
+                original_email = OutlookInbox.objects.get(email_id=delegation.email_id)
+                sent_date = original_email.received_at.strftime('%d %B %Y %H:%M') if original_email.received_at else 'Unknown'
+                
+                thread_history = f"""
+                <br>
+                <div style="border:none; border-top:solid #B5C4DF 1.0pt; padding:3.0pt 0cm 0cm 0cm">
+                    <p style="margin:0cm; margin-bottom:.0001pt; font-size:11.0pt; font-family:'Calibri',sans-serif">
+                        <b>From:</b> {original_email.sender_name} &lt;{original_email.sender_address}&gt;<br>
+                        <b>Sent:</b> {sent_date}<br>
+                        <b>To:</b> {original_email.to_addresses}<br>
+                        <b>Subject:</b> {original_email.subject}
+                    </p>
+                </div>
+                <br>
+                {original_email.body_content}
+                """
+                
+                # 🚀 3. STITCH IN THE CORRECT ORDER: Reply -> Signature -> Thread History
+                final_email_body = formatted_body + user_signature + thread_history
+                
+            except OutlookInbox.DoesNotExist:
+                final_email_body = formatted_body + user_signature
 
             # Call the service to send the email with CC and BCC included
             response = OutlookGraphService.send_outlook_email(
                 target_email=target_email, 
                 recipient_email=recipient, 
                 subject=subject, 
-                body_content=formatted_body, # 🚀 Just pass the raw formatted body
+                body_content=final_email_body, 
                 content_type='HTML',
-                user=request.user,
+                user=None,  # 🚀 4. SET TO NONE SO SERVICES.PY DOESN'T ADD THE SIGNATURE AGAIN AT THE BOTTOM
                 attachments=reply_files,
-                cc_email=member_cc_email,   # 🚀 Pass CC parameter
-                bcc_email=member_bcc_email  # 🚀 Pass BCC parameter
+                cc_email=member_cc_email,   
+                bcc_email=member_bcc_email  
             )
             
             if response.get('success'):
@@ -4190,7 +4214,7 @@ def outlook_delegated_action(request, delegation_id):
                     tracking_metadata, 
                     recipient, 
                     action_type=final_action_type,
-                    body=formatted_body  # 🚀 Passes the body to the logger without the double signature
+                    body=formatted_body  
                 )
                 
                 file_count = len(reply_files)
@@ -4200,7 +4224,7 @@ def outlook_delegated_action(request, delegation_id):
                 
             return redirect('outlook_delegated_action', delegation_id=delegation_id)
 
-    # --- GET DATA WITH 404 SAFETY HANDLING ---
+    # --- GET DATA WITH 404 SAFETY HANDLING AND CONTENT_TYPE FIX ---
     endpoint = f"messages/{delegation.email_id}"
     email_data = OutlookGraphService._make_graph_request(endpoint, target_email, method='GET')
     
@@ -4213,7 +4237,8 @@ def outlook_delegated_action(request, delegation_id):
     else:
         attachments = OutlookGraphService.fetch_attachments(target_email, delegation.email_id)
         for att in attachments:
-            content_type = att.get('contentType', '').lower()
+            # 🚀 Prevent AttributeError if contentType is null (None)
+            content_type = (att.get('contentType') or '').lower()
             if 'image' in content_type:
                 raw_att = OutlookGraphService.get_attachment_raw(target_email, delegation.email_id, att['id'])
                 if isinstance(raw_att, dict) and 'contentBytes' in raw_att:
@@ -4225,13 +4250,13 @@ def outlook_delegated_action(request, delegation_id):
         else:
             email_display = email_data
 
-    # 🚀 Fetch the local inbox record using the delegation's email_id 🚀
+    # 🚀 Fetch the local inbox record using the delegation's email_id 
     local_inbox = OutlookInbox.objects.filter(email_id=delegation.email_id).first()
 
     context = {
         'delegation': delegation,
         'email': email_display,
-        'local_inbox': local_inbox,  # 🚀 Pass the local inbox data to the template 🚀
+        'local_inbox': local_inbox,  
         'attachments': attachments,
         'notes': delegation.notes.all().order_by('-created_at'),
         'target_email': target_email,
@@ -4358,7 +4383,7 @@ def outlook_delegate_to(request, email_id):
     attachments_data = OutlookGraphService.fetch_attachments(target_email, email_id)
     
     for att in attachments_data:
-        content_type = att.get('contentType', '').lower()
+        content_type = (att.get('contentType') or '').lower()
         if 'image' in content_type:
             raw_att = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
             if 'contentBytes' in raw_att:
