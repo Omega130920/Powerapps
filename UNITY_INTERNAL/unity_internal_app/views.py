@@ -1478,7 +1478,7 @@ def update_bankline_details(request, recon_id):
     sends a custom email, and logs the interaction to UnityNotes.
     """
     from .models import ReconnedBank, UnityNotes, BankLineNote
-    from .services import OutlookGraphService, get_user_signature
+    from .services import OutlookGraphService
     from django.conf import settings
     from django.utils import timezone 
     
