@@ -49,6 +49,7 @@ from .services.delegation_service import (
     get_delegated_emails_for_user,
     log_delegation_transaction
 )
+import re
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -2579,12 +2580,14 @@ def export_two_pot_tracking_acvv(request):
     """
     Report 2: Full Tracking (Yellow Theme) with Red text for 'NO' statuses.
     Matches attached image format.
+    Extracts Tracking Parameters from claim notes.
     """
     query = request.GET.get('q')
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
 
-    claims_queryset = AcvvClaim.objects.filter(claim_type='Two Pot').order_by('claim_created_date')
+    # --- UPDATED: Added prefetch_related('notes') for efficient querying ---
+    claims_queryset = AcvvClaim.objects.filter(claim_type='Two Pot').prefetch_related('notes').order_by('claim_created_date')
 
     if query:
         claims_queryset = claims_queryset.filter(
@@ -2595,7 +2598,6 @@ def export_two_pot_tracking_acvv(request):
     if start_date and end_date:
         claims_queryset = claims_queryset.filter(claim_created_date__range=[start_date, end_date])
 
-    # --- NEW: Build an efficient Lookup Map for Company Names ---
     # Fetch unique company codes to minimize database hits
     unique_codes = claims_queryset.values_list('company_code', flat=True).distinct()
     
@@ -2627,19 +2629,19 @@ def export_two_pot_tracking_acvv(request):
     # Row 2 Headers
     headers = [
         "Date application extracted from Web: Savings Form Request",  # Column B
-        "Initials",                                                    # Column C
-        "Surname",                                                     # Column D
-        "Member number",                                               # Column E
-        "ID NUMBER",                                                   # Column F
-        "Fund Code",                                                   # Column G
-        "Company Name",                                                # Column H
-        "Query",                                                       # Column I
-        "Claim",                                                       # Column J
-        "Qualified Y/N",                                               # Column K
-        "Date submitted online",                                       # Column L
+        "Initials",                                                   # Column C
+        "Surname",                                                    # Column D
+        "Member number",                                              # Column E
+        "ID NUMBER",                                                  # Column F
+        "Fund Code",                                                  # Column G
+        "Company Name",                                               # Column H
+        "Query",                                                      # Column I
+        "Claim",                                                      # Column J
+        "Qualified Y/N",                                              # Column K
+        "Date submitted online",                                      # Column L
         "Inform Employer that the claim is succesfully loaded",       # Column M
-        "Admin Front Office Application Submitted",                    # Column N
-        "Note"                                                         # Column O
+        "Admin Front Office Application Submitted",                   # Column N
+        "Note"                                                        # Column O
     ]
     ws.append(headers)
     
@@ -2653,10 +2655,40 @@ def export_two_pot_tracking_acvv(request):
     for claim in claims_queryset:
         initials = "".join([n[0] for n in claim.member_name.split() if n]) if claim.member_name else ""
         
-        # Determine Qualified value explicitly based on form state
+        # --- NEW: Default variables for extraction ---
+        # We start with fallbacks based on original claim data, then overwrite if a note is found
         is_paid = str(claim.claim_status).upper().strip() == "PAID"
         qualified_val = "YES" if is_paid else "NO"
-        
+        informed_er = "YES" if is_paid else "NO"
+        date_submitted_online = claim.date_submitted.strftime('%d/%m/%Y') if claim.date_submitted else ''
+        submitted_by_agent = claim.agent or "TD"
+
+        # --- NEW: Extract Tracking Parameters via Regex ---
+        for note in claim.notes.all():
+            if note.note_description and "[Tracking Parameters Logged]" in note.note_description:
+                desc = note.note_description
+                
+                # Extract 'Qualified'
+                q_match = re.search(r"- Qualified:\s*([^\n]+)", desc)
+                if q_match:
+                    qualified_val = q_match.group(1).strip().upper()
+                    
+                # Extract 'Informed ER'
+                er_match = re.search(r"- Informed ER:\s*([^\n]+)", desc)
+                if er_match:
+                    informed_er = er_match.group(1).strip().upper()
+
+                # Extract 'Date Submitted Online'
+                date_match = re.search(r"- Date Submitted Online:\s*([^\n]+)", desc)
+                if date_match and date_match.group(1).strip() != 'N/A':
+                    date_submitted_online = date_match.group(1).strip()
+
+                # Extract 'Submitted by Agent'
+                agent_match = re.search(r"- Submitted by Agent:\s*([^\n]+)", desc)
+                if agent_match and agent_match.group(1).strip() != 'N/A':
+                    submitted_by_agent = agent_match.group(1).strip()
+        # ------------------------------------------------
+
         # Build out dynamic Note helper descriptions for Column O when NO is encountered
         note_helper = ""
         if qualified_val == "NO":
@@ -2666,7 +2698,6 @@ def export_two_pot_tracking_acvv(request):
             else:
                 note_helper = ""
 
-        # --- FIX: Fetch the actual company name string ---
         company_name = company_name_map.get(claim.company_code, "Unknown Company")
 
         row = [
@@ -2676,13 +2707,13 @@ def export_two_pot_tracking_acvv(request):
             claim.mip_number,                                                                  # Col E
             claim.id_number,                                                                   # Col F
             claim.company_code,                                                                # Col G
-            company_name,                                                                      # Col H (Now mapping correctly)
-            "Savings Form Request",                                                            # Col I (Default)
+            company_name,                                                                      # Col H 
+            "Savings Form Request",                                                            # Col I 
             claim.claim_status or "",                                                          # Col J
-            qualified_val,                                                                     # Col K
-            claim.date_submitted.strftime('%d/%m/%Y') if claim.date_submitted else '',         # Col L
-            "YES" if is_paid else "No",                                                        # Col M
-            claim.agent or "TD",                                                               # Col N
+            qualified_val,                                                                     # Col K (Extracted)
+            date_submitted_online,                                                             # Col L (Extracted)
+            informed_er,                                                                       # Col M (Extracted)
+            submitted_by_agent,                                                                # Col N (Extracted)
             note_helper                                                                        # Col O
         ]
         ws.append(row)
