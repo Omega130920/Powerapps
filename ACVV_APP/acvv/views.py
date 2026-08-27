@@ -380,7 +380,10 @@ def outlook_delegated_action(request, delegation_id):
         elif action_type == 'send_reply':
             recipient = request.POST.get('reply_recipient')
             subject = request.POST.get('reply_subject')
-            body = request.POST.get('reply_body')
+            
+            # 🚀 Convert textarea newlines to HTML <br> tags
+            raw_body = request.POST.get('reply_body', '')
+            formatted_body = raw_body.replace('\r\n', '<br>').replace('\n', '<br>')
             
             # --- NEW: GENERATE AND APPEND SIGNATURE ---
             current_username = request.user.username.lower()
@@ -413,7 +416,46 @@ def outlook_delegated_action(request, delegation_id):
             
             from django.template.loader import render_to_string
             signature_html = render_to_string('acvv_app/acvv_email_signature.html', signature_context)
-            full_html_body = f"<div>{body}</div><br><br>{signature_html}"
+            
+            # 🚀 --- FETCH ORIGINAL EMAIL FOR THREAD HISTORY --- 🚀
+            try:
+                from dateutil import parser
+                original_email = OutlookGraphService.fetch_outlook_data(f"messages/{delegation.email_id}", target_email)
+                
+                if isinstance(original_email, dict) and 'body' in original_email:
+                    sender_name = original_email.get('from', {}).get('emailAddress', {}).get('name', 'Unknown')
+                    sender_address = original_email.get('from', {}).get('emailAddress', {}).get('address', 'Unknown')
+                    
+                    raw_date = original_email.get('receivedDateTime')
+                    sent_date = parser.isoparse(raw_date).strftime('%d %B %Y %H:%M') if raw_date else 'Unknown'
+                    
+                    to_recipients = original_email.get('toRecipients', [])
+                    to_addresses = ", ".join([r.get('emailAddress', {}).get('address', '') for r in to_recipients])
+                    
+                    orig_subject = original_email.get('subject', '')
+                    orig_body = original_email.get('body', {}).get('content', '')
+                    
+                    thread_history = f"""
+                    <br>
+                    <div style="border:none; border-top:solid #B5C4DF 1.0pt; padding:3.0pt 0cm 0cm 0cm">
+                        <p style="margin:0cm; margin-bottom:.0001pt; font-size:11.0pt; font-family:'Calibri',sans-serif">
+                            <b>From:</b> {sender_name} &lt;{sender_address}&gt;<br>
+                            <b>Sent:</b> {sent_date}<br>
+                            <b>To:</b> {to_addresses}<br>
+                            <b>Subject:</b> {orig_subject}
+                        </p>
+                    </div>
+                    <br>
+                    {orig_body}
+                    """
+                    
+                    # Combine: New Body -> Signature -> Thread History
+                    full_html_body = f"<div>{formatted_body}</div><br><br>{signature_html}{thread_history}"
+                else:
+                    full_html_body = f"<div>{formatted_body}</div><br><br>{signature_html}"
+            except Exception as e:
+                # Safe fallback if API fetch fails
+                full_html_body = f"<div>{formatted_body}</div><br><br>{signature_html}"
             # ------------------------------------------
             
             # --- MULTI-ATTACHMENT UPDATE ---
@@ -423,8 +465,15 @@ def outlook_delegated_action(request, delegation_id):
             selected_action_type = request.POST.get('action_log_type') or "Correspondence"
             
             # Pass down the complete file objects array context list safely
-            # 🚀 FIX: Passed full_html_body to the Graph Service
-            result = OutlookGraphService.send_outlook_email(target_email, recipient, subject, full_html_body, content_type='Html', attachments=attachments_list)
+            result = OutlookGraphService.send_outlook_email(
+                target_email, 
+                recipient, 
+                subject, 
+                full_html_body, 
+                content_type='Html', 
+                attachments=attachments_list,
+                user=None  # 🚀 explicitly pass None so services doesn't duplicate the signature
+            )
             
             if result.get('success'):
                 # 🚀 FIX: Passed full_html_body to the transaction logger
