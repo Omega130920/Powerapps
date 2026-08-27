@@ -1935,10 +1935,16 @@ def reconciliation_worksheet(request):
                                 new_note_val = current_fiscal.strftime("01.%m.%Y")
                         else:
                             new_note_val = current_fiscal.strftime("01.%m.%Y")
-                        Globalacvv.objects.filter(mip_names=rec.mg_name).update(notes=new_note_val)
+                        
+                        # --- UPDATED: Also push the reconciled Member Count & Amount back to the Master ACVV table ---
+                        Globalacvv.objects.filter(mip_names=rec.mg_name).update(
+                            notes=new_note_val,
+                            member=str(rec.member_count_reconciled),
+                            contribution_amount=str(rec.contribution_amount_reconciled)
+                        )
 
                 records_to_close.update(is_closed=True, closed_at=timezone.now())
-                messages.success(request, f"Fiscal month {current_fiscal.strftime('%B %Y')} closed.")
+                messages.success(request, f"Fiscal month {current_fiscal.strftime('%B %Y')} closed. Master list updated.")
             return redirect(f"{reverse('reconciliation_worksheet')}?year={current_fiscal.year}&month={current_fiscal.month}")
 
         elif 'reopen_month' in request.POST:
