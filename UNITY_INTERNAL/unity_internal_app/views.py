@@ -220,26 +220,17 @@ def unity_list(request):
     # --- 1. HANDLE POST REQUEST TO ADD NEW MEMBER GROUP ---
     if request.method == 'POST' and request.POST.get('action') == 'add_new_member_group':
         try:
-<<<<<<< HEAD
             # Force uppercase and strip spaces to ensure exact matching across the system
-=======
-            # 🚀 Force uppercase and strip spaces to ensure exact matching across the system
->>>>>>> 9764178f073273c07fea9b86dd7c9b23047242af
             new_code = request.POST.get('new_company_code', '').strip().upper()
             new_name = request.POST.get('new_company_name', '').strip()
             new_agent = request.POST.get('new_agent', '')
             new_status = request.POST.get('new_status', 'Active')
             
             if new_code and new_name:
-<<<<<<< HEAD
                 # Use __iexact to safely check for existing records regardless of casing
                 if not UnityMgListing.objects.filter(a_company_code__iexact=new_code).exists():
                     
                     # 🚀 1. Create in internal_mg_list
-=======
-                # 🚀 Use __iexact to safely check for existing records regardless of casing
-                if not UnityMgListing.objects.filter(a_company_code__iexact=new_code).exists():
->>>>>>> 9764178f073273c07fea9b86dd7c9b23047242af
                     UnityMgListing.objects.create(
                         a_company_code=new_code,
                         b_company_name=new_name,
