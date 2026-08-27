@@ -209,28 +209,44 @@ def unity_list(request):
     """
     Displays a list combining InternalFunds and UnityMgListing.
     Calculates the 'Current Status' and 'Current Fiscal' based on the latest UnityBill.
-    Includes POST handling to create a new Member Group (Company).
+    Includes POST handling to create a new Member Group (Company) in both listing tables.
     """
     from django.contrib import messages
     from django.shortcuts import redirect
+    from collections import defaultdict
+    from decimal import Decimal
+    from django.db.models import Sum
     
     # --- 1. HANDLE POST REQUEST TO ADD NEW MEMBER GROUP ---
     if request.method == 'POST' and request.POST.get('action') == 'add_new_member_group':
         try:
-            new_code = request.POST.get('new_company_code', '').strip()
+            # Force uppercase and strip spaces to ensure exact matching across the system
+            new_code = request.POST.get('new_company_code', '').strip().upper()
             new_name = request.POST.get('new_company_name', '').strip()
             new_agent = request.POST.get('new_agent', '')
             new_status = request.POST.get('new_status', 'Active')
             
             if new_code and new_name:
-                # Check if it already exists to prevent duplicates
-                if not UnityMgListing.objects.filter(a_company_code=new_code).exists():
+                # Use __iexact to safely check for existing records regardless of casing
+                if not UnityMgListing.objects.filter(a_company_code__iexact=new_code).exists():
+                    
+                    # 🚀 1. Create in internal_mg_list
                     UnityMgListing.objects.create(
                         a_company_code=new_code,
                         b_company_name=new_name,
                         c_agent=new_agent,
                         d_company_status=new_status,
                     )
+                    
+                    # 🚀 2. Create in internal_funds with Source="Internal"
+                    if not InternalFunds.objects.filter(A_Company_Code__iexact=new_code).exists():
+                        InternalFunds.objects.create(
+                            A_Company_Code=new_code,
+                            B_Company_Name=new_name,
+                            Source='Internal',
+                            D_Company_Status=new_status,
+                        )
+
                     messages.success(request, f"Successfully added new Member Group: {new_code} - {new_name}")
                 else:
                     messages.warning(request, f"Member Group with code '{new_code}' already exists.")
@@ -1478,7 +1494,7 @@ def update_bankline_details(request, recon_id):
     sends a custom email, and logs the interaction to UnityNotes.
     """
     from .models import ReconnedBank, UnityNotes, BankLineNote
-    from .services import OutlookGraphService, get_user_signature
+    from .services import OutlookGraphService
     from django.conf import settings
     from django.utils import timezone 
     
