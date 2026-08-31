@@ -23,20 +23,19 @@ def get_user_signature(user):
         return ""
 
     # Dictionary Mapping for all Team Members
+    # Format: ('Full Name', 'Job Title', 'Mobile Number')
     team = {
-        'jesica': ('Jesica Haynes', 'Reconciliations Specialist'),
-        'timothy': ('Timothy Davids', 'Indexing Specialist'),
-        'mymoena': ('Mymoena', 'Senior Administrator '), 
-        'chantal': ('Chantal', 'Reconciliations Specialist'),
-        'karen': ('Karen', 'Job Title'),
-        'samantha': ('Samantha', 'Job Title'),
-        'lorraine': ('Lorraine', 'Job Title'),
-        'merril': ('Merril', 'Job Title'),
-        'gail': ('Gail', 'Job Title'),
-        'rashanda': ('Rashanda', 'Job Title'),
-        'manager': ('Manager Name', 'Manager'),
-        'omega': ('Omega User', 'Developer'),
-        'alpha': ('Alpha User', 'Developer'),
+        'jesica': ('Jesica Haynes', 'Reconciliations Specialist', ''),
+        'timothy': ('Timothy Davids', 'Indexing Specialist', ''),
+        'mymoena': ('Mymoena Kariem', 'Senior Administrator', '066 192 7247'), 
+        'chantal': ('Chantal Roux', 'Reconciliations Specialist', ''),
+        'samantha': ('Samantha', 'Job Title', ''),
+        'lorraine': ('Lorraine', 'Job Title', ''),
+        'merril': ('Merril Fennessy', 'Job Title', ''),
+        'gail': ('Gail le Roux', 'Job Title', ''),
+        'rashanda': ('Rashanda Heradien', 'Job Title', ''),
+        'manager': ('Manager Name', 'Manager', ''),
+        'omega': ('Omega User', 'Developer', ''),
     }
 
     user_key = user.username.lower() if hasattr(user, 'username') else ""
@@ -48,31 +47,44 @@ def get_user_signature(user):
     logo_url = "https://futurasa.co.za/wp-content/uploads/2021/04/futura-logo.png"
 
     if found_user:
-        full_name, title = found_user
+        full_name = found_user[0]
+        title = found_user[1]
+        mobile = found_user[2] if len(found_user) > 2 else ""
+        
+        # Build mobile line dynamically if it exists
+        mobile_html = f'<div style="margin: 0 0 4px 0; font-size: 12px;"><strong style="color: #4CAF50;">mobile:</strong> {mobile}</div>' if mobile else '<div style="margin: 0 0 4px 0; font-size: 12px;"><strong style="color: #4CAF50;">mobile:</strong></div>'
+
         return f"""
-        <div style="font-family: Arial, sans-serif; font-size: 13px; color: #333; margin-top: 30px; border-top: 1px solid #ccc; padding-top: 15px;">
-            <table cellpadding="0" cellspacing="0" border="0" style="width: 100%; max-width: 650px;">
+        <div style="font-family: Arial, sans-serif; font-size: 13px; color: #333; margin-top: 20px;">
+            <p style="margin: 0 0 20px 0; font-size: 13px; color: #333;">
+                Note: Please <strong>do not send schedules and claim forms to personal email addresses</strong> as it is only actioned from <strong><a href="mailto:unityeb@futurasa.co.za" style="color: #0000EE; text-decoration: underline;">unityeb@futurasa.co.za</a></strong>
+            </p>
+            
+            <p style="margin: 0 0 5px 0; font-size: 13px; color: #333;">Kind Regards</p>
+            
+            <div style="color: #4CAF50; font-size: 14px; font-weight: bold; margin-bottom: 2px;">{full_name}</div>
+            <div style="margin-bottom: 20px; color: #333; font-size: 13px;">{title}</div>
+            
+            <table cellpadding="0" cellspacing="0" border="0" style="width: 100%; max-width: 650px; margin-bottom: 15px;">
                 <tr>
-                    <td style="padding-right: 20px; vertical-align: top; width: 200px;">
-                        <div style="color: #4CAF50; font-size: 16px; font-weight: bold; margin-bottom: 2px;">{full_name}</div>
-                        <div style="margin-bottom: 12px; color: #555; font-size: 12px;">{title}</div>
-                        <img src="{logo_url}" alt="Futura Logo" style="width: 150px; display: block;">
+                    <td style="padding-right: 15px; vertical-align: middle; width: 140px;">
+                        <img src="{logo_url}" alt="Futura Logo" style="width: 130px; display: block;">
                     </td>
-                    <td style="vertical-align: top; border-left: 1px solid #eee; padding-left: 20px;">
-                        <p style="margin: 0 0 4px 0; font-size: 12px;"><strong>phone:</strong> 087 702 5904</p>
-                        <p style="margin: 0 0 4px 0; font-size: 12px;"><strong>mobile:</strong></p>
-                        <p style="margin: 0 0 4px 0; font-size: 12px;"><strong>fax:</strong> 086 565 4597</p>
-                        <p style="margin: 0 0 0 0; font-size: 12px;"><strong>Email:</strong> <a href="mailto:unityeb@futurasa.co.za" style="color: #2e7d32; text-decoration: none;">unityeb@futurasa.co.za</a></p>
+                    <td style="vertical-align: middle; border-left: 2px solid #4CAF50; padding-left: 15px;">
+                        <div style="margin: 0 0 4px 0; font-size: 12px;"><strong style="color: #4CAF50;">phone:</strong> 087 702 5904</div>
+                        {mobile_html}
+                        <div style="margin: 0 0 4px 0; font-size: 12px;"><strong style="color: #4CAF50;">fax:</strong> 086 565 4597</div>
+                        <div style="margin: 0 0 0 0; font-size: 12px;"><strong style="color: #4CAF50;">Email:</strong> <a href="mailto:unityeb@futurasa.co.za" style="color: #0000EE; text-decoration: underline;">unityeb@futurasa.co.za</a></div>
                     </td>
                 </tr>
             </table>
             
-            <p style="margin: 15px 0 10px 0; font-size: 11px; font-weight: bold; color: #000;">
+            <p style="margin: 20px 0 15px 0; font-size: 12px; color: #333;">
                 Futura SA is a Level 1 B-BBEE contributor, committed to transformation and inclusive growth.
             </p>
             
-            <p style="font-size: 9.5px; color: #666; line-height: 1.4; text-align: justify;">
-                <strong>Disclaimer:</strong> Futura SA Administrators (Pty) Ltd is an authorized Financial Services Provider licensed by the Financial Sector Conduct Authority in terms of the FAIS Act. License Number 18287 and a licensed Section 13B Administrator number 24/760. This transmission is confidential and intended solely for the person or organization to whom it is addressed. If you have received this transmission in error, please notify us immediately by e-mail at <a href="mailto:info@futurasa.co.za" style="color: #666; text-decoration: none;">info@futurasa.co.za</a>.
+            <p style="font-size: 9.5px; color: #000; line-height: 1.5; text-align: justify;">
+                <strong>Disclaimer:</strong> Futura SA Administrators (Pty) Ltd is an authorized Financial Services Provider licensed by the Financial Sector Conduct Authority in terms of the FAIS Act. License Number 18287 and a licensed Section 13B Administrator number 24/760. This transmission is confidential and intended solely for the person or organization to whom it is addressed. It may contain privileged and confidential information. If you are not the intended recipient, you should not copy, distribute or take any action in reliance on it. If you have received this transmission in error, please notify us immediately by e-mail at <a href="mailto:info@futurasa.co.za" style="color: #0000EE; text-decoration: underline;">info@futurasa.co.za</a>.
             </p>
         </div>
         """

@@ -1,30 +1,45 @@
-<div style="font-family: Arial, sans-serif; font-size: 13px; color: #333; margin-top: 20px;">
-    <p style="color: #4CAF50; font-weight: bold; margin: 0 0 10px 0;">
-        {{ request.user.get_full_name|default:request.user.username }}
+<div style="font-family: 'Century Gothic', Arial, sans-serif; font-size: 13px; color: #000; margin-top: 20px;">
+    <p style="margin: 0 0 15px 0; font-size: 12px; line-height: 1.4; color: #000;">
+        Please note that no documents should be forwarded to a personal inbox or to that of any other individual, but rather to the central dispatch e-mail address <a href="mailto:Unity@futurasa.co.za" style="color: #0000EE; text-decoration: underline;">Unity@futurasa.co.za</a> This process allows us to keep a proper track record and audit trail of all documents received and reduces the risk of not processing important information timeously.
     </p>
 
-    <table cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
+    <p style="margin: 0 0 10px 0; font-size: 13px; color: #000;">
+        Regards
+    </p>
+    
+    <!-- Dynamic Name and Title Injection -->
+    <div style="color: #4CAF50; font-weight: bold; font-size: 14px; margin-bottom: 2px;">
+        {{ agent_name }}
+    </div>
+    <div style="margin-bottom: 15px; color: #000; font-size: 13px;">
+        {{ agent_title }}
+    </div>
+
+    <table cellpadding="0" cellspacing="0" border="0" style="width: 100%; max-width: 650px; margin-bottom: 20px;">
         <tr>
-            <td style="width: 160px; vertical-align: top;">
-                <img src="{{ logo_url }}" alt="Futura Logo" style="width: 150px; display: block;">
+            <td style="width: 130px; vertical-align: middle; padding-right: 15px;">
+                <img src="{{ logo_url }}" alt="Futura Logo" style="width: 120px; display: block;">
             </td>
-            <td style="vertical-align: top; border-left: 1px solid #ccc; padding-left: 15px;">
-                <p style="margin: 0 0 4px 0;">
+            <td style="vertical-align: middle; border-left: 2px solid #8fc349; padding-left: 15px; height: 60px;">
+                <div style="margin: 0 0 12px 0; font-size: 12px;">
+                    <strong style="color: #4CAF50;">phone:</strong> 087 702 5907
+                </div>
+                <div style="margin: 0 0 4px 0; font-size: 12px;">
+                    <strong style="color: #4CAF50;">fax:</strong> 086 593 8701
+                </div>
+                <div style="margin: 0; font-size: 12px;">
                     <strong style="color: #4CAF50;">email:</strong> 
-                    <a href="mailto:unity@futurasa.co.za" style="color: #2e7d32;">unity@futurasa.co.za</a>
-                </p>
-                <p style="margin: 0 0 4px 0;">
-                    <strong style="color: #4CAF50;">cell:</strong> 087 702 5934
-                </p>
+                    <a href="mailto:unity@futurasa.co.za" style="color: #0000EE; text-decoration: underline; font-weight: bold;">unity@futurasa.co.za</a>
+                </div>
             </td>
         </tr>
     </table>
 
-    <p style="margin: 15px 0 10px 0;">
-        Futura SA is a Level 1 B-BBEE contributor, committed to transformation and inclusive growth.
+    <p style="margin: 0 0 15px 0; font-size: 13px; color: #000;">
+        "Futura SA is a Level 1 B-BBEE contributor, committed to transformation and inclusive growth."
     </p>
 
-    <p style="font-size: 10px; color: #666; line-height: 1.4;">
-        <strong>Disclaimer:</strong> Futura SA Administrators (Pty) Ltd is an authorized Financial Services Provider licensed by the Financial Sector Conduct Authority in terms of the FAIS Act. License Number 18287 and a licensed Section 13B Administrator number 24/760. This transmission is confidential and intended solely for the person or organization to whom it is addressed. If you have received this transmission in error, please notify us immediately by e-mail at <a href="mailto:info@futurasa.co.za" style="color: #666;">info@futurasa.co.za</a>.
+    <p style="font-size: 10px; color: #000; line-height: 1.5; text-align: justify; margin: 0;">
+        <strong>Disclaimer:</strong> Futura SA Administrators (Pty) Ltd is an authorized Financial Services Provider licensed by the Financial Sector Conduct Authority in terms of the FAIS Act. License Number 18287 and a licensed Section 13B Administrator number 24/760. This transmission is confidential and intended solely for the person or organization to whom it is addressed. It may contain privileged and confidential information. If you are not the intended recipient, you should not copy, distribute or take any action in reliance on it. If you have received this transmission in error, please notify us immediately by e-mail at <a href="mailto:info@futurasa.co.za" style="color: #0000EE; text-decoration: underline;">info@futurasa.co.za</a>
     </p>
 </div>

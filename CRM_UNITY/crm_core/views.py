@@ -206,6 +206,26 @@ ENQUIRY_GROUPING_MAP = {
 # AUTHENTICATION & DASHBOARD
 # ==============================================================================
 
+def get_crm_signature_details(user):
+    """Returns the dynamic Name and Job Title based on the logged-in user."""
+    username = user.username.lower() if user.username else ""
+    first_name = user.first_name.lower() if user.first_name else ""
+    
+    # Default fallbacks
+    agent_name = user.get_full_name() or user.username
+    agent_title = "Administrator"
+    
+    # Match specific agents
+    if 'gail' in username or 'gail' in first_name:
+        agent_name = "Gail Le Roux"
+        agent_title = "Client Relations Manager Sanlam Unity Umbrella Fund"
+    elif 'merril' in username or 'merril' in first_name:
+        agent_name = "Merril Fennessy"
+        agent_title = "Client Relations Manager Sanlam Unity Umbrella Fund"
+        
+    return agent_name, agent_title
+
+
 def login_view(request):
     if request.method == 'POST':
         form = AuthenticationForm(request, data=request.POST)
@@ -466,30 +486,76 @@ def send_task_email_view(request, email_id):
         
         recipient = request.POST.get('recipient_email')
         subject = request.POST.get('email_subject_reply') 
-        message_body = request.POST.get('email_body_reply')
+        raw_message_body = request.POST.get('email_body_reply', '')
         
-        if not message_body or message_body == "<p><br></p>":
+        if not raw_message_body or raw_message_body == "<p><br></p>":
              messages.error(request, "Email body cannot be empty.")
              return redirect('delegate_action', email_id=email_id)
+
+        # Convert newlines to HTML breaks (in case it's a standard textarea)
+        message_body = raw_message_body.replace('\r\n', '<br>').replace('\n', '<br>')
 
         # Before render_to_string, calculate the full URL
         logo_full_url = request.build_absolute_uri(settings.MEDIA_URL + 'futuraLogo.png')
 
-        # Update your signature render call
+        # Fetch dynamic name and title using the helper
+        agent_name, agent_title = get_crm_signature_details(request.user)
+
+        # Update your signature render call with dynamic parameters
         signature_html = render_to_string('email_signature.html', {
             'request': request,
             'MEDIA_URL': settings.MEDIA_URL,
-            'logo_url': logo_full_url  # Pass this new variable
+            'logo_url': logo_full_url,
+            'agent_name': agent_name,
+            'agent_title': agent_title
         })
         
-        # Combine the user's message body with the signature
-        full_message_body = f"{message_body}<br>{signature_html}"
+        # 🚀 --- FETCH ORIGINAL EMAIL FOR THREAD HISTORY --- 🚀
+        try:
+            from dateutil import parser
+            original_email = OutlookGraphService._make_graph_request(f"messages/{email_id}", method='GET')
+            
+            if isinstance(original_email, dict) and 'body' in original_email:
+                sender_name = original_email.get('from', {}).get('emailAddress', {}).get('name', 'Unknown')
+                sender_address = original_email.get('from', {}).get('emailAddress', {}).get('address', 'Unknown')
+                
+                raw_date = original_email.get('receivedDateTime')
+                sent_date = parser.isoparse(raw_date).strftime('%d %B %Y %H:%M') if raw_date else 'Unknown'
+                
+                to_recipients = original_email.get('toRecipients', [])
+                to_addresses = ", ".join([r.get('emailAddress', {}).get('address', '') for r in to_recipients])
+                
+                orig_subject = original_email.get('subject', '')
+                orig_body = original_email.get('body', {}).get('content', '')
+                
+                thread_history = f"""
+                <br>
+                <div style="border:none; border-top:solid #B5C4DF 1.0pt; padding:3.0pt 0cm 0cm 0cm">
+                    <p style="margin:0cm; margin-bottom:.0001pt; font-size:11.0pt; font-family:'Calibri',sans-serif">
+                        <b>From:</b> {sender_name} &lt;{sender_address}&gt;<br>
+                        <b>Sent:</b> {sent_date}<br>
+                        <b>To:</b> {to_addresses}<br>
+                        <b>Subject:</b> {orig_subject}
+                    </p>
+                </div>
+                <br>
+                {orig_body}
+                """
+                
+                # Combine: New Body -> Signature -> Thread History
+                full_message_body = f"<div>{message_body}</div><br><br>{signature_html}{thread_history}"
+            else:
+                full_message_body = f"<div>{message_body}</div><br><br>{signature_html}"
+        except Exception as e:
+            # Safe fallback if API fetch fails
+            full_message_body = f"<div>{message_body}</div><br><br>{signature_html}"
 
         # 1. Send the actual email via Outlook using the full body + signature
         response = OutlookGraphService.send_outlook_email(
-            recipient=recipient, 
+            recipient_email=recipient, 
             subject=subject, 
-            body_html=full_message_body
+            body_content=full_message_body,
+            content_type='HTML'
         )
         
         if response.get('success'):
@@ -700,11 +766,16 @@ def member_information(request, member_group_code):
             # Before render_to_string, calculate the full URL
             logo_full_url = request.build_absolute_uri(settings.MEDIA_URL + 'futuraLogo.png')
 
-            # Update your signature render call
+            # Fetch dynamic name and title using the helper
+            agent_name, agent_title = get_crm_signature_details(request.user)
+
+            # Update your signature render call with dynamic parameters
             signature_html = render_to_string('email_signature.html', {
                 'request': request,
                 'MEDIA_URL': settings.MEDIA_URL,
-                'logo_url': logo_full_url  # Pass this new variable
+                'logo_url': logo_full_url,
+                'agent_name': agent_name,
+                'agent_title': agent_title
             })
             
             # Combine user content with the signature
@@ -1201,17 +1272,70 @@ def delegate_action_view(request, email_id):
             elif action_type == 'send_response':
                 recipient = request.POST.get('recipient')
                 subject = request.POST.get('subject')
-                body_html = request.POST.get('email_html_content')
+                raw_body_html = request.POST.get('email_html_content', '')
                 action_log_type = request.POST.get('action_log_type', 'General Feedback')
 
                 cc_recipients = request.POST.get('member_cc_email', '')
                 bcc_recipients = request.POST.get('member_bcc_email', '')
                 uploaded_files = request.FILES.getlist('attachments')
+                
+                # Convert newlines to HTML breaks (in case it's a standard textarea)
+                body_html = raw_body_html.replace('\r\n', '<br>').replace('\n', '<br>')
 
                 if recipient and subject and body_html:
                     # 🚀 DYNAMIC SIGNATURE INJECTION 🚀
-                    signature_html = render_to_string('email_signature.html', {'request': request})
-                    full_body_html = f"{body_html}<br>{signature_html}"
+                    logo_full_url = request.build_absolute_uri(settings.MEDIA_URL + 'futuraLogo.png')
+                    
+                    # Fetch dynamic name and title using the new helper
+                    agent_name, agent_title = get_crm_signature_details(request.user)
+
+                    signature_html = render_to_string('email_signature.html', {
+                        'request': request,
+                        'MEDIA_URL': settings.MEDIA_URL,
+                        'logo_url': logo_full_url,
+                        'agent_name': agent_name,
+                        'agent_title': agent_title
+                    })
+                    
+                    # 🚀 --- FETCH ORIGINAL EMAIL FOR THREAD HISTORY --- 🚀
+                    try:
+                        from dateutil import parser
+                        original_email = OutlookGraphService._make_graph_request(f"messages/{email_id}", method='GET')
+                        
+                        if isinstance(original_email, dict) and 'body' in original_email:
+                            sender_name = original_email.get('from', {}).get('emailAddress', {}).get('name', 'Unknown')
+                            sender_address = original_email.get('from', {}).get('emailAddress', {}).get('address', 'Unknown')
+                            
+                            raw_date = original_email.get('receivedDateTime')
+                            sent_date = parser.isoparse(raw_date).strftime('%d %B %Y %H:%M') if raw_date else 'Unknown'
+                            
+                            to_recipients = original_email.get('toRecipients', [])
+                            to_addresses = ", ".join([r.get('emailAddress', {}).get('address', '') for r in to_recipients])
+                            
+                            orig_subject = original_email.get('subject', '')
+                            orig_body = original_email.get('body', {}).get('content', '')
+                            
+                            thread_history = f"""
+                            <br>
+                            <div style="border:none; border-top:solid #B5C4DF 1.0pt; padding:3.0pt 0cm 0cm 0cm">
+                                <p style="margin:0cm; margin-bottom:.0001pt; font-size:11.0pt; font-family:'Calibri',sans-serif">
+                                    <b>From:</b> {sender_name} &lt;{sender_address}&gt;<br>
+                                    <b>Sent:</b> {sent_date}<br>
+                                    <b>To:</b> {to_addresses}<br>
+                                    <b>Subject:</b> {orig_subject}
+                                </p>
+                            </div>
+                            <br>
+                            {orig_body}
+                            """
+                            
+                            # Combine: New Body -> Signature -> Thread History
+                            full_body_html = f"<div>{body_html}</div><br><br>{signature_html}{thread_history}"
+                        else:
+                            full_body_html = f"<div>{body_html}</div><br><br>{signature_html}"
+                    except Exception as e:
+                        # Safe fallback if API fetch fails
+                        full_body_html = f"<div>{body_html}</div><br><br>{signature_html}"
 
                     result = OutlookGraphService.send_outlook_email(
                         target_email=target_email,

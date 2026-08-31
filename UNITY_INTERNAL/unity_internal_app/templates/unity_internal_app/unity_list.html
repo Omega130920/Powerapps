@@ -387,6 +387,31 @@
                 window.location.href = `{% url 'unity_information' '123' %}`.replace('123', companyCode);
             }
         });
+
+        // 🚀 NEW: Dynamically sort the Current Fiscal dropdown (Newest to Oldest)
+        const fiscalSelect = document.getElementById('filter-current-fiscal');
+        if (fiscalSelect) {
+            // Grab all options except the first "All Fiscals" option
+            const optionsArray = Array.from(fiscalSelect.options).slice(1);
+            
+            optionsArray.sort(function(a, b) {
+                // Push N/A or empty values to the bottom
+                if (a.text === "N/A" || !a.text) return 1;
+                if (b.text === "N/A" || !b.text) return -1;
+                
+                // Parse the strings into valid Date objects
+                const dateA = new Date(a.text);
+                const dateB = new Date(b.text);
+                
+                // Sort Descending (Newest date first)
+                return dateB - dateA;
+            });
+
+            // Re-append the newly sorted options back to the select element
+            optionsArray.forEach(option => {
+                fiscalSelect.appendChild(option);
+            });
+        }
     });
 
     // 🚀 NEW: Close Modal When Clicking Outside
