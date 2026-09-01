@@ -26,6 +26,7 @@ class OutlookGraphService:
         
         headers = {
             'Authorization': f'Bearer {access_token}',
+            'Prefer': 'outlook.timezone="South Africa Standard Time"'  # 🚀 FIX: Forces Microsoft Graph to return UTC+2 (SAST)
         }
         
         # Only add JSON content-type if we aren't requesting a raw value stream
@@ -33,10 +34,11 @@ class OutlookGraphService:
             headers['Content-Type'] = 'application/json'
 
         try:
+            # Added timeouts to prevent the app from hanging during network delays
             if method == 'GET':
-                response = requests.get(url, headers=headers)
+                response = requests.get(url, headers=headers, timeout=15)
             else:
-                response = requests.post(url, headers=headers, json=data)
+                response = requests.post(url, headers=headers, json=data, timeout=20)
             
             # If we requested a MIME stream ($value), return the raw content bytes
             if is_mime and response.status_code == 200:
@@ -58,9 +60,10 @@ class OutlookGraphService:
             return {'error': error_detail}
 
     @staticmethod
-    def fetch_inbox_messages(top_count=15):
+    def fetch_inbox_messages(top_count=100):
         """Fetches recent emails for the live inbox."""
-        endpoint = f"mailFolders/inbox/messages?$top={top_count}&$select=id,subject,from,receivedDateTime,bodyPreview"
+        # Added &$orderby=receivedDateTime desc so it actually fetches new emails
+        endpoint = f"mailFolders/inbox/messages?$top={top_count}&$select=id,subject,from,receivedDateTime,bodyPreview&$orderby=receivedDateTime desc"
         return OutlookGraphService._make_graph_request(endpoint)
 
     @staticmethod
@@ -85,7 +88,7 @@ class OutlookGraphService:
             "attachments": []
         }
 
-        # 🚀 ROBUST PARSING SAFETY GUARD FOR CC RECIPIENTS
+        # ROBUST PARSING SAFETY GUARD FOR CC RECIPIENTS
         if cc_email:
             normalized_cc = str(cc_email).replace(',', ';')
             cc_list = [addr.strip() for addr in normalized_cc.split(';') if addr.strip()]
@@ -94,7 +97,7 @@ class OutlookGraphService:
                     "emailAddress": {"address": address}
                 })
 
-        # 🚀 ROBUST PARSING SAFETY GUARD FOR BCC RECIPIENTS
+        # ROBUST PARSING SAFETY GUARD FOR BCC RECIPIENTS
         if bcc_email:
             normalized_bcc = str(bcc_email).replace(',', ';')
             bcc_list = [addr.strip() for addr in normalized_bcc.split(';') if addr.strip()]
@@ -138,7 +141,7 @@ class OutlookGraphService:
             if sent_check and 'value' in sent_check and len(sent_check['value']) > 0:
                 message_id = sent_check['value'][0]['id'] 
                 
-                # 🚀 ALIGNED KEYS: Returns both 'id' and 'outlook_id' keys to safely satisfy both views modules
+                # ALIGNED KEYS: Returns both 'id' and 'outlook_id' keys to safely satisfy both views modules
                 return {
                     'success': True, 
                     'id': message_id,
