@@ -26,7 +26,7 @@ class OutlookGraphService:
         
         headers = {
             'Authorization': f'Bearer {access_token}',
-            'Prefer': 'outlook.timezone="South Africa Standard Time"'  # 🚀 FIX: Forces Microsoft Graph to return UTC+2 (SAST)
+            'Prefer': 'outlook.timezone="South Africa Standard Time"'  # Forces Microsoft Graph to return SAST
         }
         
         # Only add JSON content-type if we aren't requesting a raw value stream
@@ -60,7 +60,7 @@ class OutlookGraphService:
             return {'error': error_detail}
 
     @staticmethod
-    def fetch_inbox_messages(top_count=100):
+    def fetch_inbox_messages(top_count=500):
         """Fetches recent emails for the live inbox."""
         # Added &$orderby=receivedDateTime desc so it actually fetches new emails
         endpoint = f"mailFolders/inbox/messages?$top={top_count}&$select=id,subject,from,receivedDateTime,bodyPreview&$orderby=receivedDateTime desc"
