@@ -283,26 +283,36 @@ def fetch_emails_view(request):
         messages.error(request, "Access restricted.")
         return redirect('tasks')
 
+    # 1. FETCH LIVE FROM OUTLOOK
     inbox_data = OutlookGraphService.fetch_inbox_messages(top_count=500)
     
     if 'error' in inbox_data:
         messages.error(request, f"Outlook Error: {inbox_data['error']}")
-        return render(request, 'inbox.html', {'email_list': []})
+        # 🚀 FIX 2: Even on API error, show the local database items so they don't vanish
+        display_emails = CrmInbox.objects.filter(status='Pending').order_by('-received_timestamp')
+        return render(request, 'inbox.html', {'email_list': display_emails})
 
     emails = inbox_data.get('value', [])
-    processed_emails = []
-
+    
     # Get IDs of everything already in the delegation table to hide them from the Live Inbox
-    delegated_ids = CrmDelegateTo.objects.values_list('email_id', flat=True)
+    delegated_ids = set(CrmDelegateTo.objects.values_list('email_id', flat=True))
 
+    # 2. SYNC TO LOCAL DATABASE
     for msg in emails:
         email_id = msg['id']
         
-        # Filter: Only show if it hasn't been delegated yet
+        # Filter: Only process if it hasn't been delegated yet
         if email_id not in delegated_ids:
-            # Parse the MS Graph string (e.g., "2026-01-22T08:00:00Z") into a Python datetime
             raw_date = msg.get('receivedDateTime')
-            parsed_date = parse_datetime(raw_date) if raw_date else None
+            
+            # 🚀 FIX 1: Timezone Correction
+            # Parse the raw UTC time and force it into the local timezone (SAST +2)
+            if raw_date:
+                from dateutil import parser
+                parsed_date = parser.isoparse(raw_date)
+                local_date = timezone.localtime(parsed_date)
+            else:
+                local_date = None
 
             local_entry, created = CrmInbox.objects.get_or_create(
                 email_id=email_id,
@@ -310,16 +320,26 @@ def fetch_emails_view(request):
                     'subject': msg.get('subject', 'No Subject'),
                     'sender': msg.get('from', {}).get('emailAddress', {}).get('address', 'Unknown'),
                     'snippet': msg.get('bodyPreview', ''),
-                    'received_timestamp': parsed_date, # Saved to DB
+                    'received_timestamp': local_date, # Saved to DB with correct local time
                     'status': 'Pending'
                 }
             )
             
-            # Attach 'received_at' dynamically so the HTML template can find it
-            local_entry.received_at = local_entry.received_timestamp
-            processed_emails.append(local_entry)
+            # Update timestamps for existing entries to correct old UTC records in your database
+            if not created and local_date:
+                local_entry.received_timestamp = local_date
+                local_entry.save()
 
-    return render(request, 'inbox.html', {'email_list': processed_emails})
+    # 🚀 FIX 2: The Display Loop Bug
+    # Always query the LOCAL database for pending emails. 
+    # This prevents emails from vanishing or delaying if they drop out of the API's top 500 limit.
+    display_emails = CrmInbox.objects.filter(status='Pending').order_by('-received_timestamp')
+    
+    # Attach 'received_at' dynamically so your HTML template can find it
+    for email in display_emails:
+        email.received_at = email.received_timestamp
+
+    return render(request, 'inbox.html', {'email_list': display_emails})
 
 @login_required
 def email_registry_view(request):
@@ -345,7 +365,7 @@ def get_email_content_view(request, email_id):
     email_data = OutlookGraphService._make_graph_request(endpoint, method='GET')
     
     if 'error' in email_data:
-        return HttpResponse(f"<h1>Outlook Error</h1><p>{email_data['error']}</p>", status=500)
+        return HttpResponse(f"<h1>Outlook Error</h1><p>{email_data['error']}</p>", status=1000)
 
     body_data = email_data.get('body', {})
     content = body_data.get('content', 'No content found.')
