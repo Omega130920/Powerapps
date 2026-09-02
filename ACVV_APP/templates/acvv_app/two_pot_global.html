@@ -22,7 +22,20 @@
         text-decoration: none; color: white; font-weight: 700; transition: all .3s ease; font-size: 13px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
     .dashboard-button:hover { background-color: #2e7d32; transform: translateY(-1px); }
-    h1 { color: #1b5e20; text-align: center; flex-grow: 1; font-size: 26px; margin: 0; font-weight: 800; }
+    
+    /* --- UPDATED HEADER ALIGNMENT --- */
+    h1 { color: #1b5e20; text-align: center; flex-grow: 1; font-size: 26px; margin: 0; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 12px; }
+
+    /* --- COUNTER BADGE STYLE --- */
+    .claims-counter-badge {
+        background-color: #e8f5e9;
+        color: #2e7d32;
+        border: 1px solid #c8e6c9;
+        padding: 4px 12px;
+        font-size: 14px;
+        border-radius: 20px;
+        font-weight: 700;
+    }
 
     /* SEARCH/FILTER CONTAINER */
     .search-container { 
@@ -68,7 +81,15 @@
 <div class="container">
     <div class="dashboard-header">
         <a href="{% url 'dashboard' %}" class="dashboard-button" style="background-color: #757575;">Back to Home Screen</a>
-        <h1>💰 Two-Pot Claims Register</h1>
+        
+        <!-- UPDATED HEADER WITH COUNTER -->
+        <h1>
+            💰 Two-Pot Claims Register
+            <span class="claims-counter-badge" title="Total Claims Matching View">
+                <i class="fas fa-layer-group" style="margin-right: 4px;"></i> {{ page_obj.paginator.count|default:0 }}
+            </span>
+        </h1>
+
         <button type="button" class="dashboard-button" style="background-color: #2e7d32;" onclick="openClaimModal()">➕ New Two-Pot</button>
     </div>
 

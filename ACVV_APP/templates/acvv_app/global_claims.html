@@ -34,7 +34,32 @@ body{font-family:'Segoe UI', Roboto, Helvetica, Arial, sans-serif;font-size:14px
 .dashboard-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}
 .dashboard-button{padding:10px 20px;background-color:var(--primary-green);border:none;border-radius:8px;text-decoration:none;color:white;font-weight:700;transition:all .3s ease;font-size:13px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);}
 .dashboard-button:hover{background-color:var(--accent-green); transform: translateY(-1px);}
-h1{color:var(--accent-green);text-align:center;flex-grow:1;font-size:28px; font-weight: 800; letter-spacing: -0.5px;}
+
+/* --- UPDATED HEADER ALIGNMENT --- */
+h1 {
+    color: var(--accent-green);
+    text-align: center;
+    flex-grow: 1;
+    font-size: 28px; 
+    font-weight: 800; 
+    letter-spacing: -0.5px; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    gap: 12px; 
+    margin: 0;
+}
+
+/* --- COUNTER BADGE STYLE --- */
+.claims-counter-badge {
+    background-color: var(--bg-light-green);
+    color: var(--accent-green);
+    border: 1px solid #c8e6c9;
+    padding: 4px 12px;
+    font-size: 14px;
+    border-radius: 20px;
+    font-weight: 700;
+}
 
 table { width:100%; border-collapse:separate; border-spacing: 0; margin-top:15px; margin-bottom:20px; table-layout: fixed;}
 th, td { padding: 14px 15px; text-align: left; border-bottom: 1px solid var(--border-light); font-size: 13px; word-wrap: break-word;}
@@ -67,7 +92,15 @@ tr:hover {background-color: #f1f8e9;}
 <div class="container">
     <div class="dashboard-header">
         <a href="{% url 'dashboard' %}" class="dashboard-button">Back to Home Screen</a>
-        <h1>{% if is_two_pot_view %}Two-Pot Claims{% else %}Withdrawal Claims{% endif %}</h1>
+        
+        <!-- UPDATED HEADER WITH COUNTER -->
+        <h1>
+            {% if is_two_pot_view %}Two-Pot Claims{% else %}Withdrawal Claims{% endif %}
+            <span class="claims-counter-badge" title="Total Claims Matching View">
+                <i class="fas fa-layer-group" style="margin-right: 4px;"></i> {{ page_obj.paginator.count|default:0 }}
+            </span>
+        </h1>
+        
         <button type="button" class="dashboard-button" onclick="openGlobalClaimModal()">➕ New Claim</button>
     </div>
 

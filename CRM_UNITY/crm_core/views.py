@@ -1126,8 +1126,6 @@ def tasks_view(request):
 
     return render(request, 'tasks.html', {'delegated_tasks': display_tasks})
 
-from django.template.loader import render_to_string # Ensure this is at the top of views.py
-
 @login_required
 def delegate_action_view(request, email_id):
     """
@@ -1221,7 +1219,7 @@ def delegate_action_view(request, email_id):
                 )
                 messages.success(request, "Task metadata updated successfully.")
 
-            # --- 3. ADD INTERNAL NOTE ---
+            # --- 3. ADD INTERNAL NOTE (MANUAL NOTE SECTION) ---
             elif action_type == 'add_note':
                 note_text = request.POST.get('internal_note')
                 comm_type = request.POST.get('communication_type') 
@@ -1247,6 +1245,7 @@ def delegate_action_view(request, email_id):
                 task.internal_notes = json.dumps(current_notes)
                 task.save()
                 
+                # Posts directly to ClientNotes ONLY when manually added here
                 ClientNotes.objects.create(
                     related_member_group_code=task.member_group_code,
                     notes=note_text,
@@ -1288,7 +1287,7 @@ def delegate_action_view(request, email_id):
                 messages.success(request, "Task marked as Completed.")
                 return redirect('tasks')
 
-            # --- 5. 🚀 SEND RESPONSE (SLA REPORT ALIGNMENT) ---
+            # --- 5. 🚀 SEND RESPONSE (EMAIL REPLY ONLY) ---
             elif action_type == 'send_response':
                 recipient = request.POST.get('recipient')
                 subject = request.POST.get('subject')
@@ -1306,7 +1305,7 @@ def delegate_action_view(request, email_id):
                     # 🚀 DYNAMIC SIGNATURE INJECTION 🚀
                     logo_full_url = request.build_absolute_uri(settings.MEDIA_URL + 'futuraLogo.png')
                     
-                    # Fetch dynamic name and title using the new helper
+                    # Fetch dynamic name and title using the helper
                     agent_name, agent_title = get_crm_signature_details(request.user)
 
                     signature_html = render_to_string('email_signature.html', {
@@ -1369,23 +1368,12 @@ def delegate_action_view(request, email_id):
                     )
                     
                     if result.get('success') or result == {}:
-                        file_count = len(uploaded_files)
-                        attachments_footprint = f" ({file_count} files attached)" if file_count > 0 else ""
-                        
-                        ClientNotes.objects.create(
-                            related_member_group_code=task.member_group_code,
-                            notes=f"To: {recipient}\nCC: {cc_recipients}\nBCC: {bcc_recipients}\nSubject: {subject}{attachments_footprint}\n{full_body_html}",
-                            communication_type="Delegated: Sent Email (Reply)",
-                            action_notes=action_log_type, 
-                            user=user_display,
-                            date=timezone.now()
-                        )
-
+                        # Save ONLY the Action Log Type into note_content for the action trail log
                         CrmDelegateAction.objects.create(
                             task_email_id=email_id,
                             action_type='REPLY_SENT',
                             action_user=user_display,
-                            note_content=f"{action_log_type} | CC: {cc_recipients} | BCC: {bcc_recipients}{attachments_footprint}\n{full_body_html}", 
+                            note_content=action_log_type, 
                             related_subject=subject
                         )
                         
@@ -1404,7 +1392,7 @@ def delegate_action_view(request, email_id):
         'email_id': email_id,
         'attachments': attachments_list,
         'source': source,
-        'email_body': email_body,  # 🚀 PASSED: Full unified live HTML trail match variable
+        'email_body': email_body,  
     })
 
 from django.db.models import Count
