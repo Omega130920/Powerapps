@@ -23,6 +23,13 @@
         .fiscal-info h1 { margin: 0; color: #1b5e20; font-size: 1.8rem; }
         .fiscal-info p { margin: 5px 0; color: #666; font-weight: 500; }
         
+        /* --- SUMMARY CARDS STYLES --- */
+        .summary-cards-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; margin-bottom: 25px; }
+        .summary-card { background: #f1f8e9; border: 1px solid #c5e1a5; border-radius: 8px; padding: 20px; display: flex; align-items: center; gap: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+        .summary-card-icon { font-size: 1.8rem; color: #2e7d32; background: #e8f5e9; width: 55px; height: 55px; display: flex; align-items: center; justify-content: center; border-radius: 50%; border: 1px solid #aed581; flex-shrink: 0; }
+        .summary-card-content h3 { margin: 0 0 5px 0; font-size: 0.8rem; color: #388e3c; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px; }
+        .summary-card-content .summary-value { margin: 0; font-size: 1.6rem; font-weight: 800; color: #1b5e20; }
+
         .search-container { position: relative; max-width: 450px; flex-grow: 1; }
         .search-input { width: 100%; padding: 12px 40px 12px 15px; border: 2px solid #e0e0e0; border-radius: 25px; font-size: 14px; transition: all 0.3s; }
         .search-input:focus { border-color: #2e7d32; outline: none; box-shadow: 0 0 8px rgba(46, 125, 50, 0.2); }
@@ -115,6 +122,28 @@
                 {% else %}
                     <span class="status-badge status-unreconciled"><i class="fas fa-unlock-alt"></i> OPEN FOR EDITING</span>
                 {% endif %}
+            </div>
+        </div>
+
+        <!-- SUMMARY CARDS FOR MONTHLY TOTALS -->
+        <div class="summary-cards-container">
+            <div class="summary-card">
+                <div class="summary-card-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="summary-card-content">
+                    <h3>Total Members ({{ display_name }})</h3>
+                    <p class="summary-value" id="summaryTotalMembers">{{ total_members }}</p>
+                </div>
+            </div>
+            <div class="summary-card">
+                <div class="summary-card-icon">
+                    <i class="fas fa-money-bill-wave"></i>
+                </div>
+                <div class="summary-card-content">
+                    <h3>Total Contributions ({{ display_name }})</h3>
+                    <p class="summary-value" id="summaryTotalContribution">R {{ total_contribution|floatformat:2 }}</p>
+                </div>
             </div>
         </div>
 
@@ -274,7 +303,31 @@
 </div>
 
 <script>
-    // INITIAL STATE: Hide catch-up rows on page load
+    // LIVE TOTALS CALCULATION JAVASCRIPT
+    function updateWorksheetTotals() {
+        let totalM = 0;
+        let totalC = 0.0;
+        
+        const rows = document.querySelectorAll('.current-month-row');
+        rows.forEach(row => {
+            if (row.style.display !== 'none') {
+                const memberInput = row.querySelector('input[name^="member_count_"]');
+                const amountInput = row.querySelector('input[name^="amount_"]');
+                
+                if (memberInput) {
+                    totalM += parseInt(memberInput.value) || 0;
+                }
+                if (amountInput) {
+                    totalC += parseFloat(amountInput.value) || 0.0;
+                }
+            }
+        });
+        
+        document.getElementById('summaryTotalMembers').innerText = totalM;
+        document.getElementById('summaryTotalContribution').innerText = 'R ' + totalC.toLocaleString('en-ZA', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+
+    // INITIAL STATE & EVENT LISTENERS
     document.addEventListener('DOMContentLoaded', function() {
         const catchupRows = document.querySelectorAll('.catchup-row');
         catchupRows.forEach(row => {
@@ -289,10 +342,13 @@
                     this.value = 0;
                     alert("Values cannot be less than zero.");
                 }
+                updateWorksheetTotals();
             });
+            input.addEventListener('input', updateWorksheetTotals);
         });
 
         syncScrollWidth();
+        updateWorksheetTotals();
     });
 
     // 1. DYNAMIC FIELD LIMIT OPTIMIZATION
@@ -330,7 +386,7 @@
                     inputs.forEach(input => {
                         let isRowLocked = row.classList.contains('current-month-row') && document.body.classList.contains('is-closed-state');
                         if (!isRowLocked) {
-                             input.disabled = false;
+                           input.disabled = false;
                         }
                     });
                 }

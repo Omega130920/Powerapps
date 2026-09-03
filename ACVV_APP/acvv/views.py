@@ -1893,7 +1893,6 @@ def reconciliation_worksheet(request):
         except ValueError:
             current_fiscal = first_of_this_month
     else:
-        # UPDATED: Changed default from last_month_date to first_of_this_month
         current_fiscal = first_of_this_month
 
     # 2. HANDLE POST ACTIONS (Save/Close/Reopen)
@@ -1936,7 +1935,6 @@ def reconciliation_worksheet(request):
                         else:
                             new_note_val = current_fiscal.strftime("01.%m.%Y")
                         
-                        # --- UPDATED: Also push the reconciled Member Count & Amount back to the Master ACVV table ---
                         Globalacvv.objects.filter(mip_names=rec.mg_name).update(
                             notes=new_note_val,
                             member=str(rec.member_count_reconciled),
@@ -1988,23 +1986,21 @@ def reconciliation_worksheet(request):
         last_reconciled_ws=Subquery(last_ws_recon_sub)
     )
 
+    total_members = 0
+    total_contribution = 0.00
+
     for r in records:
         last_date = None
         
-        # PRIORITY 1: Use the actual database field 'last_fiscal_reconciled'
         if r.last_fiscal_reconciled and r.last_fiscal_reconciled.strip():
             r.last_fiscal_display = r.last_fiscal_reconciled
             try:
                 last_date = datetime.strptime(r.last_fiscal_reconciled, "%B %Y").date()
             except:
                 last_date = None
-        
-        # PRIORITY 2: Fallback to Subquery (automated history)
         elif r.last_reconciled_ws:
             last_date = r.last_reconciled_ws
             r.last_fiscal_display = last_date.strftime("%B %Y")
-        
-        # PRIORITY 3: Fallback to Master Notes
         elif r.master_start_date:
             try:
                 last_date = datetime.strptime(str(r.master_start_date).strip(), "%d.%m.%Y").date()
@@ -2015,19 +2011,35 @@ def reconciliation_worksheet(request):
         else:
             r.last_fiscal_display = "No Data"
 
-        # Overdue logic
         if last_date:
             diff = (current_fiscal.year - last_date.year) * 12 + (current_fiscal.month - last_date.month)
             r.is_overdue = diff >= 2
         else:
             r.is_overdue = True
 
+        # Sum current fiscal month values for the summary cards
+        if r.fiscal_month == current_fiscal:
+            try:
+                m_count = int(r.member_count_reconciled) if r.member_count_reconciled is not None else int(r.acvv_member_count or 0)
+            except (ValueError, TypeError):
+                m_count = 0
+            
+            try:
+                c_amount = float(r.contribution_amount_reconciled) if r.contribution_amount_reconciled is not None else 0.00
+            except (ValueError, TypeError):
+                c_amount = 0.00
+                
+            total_members += m_count
+            total_contribution += c_amount
+
     return render(request, 'acvv_app/reconciliation_worksheet.html', {
         'records': records,
         'display_name': current_fiscal.strftime("%B %Y"),
         'history': ReconciliationWorksheet.objects.values('fiscal_month').distinct().order_by('-fiscal_month'),
         'is_closed': ReconciliationWorksheet.objects.filter(fiscal_month=current_fiscal, is_closed=True).exists(),
-        'current_fiscal': current_fiscal
+        'current_fiscal': current_fiscal,
+        'total_members': total_members,
+        'total_contribution': total_contribution,
     })
 
 @login_required
