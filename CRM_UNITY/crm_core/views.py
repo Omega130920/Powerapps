@@ -864,6 +864,7 @@ def member_information(request, member_group_code):
                 action_notes=request.POST.get('action_notes'),
                 attached_file_name=attached_filename, 
                 user=user_display, 
+                date=timezone.now()  # 👈 Added timestamp so notes register correctly in the SLA report & Excel exports
             )
             messages.success(request, 'Note saved.')
             return redirect(f"/global-members/{member_group_code}/#notes")
@@ -1888,38 +1889,44 @@ def export_delegation_report_excel(request):
     
     return response
 
+from datetime import datetime
+from django.utils.dateparse import parse_date
+from django.conf import settings
+
 @login_required
 def final_sla_report_view(request):
 
     start_str = request.GET.get('start_date')
     end_str = request.GET.get('end_date')
     
-    # --- INTERNAL HELPER: Prevent "None" string from crashing filters ---
-    def get_valid_date(date_val):
-        if date_val and date_val != "None" and date_val != "":
-            return parse_date(date_val)
-        return None
-
-    # 1. Setup Date Filters
+    # 1. Setup Date Filters with proper day boundaries (Start of day to End of day)
     delegate_q = Q()
     notes_q = Q()
     email_log_q = Q()
 
-    start_dt = get_valid_date(start_str)
-    if start_dt:
-        delegate_q &= Q(received_timestamp__date__gte=start_dt)
-        notes_q &= Q(date__gte=start_dt)
-        email_log_q &= Q(sent_at__date__gte=start_dt)
+    if start_str and start_str != "None" and start_str != "":
+        parsed_start = parse_date(start_str)
+        if parsed_start:
+            start_dt = datetime.combine(parsed_start, datetime.min.time())
+            if settings.USE_TZ:
+                start_dt = timezone.make_aware(start_dt)
+            delegate_q &= Q(received_timestamp__gte=start_dt)
+            notes_q &= Q(date__gte=start_dt)
+            email_log_q &= Q(sent_at__gte=start_dt)
 
-    end_dt = get_valid_date(end_str)
-    if end_dt:
-        delegate_q &= Q(received_timestamp__date__lte=end_dt)
-        notes_q &= Q(date__lte=end_dt)
-        email_log_q &= Q(sent_at__date__lte=end_dt)
+    if end_str and end_str != "None" and end_str != "":
+        parsed_end = parse_date(end_str)
+        if parsed_end:
+            # Set to 23:59:59 so records created on the final day are fully included
+            end_dt = datetime.combine(parsed_end, datetime.max.time())
+            if settings.USE_TZ:
+                end_dt = timezone.make_aware(end_dt)
+            delegate_q &= Q(received_timestamp__lte=end_dt)
+            notes_q &= Q(date__lte=end_dt)
+            email_log_q &= Q(sent_at__lte=end_dt)
 
     # 2. Handle Excel Export Request
     if request.GET.get('export') == 'excel':
-        # Now passing clean Q objects that won't contain None values
         return export_sla_excel(delegate_q, notes_q, email_log_q)
 
     # 3. Aggregate Grouped Totals
