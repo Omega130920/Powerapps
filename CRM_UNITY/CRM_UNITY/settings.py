@@ -20,7 +20,7 @@ ALLOWED_HOSTS = ['*', 'crmunity.futurasa.co.za', 'crmunity.futura.co.za']
 # 1. Trust the secure domain for form submissions
 CSRF_TRUSTED_ORIGINS = [
     'https://crmunity.futurasa.co.za',
-    'https://crmunity.futura.co.za', # Added both variants just in case
+    'https://crmunity.futura.co.za',
 ]
 
 # 2. Handle the Proxy headers from your hoster (Critical for SSL)
@@ -67,7 +67,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
-                'django.template.context_processors.media',  # <--- ADD THIS LINE
+                'django.template.context_processors.media',  # <--- MEDIA PROCESSOR
             ],
         },
     },
@@ -100,7 +100,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Internationalization
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Africa/Johannesburg'  # <--- PERMANENTLY RESOLVES TIMEZONE OFFSET
 USE_I18N = True
 USE_TZ = True
 

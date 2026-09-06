@@ -288,7 +288,6 @@ def fetch_emails_view(request):
     
     if 'error' in inbox_data:
         messages.error(request, f"Outlook Error: {inbox_data['error']}")
-        # 🚀 FIX 2: Even on API error, show the local database items so they don't vanish
         display_emails = CrmInbox.objects.filter(status='Pending').order_by('-received_timestamp')
         return render(request, 'inbox.html', {'email_list': display_emails})
 
@@ -305,8 +304,7 @@ def fetch_emails_view(request):
         if email_id not in delegated_ids:
             raw_date = msg.get('receivedDateTime')
             
-            # 🚀 FIX 1: Timezone Correction
-            # Parse the raw UTC time and force it into the local timezone (SAST +2)
+            # Automatically convert UTC time from Microsoft Graph to local time (Africa/Johannesburg)
             if raw_date:
                 from dateutil import parser
                 parsed_date = parser.isoparse(raw_date)
@@ -320,22 +318,18 @@ def fetch_emails_view(request):
                     'subject': msg.get('subject', 'No Subject'),
                     'sender': msg.get('from', {}).get('emailAddress', {}).get('address', 'Unknown'),
                     'snippet': msg.get('bodyPreview', ''),
-                    'received_timestamp': local_date, # Saved to DB with correct local time
+                    'received_timestamp': local_date, # Saved with correct local time
                     'status': 'Pending'
                 }
             )
             
-            # Update timestamps for existing entries to correct old UTC records in your database
+            # Update timestamps for existing entries if needed
             if not created and local_date:
                 local_entry.received_timestamp = local_date
                 local_entry.save()
 
-    # 🚀 FIX 2: The Display Loop Bug
-    # Always query the LOCAL database for pending emails. 
-    # This prevents emails from vanishing or delaying if they drop out of the API's top 500 limit.
     display_emails = CrmInbox.objects.filter(status='Pending').order_by('-received_timestamp')
     
-    # Attach 'received_at' dynamically so your HTML template can find it
     for email in display_emails:
         email.received_at = email.received_timestamp
 
