@@ -666,10 +666,8 @@
                     <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Deposit Date</th>
                     <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Original Deposit</th>
                     
-                    {# --- HIDDEN: Bill Usage & Credits Columns --- #}
-
                     <!-- 🚀 JOURNALS & AVAILABLE BALANCE -->
-                    <th style="padding: 10px; border-bottom: 2px solid #dee2e6;" title="Extracted to Staged Journals">Journals</th>
+                    <th style="padding: 10px; border-bottom: 2px solid #dee2e6;" title="Extracted to Staged Journals">Journals (Available)</th>
                     <th style="padding: 10px; border-bottom: 2px solid #dee2e6; color: #2e7d32;">Available Balance</th>
                     
                     <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Status</th>
@@ -692,11 +690,22 @@
                         <td style="padding: 10px;">{{ line.transaction_date|date:"Y-m-d" }}</td>
                         <td style="padding: 10px;">R {{ line.transaction_amount|floatformat:2 }}</td>
                         
-                        {# --- HIDDEN: Bill Usage & Credits Data Cells --- #}
-
-                        <!-- 🚀 JOURNALS & AVAILABLE BALANCE DATA CELLS -->
-                        <td style="padding: 10px; color: {% if line.journal_amount > 0 %}#4527a0{% else %}#888{% endif %}; font-weight: bold;">
-                            R {{ line.journal_amount|default:0|floatformat:2 }}
+                        <!-- 🚀 JOURNALS DATA CELL -->
+                        <td style="padding: 10px;">
+                            {% if line.available_journals %}
+                                <div style="font-weight: bold; color: #4527a0; margin-bottom: 4px;">
+                                    R {{ line.journal_amount|default:0|floatformat:2 }}
+                                </div>
+                                <div style="font-size: 0.85em; color: #555;">
+                                    {% for j in line.available_journals %}
+                                        <span style="display: inline-block; background: #ede7f6; padding: 2px 6px; border-radius: 4px; margin: 1px 0; border: 1px solid #d1c4e9;">
+                                            #{{ j.id }} (R {{ j.amount|floatformat:2 }})
+                                        </span>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <span style="color: #888;">R 0.00</span>
+                            {% endif %}
                         </td>
 
                         <td style="padding: 10px; color: #2e7d32; font-weight: bold; font-size: 1.05em;">
@@ -718,24 +727,82 @@
             </tbody>
         </table>
 
-        <!-- 🚀 SCRIPT TO CALCULATE TOTAL AVAILABLE BALANCE DYNAMICALLY 🚀 -->
+        <!-- 🚀 SCRIPT TO CALCULATE TOTALS DYNAMICALLY 🚀 -->
         <script>
             document.addEventListener("DOMContentLoaded", function() {
                 let bankTotal = 0.00;
+                let journalsTotal = 0.00;
                 
-                // Summing up line.available_balance instead of transaction_amount
+                // Summing up line.available_balance
                 {% for line in bank_lines %}
                     bankTotal += parseFloat("{{ line.available_balance|default:0 }}");
+                    {% for j in line.available_journals %}
+                        journalsTotal += parseFloat("{{ j.amount|default:0 }}");
+                    {% endfor %}
                 {% endfor %}
                 
-                // Format the number to exactly 2 decimal places
+                // Format the numbers to exactly 2 decimal places
                 document.getElementById("bank-lines-total").innerText = "R " + bankTotal.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                const journalsTotalEl = document.getElementById("journals-total");
+                if (journalsTotalEl) {
+                    journalsTotalEl.innerText = "R " + journalsTotal.toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                }
             });
         </script>
 
     {% else %}
         <p class="empty-message" style="padding: 20px; text-align: center; background: #f8f9fa; color: #777;">No reconciled bank lines found.</p>
     {% endif %}
+
+    {# --- JOURNALS SECTION --- #}
+    <h2 style="display: flex; justify-content: space-between; align-items: center; color: #4527a0; border-bottom: 2px solid #d1c4e9; padding-bottom: 5px; margin-top: 30px;">
+        <span>Journals</span>
+        <span style="font-size: 0.8em; background-color: #ede7f6; padding: 4px 12px; border-radius: 5px; border: 1px solid #d1c4e9; color: #4527a0;">
+            Total Available: <strong id="journals-total">R 0.00</strong>
+        </span>
+    </h2>
+
+    {% with has_journals=False %}
+    {% for line in bank_lines %}
+        {% if line.available_journals %}
+            {% with has_journals=True %}{% endwith %}
+        {% endif %}
+    {% endfor %}
+    
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+            <thead>
+                <tr style="text-align: left; background-color: #f8f9fa;">
+                    <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Journal ID</th>
+                    <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Source Segment ID</th>
+                    <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Company Code</th>
+                    <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Amount</th>
+                    <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Status</th>
+                    <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Created At</th>
+                    <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Created By</th>
+                    <th style="padding: 10px; border-bottom: 2px solid #dee2e6;">Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for line in bank_lines %}
+                    {% for j in line.available_journals %}
+                        <tr style="border-bottom: 1px solid #eee;">
+                            <td style="padding: 10px; font-weight: bold; color: #4527a0;">#{{ j.id }}</td>
+                            <td style="padding: 10px;">#{{ line.id }}</td>
+                            <td style="padding: 10px;">{{ j.company_code }}</td>
+                            <td style="padding: 10px; font-weight: bold; color: #2e7d32;">R {{ j.amount|floatformat:2 }}</td>
+                            <td style="padding: 10px;"><span class="status-tag" style="background-color: #4527a0; color: white; padding: 4px 8px; border-radius: 4px; font-size: 11px;">{{ j.status }}</span></td>
+                            <td style="padding: 10px;">{{ j.created_at|date:"Y-m-d H:i" }}</td>
+                            <td style="padding: 10px;">{{ j.created_by|default:"-" }}</td>
+                            <td style="padding: 10px; white-space: nowrap;">
+                                <a href="{% url 'edit_bank_journal' j.id %}" class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #f7931e; color: white; text-decoration: none; border-radius: 3px; margin-right: 3px;">Edit</a>
+                                <a href="{% url 'delete_bank_journal' j.id %}" class="dashboard-button" style="padding: 5px 8px; font-size: 11px; background-color: #d32f2f; color: white; text-decoration: none; border-radius: 3px;" onclick="return confirm('Are you sure you want to delete this journal?');">Delete</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endwith %}
 
     {# --- CREDIT NOTES SECTION --- #}
     {% if credit_notes %}

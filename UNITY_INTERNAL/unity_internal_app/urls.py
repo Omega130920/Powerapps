@@ -101,4 +101,6 @@ urlpatterns = [
     path('admin-billing/export/', views.export_admin_billing_excel, name='export_admin_billing_excel'),
     path('journal-bankline/<int:recon_id>/', views.journal_bankline_view, name='journal_bankline'),
     path('apply-bank-journal/<int:bill_id>/', views.apply_bank_journal_to_bill, name='apply_bank_journal_to_bill'),
+    path('journal/edit/<int:journal_id>/', views.edit_bank_journal, name='edit_bank_journal'),
+    path('journal/delete/<int:journal_id>/', views.delete_bank_journal, name='delete_bank_journal'),
 ]

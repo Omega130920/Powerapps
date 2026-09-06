@@ -155,46 +155,75 @@
     </div>
 
     <div class="button-container">
+        
+        <!-- 1 -->
+        <a href="{% url 'outlook_dashboard' %}" class="button-block">
+            Delegations
+            <span id="badge-new-emails" class="badge blue-badge" {% if not new_emails_count %}style="display:none;"{% endif %}>{{ new_emails_count }}</span>
+        </a>
 
-            <a href="{% url 'outlook_dashboard' %}" class="button-block">
-                Delegations
-                <span id="badge-new-emails" class="badge blue-badge" {% if not new_emails_count %}style="display:none;"{% endif %}>{{ new_emails_count }}</span>
-            </a>
-            <a href="{% url 'outlook_recycle_bin' %}" class="button-block">
-                Recycle Bin
-                <span id="badge-recycled" class="badge grey-badge" {% if not recycled_count %}style="display:none;"{% endif %}>{{ recycled_count }}</span>
-            </a>
-            <a href="{% url 'manager_approval_dashboard' %}" class="button-block">
-                Manager Approval
-                <span id="badge-manager-approval" class="badge" {% if not pending_approval_count %}style="display:none;"{% endif %}>{{ pending_approval_count }}</span>
-            </a>
-
+        <!-- 2 -->
         <a href="{% url 'outlook_delegated_box' %}" class="button-block">
             My Dashboard
             <span id="badge-my-delegations" class="badge orange-badge" {% if not my_pending_delegations_count %}style="display:none;"{% endif %}>{{ my_pending_delegations_count }}</span>
         </a>
-        <a href="{% url 'email_list' %}" class="button-block">Email List</a>
 
+        <!-- 3 -->
         <a href="{% url 'unity_list' %}" class="button-block">Employer Recon</a>
+
+        <!-- 4 -->
+        <a href="{% url 'confirmations' %}" class="button-block">Daily Confirmations</a>
+
+        <!-- 5 -->
         <a href="{% url 'import_data' %}" class="button-block">Import Bank</a>
-        
+
+        <!-- 6 -->
         <a href="{% url 'bank_list' %}" class="button-block">
             Assign Bank Lines
         </a>
 
+        <!-- 7 -->
+        <a href="{% url 'admin_billing' %}" class="button-block">Admin Billing</a>
+
+        <!-- 8 -->
+        <a href="{% url 'export_global_bill_history' %}" class="button-block export-btn">Section 13A Report</a>
+
+        <!-- 9 -->
+        <a href="{% url 'sla_report' %}" class="button-block">SLA Report (WIP)</a>
+
+        <!-- 10 -->
+        <a href="{% url 'email_list' %}" class="button-block">Email List</a>
+
+        <!-- 11 -->
         <a href="{% url 'credit_note_list' %}" class="button-block">
             Create Over Credit Line
             <span id="badge-credit-notes" class="badge blue-badge" {% if not credit_notes_count %}style="display:none;"{% endif %}>{{ credit_notes_count }}</span>
         </a>
 
+        <!-- 12 -->
+        <a href="{% url 'manager_approval_dashboard' %}" class="button-block">
+            Manager Approval
+            <span id="badge-manager-approval" class="badge" {% if not pending_approval_count %}style="display:none;"{% endif %}>{{ pending_approval_count }}</span>
+        </a>
+
+        <!-- 13 -->
         <a href="{% url 'global_claims' %}" class="button-block">Withdrawal Claims</a>
+
+        <!-- 14 -->
         <a href="{% url 'global_two_pot' %}" class="button-block">Two-Pot Claims</a>
-        <a href="{% url 'admin_billing' %}" class="button-block">Admin Billing</a>
-        <a href="{% url 'confirmations' %}" class="button-block">Daily Confirmations</a>
-        <a href="{% url 'export_global_bill_history' %}" class="button-block export-btn">Section 13A Report</a>
+
+        <!-- 15 -->
         <a href="{% url 'global_bank' %}" class="button-block">Global Bank</a>
+
+        <!-- 16 -->
+        <a href="{% url 'outlook_recycle_bin' %}" class="button-block">
+            Recycle Bin
+            <span id="badge-recycled" class="badge grey-badge" {% if not recycled_count %}style="display:none;"{% endif %}>{{ recycled_count }}</span>
+        </a>
+
+        <!-- 17 -->
         <a href="{% url 'bulk_billing_dashboard' %}" class="button-block">Bulk Billing</a>
-        <a href="{% url 'sla_report' %}" class="button-block">SLA Report (WIP)</a>
+
     </div>
 
     <script>

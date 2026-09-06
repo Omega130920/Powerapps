@@ -376,7 +376,8 @@ def unity_list(request):
 def unity_information(request: HttpRequest, company_code):
     """
     Displays detailed information for a single record.
-    UPDATED: Now filters out fully consumed and reconciled bank lines & credit notes from display.
+    UPDATED: Now filters out fully consumed and reconciled bank lines & credit notes from display,
+    and attaches available bank journal entries with accurate subtraction from available balance.
     """
     from .models import (
         EmailDelegation, DelegationTransactionLog, UnityNotes, 
@@ -469,16 +470,23 @@ def unity_information(request: HttpRequest, company_code):
     else:
         available_surplus_value = Decimal('0.00')
     
-    # 🚀 UPDATED: Filter out fully consumed/reconciled Bank Lines
+    # 🚀 CORRECTED: Dynamically calculate available balance correctly using transaction amount, bill usage, and active journals
     bank_lines_assigned = ReconnedBank.objects.filter(company_code=company_code).select_related('bank_line').order_by('-transaction_date')
     active_bank_lines = []
     for line in bank_lines_assigned:
         line.actual_bill_usage = BillSettlement.objects.filter(reconned_bank_line_id=line.id).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
         line.credit_amount = CreditNote.objects.filter(source_bank_line=line).aggregate(total=Sum('schedule_amount'))['total'] or Decimal('0.00')
         
-        # 🚀 NEW: Calculate total extracted to journals and update available balance
-        line.journal_amount = BankJournalEntry.objects.filter(source_bank_line=line).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
-        line.available_balance = line.transaction_amount - line.amount_settled
+        # Fetch available BankJournalEntries for this bank line where status is Available
+        line.available_journals = BankJournalEntry.objects.filter(
+            source_bank_line_id=line.id,
+            status__iexact='Available'
+        )
+        
+        line.journal_amount = line.available_journals.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        # 🚀 FIX: Subtract direct bills and journals from the original bank deposit amount
+        line.available_balance = line.transaction_amount - line.actual_bill_usage - line.journal_amount
         
         line.true_remaining_balance = line.transaction_amount - line.actual_bill_usage - line.credit_amount
         line.is_fully_consumed = (line.available_balance <= Decimal('0.009'))
@@ -668,7 +676,7 @@ def unity_information(request: HttpRequest, company_code):
 
     my_delegated_emails = EmailDelegation.objects.filter(assigned_user=request.user).exclude(status__in=['COMP', 'CLS', 'DONE']).order_by('-received_at')
 
-# --- 6. HANDLE POST REQUESTS ---
+    # --- 6. HANDLE POST REQUESTS ---
     if request.method == 'POST':
         if request.POST.get('email_submission_action') == 'send_email_and_log' or request.POST.get('action') == 'send_outgoing_member_note':
             subject = request.POST.get('member_email_subject_reply', 'Claim Update')
@@ -683,17 +691,13 @@ def unity_information(request: HttpRequest, company_code):
             attachments = request.FILES.getlist('attachments')
 
             if recipient and email_body_html:
-                # 🚀 FIX: Removed manual signature rendering. Services.py handles it now.
-                # signature_html = render_to_string('unity_internal_app/email_signature.html')
-                # final_email_content = f"{email_body_html}<br>{signature_html}"
-                
                 response = OutlookGraphService.send_outlook_email(
                     target_email=settings.OUTLOOK_EMAIL_ADDRESS, 
                     recipient_email=recipient, 
                     subject=subject, 
-                    body_content=email_body_html, # 🚀 Pass raw HTML body without signature attached
+                    body_content=email_body_html, 
                     content_type='HTML', 
-                    user=request.user, # 🚀 Pass user so services.py knows whose signature to inject
+                    user=request.user, 
                     attachments=attachments,
                     cc_email=cc_recipients,    
                     bcc_email=bcc_recipients   
@@ -4024,12 +4028,12 @@ def outlook_delegated_box(request):
     """
     # --- Capture Search and Sort Params ---
     search_query = request.GET.get('q', '').strip().lower()
-    sort_order = request.GET.get('sort', 'newest')
+    sort_order = request.GET.get('sort', 'oldest') # Default to oldest if desired
 
-    # 1. Fetch delegations for this user
+    # 1. Fetch delegations for this user (including 'DEL' and 'PEN' statuses)
     delegations = EmailDelegation.objects.filter(
         assigned_user=request.user, 
-        status='DEL'
+        status__in=['DEL', 'PEN']
     )
 
     # 2. Map local Inbox details for received_at (using in_bulk for efficiency)
@@ -4077,8 +4081,8 @@ def outlook_delegated_box(request):
         except Exception:
             continue
 
-    # --- DATE SORTER LOGIC ---
-    reverse_sort = (sort_order == 'newest')
+    # --- DATE SORTER LOGIC (Oldest to Newest) ---
+    reverse_sort = (sort_order == 'newest') # Will be False if sort is not 'newest'
     tasks.sort(key=lambda x: x['received'] if x['received'] else timezone.now(), reverse=reverse_sort)
 
     context = {
@@ -4139,7 +4143,14 @@ def outlook_delegated_action(request, delegation_id):
         elif action_type == 'update_metadata':
             delegation.company_code = request.POST.get('company_code')
             delegation.email_category = request.POST.get('email_category')
-            delegation.status = request.POST.get('status')
+            
+            posted_status = request.POST.get('status')
+            if posted_status == 'NEW':
+                # 🚀 FIX: Use 'PEN' (Pending) or 'INP' instead of 'IN_PROGRESS' to avoid the DataError
+                delegation.status = 'PEN' 
+            else:
+                delegation.status = posted_status
+                
             delegation.save()
 
             add_delegation_note(
@@ -6693,3 +6704,32 @@ def journal_bankline_view(request, recon_id):
         'open_bills': open_bills  # 🚀 Passed to the template
     }
     return render(request, 'unity_internal_app/journal.html', context)
+
+@login_required
+def edit_bank_journal(request, journal_id):
+    journal = get_object_or_404(BankJournalEntry, id=journal_id)
+    if request.method == 'POST':
+        try:
+            new_amount = Decimal(request.POST.get('amount', journal.amount))
+            new_status = request.POST.get('status', journal.status)
+            
+            # Update the journal values
+            journal.amount = new_amount
+            journal.status = new_status
+            journal.save()
+            
+            messages.success(request, f"Journal #{journal.id} updated successfully.")
+        except Exception as e:
+            messages.error(request, f"Error updating journal: {e}")
+            
+        return redirect('unity_information', company_code=journal.company_code)
+        
+    return render(request, 'unity_internal_app/edit_journal.html', {'journal': journal})
+
+@login_required
+def delete_bank_journal(request, journal_id):
+    journal = get_object_or_404(BankJournalEntry, id=journal_id)
+    company_code = journal.company_code
+    journal.delete()
+    messages.success(request, f"Journal #{journal_id} has been deleted.")
+    return redirect('unity_information', company_code=company_code)

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Journal #{{ journal.id }}</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+            margin: 0;
+            padding: 40px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .card {
+            background: #f0fff0;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 450px;
+        }
+        h2 {
+            color: #4527a0;
+            margin-top: 0;
+            border-bottom: 2px solid #d1c4e9;
+            padding-bottom: 10px;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #333;
+        }
+        input[type="number"], input[type="text"], select {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .btn-container {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+            text-decoration: none;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .btn-save {
+            background-color: #2e7d32;
+            color: white;
+        }
+        .btn-cancel {
+            background-color: #777;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Edit Journal #{{ journal.id }}</h2>
+        <form method="POST">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="company_code">Company Code</label>
+                <input type="text" id="company_code" value="{{ journal.company_code }}" disabled style="background: #e9ecef;">
+            </div>
+            <div class="form-group">
+                <label for="amount">Journal Amount (R)</label>
+                <input type="number" step="0.01" id="amount" name="amount" value="{{ journal.amount }}" required>
+            </div>
+            <div class="form-group">
+                <label for="status">Status</label>
+                <input type="text" id="status" name="status" value="{{ journal.status }}">
+            </div>
+            <div class="btn-container">
+                <a href="{% url 'unity_information' journal.company_code %}" class="btn btn-cancel">Cancel</a>
+                <button type="submit" class="btn btn-save">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</body>
+</html>
