@@ -377,7 +377,7 @@ def unity_information(request: HttpRequest, company_code):
     """
     Displays detailed information for a single record.
     UPDATED: Now filters out fully consumed and reconciled bank lines & credit notes from display,
-    and attaches available bank journal entries with accurate subtraction from available balance.
+    and accurately calculates available balance using amount_settled and available journals.
     """
     from .models import (
         EmailDelegation, DelegationTransactionLog, UnityNotes, 
@@ -470,23 +470,22 @@ def unity_information(request: HttpRequest, company_code):
     else:
         available_surplus_value = Decimal('0.00')
     
-    # 🚀 CORRECTED: Dynamically calculate available balance correctly using transaction amount, bill usage, and active journals
+    # 🚀 UPDATED: Filter out fully consumed/reconciled Bank Lines & Accurately calculate available balance using amount_settled
     bank_lines_assigned = ReconnedBank.objects.filter(company_code=company_code).select_related('bank_line').order_by('-transaction_date')
     active_bank_lines = []
     for line in bank_lines_assigned:
         line.actual_bill_usage = BillSettlement.objects.filter(reconned_bank_line_id=line.id).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
         line.credit_amount = CreditNote.objects.filter(source_bank_line=line).aggregate(total=Sum('schedule_amount'))['total'] or Decimal('0.00')
         
-        # Fetch available BankJournalEntries for this bank line where status is Available
+        # 🚀 Fetch available BankJournalEntries for this bank line where status is Available
         line.available_journals = BankJournalEntry.objects.filter(
             source_bank_line_id=line.id,
             status__iexact='Available'
         )
-        
         line.journal_amount = line.available_journals.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
         
-        # 🚀 FIX: Subtract direct bills and journals from the original bank deposit amount
-        line.available_balance = line.transaction_amount - line.actual_bill_usage - line.journal_amount
+        # 🚀 FIX: Use amount_settled (which correctly includes overs/credits) and subtract journals
+        line.available_balance = line.transaction_amount - line.amount_settled - line.journal_amount
         
         line.true_remaining_balance = line.transaction_amount - line.actual_bill_usage - line.credit_amount
         line.is_fully_consumed = (line.available_balance <= Decimal('0.009'))
