@@ -376,8 +376,7 @@ def unity_list(request):
 def unity_information(request: HttpRequest, company_code):
     """
     Displays detailed information for a single record.
-    UPDATED: Now filters out fully consumed and reconciled bank lines & credit notes from display,
-    and accurately calculates available balance using amount_settled and available journals.
+    UPDATED: Strictly uses ReconnedBank.amount_settled without double-deducting journals.
     """
     from .models import (
         EmailDelegation, DelegationTransactionLog, UnityNotes, 
@@ -470,34 +469,36 @@ def unity_information(request: HttpRequest, company_code):
     else:
         available_surplus_value = Decimal('0.00')
     
-    # 🚀 UPDATED: Filter out fully consumed/reconciled Bank Lines & Accurately calculate available balance using amount_settled
+    # --- Bank Lines Processing ---
     bank_lines_assigned = ReconnedBank.objects.filter(company_code=company_code).select_related('bank_line').order_by('-transaction_date')
     active_bank_lines = []
     for line in bank_lines_assigned:
         line.actual_bill_usage = BillSettlement.objects.filter(reconned_bank_line_id=line.id).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
         line.credit_amount = CreditNote.objects.filter(source_bank_line=line).aggregate(total=Sum('schedule_amount'))['total'] or Decimal('0.00')
         
-        # 🚀 Fetch available BankJournalEntries for this bank line where status is Available
+        # Fetch available BankJournalEntries for this bank line where status is Available
         line.available_journals = BankJournalEntry.objects.filter(
             source_bank_line_id=line.id,
             status__iexact='Available'
         )
         line.journal_amount = line.available_journals.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
         
-        # 🚀 FIX: Use amount_settled (which correctly includes overs/credits) and subtract journals
-        line.available_balance = line.transaction_amount - line.amount_settled - line.journal_amount
+        # 🚀 FIX: The amount_settled database column natively includes journal deductions. 
+        # By solely subtracting amount_settled, we eliminate the double-consumption bug.
+        settled_val = line.amount_settled if line.amount_settled is not None else Decimal('0.00')
+        line.available_balance = line.transaction_amount - settled_val
         
         line.true_remaining_balance = line.transaction_amount - line.actual_bill_usage - line.credit_amount
         line.is_fully_consumed = (line.available_balance <= Decimal('0.009'))
         line.original_assigned_amount = line.transaction_amount 
         
-        # Keep line only if it has remaining balance and is not reconciled
-        if not line.is_fully_consumed and str(line.recon_status).upper() != 'RECONCILED':
+        # Keep line as long as it is not fully reconciled
+        if str(line.recon_status).upper() != 'RECONCILED':
             active_bank_lines.append(line)
     
     bank_lines = active_bank_lines
     
-    # 🚀 UPDATED: Filter out fully consumed/reconciled Credit Notes
+    # --- 3. Credit Notes Logic ---
     raw_credit_notes = CreditNote.objects.filter(member_group_code=company_code).select_related('source_bank_line').order_by('-ccdates_month')
     active_credit_notes = []
     for note in raw_credit_notes:
@@ -510,7 +511,6 @@ def unity_information(request: HttpRequest, company_code):
             note.original_deposit_date = None
             note.original_deposit_amount = None
 
-        # Keep note only if it has remaining schedule_amount and status is not fully reconciled
         has_remaining_balance = (note.schedule_amount or Decimal('0.00')) > Decimal('0.009')
         is_not_reconciled = str(note.credit_link_status).upper() != 'RECONCILED'
 
