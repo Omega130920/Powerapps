@@ -84,36 +84,73 @@
                     <div class="accordion-content">
                         <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
                             
-                            <!-- 2.1 Company Status -->
-                            <div class="border border-gray-200 rounded-lg overflow-hidden">
-                                <h3 class="bg-gray-100 p-3 text-xs font-black uppercase text-emerald-900 border-b border-gray-200">2.1 Status of Member Groups</h3>
-                                <table class="w-full text-left text-xs">
-                                    <thead class="bg-white text-gray-500 uppercase font-bold text-[10px]">
-                                        <tr>
-                                            <th class="p-3 border-b">Row Labels</th>
-                                            <th class="p-3 text-right border-b">Company Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="text-gray-800">
-                                        {% for item in company_status_summary %}
-                                        <tr class="border-b border-gray-50 hover:bg-emerald-50">
-                                            <td class="p-3 font-medium">{{ item.label }}</td>
-                                            <td class="p-3 text-right">{{ item.count }}</td>
-                                        </tr>
-                                        {% endfor %}
-                                    </tbody>
-                                    <tfoot class="bg-emerald-50 font-black text-emerald-900">
-                                        <tr>
-                                            <td class="p-3">Grand Total</td>
-                                            <td class="p-3 text-right">{{ total_companies }}</td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
+                            <!-- Left Column: 2.1 & 2.2 -->
+                            <div class="space-y-6">
+                                <!-- 2.1 Company Status -->
+                                <div class="border border-gray-200 rounded-lg overflow-hidden">
+                                    <h3 class="bg-gray-100 p-3 text-xs font-black uppercase text-emerald-900 border-b border-gray-200">2.1 Status of Member Groups</h3>
+                                    <table class="w-full text-left text-xs">
+                                        <thead class="bg-white text-gray-500 uppercase font-bold text-[10px]">
+                                            <tr>
+                                                <th class="p-3 border-b">Row Labels</th>
+                                                <th class="p-3 text-right border-b">Company Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="text-gray-800">
+                                            {% for item in company_status_summary %}
+                                            <tr class="border-b border-gray-50 hover:bg-emerald-50">
+                                                <td class="p-3 font-medium">{{ item.label }}</td>
+                                                <td class="p-3 text-right">{{ item.count }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                        <tfoot class="bg-emerald-50 font-black text-emerald-900">
+                                            <tr>
+                                                <td class="p-3">Grand Total</td>
+                                                <td class="p-3 text-right">{{ total_companies }}</td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+
+                                <!-- 2.2 Reconciliations per Fiscal -->
+                                <div class="border border-gray-200 rounded-lg overflow-hidden">
+                                    <h3 class="bg-gray-100 p-3 text-xs font-black uppercase text-emerald-900 border-b border-gray-200">2.2 Reconciliations per Fiscal</h3>
+                                    <table class="w-full text-left text-xs">
+                                        <thead class="bg-white text-gray-500 uppercase font-bold text-[10px]">
+                                            <tr>
+                                                <th class="p-3 border-b">Fiscal</th>
+                                                <th class="p-3 text-center border-b">Companies Reconciled</th>
+                                                <th class="p-3 text-right border-b">Active Members</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="text-gray-800">
+                                            {% for item in fiscal_reconciliations %}
+                                            <tr class="border-b border-gray-50 hover:bg-emerald-50">
+                                                <td class="p-3 font-medium">{{ item.month_by_year }}</td>
+                                                <td class="p-3 text-center">{{ item.companies_reconciled }}</td>
+                                                <td class="p-3 text-right">{{ item.active_members|default:"0" }}</td>
+                                            </tr>
+                                            {% empty %}
+                                            <tr>
+                                                <td colspan="3" class="p-4 text-center text-gray-400 italic text-[10px]">No reconciliations found.</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                        <tfoot class="bg-emerald-50 font-black text-emerald-900">
+                                            <tr>
+                                                <td class="p-3">Grand Total</td>
+                                                <td class="p-3 text-center">{{ total_fiscal_companies }}</td>
+                                                <td class="p-3 text-right">{{ total_fiscal_members }}</td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
                             </div>
 
-                            <!-- 2.3 & 2.4 Contribution and Bank Stats -->
+                            <!-- Right Column: 2.3 & 2.4 -->
                             <div class="space-y-6">
-                                
+                                <!-- 2.3 Contribution Statistics -->
                                 <div class="border border-gray-200 rounded-lg overflow-hidden">
                                     <h3 class="bg-gray-100 p-3 text-xs font-black uppercase text-emerald-900 border-b border-gray-200">2.3 Contribution Statistics</h3>
                                     <table class="w-full text-left text-xs">
@@ -132,6 +169,7 @@
                                     </table>
                                 </div>
 
+                                <!-- 2.4 Bank Statistics -->
                                 <div class="border border-gray-200 rounded-lg overflow-hidden">
                                     <h3 class="bg-gray-100 p-3 text-xs font-black uppercase text-emerald-900 border-b border-gray-200">2.4 Bank Statistics (Deposits)</h3>
                                     <table class="w-full text-left text-[10px]">
@@ -170,7 +208,89 @@
                                         </tfoot>
                                     </table>
                                 </div>
-                                
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========================================== -->
+                <!-- SECTION 4: CLAIMS REPORT (PDF PAGE 10) -->
+                <!-- ========================================== -->
+                <div class="rounded-xl border-2 border-emerald-600 bg-white overflow-hidden shadow-lg">
+                    <input type="checkbox" id="acc_claims_report" class="accordion-toggle" checked>
+                    <label for="acc_claims_report" class="flex justify-between items-center p-4 bg-emerald-600 text-white cursor-pointer select-none">
+                        <span class="font-black uppercase tracking-widest flex items-center gap-3">
+                            <i class="fas fa-file-alt text-emerald-100"></i> 4. Claims Status Statistics (Page 10)
+                        </span>
+                        <i class="fas fa-chevron-down rotate-icon"></i>
+                    </label>
+                    <div class="accordion-content">
+                        <div class="p-6 space-y-6">
+                            <!-- 4.1 Current Fiscal Claim Status -->
+                            <div class="border border-gray-200 rounded-lg overflow-hidden">
+                                <h3 class="bg-gray-100 p-3 text-xs font-black uppercase text-emerald-900 border-b border-gray-200">4.1 Current Fiscal Claim Status</h3>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-center text-xs">
+                                        <thead class="bg-emerald-700 text-white uppercase font-bold text-[10px]">
+                                            <tr>
+                                                <th class="p-3 border-r border-emerald-600">INCOMPLETE</th>
+                                                <th class="p-3 border-r border-emerald-600">CLAIM DOCUMENTS REQUESTED</th>
+                                                <th class="p-3 border-r border-emerald-600">SUBMITTED</th>
+                                                <th class="p-3 border-r border-emerald-600">PAID</th>
+                                                <th class="p-3 border-r border-emerald-600">PAYMENT/SHEDULE DUE</th>
+                                                <th class="p-3">COMPANY IN ARREARS</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="text-gray-800 font-bold bg-white">
+                                            <tr>
+                                                <td class="p-3 border-r border-gray-100 text-sm">{{ current_fiscal_claim_status.incomplete|default:"0" }}</td>
+                                                <td class="p-3 border-r border-gray-100 text-sm">{{ current_fiscal_claim_status.docs_requested|default:"0" }}</td>
+                                                <td class="p-3 border-r border-gray-100 text-sm">{{ current_fiscal_claim_status.submitted|default:"0" }}</td>
+                                                <td class="p-3 border-r border-gray-100 text-sm">{{ current_fiscal_claim_status.paid|default:"0" }}</td>
+                                                <td class="p-3 border-r border-gray-100 text-sm">{{ current_fiscal_claim_status.payment_due|default:"0" }}</td>
+                                                <td class="p-3 text-sm">{{ current_fiscal_claim_status.mg_in_arrears|default:"0" }}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- 4.3 Two-Pot Emergency Savings -->
+                            <div class="border border-gray-200 rounded-lg overflow-hidden">
+                                <h3 class="bg-gray-100 p-3 text-xs font-black uppercase text-emerald-900 border-b border-gray-200">4.3 Two-Pot Emergency Savings</h3>
+                                <p class="p-3 text-[11px] text-gray-600 bg-gray-50 border-b border-gray-100">Bulk banking details of members requested from all employers to upload on the Sanlam portal</p>
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-center text-xs">
+                                        <thead class="bg-emerald-700 text-white uppercase font-bold text-[10px]">
+                                            <tr>
+                                                <th class="p-3 border-r border-emerald-600">MESPW SUBMITTED</th>
+                                                <th class="p-3 border-r border-emerald-600">MESPW REQUESTED</th>
+                                                <th class="p-3 border-r border-emerald-600">WITHDRAW - NOT ALLOWED</th>
+                                                <th class="p-3 border-r border-emerald-600">PAID</th>
+                                                <th class="p-3 border-r border-emerald-600">INCOMPLETE</th>
+                                                <th class="p-3 border-r border-emerald-600">ERROR</th>
+                                                <th class="p-3">ADMIN</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="text-gray-800 bg-white font-medium">
+                                            {% for row in two_pot_banking_details %}
+                                            <tr class="border-b border-gray-50 hover:bg-emerald-50">
+                                                <td class="p-3 border-r border-gray-100">{{ row.mespw_submitted }}</td>
+                                                <td class="p-3 border-r border-gray-100">{{ row.mespw_requested }}</td>
+                                                <td class="p-3 border-r border-gray-100">{{ row.withdraw_not_allowed }}</td>
+                                                <td class="p-3 border-r border-gray-100">{{ row.paid }}</td>
+                                                <td class="p-3 border-r border-gray-100">{{ row.incomplete }}</td>
+                                                <td class="p-3 border-r border-gray-100">{{ row.error }}</td>
+                                                <td class="p-3 font-bold text-emerald-900">{{ row.admin }}</td>
+                                            </tr>
+                                            {% empty %}
+                                            <tr>
+                                                <td colspan="7" class="p-4 text-center text-gray-400 italic text-[10px]">No Two-Pot banking details available.</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                     </div>

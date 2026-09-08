@@ -3089,6 +3089,8 @@ def confirmations_view(request):
     import traceback 
 
     try:
+        from .models import UnityBill, BillSettlement
+
         filter_start_date_str = request.GET.get('start_date')
         filter_end_date_str = request.GET.get('end_date')
 
@@ -6061,6 +6063,19 @@ def sla_report_view(request):
     SLA & Front Office Report: Tracks Email Delegation, Bank Review Notes, and Billing Reconciliation.
     MAPPED TO RECON HISTORY LOGIC FROM UNITY_INFORMATION & FRONT OFFICE PDF REPORT.
     """
+    from .models import (
+        EmailDelegation, DelegationTransactionLog, UnityNotes, 
+        OutlookInbox, CreditNote, BillSettlement, ReconnedBank,
+        UnityMgListing, InternalFunds, ClientNotes, UnityBill,
+        ScheduleSurplus, JournalEntry, UnityClaim, BankJournalEntry
+    )
+    from django.db.models import Q, Sum, Count, F
+    from decimal import Decimal
+    from datetime import timedelta
+    from django.utils import timezone
+    from collections import defaultdict
+    from django.shortcuts import render
+
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
 
@@ -6169,6 +6184,23 @@ def sla_report_view(request):
     }
 
     # ==========================================
+    # 2.2 RECONCILIATIONS PER FISCAL (MAPPED TO PDF 2.2)
+    # ==========================================
+    daily_qs = UnityBill.objects.filter(
+        is_reconciled=True
+    ).exclude(E_Active_Members=0).exclude(H_Schedule_Amount=0)
+
+    fiscal_reconciliations = daily_qs.values(
+        month_by_year=F('A_CCDatesMonth')
+    ).annotate(
+        companies_reconciled=Count('C_Company_Code', distinct=True),
+        active_members=Sum('E_Active_Members')
+    ).order_by('month_by_year')
+
+    total_fiscal_companies = sum(item['companies_reconciled'] for item in fiscal_reconciliations)
+    total_fiscal_members = sum((item['active_members'] or 0) for item in fiscal_reconciliations)
+
+    # ==========================================
     # 3. BILLING RECONCILIATION SLA (MATCHED TO RECON HISTORY)
     # ==========================================
     bills_qs = UnityBill.objects.all().order_by('-A_CCDatesMonth')
@@ -6241,6 +6273,48 @@ def sla_report_view(request):
         company_status_summary.append({'label': label, 'count': count})
         total_companies += count
 
+    # ==========================================
+    # 4.1 CURRENT FISCAL CLAIM STATUS (MAPPED TO DROPDOWN VALUES)
+    # ==========================================
+    claims_qs = UnityClaim.objects.all()
+    if start_date and end_date and start_date not in ["None", ""] and end_date not in ["None", ""]:
+        claims_qs = claims_qs.filter(claim_created_date__range=[start_date, end_date])
+
+    current_fiscal_claim_status = claims_qs.aggregate(
+        incomplete=Count('id', filter=Q(claim_status__iexact='Incomplete')),
+        docs_requested=Count('id', filter=Q(claim_status__iexact='Claim documents requested')),
+        submitted=Count('id', filter=Q(claim_status__iexact='Submitted')),
+        paid=Count('id', filter=Q(claim_status__iexact='Paid')),
+        payment_due=Count('id', filter=Q(claim_status__iexact='Payment/Shedule Due')),
+        mg_in_arrears=Count('id', filter=Q(claim_status__iexact='Company in Arrears')),
+    )
+
+    # ==========================================
+    # 4.3 TWO-POT EMERGENCY SAVINGS (MAPPED TO EXACT HEADERS)
+    # ==========================================
+    two_pot_banking_details = []
+    two_pot_qs = claims_qs.filter(claim_type__iexact='Two Pot')
+    
+    agent_groupings = two_pot_qs.values('agent').annotate(
+        mespw_submitted=Count('id', filter=Q(claim_status__iexact='MESPW Submitted')),
+        mespw_requested=Count('id', filter=Q(claim_status__iexact='MESPW Requested')),
+        withdraw_not_allowed=Count('id', filter=Q(claim_status__iexact='Withdraw - Not Allowed')),
+        paid=Count('id', filter=Q(claim_status__iexact='Paid')),
+        incomplete=Count('id', filter=Q(claim_status__iexact='Incomplete')),
+        error=Count('id', filter=Q(claim_status__iexact='Error'))
+    )
+
+    for group in agent_groupings:
+        two_pot_banking_details.append({
+            'admin': group['agent'] or 'Timothy',
+            'mespw_submitted': group['mespw_submitted'] or 0,
+            'mespw_requested': group['mespw_requested'] or 0,
+            'withdraw_not_allowed': group['withdraw_not_allowed'] or 0,
+            'paid': group['paid'] or 0,
+            'incomplete': group['incomplete'] or 0,
+            'error': group['error'] or 0,
+        })
+
     return render(request, 'unity_internal_app/sla_report.html', {
         'report_data': report_data,
         'agent_stats': final_agent_stats,
@@ -6254,6 +6328,15 @@ def sla_report_view(request):
         'action_statistics_summary': action_statistics_summary,
         'email_status_summary': email_status_summary,
         'total_contributions_reconciled': total_contributions_reconciled,
+
+        # PDF Section 2.2 Variables
+        'fiscal_reconciliations': fiscal_reconciliations,
+        'total_fiscal_companies': total_fiscal_companies,
+        'total_fiscal_members': total_fiscal_members,
+
+        # PDF Page 10 Point 4 Claims Variables
+        'current_fiscal_claim_status': current_fiscal_claim_status,
+        'two_pot_banking_details': two_pot_banking_details,
 
         'start_date': start_date if start_date != "None" else "",
         'end_date': end_date if end_date != "None" else "",

@@ -2057,26 +2057,23 @@ def export_reconciliation_worksheet(request, date_str):
 
     acvv_member_sub = Globalacvv.objects.filter(mip_names=OuterRef('mg_name')).values('member')[:1]
     acvv_notes_sub = Globalacvv.objects.filter(mip_names=OuterRef('mg_name')).values('notes')[:1]
-    # --- ADDED: Subquery to fetch the email address from Globalacvv ---
     acvv_email_sub = Globalacvv.objects.filter(mip_names=OuterRef('mg_name')).values('mg_email_address')[:1]
 
     records = ReconciliationWorksheet.objects.filter(fiscal_month=fiscal_date).annotate(
         acvv_member_count=Subquery(acvv_member_sub),
         master_start_date=Subquery(acvv_notes_sub),
         last_reconciled_ws=Subquery(last_ws_recon_sub),
-        # --- ADDED: Annotate the email address onto the record ---
         acvv_email_address=Subquery(acvv_email_sub)
     )
-    
+
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = f"Recon {fiscal_date.strftime('%b %Y')}"
-    
-    # --- ADDED: "Email Address" to the headers list ---
+
     headers = [
         "MG Name", "MG Code", "Email Address", "Company Status", "Payment Method", 
         "Last Fiscal Reconciled", "Arrears", "Member Count Reconciled", 
-        "Contribution Amount Reconciled", "Reconciled Status", 
+        "Contribution Amount Reconciled", "LPI Amount", "LPI Reason", "Reconciled Status", 
         "Date Schedule Received", "Date Confirmed on Step", "Debit order date"
     ]
     ws.append(headers)
@@ -2100,15 +2097,17 @@ def export_reconciliation_worksheet(request, date_str):
         else:
             display_recon = "No Data"
 
-        # --- ADDED: r.acvv_email_address to the row output ---
         ws.append([
             r.mg_name, r.mg_code, r.acvv_email_address, display_status, r.payment_method,
             display_recon, r.arrears,
             r.member_count_reconciled or r.acvv_member_count,
-            r.contribution_amount_reconciled, r.reconciled_status,
+            r.contribution_amount_reconciled, 
+            r.lpi_amount, 
+            r.lpi_reason, 
+            r.reconciled_status,
             r.date_schedule_received, r.date_confirmed_on_step, r.debit_order_date
         ])
-        
+
     for col in ws.columns:
         max_length = 0
         column = col[0].column_letter
