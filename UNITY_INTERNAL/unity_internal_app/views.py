@@ -4813,10 +4813,10 @@ def export_two_pot_tracking(request):
 
     # Row 5 Headers
     headers = [
-        "DATE EXTRACT INFO / FORM FROM WEB", "Initials", "Surname", 
-        "Member number", "ID NUMBER", "Fund", "Branch", "Query", "Claim", 
-        "Qualified", "Date submitted/ online", "Succesfull Loaded confirm", 
-        "Amount Apply for", "Admin Fee R33+15%", "Note"
+        "Date application extracted from Web: Savings Form Request", "Initials", "Surname", 
+        "Member number", "ID NUMBER", "Fund Code", "Company Name", "Query", "Claim", 
+        "Qualified Y/N", "Date submitted online", "Inform Employer that the claim is succesfully loaded", 
+        "Admin Front Office Application Submitted", "Admin Fee R33+15%", "Note"
     ]
     
     for _ in range(3): ws.append([]) # Empty rows to reach R5

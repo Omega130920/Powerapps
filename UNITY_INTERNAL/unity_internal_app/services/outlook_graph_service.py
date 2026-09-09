@@ -68,7 +68,7 @@ def get_user_signature(user):
             <table cellpadding="0" cellspacing="0" border="0" style="width: 100%; max-width: 650px; margin-bottom: 15px;">
                 <tr>
                     <td style="padding-right: 15px; vertical-align: middle; width: 140px;">
-                        <img src="{logo_url}" alt="Futura Logo" style="width: 130px; display: block;">
+                        <img src="var/app/media/futura-logo.png" alt="Futura Logo" style="width: 150px; display: block;">
                     </td>
                     <td style="vertical-align: middle; border-left: 2px solid #4CAF50; padding-left: 15px;">
                         <div style="margin: 0 0 4px 0; font-size: 12px;"><strong style="color: #4CAF50;">phone:</strong> 087 702 5904</div>
