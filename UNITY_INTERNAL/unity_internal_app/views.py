@@ -565,12 +565,14 @@ def unity_information(request: HttpRequest, company_code):
     inbox_records = OutlookInbox.objects.filter(email_id__in=related_string_ids)
     inbox_map = {email.email_id: email.received_at for email in inbox_records}
     inbox_subject_map = {email.email_id: email.subject for email in inbox_records}
+    inbox_sender_map = {email.email_id: email.sender_address for email in inbox_records}
 
     for item in all_delegations:
         if item.status in ['DLT', 'DELETED', 'TRASH']: continue
         is_completed = item.status in ['COMP', 'DONE', 'CLS']
         
         actual_subject = inbox_subject_map.get(item.email_id) or item.email_category or f"Task: {item.email_id[:12]}..."
+        email_sender = inbox_sender_map.get(item.email_id) or 'External Sender'
         
         assigned_to_name = 'UNASSIGNED'
         if item.assigned_user_id:
@@ -586,6 +588,7 @@ def unity_information(request: HttpRequest, company_code):
             'type': 'Original', 
             'display_type': 'Completed' if is_completed else 'Delegated', 
             'subject': actual_subject, 
+            'sender': email_sender,
             'assigned_to': assigned_to_name, 
             'status': item.status, 
             'email_id': item.email_id, 
@@ -610,6 +613,7 @@ def unity_information(request: HttpRequest, company_code):
             'type': 'Reply', 
             'display_type': 'Reply Sent', 
             'subject': reply.subject or "Reply to Task", 
+            'sender': action_user_name,
             'assigned_to': reply.recipient_email, 
             'status': thread_status_map.get(reply.delegation_id, "SENT"), 
             'email_id': thread_email_id_map.get(reply.delegation_id), 
@@ -640,6 +644,7 @@ def unity_information(request: HttpRequest, company_code):
             'type': 'Direct', 
             'display_type': 'Email sent', 
             'subject': email_sent_subject, 
+            'sender': email.user,
             'assigned_to': email.notes.split('\n')[0][:50] if email.notes else 'Recipient', 
             'status': 'Direct', 
             'email_id': outlook_id, 
@@ -1625,7 +1630,14 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
     """
     Summarizes the current state of a bill's debt reconciliation.
     """
-    from django.db.models import F
+    from django.db.models import F, Sum
+    from django.shortcuts import get_object_or_404
+    from decimal import Decimal
+    
+    # Define constants
+    ZERO_DECIMAL = Decimal('0.00')
+    MAX_SHORTFALL_TOLERANCE = Decimal('5.00') # Max shortfall allowed to close a bill
+    
     bill_record = get_object_or_404(UnityBill, id=bill_id, C_Company_Code=company_code)
     
     # --- CALCULATE AVAILABLE DEBT (Cash) ---
@@ -1742,17 +1754,22 @@ def pre_bill_reconciliation_summary(request, company_code, bill_id):
     
     # --- ACTION MESSAGE LOGIC ---
     total_coverage_available = total_debt + total_available_credit_value + total_available_surplus_value + total_available_bank_journals_value
-    is_bill_fully_covered = total_applied >= (scheduled_amount - SAFETY_TOLERANCE)
+    
+    # Check if outstanding balance is within the R5 maximum shortfall tolerance
+    is_bill_fully_covered = current_outstanding <= MAX_SHORTFALL_TOLERANCE
     
     if is_bill_fully_covered:
         is_proceed_enabled = True
-        action_message = "FULLY COVERED. Ready to Finalize."
+        if current_outstanding > ZERO_DECIMAL:
+            action_message = f"COVERED WITHIN TOLERANCE: R{current_outstanding:.2f} shortfall falls within R5 max limit. Ready to Finalize."
+        else:
+            action_message = "FULLY COVERED. Ready to Finalize."
     elif total_coverage_available >= current_outstanding:
         is_proceed_enabled = True
         action_message = f"FULL COVERAGE AVAILABLE: R{total_coverage_available:.2f} available to clear R{current_outstanding:.2f} balance."
     else:
         is_proceed_enabled = False
-        action_message = f"Action REQUIRED: R{current_outstanding:.2f} liability remains."
+        action_message = f"Action REQUIRED: R{current_outstanding:.2f} liability remains (exceeds R5 tolerance)."
 
     context = {
         'bill_record': bill_record,
@@ -1939,6 +1956,14 @@ def finalize_reconciliation(request, company_code, bill_id):
     Processes bulk allocations, then finalizes the bill and ensures the 
     recon_note is applied to ALL settlement records tied to this bill.
     """
+    from decimal import Decimal
+    from django.db.models import Sum
+    from django.utils import timezone
+    
+    ZERO_DECIMAL = Decimal('0.00')
+    MAX_SHORTFALL_TOLERANCE = Decimal('5.00')  # Max R5 shortfall allowed to close a bill
+    BANK_LINE_TOLERANCE = Decimal('0.01')      # Float tolerance for bank lines
+    
     try:
         bill_record = UnityBill.objects.select_for_update().get(pk=bill_id, C_Company_Code=company_code)
         aware_dt = timezone.now()
@@ -1977,7 +2002,7 @@ def finalize_reconciliation(request, company_code, bill_id):
 
                 # Update Bank Line
                 recon_line.amount_settled += applied_amount
-                if recon_line.amount_settled >= (recon_line.transaction_amount - SAFETY_TOLERANCE):
+                if recon_line.amount_settled >= (recon_line.transaction_amount - BANK_LINE_TOLERANCE):
                     recon_line.recon_status = 'Reconciled'
                 else:
                     recon_line.recon_status = 'Partially Reconciled'
@@ -1990,11 +2015,24 @@ def finalize_reconciliation(request, company_code, bill_id):
             ).update(settlement_note=recon_note)
 
         # 🚀 4. FINALIZATION CHECK (Verify if bill is now balanced)
+        
+        # Total from standard settlements (Cash, Credits, Staged Journals)
         bill_settled_agg = BillSettlement.objects.filter(
             unity_bill_source_id=bill_record.pk
         ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
         
-        if bill_settled_agg >= (bill_record.H_Schedule_Amount - SAFETY_TOLERANCE):
+        # Total from Surplus Journals explicitly assigned to this bill
+        journal_agg = JournalEntry.objects.filter(
+            target_bill=bill_record
+        ).aggregate(total=Sum('amount'))['total'] or ZERO_DECIMAL
+
+        # Calculate final outstanding amount
+        total_allocated = bill_settled_agg + journal_agg
+        scheduled_amount = bill_record.H_Schedule_Amount or ZERO_DECIMAL
+        remaining_liability = max(ZERO_DECIMAL, scheduled_amount - total_allocated)
+        
+        # Check if liability falls within the acceptable R5 shortfall
+        if remaining_liability <= MAX_SHORTFALL_TOLERANCE:
             if not bill_record.is_reconciled:
                 bill_record.is_reconciled = True
                 
@@ -2028,8 +2066,7 @@ def finalize_reconciliation(request, company_code, bill_id):
             else:
                 messages.info(request, "Bill is already reconciled.")
         else:
-            remaining_liability = bill_record.H_Schedule_Amount - bill_settled_agg
-            messages.error(request, f"Liability of R{remaining_liability:.2f} remains. Bill cannot be closed yet.")
+            messages.error(request, f"Liability of R{remaining_liability:.2f} remains (exceeds R5 tolerance). Bill cannot be closed yet.")
 
         return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
 
@@ -4803,15 +4840,15 @@ def export_two_pot_tracking(request):
     display_start = start_date if start_date else now.replace(day=1).strftime('%d.%m.%Y')
     display_end = end_date if end_date else now.strftime('%d.%m.%Y')
     
-    # Row 4 Title
-    ws.merge_cells('A4:O4')
-    header_cell = ws['A4']
+    # Row 1 Title (Changed from A4 to A1)
+    ws.merge_cells('A1:O1')
+    header_cell = ws['A1']
     header_cell.value = f"Billing - Member Emergency Savings Pot Withdrawal Requested - {display_start} to {display_end}"
     header_cell.font = Font(bold=True, size=11, underline="single")
     header_cell.fill = yellow_fill
     header_cell.border = thin_border
 
-    # Row 5 Headers
+    # Row 2 Headers (Appends directly after Row 1)
     headers = [
         "Date application extracted from Web: Savings Form Request", "Initials", "Surname", 
         "Member number", "ID NUMBER", "Fund Code", "Company Name", "Query", "Claim", 
@@ -4819,26 +4856,26 @@ def export_two_pot_tracking(request):
         "Admin Front Office Application Submitted", "Admin Fee R33+15%", "Note"
     ]
     
-    for _ in range(3): ws.append([]) # Empty rows to reach R5
     ws.append(headers)
     
-    for cell in ws[5]:
+    # Format Row 2 (Headers)
+    for cell in ws[2]:
         cell.font = Font(bold=True, size=9)
         cell.fill = yellow_fill
         cell.border = thin_border
         cell.alignment = Alignment(wrap_text=True, horizontal='center', vertical='center')
-    ws.row_dimensions[5].height = 50
+    ws.row_dimensions[2].height = 50
 
     for claim in claims_queryset:
         initials = "".join([n[0] for n in claim.member_name.split() if n]) if claim.member_name else ""
         
-        # 🚀 Pull the actual qualified value from the database column (fallback to 'NO' if empty)
+        # Pull the actual qualified value from the database column (fallback to 'NO' if empty)
         qualified_val = str(claim.qualified or "NO").upper().strip()
         
-        # 🚀 Pull claim status directly from the dropdown field
+        # Pull claim status directly from the dropdown field
         claim_status_val = claim.claim_status if claim.claim_status else ""
         
-        # 🚀 Fix: Use date_submitted_online instead of date_submitted
+        # Fix: Use date_submitted_online instead of date_submitted
         submit_date_label = claim.date_submitted_online.strftime('%d.%m.%Y') if claim.date_submitted_online else ""
 
         row = [
@@ -4850,10 +4887,10 @@ def export_two_pot_tracking(request):
             claim.company_code,
             branch_map.get(claim.company_code, "Unknown"),
             "Savings Form Request",
-            claim_status_val,  # 🚀 From Claim Status Dropdown selection
-            qualified_val,     # 🚀 Qualified Status (YES / NO)
-            submit_date_label, # 🚀 Uses the correct date_submitted_online field
-            "YES" if qualified_val == "YES" else "",  # 🚀 Linked to Qualified Y/N check
+            claim_status_val,  # From Claim Status Dropdown selection
+            qualified_val,     # Qualified Status (YES / NO)
+            submit_date_label, # Uses the correct date_submitted_online field
+            "YES" if qualified_val == "YES" else "",  # Linked to Qualified Y/N check
             float(claim.claim_amount or 0),
             "37.95",
             claim.notes.last().note_description if claim.notes.exists() else ""

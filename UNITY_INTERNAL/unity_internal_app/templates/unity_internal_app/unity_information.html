@@ -1483,13 +1483,14 @@
         </div>
     </div>
 
-    {# --- TABLE SECTION --- #}
+{# --- TABLE SECTION --- #}
     <div style="overflow-x: auto;">
         <table id="emailLogTable" style="width: 100%; border-collapse: collapse; background-color: white; font-size: 0.9em;">
             <thead>
                 <tr style="background-color: #f0fff0; color: #38761d; text-align: left;">
                     <th style="padding: 12px; border-bottom: 2px solid #aed581;">Email Type</th>
                     <th style="padding: 12px; border-bottom: 2px solid #aed581;">Subject</th>
+                    <th style="padding: 12px; border-bottom: 2px solid #aed581;">From</th>
                     <th style="padding: 12px; border-bottom: 2px solid #aed581;">Received Date</th>
                     <th style="padding: 12px; border-bottom: 2px solid #aed581;">Delegated Date</th>
                     <th style="padding: 12px; border-bottom: 2px solid #aed581;">Assigned To/Recipient</th>
@@ -1526,6 +1527,8 @@
                         {% endif %}
                     </td>
 
+                    <td style="padding: 10px;">{{ email.sender|default:"-" }}</td>
+
                     <td style="padding: 10px;">{{ email.arrival_timestamp|date:"Y-m-d H:i"|default:"-" }}</td>
                     <td style="padding: 10px;">{{ email.delegation_timestamp|date:"Y-m-d H:i"|default:"-" }}</td>
                     <td style="padding: 10px;">{{ email.assigned_to|default:"-" }}</td>
@@ -1559,14 +1562,13 @@
                                    class="action-btn" 
                                    title="View Full Thread" 
                                    style="background-color: #43a047; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 0.85em;">
-                                     <i class="fas fa-eye"></i> View
+                                   <i class="fas fa-eye"></i> View
                                 </a>
                                 <a href="{% url 'download_email_file' email_id=email.email_id %}" 
                                    class="action-btn" 
                                    title="Download Sent .eml"
-                                   title="Download Sent .eml"
                                    style="background-color: #0277bd; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 0.85em;">
-                                     <i class="fas fa-download"></i> Download
+                                   <i class="fas fa-download"></i> Download
                                 </a>
                             {% else %}
                                 <span style="color: #ccc; cursor: help; font-size: 1.2em; padding: 5px;" title="No ID available for older/manual logs">
@@ -1578,7 +1580,7 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="8" style="padding: 20px; text-align: center; color: #777;">No email history found.</td>
+                    <td colspan="9" style="padding: 20px; text-align: center; color: #777;">No email history found.</td>
                 </tr>
                 {% endfor %}
             </tbody>
