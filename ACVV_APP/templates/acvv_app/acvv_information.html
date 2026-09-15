@@ -10,12 +10,26 @@
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
         html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; font-family: 'Inter', sans-serif; }
         body { background: linear-gradient(to bottom, #d1e2c4, #8fcf7f); display: flex; justify-content: center; align-items: center; }
-        .container { width: 95%; max-width: 98%; height: 90vh; display: flex; flex-direction: column; background-color: #f0fff0; padding: 1.5em; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        
+        /* --- FIXED: CONTAINER WIDTH SET TO 95% OF SCREEN USING .app-container --- */
+        .app-container { 
+            width: 95vw !important; 
+            max-width: 95vw !important; 
+            height: 98vh; 
+            display: flex; 
+            flex-direction: column; 
+            background-color: #f0fff0; 
+            padding: 1.5em; 
+            border-radius: 8px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15); 
+            box-sizing: border-box;
+        }
+
         .dashboard-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
         .dashboard-button { padding: 8px 16px; background-color: #81c784; border-radius: 5px; text-decoration: none; color: white; font-weight: bold; font-size: 13px; transition: 0.3s; cursor: pointer; border: none; }
         .dashboard-button:hover { background-color: #66bb6a; }
         h1 { color: #1b5e20; text-align: center; flex-grow: 1; font-size: 22px; font-weight: 800; }
-        .profile-layout { display: flex; gap: 15px; flex: 1; min-height: 0; }
+        .profile-layout { display: flex; gap: 6px; flex: 1; min-height: 0; }
         .tab-nav { list-style-type: none; padding: 0; margin: 0; display: flex; flex-direction: column; width: 180px; border-right: 2px solid #aed581; overflow-y: auto; }
         .tab-nav li { padding: 12px 15px; cursor: pointer; background-color: #81c784; color: white; margin-bottom: 4px; border-radius: 5px 0 0 5px; text-align: right; transition: 0.2s; font-size: 13px; font-weight: 600; }
         .tab-nav li.active { background-color: #f0fff0; color: #1b5e20; border: 2px solid #43a047; border-right: none; font-weight: 800; transform: translateX(2px); z-index: 1; }
@@ -39,7 +53,7 @@
     </style>
 </head>
 <body>
-    <div class="container">
+    <div class="app-container">
         <div class="dashboard-header">
             <a href="{% url 'acvv_list' %}" class="dashboard-button">Return to List</a>
             <h1>ACVV Management: {{ acvv_record.mip_names }}</h1>
@@ -658,7 +672,7 @@
             if(document.getElementById('div_exit_reason')) document.getElementById('div_exit_reason').style.display = isTwoPot ? 'none' : 'block';
             if(document.getElementById('pot_availability_section')) document.getElementById('pot_availability_section').style.display = isTwoPot ? 'none' : 'block';
             
-            // NEW: HIDE DATES FOR TWO POT
+            // HIDE DATES FOR TWO POT
             const dateContainer = document.getElementById('date_selectors_container');
             if(dateContainer) dateContainer.style.display = isTwoPot ? 'none' : 'grid';
 

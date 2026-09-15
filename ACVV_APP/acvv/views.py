@@ -646,8 +646,49 @@ def export_acvv_list_excel(request):
 def acvv_list(request):
     """
     Displays a list of all ACVV records from the Globalacvv model with search functionality.
-    Sorted by branch code.
+    Sorted by branch code. Handles creating a new ACVV client record via POST.
     """
+    if request.method == 'POST':
+        # Normalize email input to handle multiple addresses entered with commas or semicolons
+        raw_emails = request.POST.get('mg_email_address', '')
+        email_list = [e.strip() for e in raw_emails.replace(';', ',').split(',') if e.strip()]
+        mg_email_address = ",".join(email_list)
+
+        mip_names = request.POST.get('mip_names')
+        branch_code = request.POST.get('branch_code')
+
+        if not mip_names:
+            messages.error(request, "Client/Branch Name (MIP Names) is required.")
+            return redirect('acvv_list')
+
+        # Check if record with this name already exists
+        if Globalacvv.objects.filter(mip_names=mip_names).exists():
+            messages.error(request, f"An ACVV record with the name '{mip_names}' already exists.")
+            return redirect('acvv_list')
+
+        # Create the new record capturing all fields
+        new_record = Globalacvv.objects.create(
+            mip_names=mip_names,
+            branch_code=branch_code,
+            member=request.POST.get('member', ''),
+            contribution_amount=request.POST.get('contribution_amount', ''),
+            tel=request.POST.get('tel', ''),
+            tel_2=request.POST.get('tel_2', ''),
+            mg_email_address=mg_email_address,
+            bank=request.POST.get('bank', ''),
+            branch=request.POST.get('branch', ''),
+            account_number=request.POST.get('account_number', ''),
+            account_name=request.POST.get('account_name', ''),
+            account_type=request.POST.get('account_type', ''),
+            employer_contacts=request.POST.get('employer_contacts', ''),
+            mg_address=request.POST.get('mg_address', ''),
+            npo_code=request.POST.get('npo_code', ''),
+            mg_bank_info=request.POST.get('mg_bank_info', '')
+        )
+        
+        messages.success(request, f"New ACVV client '{new_record.mip_names}' created successfully.")
+        return redirect('acvv_information', mip_names=new_record.mip_names)
+
     acvv_records = Globalacvv.objects.all()
     search_query = request.GET.get('search_query')
 
@@ -660,7 +701,7 @@ def acvv_list(request):
             Q(tel_2__icontains=search_query)
         )
 
-    # Order the results by code instead of mip_names
+    # Order the results by branch code
     acvv_records = acvv_records.order_by('branch_code')
 
     context = {
@@ -1953,24 +1994,19 @@ def reconciliation_worksheet(request):
                 messages.warning(request, f"Fiscal month {current_fiscal.strftime('%B %Y')} RE-OPENED.")
             return redirect(f"{reverse('reconciliation_worksheet')}?year={current_fiscal.year}&month={current_fiscal.month}")
 
-    # 3. FETCH & AUTO-GENERATE DATA
+    # 3. FETCH & AUTO-GENERATE DATA (Updated: Runs every time to catch newly added master records)
+    for item in Globalacvv.objects.all():
+        clean_code = str(item.branch_code).strip().upper()
+        ReconciliationWorksheet.objects.get_or_create(
+            fiscal_month=current_fiscal,
+            mg_code=clean_code, 
+            defaults={'mg_name': item.mip_names}
+        )
+
     records = ReconciliationWorksheet.objects.filter(
         Q(fiscal_month=current_fiscal) | 
         Q(fiscal_month__lt=current_fiscal, reconciled_status='Unreconciled', is_closed=False)
     ).order_by('mg_code', 'fiscal_month')
-    
-    if not records.filter(fiscal_month=current_fiscal).exists():
-        for item in Globalacvv.objects.all():
-            clean_code = str(item.branch_code).strip().upper()
-            ReconciliationWorksheet.objects.get_or_create(
-                fiscal_month=current_fiscal,
-                mg_code=clean_code, 
-                defaults={'mg_name': item.mip_names}
-            )
-        records = ReconciliationWorksheet.objects.filter(
-            Q(fiscal_month=current_fiscal) | 
-            Q(fiscal_month__lt=current_fiscal, reconciled_status='Unreconciled', is_closed=False)
-        ).order_by('mg_code', 'fiscal_month')
 
     # 4. ANNOTATIONS
     last_ws_recon_sub = ReconciliationWorksheet.objects.filter(
