@@ -10,69 +10,121 @@
         body {
             font-family: sans-serif;
             background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
-            margin: 20px;
+            margin: 0;
+            padding: 20px;
             color: #333;
             line-height: 1.6;
+            min-height: 100vh;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         .container {
-            max-width: 800px;
-            margin: 2em auto;
-            padding: 30px;
+            width: 100%;
+            max-width: 1100px;
+            margin: auto;
+            padding: 35px 40px;
             background-color: #fff;
-            border-radius: 10px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
         }
         h2 {
             color: #1b5e20;
+            margin-top: 0;
             margin-bottom: 25px;
             border-bottom: 2px solid #81c784;
-            padding-bottom: 10px;
+            padding-bottom: 12px;
             font-size: 1.8em;
         }
-        .form-group {
-            margin-bottom: 15px;
+
+        /* Horizontal Multi-Column Grid Layout */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 18px 24px;
         }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Span full width for wide input fields like textareas if needed */
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
         label {
-            display: block;
-            margin-bottom: 5px;
+            margin-bottom: 6px;
             font-weight: bold;
             color: #2e7d32;
+            font-size: 0.95rem;
         }
-        input[type="text"], input[type="number"], input[type="date"], textarea, select {
+
+        input[type="text"], 
+        input[type="number"], 
+        input[type="date"], 
+        textarea, 
+        select {
             width: 100%;
-            padding: 10px;
+            padding: 10px 12px;
             border: 1px solid #ccc;
-            border-radius: 5px;
-            box-sizing: border-box; /* Ensures padding doesn't affect total width */
-            font-size: 1em;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 0.95rem;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
+        }
+
+        .error-msg {
+            color: #d32f2f;
+            font-size: 0.85rem;
+            margin-top: 4px;
+        }
+
         .button-group {
             margin-top: 30px;
+            padding-top: 15px;
+            border-top: 1px solid #e0e0e0;
             display: flex;
             justify-content: space-between;
+            align-items: center;
         }
+
         .save-button {
-            padding: 12px 25px;
+            padding: 12px 30px;
             background-color: #4CAF50;
             color: white;
             border: none;
-            border-radius: 5px;
+            border-radius: 6px;
             cursor: pointer;
-            font-size: 1.1em;
+            font-size: 1em;
+            font-weight: 500;
             transition: background-color 0.3s;
         }
+
         .save-button:hover {
             background-color: #388e3c;
         }
+
         .back-link {
             display: inline-block;
             padding: 12px 25px;
             background-color: #81c784;
             color: white;
             text-decoration: none;
-            border-radius: 5px;
+            border-radius: 6px;
+            font-size: 1em;
+            font-weight: 500;
             transition: background-color 0.3s;
         }
+
         .back-link:hover {
             background-color: #66bb6a;
         }
@@ -98,15 +150,21 @@
     ">
         {% csrf_token %}
 
-        {% for field in form %}
-            <div class="form-group">
-                <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                {{ field }}
-                {% if field.errors %}
-                    <small style="color: red;">{{ field.errors }}</small>
+        <div class="form-grid">
+            {% for field in form %}
+                {% if field.is_hidden %}
+                    {{ field }}
+                {% else %}
+                    <div class="form-group {% if field.name == 'D_Company_Name' %}full-width{% endif %}">
+                        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.errors %}
+                            <small class="error-msg">{{ field.errors }}</small>
+                        {% endif %}
+                    </div>
                 {% endif %}
-            </div>
-        {% endfor %}
+            {% endfor %}
+        </div>
 
         <div class="button-group">
             <a href="{% url 'unity_information' company_code=company_code %}" class="back-link">
