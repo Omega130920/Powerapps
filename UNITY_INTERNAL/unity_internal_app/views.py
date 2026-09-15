@@ -216,6 +216,7 @@ def unity_list(request):
     from collections import defaultdict
     from decimal import Decimal
     from django.db.models import Sum
+    from datetime import datetime
     
     # --- 1. HANDLE POST REQUEST TO ADD NEW MEMBER GROUP ---
     if request.method == 'POST' and request.POST.get('action') == 'add_new_member_group':
@@ -279,7 +280,7 @@ def unity_list(request):
         if b_id in bill_map:
             allocation_map[bill_map[b_id]] += (a['amount'] or Decimal('0.00'))
 
-    # Calculate "Current Billing Status" AND "Fiscal Date" Map
+    # Calculate "Current Billing Status" AND "Fiscal Date" Map (Normalized to Month Start)
     billing_status_map = {}
     fiscal_date_map = {} 
     
@@ -306,7 +307,15 @@ def unity_list(request):
         billing_status_map[code] = status
         
         if b.A_CCDatesMonth:
-            fiscal_date_map[code] = b.A_CCDatesMonth.strftime('%Y-%m-%d')
+            if hasattr(b.A_CCDatesMonth, 'replace'):
+                # 🚀 Normalize bill month date to the 1st of the month
+                fiscal_date_map[code] = b.A_CCDatesMonth.replace(day=1).strftime('%Y-%m-%d')
+            else:
+                try:
+                    dt = datetime.strptime(str(b.A_CCDatesMonth), '%Y-%m-%d')
+                    fiscal_date_map[code] = dt.replace(day=1).strftime('%Y-%m-%d')
+                except ValueError:
+                    fiscal_date_map[code] = str(b.A_CCDatesMonth)
 
     # --- 4. Build Combined List ---
     combined_records = []
@@ -358,6 +367,31 @@ def unity_list(request):
             'active_surplus': active_surplus_value,
         })
         
+    # --- 🚀 Compile All Available Fiscal Months (Normalized to Month Start) ---
+    fiscal_set = set()
+    for r in combined_records:
+        f = r.get('g_current_fiscal')
+        if f and f != "N/A":
+            try:
+                dt_obj = datetime.strptime(str(f), '%Y-%m-%d')
+                fiscal_set.add(dt_obj.replace(day=1).strftime('%Y-%m-%d'))
+            except ValueError:
+                fiscal_set.add(str(f))
+            
+    # Include any dates straight from UnityBill objects, normalized to the 1st of the month
+    for bill_date in UnityBill.objects.exclude(A_CCDatesMonth__isnull=True).values_list('A_CCDatesMonth', flat=True).distinct():
+        if bill_date:
+            if hasattr(bill_date, 'replace'):
+                fiscal_set.add(bill_date.replace(day=1).strftime('%Y-%m-%d'))
+            else:
+                try:
+                    dt_obj = datetime.strptime(str(bill_date), '%Y-%m-%d')
+                    fiscal_set.add(dt_obj.replace(day=1).strftime('%Y-%m-%d'))
+                except ValueError:
+                    fiscal_set.add(str(bill_date))
+
+    distinct_fiscal_sorted = sorted(list(fiscal_set), reverse=True)
+
     # --- 5. Context for Rendering ---
     context = {
         'unity_records': combined_records,
@@ -366,7 +400,7 @@ def unity_list(request):
         'distinct_agent': UnityMgListing.objects.values_list('c_agent', flat=True).distinct(),
         'distinct_payment': UnityMgListing.objects.values_list('e_payment_method', flat=True).distinct(),
         'distinct_billing': UnityMgListing.objects.values_list('f_billing_method', flat=True).distinct(),
-        'distinct_fiscal': UnityMgListing.objects.values_list('g_current_fiscal', flat=True).distinct(),
+        'distinct_fiscal': distinct_fiscal_sorted, # 🚀 Clean, month-grouped fiscal options (e.g. 2026-09-01)
         'distinct_current_status': ["RECON COMPLETE", "SCHEDULED", "OPEN", "PRE-BILL", "AWAITING SCHEDULE", "NO BILLING"]
     }
     return render(request, 'unity_internal_app/unity_list.html', context)
@@ -391,8 +425,7 @@ def unity_information(request: HttpRequest, company_code):
     from django.contrib import messages
     from django.shortcuts import render, redirect
     from django.conf import settings
-    from django.template.loader import render_to_string 
-
+    
     # =========================================================
     # 0. DOWNLOAD HANDLER (Matches CRM_UNITY Logic)
     # =========================================================
@@ -476,15 +509,12 @@ def unity_information(request: HttpRequest, company_code):
         line.actual_bill_usage = BillSettlement.objects.filter(reconned_bank_line_id=line.id).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
         line.credit_amount = CreditNote.objects.filter(source_bank_line=line).aggregate(total=Sum('schedule_amount'))['total'] or Decimal('0.00')
         
-        # Fetch available BankJournalEntries for this bank line where status is Available
         line.available_journals = BankJournalEntry.objects.filter(
             source_bank_line_id=line.id,
             status__iexact='Available'
         )
         line.journal_amount = line.available_journals.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
         
-        # 🚀 FIX: The amount_settled database column natively includes journal deductions. 
-        # By solely subtracting amount_settled, we eliminate the double-consumption bug.
         settled_val = line.amount_settled if line.amount_settled is not None else Decimal('0.00')
         line.available_balance = line.transaction_amount - settled_val
         
@@ -492,7 +522,6 @@ def unity_information(request: HttpRequest, company_code):
         line.is_fully_consumed = (line.available_balance <= Decimal('0.009'))
         line.original_assigned_amount = line.transaction_amount 
         
-        # Keep line as long as it is not fully reconciled
         if str(line.recon_status).upper() != 'RECONCILED':
             active_bank_lines.append(line)
     
@@ -519,7 +548,6 @@ def unity_information(request: HttpRequest, company_code):
 
     credit_notes = active_credit_notes
 
-    # Total Manual Credits Value Calculation
     manual_credits_total = CreditNote.objects.filter(
         member_group_code=company_code
     ).filter(
@@ -653,7 +681,24 @@ def unity_information(request: HttpRequest, company_code):
             'icon': '📤'
         })
 
+    # Sort the log chronologically
     combined_email_log.sort(key=lambda x: x['timestamp'], reverse=True)
+
+    # 🚀 NEW: Filter the Combined Email Log based on Search Query
+    email_search_query = request.GET.get('email_search', '').strip().lower()
+    if email_search_query:
+        filtered_email_log = []
+        for log in combined_email_log:
+            # Aggregate all searchable fields into a single lowercase string for easy matching
+            searchable_text = f"{log.get('subject', '')} {log.get('sender', '')} " \
+                              f"{log.get('assigned_to', '')} {log.get('status', '')} " \
+                              f"{log.get('type', '')} {log.get('display_type', '')} " \
+                              f"{log.get('action_user', '')}".lower()
+            
+            if email_search_query in searchable_text:
+                filtered_email_log.append(log)
+        
+        combined_email_log = filtered_email_log
 
     # --- 5. Billing Logic ---
     billing_queryset = UnityBill.objects.filter(C_Company_Code=lookup_code).order_by('-A_CCDatesMonth')
@@ -685,13 +730,10 @@ def unity_information(request: HttpRequest, company_code):
         if request.POST.get('email_submission_action') == 'send_email_and_log' or request.POST.get('action') == 'send_outgoing_member_note':
             subject = request.POST.get('member_email_subject_reply', 'Claim Update')
             recipient = request.POST.get('member_recipient_email')
-            
             cc_recipients = request.POST.get('member_cc_email', '')
             bcc_recipients = request.POST.get('member_bcc_email', '')
-            
             email_body_html = request.POST.get('email_body_html_content')
             action_note_val = request.POST.get('action_notes', 'Email Composed')
-            
             attachments = request.FILES.getlist('attachments')
 
             if recipient and email_body_html:
@@ -778,6 +820,7 @@ def unity_information(request: HttpRequest, company_code):
         'notes': notes, 
         'communication_logs': communication_logs, 
         'combined_email_log': combined_email_log, 
+        'email_search_query': email_search_query, # Pass the query to keep the search bar populated
         'is_fallback': is_fallback, 
         'bank_lines': bank_lines, 
         'credit_notes': credit_notes, 

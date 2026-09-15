@@ -49,8 +49,6 @@ class PreBillForm(forms.ModelForm):
             'I_Submitted_Date': forms.DateInput(attrs={'type': 'date'}),
             'J_Final_Date': forms.DateInput(attrs={'type': 'date'}),
             
-            'C_Company_Code': forms.HiddenInput(),
-            
             'B_Fund_Code': forms.TextInput(),
             'D_Company_Name': forms.TextInput(),
             'E_Active_Members': forms.NumberInput(),

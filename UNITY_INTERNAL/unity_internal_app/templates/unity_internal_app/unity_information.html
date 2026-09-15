@@ -124,7 +124,7 @@
         .tab-nav li {
             padding: 10px 15px;
             cursor: pointer;
-            background-color: #81c784;
+            background-color: #2e7d32;
             border: 1px solid #81c784;
             border-right: none;
             color: white;
@@ -148,14 +148,14 @@
         }
 
         .tab-nav li:hover {
-            background-color: #66bb6a;
+            background-color: #2e7d32;
         }
 
         .tab-content {
             flex: 1;
             background-color: #f0fff0;
             padding: 15px;
-            border: 1px solid #aed581;
+            border: 1px solid #2e7d32;
             border-radius: 8px;
             box-shadow: 0 2px 5px rgba(0, 0, 0, .1);
             overflow-y: auto;
@@ -1456,15 +1456,27 @@
         </form>
     </div>
 
-    {# --- FILTER & SEARCH SECTION --- #}
-    <div style="background-color: #e8f5e9; padding: 15px; border-radius: 8px; border: 1px solid #c8e6c9; margin-bottom: 15px; display: flex; gap: 15px; align-items: center;">
+    {# --- 🚀 FILTER & BACKEND SEARCH SECTION --- #}
+    <form method="GET" action="{% url 'unity_information' company_code=unity_record.A_Company_Code|default:unity_record.a_company_code %}#email-log" style="background-color: #e8f5e9; padding: 15px; border-radius: 8px; border: 1px solid #c8e6c9; margin-bottom: 15px; display: flex; gap: 15px; align-items: flex-end;">
         <div style="flex: 2; position: relative;">
             <label style="font-size: 11px; font-weight: bold; color: #2e7d32; display: block; margin-bottom: 4px; text-transform: uppercase;">Search Logs</label>
-            <input type="text" id="emailSearchInput" onkeyup="filterEmailLog()" placeholder="Search Subject, Recipient, or Status..." class="form-input" style="padding: 10px 12px; width: 100%;">
+            <input type="text" name="email_search" value="{{ email_search_query }}" placeholder="Search by subject, sender, status, or assignee..." class="form-input" style="padding: 10px 12px; width: 100%; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;">
         </div>
+        
+        <div>
+            <button type="submit" style="padding: 10px 15px; background-color: #2e7d32; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                Search
+            </button>
+            {% if email_search_query %}
+                <a href="{% url 'unity_information' company_code=unity_record.A_Company_Code|default:unity_record.a_company_code %}#email-log" style="padding: 10px 15px; background-color: #d32f2f; color: white; text-decoration: none; border-radius: 4px; font-weight: bold; margin-left: 5px;">
+                    Clear
+                </a>
+            {% endif %}
+        </div>
+
         <div style="flex: 1;">
             <label style="font-size: 11px; font-weight: bold; color: #2e7d32; display: block; margin-bottom: 4px; text-transform: uppercase;">Type Filter</label>
-            <select id="emailTypeFilter" onchange="filterEmailLog()" class="form-select" style="padding: 9px;">
+            <select id="emailTypeFilter" onchange="filterEmailLog()" class="form-select" style="padding: 9px; width: 100%; border: 1px solid #ccc; border-radius: 4px;">
                 <option value="">-- All Types --</option>
                 <option value="ORIGINAL">Original (Inbox)</option>
                 <option value="REPLY">Reply (Sent)</option>
@@ -1473,7 +1485,7 @@
         </div>
         <div style="flex: 1;">
             <label style="font-size: 11px; font-weight: bold; color: #2e7d32; display: block; margin-bottom: 4px; text-transform: uppercase;">Status Filter</label>
-            <select id="emailStatusFilter" onchange="filterEmailLog()" class="form-select" style="padding: 9px;">
+            <select id="emailStatusFilter" onchange="filterEmailLog()" class="form-select" style="padding: 9px; width: 100%; border: 1px solid #ccc; border-radius: 4px;">
                 <option value="">-- All Statuses --</option>
                 <option value="SENT">Sent</option>
                 <option value="REPLIED">Replied</option>
@@ -1481,9 +1493,9 @@
                 <option value="DEL">Delegated</option>
             </select>
         </div>
-    </div>
+    </form>
 
-{# --- TABLE SECTION --- #}
+    {# --- TABLE SECTION --- #}
     <div style="overflow-x: auto;">
         <table id="emailLogTable" style="width: 100%; border-collapse: collapse; background-color: white; font-size: 0.9em;">
             <thead>
@@ -1580,7 +1592,13 @@
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="9" style="padding: 20px; text-align: center; color: #777;">No email history found.</td>
+                    <td colspan="9" style="padding: 20px; text-align: center; color: #777;">
+                        {% if email_search_query %}
+                            No emails matched your search for "<strong>{{ email_search_query }}</strong>".
+                        {% else %}
+                            No email history found.
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
