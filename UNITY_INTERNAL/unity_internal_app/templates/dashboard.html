@@ -66,8 +66,8 @@
         }
 
         .button-block {
-            background-color: rgb(119, 206, 97);
-            border: 1px solid rgb(119, 206, 97);
+            background-color: #2e7d32;
+            border: 1px solid #2e7d32;
             border-radius: 8px;
             text-align: center;
             cursor: pointer;
@@ -89,7 +89,8 @@
         }
 
         .button-block:hover {
-            background-color: rgb(105, 187, 85);
+            background-color: #1b5e20;
+            border-color: #1b5e20;
             transform: scale(1.02);
         }
 
@@ -126,8 +127,6 @@
         .badge.orange-badge { background-color: #ff8f00; }
         .badge.grey-badge { background-color: #616161; }
 
-        .button-block.export-btn { background-color: #2e7d32; }
-
         .logout-wrapper {
             position: absolute;
             top: 2vh;
@@ -135,18 +134,22 @@
         }
 
         .logout-button {
-            background-color: rgb(105, 187, 85);
+            background-color: #2e7d32;
             color: white;
             padding: 0.8vh 1.5vw;
             border: none;
             border-radius: 5px;
             cursor: pointer;
         }
+
+        .logout-button:hover {
+            background-color: #1b5e20;
+        }
     </style>
 </head>
 <body>
     <h1>Hello {{ username }}, Welcome to Unity Internal</h1>
-    
+
     <div class="logout-wrapper">
         <form method="post" action="{% url 'logout' %}">
             {% csrf_token %}
@@ -155,7 +158,7 @@
     </div>
 
     <div class="button-container">
-        
+
         <!-- 1 -->
         <a href="{% url 'outlook_dashboard' %}" class="button-block">
             Delegations
@@ -186,7 +189,7 @@
         <a href="{% url 'admin_billing' %}" class="button-block">Admin Billing</a>
 
         <!-- 8 -->
-        <a href="{% url 'export_global_bill_history' %}" class="button-block export-btn">Section 13A Report</a>
+        <a href="{% url 'export_global_bill_history' %}" class="button-block">Section 13A Report</a>
 
         <!-- 9 -->
         <a href="{% url 'sla_report' %}" class="button-block">SLA Report (WIP)</a>
