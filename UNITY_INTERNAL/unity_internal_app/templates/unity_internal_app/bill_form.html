@@ -10,7 +10,6 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
             margin: 0;
-<<<<<<< HEAD
             padding: 20px;
             color: #333;
             line-height: 1.6;
@@ -18,56 +17,27 @@
             box-sizing: border-box;
             display: flex;
             align-items: center;
-=======
-            padding: 40px 20px;
-            color: #333;
-            line-height: 1.6;
-            min-height: 100vh;
-            display: flex;
-            align-items: flex-start;
->>>>>>> 8cd80e5 (message)
             justify-content: center;
         }
         .container {
             width: 100%;
-<<<<<<< HEAD
             max-width: 1100px;
             margin: auto;
             padding: 35px 40px;
             background-color: #fff;
             border-radius: 12px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-=======
-            max-width: 900px;
-            padding: 40px;
-            background-color: #fff;
-            border-radius: 12px;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
->>>>>>> 8cd80e5 (message)
         }
         h2 {
             color: #1b5e20;
             margin-top: 0;
-<<<<<<< HEAD
             margin-bottom: 25px;
             border-bottom: 2px solid #81c784;
-=======
-            margin-bottom: 30px;
-            border-bottom: 3px solid #81c784;
->>>>>>> 8cd80e5 (message)
             padding-bottom: 12px;
             font-size: 1.8em;
             letter-spacing: -0.5px;
         }
         
-        /* 🚀 CSS Grid implementation for two columns */
-        .form-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 20px 30px;
-        }
-<<<<<<< HEAD
-
         /* Horizontal Multi-Column Grid Layout */
         .form-grid {
             display: grid;
@@ -92,37 +62,18 @@
             font-size: 0.95rem;
         }
 
-=======
-        .form-group {
-            display: flex;
-            flex-direction: column;
-        }
-        
-        /* Automatically force textareas to span the full width of both columns */
-        .form-group:has(textarea) {
-            grid-column: 1 / -1;
-        }
-        
-        label {
-            margin-bottom: 8px;
-            font-weight: 600;
-            color: #2e7d32;
-            font-size: 0.95em;
-        }
-        
->>>>>>> 8cd80e5 (message)
         input[type="text"], 
         input[type="number"], 
         input[type="date"], 
         textarea, 
         select {
             width: 100%;
-<<<<<<< HEAD
             padding: 10px 12px;
             border: 1px solid #ccc;
             border-radius: 6px;
             box-sizing: border-box;
             font-size: 0.95rem;
+            background-color: #fafafa;
             transition: border-color 0.2s ease, box-shadow 0.2s ease;
         }
 
@@ -130,34 +81,10 @@
             outline: none;
             border-color: #4CAF50;
             box-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
-        }
-
-        .error-msg {
-            color: #d32f2f;
-            font-size: 0.85rem;
-            margin-top: 4px;
-        }
-
-=======
-            padding: 12px;
-            border: 1px solid #c8e6c9;
-            border-radius: 6px;
-            box-sizing: border-box;
-            font-size: 1em;
-            background-color: #fafafa;
-            transition: all 0.3s ease;
-        }
-        
-        input:focus, 
-        textarea:focus, 
-        select:focus {
-            border-color: #4CAF50;
-            box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.15);
-            outline: none;
             background-color: #fff;
         }
 
-        /* ✨ Styling for uneditable (readonly) fields ✨ */
+        /* Styling for uneditable (readonly) fields */
         input[readonly], 
         input[disabled],
         select[disabled] {
@@ -167,18 +94,18 @@
             cursor: not-allowed;
             box-shadow: none !important;
         }
-        
->>>>>>> 8cd80e5 (message)
+
+        .error-msg {
+            color: #d32f2f;
+            font-size: 0.85rem;
+            margin-top: 4px;
+        }
+
         .button-group {
             grid-column: 1 / -1;
             margin-top: 30px;
-<<<<<<< HEAD
             padding-top: 15px;
             border-top: 1px solid #e0e0e0;
-=======
-            padding-top: 25px;
-            border-top: 1px solid #eee;
->>>>>>> 8cd80e5 (message)
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -191,16 +118,10 @@
             border: none;
             border-radius: 6px;
             cursor: pointer;
-<<<<<<< HEAD
             font-size: 1em;
             font-weight: 500;
             transition: background-color 0.3s;
-=======
-            font-size: 1.05em;
-            font-weight: 600;
-            transition: background-color 0.3s, transform 0.1s;
             box-shadow: 0 4px 6px rgba(76, 175, 80, 0.2);
->>>>>>> 8cd80e5 (message)
         }
 
         .save-button:hover {
@@ -219,14 +140,9 @@
             color: #2e7d32;
             text-decoration: none;
             border-radius: 6px;
-<<<<<<< HEAD
             font-size: 1em;
             font-weight: 500;
             transition: background-color 0.3s;
-=======
-            font-weight: 600;
-            transition: background-color 0.3s, color 0.3s;
->>>>>>> 8cd80e5 (message)
         }
 
         .back-link:hover {
@@ -257,7 +173,6 @@
 
         <div class="form-grid">
             {% for field in form %}
-<<<<<<< HEAD
                 {% if field.is_hidden %}
                     {{ field }}
                 {% else %}
@@ -270,17 +185,6 @@
                     </div>
                 {% endif %}
             {% endfor %}
-        </div>
-=======
-                <div class="form-group">
-                    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-                    {{ field }}
-                    {% if field.errors %}
-                        <small style="color: #d32f2f; margin-top: 5px; font-weight: 500;">{{ field.errors }}</small>
-                    {% endif %}
-                </div>
-            {% endfor %}
->>>>>>> 8cd80e5 (message)
 
             <div class="button-group">
                 <a href="{% url 'unity_information' company_code=company_code %}" class="back-link">
@@ -301,19 +205,14 @@
 <!-- 🚀 JS to automatically lock down the Company Code and Name fields -->
 <script>
     document.addEventListener("DOMContentLoaded", function() {
-        // List the potential exact field names as defined in your Django forms.py
         const fieldsToLock = ['C_Company_Code', 'D_Company_Name', 'company_code', 'company_name'];
         
         fieldsToLock.forEach(function(fieldName) {
-            // Find the element by ID (Django prefixes with 'id_') or by name attribute
             const field = document.getElementById('id_' + fieldName) || document.getElementsByName(fieldName)[0];
             
             if (field) {
-                // Make text inputs readonly
                 field.setAttribute('readonly', 'readonly');
                 
-                // If it happens to be a dropdown/select, readonly doesn't work, so we disable it
-                // and create a hidden input so the value still submits securely to your backend
                 if (field.tagName === 'SELECT') {
                     field.setAttribute('disabled', 'disabled');
                     const hiddenInput = document.createElement('input');
