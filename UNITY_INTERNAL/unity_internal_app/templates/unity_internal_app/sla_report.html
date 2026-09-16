@@ -296,7 +296,7 @@
                     </div>
                 </div>
 
-                <!-- ========================================== -->
+<!-- ========================================== -->
                 <!-- SECTION 5: ADMINISTRATIVE ACTIONS (PDF) -->
                 <!-- ========================================== -->
                 <div class="rounded-xl border-2 border-emerald-700 bg-white overflow-hidden shadow-lg">
@@ -310,50 +310,102 @@
                     <div class="accordion-content">
                         <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
                             
-                            <!-- 5.1 Action Statistics -->
-                            <div class="border border-gray-200 rounded-lg overflow-hidden">
-                                <h3 class="bg-gray-100 p-3 text-xs font-black uppercase text-emerald-900 border-b border-gray-200">5.1 Action Statistics</h3>
-                                <table class="w-full text-left text-xs">
-                                    <thead class="bg-white text-gray-500 uppercase font-bold text-[10px]">
-                                        <tr>
-                                            <th class="p-3 border-b">Note Type / Action</th>
-                                            <th class="p-3 text-right border-b">Notes</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="text-gray-800">
-                                        {% for action in action_statistics_summary %}
-                                        <tr class="border-b border-gray-50 hover:bg-emerald-50">
-                                            <td class="p-3 font-medium uppercase text-[10px]">{{ action.label }}</td>
-                                            <td class="p-3 text-right font-bold">{{ action.count }}</td>
-                                        </tr>
-                                        {% empty %}
-                                        <tr><td colspan="2" class="p-6 text-center text-gray-400 italic">No action data available.</td></tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
+                            <!-- Left Column: 5.1 and 5.2 -->
+                            <div class="space-y-6">
+                                <!-- 5.1 Action Statistics -->
+                                <div class="border border-gray-200 rounded-lg overflow-hidden">
+                                    <h3 class="bg-gray-100 p-3 text-xs font-black uppercase text-emerald-900 border-b border-gray-200">5.1 Action Statistics</h3>
+                                    <table class="w-full text-left text-xs">
+                                        <thead class="bg-white text-gray-500 uppercase font-bold text-[10px]">
+                                            <tr>
+                                                <th class="p-3 border-b">Note Type / Action</th>
+                                                <th class="p-3 text-right border-b">Notes</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="text-gray-800">
+                                            {% for action in action_statistics_summary %}
+                                            <tr class="border-b border-gray-50 hover:bg-emerald-50">
+                                                <td class="p-3 font-medium uppercase text-[10px]">{{ action.label }}</td>
+                                                <td class="p-3 text-right font-bold">{{ action.count }}</td>
+                                            </tr>
+                                            {% empty %}
+                                            <tr><td colspan="2" class="p-6 text-center text-gray-400 italic">No action data available.</td></tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- 5.2 Claim Notes Report -->
+                                <div class="border border-gray-200 rounded-lg overflow-hidden">
+                                    <h3 class="bg-gray-100 p-3 text-xs font-black uppercase text-emerald-900 border-b border-gray-200">5.2 Claim Notes Report</h3>
+                                    <table class="w-full text-left text-xs">
+                                        <thead class="bg-white text-gray-500 uppercase font-bold text-[10px]">
+                                            <tr>
+                                                <th class="p-3 border-b">Claim Note Category</th>
+                                                <th class="p-3 text-right border-b">Count</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="text-gray-800">
+                                            {% for note in claim_notes_report %}
+                                            <tr class="border-b border-gray-50 hover:bg-emerald-50">
+                                                <td class="p-3 font-medium uppercase text-[10px]">{{ note.label }}</td>
+                                                <td class="p-3 text-right font-bold">{{ note.count }}</td>
+                                            </tr>
+                                            {% empty %}
+                                            <tr><td colspan="2" class="p-6 text-center text-gray-400 italic">No claim notes data available.</td></tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
 
-                            <!-- 5.3 E-mail Status -->
-                            <div class="border border-gray-200 rounded-lg overflow-hidden h-fit">
-                                <h3 class="bg-gray-100 p-3 text-xs font-black uppercase text-emerald-900 border-b border-gray-200">5.3 E-mail Status</h3>
-                                <table class="w-full text-left text-xs">
-                                    <thead class="bg-white text-gray-500 uppercase font-bold text-[10px]">
-                                        <tr>
-                                            <th class="p-3 border-b">E-mail Status</th>
-                                            <th class="p-3 text-right border-b">Total E-mails</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody class="text-gray-800">
-                                        {% for status in email_status_summary %}
-                                        <tr class="border-b border-gray-50 hover:bg-emerald-50">
-                                            <td class="p-3 font-medium">{{ status.label }}</td>
-                                            <td class="p-3 text-right font-bold">{{ status.count }}</td>
-                                        </tr>
-                                        {% empty %}
-                                        <tr><td colspan="2" class="p-6 text-center text-gray-400 italic">No email status data available.</td></tr>
-                                        {% endfor %}
-                                    </tbody>
-                                </table>
+                            <!-- Right Column: 5.3 and 5.2 B -->
+                            <div class="space-y-6">
+                                <!-- 5.3 E-mail Status -->
+                                <div class="border border-gray-200 rounded-lg overflow-hidden h-fit">
+                                    <h3 class="bg-gray-100 p-3 text-xs font-black uppercase text-emerald-900 border-b border-gray-200">5.3 E-mail Status</h3>
+                                    <table class="w-full text-left text-xs">
+                                        <thead class="bg-white text-gray-500 uppercase font-bold text-[10px]">
+                                            <tr>
+                                                <th class="p-3 border-b">E-mail Status</th>
+                                                <th class="p-3 text-right border-b">Total E-mails</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="text-gray-800">
+                                            {% for status in email_status_summary %}
+                                            <tr class="border-b border-gray-50 hover:bg-emerald-50">
+                                                <td class="p-3 font-medium">{{ status.label }}</td>
+                                                <td class="p-3 text-right font-bold">{{ status.count }}</td>
+                                            </tr>
+                                            {% empty %}
+                                            <tr><td colspan="2" class="p-6 text-center text-gray-400 italic">No email status data available.</td></tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- 5.2 B System Notes Report -->
+                                <div class="border border-gray-200 rounded-lg overflow-hidden">
+                                    <h3 class="bg-gray-100 p-3 text-xs font-black uppercase text-emerald-900 border-b border-gray-200">5.2 B System Notes Report</h3>
+                                    <table class="w-full text-left text-xs">
+                                        <thead class="bg-white text-gray-500 uppercase font-bold text-[10px]">
+                                            <tr>
+                                                <th class="p-3 border-b">System Note Category</th>
+                                                <th class="p-3 text-right border-b">Count</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="text-gray-800">
+                                            {% for note in system_notes_report %}
+                                            <tr class="border-b border-gray-50 hover:bg-emerald-50">
+                                                <td class="p-3 font-medium uppercase text-[10px]">{{ note.label }}</td>
+                                                <td class="p-3 text-right font-bold">{{ note.count }}</td>
+                                            </tr>
+                                            {% empty %}
+                                            <tr><td colspan="2" class="p-6 text-center text-gray-400 italic">No system notes data available.</td></tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
 
                         </div>
@@ -533,10 +585,15 @@
                         <div class="text-3xl font-black">{{ billing_sla|length }}</div>
                         <div class="text-[10px] uppercase font-bold opacity-70">Bills</div>
                     </div>
+                    <!-- 🛑 NEW NOTES METRIC -->
+                    <div class="text-center px-6 border-r border-white/20">
+                        <div class="text-3xl font-black text-amber-300">{{ total_notes_made }}</div>
+                        <div class="text-[10px] uppercase font-bold opacity-70">Notes</div>
+                    </div>
                     <div class="text-right">
                         <span class="text-6xl font-black tracking-tighter">
                             {% with e=report_data|length b=bank_notes|length bl=billing_sla|length %}
-                                {{ e|add:b|add:bl }}
+                                {{ e|add:b|add:bl|add:total_notes_made }}
                             {% endwith %}
                         </span>
                         <div class="text-[10px] uppercase font-black opacity-70 tracking-widest">Total Audited</div>

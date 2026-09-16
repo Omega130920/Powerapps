@@ -6147,7 +6147,8 @@ def sla_report_view(request):
         EmailDelegation, DelegationTransactionLog, UnityNotes, 
         OutlookInbox, CreditNote, BillSettlement, ReconnedBank,
         UnityMgListing, InternalFunds, ClientNotes, UnityBill,
-        ScheduleSurplus, JournalEntry, UnityClaim, BankJournalEntry
+        ScheduleSurplus, JournalEntry, UnityClaim, BankJournalEntry,
+        UnityClaimNote  # 🛑 ADDED: UnityClaimNote imported here
     )
     from django.db.models import Q, Sum, Count, F
     from decimal import Decimal
@@ -6395,13 +6396,55 @@ def sla_report_view(request):
             'error': group['error'] or 0,
         })
 
+# ==========================================
+    # 🛑 5. SEPARATED NOTE REPORTS (5.2 and 5.2 B)
+    # ==========================================
+    total_notes_made = 0
+
+    # ------------------------------------------
+    # 5.2 Claim Notes (from UnityClaimNote)
+    # ------------------------------------------
+    claim_note_summary = defaultdict(int)
+    claim_notes_qs = UnityClaimNote.objects.all()
+    if start_date and end_date and start_date not in ["None", ""] and end_date not in ["None", ""]:
+        claim_notes_qs = claim_notes_qs.filter(created_at__range=[start_date, end_date])
+
+    claim_notes_counts = claim_notes_qs.values('note_selection').annotate(count=Count('pk'))
+    for item in claim_notes_counts:
+        header = item.get('note_selection') or "Uncategorized Claim Note"
+        claim_note_summary[header] += item['count']
+        total_notes_made += item['count']
+
+    # Sort descending
+    claim_notes_report = [
+        {'label': k, 'count': v} for k, v in sorted(claim_note_summary.items(), key=lambda item: item[1], reverse=True)
+    ]
+
+    # ------------------------------------------
+    # 5.2 B System Notes (from UnityNotes)
+    # ------------------------------------------
+    system_note_summary = defaultdict(int)
+    unity_notes_qs = UnityNotes.objects.all()
+    if start_date and end_date and start_date not in ["None", ""] and end_date not in ["None", ""]:
+        unity_notes_qs = unity_notes_qs.filter(date__range=[start_date, end_date])
+
+    unity_notes_counts = unity_notes_qs.values('action_notes').annotate(count=Count('pk'))
+    for item in unity_notes_counts:
+        header = item.get('action_notes') or "Uncategorized System Note"
+        system_note_summary[header] += item['count']
+        total_notes_made += item['count']
+
+    # Sort descending
+    system_notes_report = [
+        {'label': k, 'count': v} for k, v in sorted(system_note_summary.items(), key=lambda item: item[1], reverse=True)
+    ]
+
     return render(request, 'unity_internal_app/sla_report.html', {
         'report_data': report_data,
         'agent_stats': final_agent_stats,
         'bank_notes': bank_notes_qs, 
         'billing_sla': billing_sla_data,
         
-        # New PDF Output Contexts
         'company_status_summary': company_status_summary, 
         'total_companies': total_companies,
         'bank_statistics': bank_statistics,
@@ -6409,14 +6452,17 @@ def sla_report_view(request):
         'email_status_summary': email_status_summary,
         'total_contributions_reconciled': total_contributions_reconciled,
 
-        # PDF Section 2.2 Variables
         'fiscal_reconciliations': fiscal_reconciliations,
         'total_fiscal_companies': total_fiscal_companies,
         'total_fiscal_members': total_fiscal_members,
 
-        # PDF Page 10 Point 4 Claims Variables
         'current_fiscal_claim_status': current_fiscal_claim_status,
         'two_pot_banking_details': two_pot_banking_details,
+
+        # 🛑 SEPARATED NOTE REPORTS CONTEXT
+        'claim_notes_report': claim_notes_report,       # 5.2
+        'system_notes_report': system_notes_report,     # 5.2 B
+        'total_notes_made': total_notes_made,           # Keeps the unified total accurate
 
         'start_date': start_date if start_date != "None" else "",
         'end_date': end_date if end_date != "None" else "",
