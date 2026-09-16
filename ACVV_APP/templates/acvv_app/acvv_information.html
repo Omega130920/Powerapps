@@ -231,12 +231,16 @@
                 </div>
 
                 <div id="email-log" class="tab-pane">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #aed581; padding-bottom: 10px;">
+                    <!-- SEARCH INPUT ADDED HERE -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #aed581; padding-bottom: 10px; flex-wrap: wrap; gap: 10px;">
                         <div>
                             <h2 style="margin: 0; font-size: 1.5em; color: #1565c0;">Delegated & Sent Emails</h2>
                             <p style="font-size: 0.9em; color: #555; margin: 5px 0 0 0;">Tracking history.</p>
                         </div>
-                        <button type="button" class="dashboard-button" style="background-color: #ff9800;" onclick="toggleStandaloneEmailForm()">📧 Compose New Email</button>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="text" id="emailLogSearch" placeholder="Search Email Log..." class="form-input" style="width: 250px; padding: 6px 10px;" onkeyup="filterEmailLogTable()">
+                            <button type="button" class="dashboard-button" style="background-color: #ff9800;" onclick="toggleStandaloneEmailForm()">📧 Compose New Email</button>
+                        </div>
                     </div>
 
                     <div id="standalone-email-container" style="display: none; margin-bottom: 20px;">
@@ -302,7 +306,7 @@
                         <thead>
                             <tr style="text-align: left; background-color: #f8f9fa;">
                                 <th style="width: 160px; padding: 10px;">Type</th>
-                                <th style="padding: 10px;">Subject</th>
+                                <th style="padding: 10px;">From / Subject</th>
                                 <th style="padding: 10px;">Note</th>
                                 <th style="padding: 10px;">Action Log Type</th>
                                 <th style="padding: 10px;">Status</th>
@@ -311,7 +315,8 @@
                         </thead>
                         <tbody>
                             {% for log in combined_email_log %}
-                            <tr style="border-bottom: 1px solid #eee;">
+                            <!-- email-log-row CLASS ADDED HERE FOR JAVASCRIPT FILTERING -->
+                            <tr class="email-log-row" style="border-bottom: 1px solid #eee;">
                                 <td style="padding: 10px;">
                                     <div class="type-cell">
                                         <span>{{ log.icon }}</span>
@@ -319,6 +324,10 @@
                                     </div>
                                 </td>
                                 <td style="padding: 10px;">
+                                    <span style="color: #1565c0; font-weight: 600; font-size: 0.85em;">
+                                        <i class="fas fa-envelope mr-1"></i> {{ log.sender_address }}
+                                    </span>
+                                    <br>
                                     {{ log.subject|truncatechars:50 }}
                                     <br>
                                     <small style="color: #888;">{{ log.sort_date|date:"Y-m-d H:i" }}</small>
@@ -635,6 +644,22 @@
         function toggleEmailForm() {
             const container = document.getElementById('email-composition-container');
             container.style.display = (container.style.display === 'none') ? 'block' : 'none';
+        }
+
+        // SEARCH/FILTER EMAIL LOG LOGIC ADDED HERE
+        function filterEmailLogTable() {
+            let input = document.getElementById('emailLogSearch');
+            let filter = input.value.toLowerCase();
+            let rows = document.querySelectorAll('.email-log-row');
+
+            rows.forEach(row => {
+                let text = row.textContent.toLowerCase();
+                if (text.includes(filter)) {
+                    row.style.display = "";
+                } else {
+                    row.style.display = "none";
+                }
+            });
         }
 
         // CLAIM MODAL LOGIC

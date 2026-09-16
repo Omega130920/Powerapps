@@ -88,15 +88,18 @@ class OutlookGraphService:
         Supports is_raw for binary content (e.g., attachments).
         """
         access_token = get_current_access_token()
-        
+
         if not access_token:
             logger.error("Authentication failed: Missing or expired token.")
             return {'error': 'Authentication failed: Missing or expired token.'}
 
         url = f"{GRAPH_API_URL}/users/{target_email}/{endpoint}"
+        
+        # 🛑 THIS IS THE FIX: Added 'Prefer': 'IdType="ImmutableId"'
         headers = {
             'Authorization': f'Bearer {access_token}',
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Prefer': 'IdType="ImmutableId"'
         }
 
         try:
@@ -106,7 +109,7 @@ class OutlookGraphService:
                 response = requests.post(url, headers=headers, data=json.dumps(data))
             else:
                 return {'error': f"Unsupported HTTP method: {method}"}
-            
+
             response.raise_for_status()
 
             # Return raw binary content if requested
@@ -121,14 +124,14 @@ class OutlookGraphService:
         except requests.exceptions.HTTPError as e:
             status_code = e.response.status_code
             logger.error(f"Graph API HTTP Error {status_code}: {e.response.text}")
-            
+
             try:
                 error_details = e.response.json()
             except:
                 error_details = e.response.text if e.response.text else str(e)
-                
+
             return {'error': f"Graph API Error: Status {status_code}", 'details': error_details}
-            
+
         except requests.exceptions.RequestException as e:
             logger.error(f"Network/Connection Error: {e}")
             return {'error': f"Network Error: {str(e)}"}
@@ -162,12 +165,12 @@ class OutlookGraphService:
         Fixed: Handles both list and string inputs for recipient_email to prevent AttributeError.
         Added: Automatic signature injection based on the active user.
         """
-        
+
         # Inject Signature if user is provided
         if user and content_type.upper() == 'HTML':
             signature = get_user_signature(user)
             body_content += signature
-        
+
         # Determine the list of addresses
         if isinstance(recipient_email, str):
             addresses = [email.strip() for email in recipient_email.split(',') if email.strip()]
@@ -199,5 +202,5 @@ class OutlookGraphService:
                     })
                 except Exception as e:
                     logger.error(f"Failed to process attachment {getattr(file, 'name', 'unknown')}: {e}")
-        
+
         return OutlookGraphService._make_graph_request("sendMail", target_email, method='POST', data=email_data)

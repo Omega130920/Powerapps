@@ -872,6 +872,7 @@ def acvv_information(request, mip_names):
             'type': log_type,
             'icon': log_icon,
             'badge_color': badge_color, 
+            'sender_address': getattr(log, 'sender_address', '-'),  # 🔑 ADD THIS LINE
             'subject': log.subject or "Outlook Task",
             'received_at': log.received_at,
             'assigned_to': log.assigned_user.username if log.assigned_user else "Unassigned",
