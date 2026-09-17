@@ -35,13 +35,42 @@
             <a href="{% url 'pssubf_switchboard' %}" class="px-4 py-2 bg-white/30 hover:bg-white/50 border border-white/40 rounded-lg text-green-900 font-semibold transition backdrop-blur-md">
                 <i class="fas fa-arrow-left mr-2"></i> Back to home Screen
             </a>
-            <a href="{% url 'export_adhoc' %}" class="px-4 py-2 bg-white/30 hover:bg-white/50 border border-white/40 rounded-lg text-green-900 font-semibold transition backdrop-blur-md">
-                <i class="fas fa-file-excel mr-2"></i> Export Excel
+            
+            <!-- Updated Export Button -->
+            <a href="?{% if request.GET %}{{ request.GET.urlencode }}&{% endif %}export=csv" class="px-4 py-2 bg-white/30 hover:bg-white/50 border border-white/40 rounded-lg text-green-900 font-semibold transition backdrop-blur-md">
+                <i class="fas fa-file-csv mr-2"></i> Export Data
             </a>
+            
             <button onclick="openAdHocModal()" class="px-5 py-2.5 bg-green-700 text-white font-bold rounded-lg shadow-lg hover:bg-green-800 transition transform hover:-translate-y-1">
                 <i class="fas fa-plus mr-2"></i> Add Ad Hoc Entry
             </button>
         </div>
+    </div>
+
+    <!-- NEW: Filter Form block -->
+    <div class="max-w-full mx-auto mb-6 glass-card p-4 rounded-xl shadow-md">
+        <form method="GET" class="flex flex-col md:flex-row gap-4 items-end">
+            <div class="w-full md:w-1/4">
+                <label for="membership_number" class="block text-xs font-bold text-green-900 uppercase mb-1">Membership No.</label>
+                <input type="text" name="membership_number" class="w-full p-2 border rounded-md text-sm clean-input" value="{{ current_member|default_if_none:'' }}" placeholder="Search ID...">
+            </div>
+            <div class="w-full md:w-1/4">
+                <label for="date_from" class="block text-xs font-bold text-green-900 uppercase mb-1">From (Claim Date)</label>
+                <input type="date" name="date_from" class="w-full p-2 border rounded-md text-sm clean-input" value="{{ date_from|default_if_none:'' }}">
+            </div>
+            <div class="w-full md:w-1/4">
+                <label for="date_to" class="block text-xs font-bold text-green-900 uppercase mb-1">To (Claim Date)</label>
+                <input type="date" name="date_to" class="w-full p-2 border rounded-md text-sm clean-input" value="{{ date_to|default_if_none:'' }}">
+            </div>
+            <div class="w-full md:w-1/4 flex gap-2">
+                <button type="submit" class="px-5 py-2 bg-green-700 text-white font-bold rounded-md shadow hover:bg-green-800 transition w-full">
+                    <i class="fas fa-filter mr-2"></i> Filter
+                </button>
+                <a href="?" class="px-5 py-2 bg-white/50 border border-gray-300 text-gray-700 font-bold rounded-md shadow-sm hover:bg-white transition w-full text-center">
+                    Clear
+                </a>
+            </div>
+        </form>
     </div>
 
     <div class="max-w-full mx-auto glass-card rounded-2xl overflow-hidden shadow-2xl">
@@ -61,7 +90,7 @@
                 </thead>
                 <tbody class="divide-y divide-white/20 bg-white/10">
                     {% for item in adhoc_list %}
-                    <tr class="hover:bg-white/30 transition cursor-pointer" onclick="openAdHocModal('{{ item.id }}')">
+                    <tr class="hover:bg-white/30 transition cursor-pointer" onclick="openAdHocModal('{{ item.id }}'.toString())">
                         <td class="px-6 py-4 text-sm font-bold text-green-900">{{ item.beneficiary.membership_number }}</td>
                         <td class="px-6 py-4 text-sm">{{ item.beneficiary.first_name }} {{ item.beneficiary.last_name }}</td>
                         <td class="px-6 py-4 text-sm">{{ item.claim_form_date|date:"d/m/Y" }}</td>
@@ -310,6 +339,33 @@
     </div>
 
 <script>
+    // 🟢 HELPER: Cleans mixed DB date strings into strict YYYY-MM-DD for HTML inputs
+    function formatHTMLDate(dateString) {
+        if (!dateString || dateString === 'None' || dateString === 'null') return '';
+        
+        if (/^\d{4}-\d{2}-\d{2}$/.test(dateString.substring(0,10))) {
+            return dateString.substring(0,10);
+        }
+        
+        const parts = dateString.split(/[\/\-\s]/);
+        if (parts.length >= 3 && parts[2].length === 4) {
+            return `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+        }
+        
+        const d = new Date(dateString);
+        if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+        
+        return '';
+    }
+
+    // 🟢 HELPER: Strips "R", commas, and spaces from currency strings
+    function cleanHTMLNumber(val) {
+        if (!val) return 0;
+        if (typeof val === 'number') return val;
+        let cleaned = val.toString().replace(/[R\s,]/g, '');
+        return parseFloat(cleaned) || 0;
+    }
+
     function getYearMonthData(startDate, endDate) {
         let years = endDate.getFullYear() - startDate.getFullYear();
         let months = endDate.getMonth() - startDate.getMonth();
@@ -334,11 +390,9 @@
             finalM = 0;
         }
 
-        const discreteMonths = (finalY * 12) + finalM;
-
         return {
             string: `${finalY}Y ${finalM.toString().padStart(2, '0')}M`,
-            totalMonths: discreteMonths
+            totalMonths: (finalY * 12) + finalM
         };
     }
 
@@ -346,14 +400,6 @@
         calculateAge();
         calculateMaturity();
         calculateAffordability();
-    }
-
-    function filterTableRows() {
-        const showHistory = document.getElementById('historyToggle').checked;
-        const rows = document.querySelectorAll('.is-history');
-        rows.forEach(row => {
-            row.classList.toggle('hidden', !showHistory);
-        });
     }
 
     function triggerRemoveAttachment() {
@@ -372,6 +418,7 @@
     }
 
     function openAdHocModal(recordId = null) {
+        console.log("Opening modal. Record ID received:", recordId);
         const modal = document.getElementById('adhocModal');
         const form = document.getElementById('adhocForm');
         modal.classList.remove('hidden');
@@ -382,39 +429,52 @@
         document.getElementById('remove_attachment').value = "false";
         document.getElementById('remove_attachment_btn').classList.add('hidden');
 
-        if (recordId && recordId !== 'None') {
+        // Strict check to ensure recordId is valid and not a literal string "None" or empty
+        if (recordId && recordId !== 'None' && recordId !== 'null' && recordId !== '') {
             document.getElementById('formAction').value = "update_adhoc_entry";
             document.getElementById('record_id').value = recordId;
 
+            console.log("Fetching details from:", `/get-adhoc-details/${recordId}/`);
+
             fetch(`/get-adhoc-details/${recordId}/`)
-                .then(res => res.json())
+                .then(res => {
+                    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+                    return res.json();
+                })
                 .then(data => {
+                    console.log("Data received successfully:", data);
+                    
                     // Update headers
                     document.getElementById('header_id_passport').innerText = `ID/Passport: ${data.id_number || '-'}`;
                     document.getElementById('header_beneficiary_display').innerText = `${data.membership_number || ''} - ${data.beneficiary_name || ''}`;
                     
-                    // Populate Form Fields with null-safe fallbacks (|| '')
+                    // Populate Standard Form Fields
                     document.getElementById('membership_number').value = data.membership_number || '';
                     document.getElementById('b_name').value = data.beneficiary_name || '';
                     document.getElementById('g_name').value = data.guardian_name || '';
-                    document.getElementById('b_dob').value = data.dob || '';
-                    document.getElementById('term_date').value = data.termination_date || '';
                     document.getElementById('title_reason').value = data.title || '';
-                    document.getElementById('claim_form_date').value = data.claim_form_date || '';
                     document.getElementById('status').value = data.status || 'Created';
-                    document.getElementById('date_paid').value = data.date_paid || '';
-                    document.getElementById('portfolio_value').value = data.portfolio_value || 0;
-                    document.getElementById('portfolio_date').value = data.portfolio_date || '';
-                    document.getElementById('amount_requested').value = data.amount_requested || 0;
                     document.getElementById('supporting_docs_attached').value = data.supporting_docs_attached || 'No';
                     document.getElementById('comments').value = data.comments || '';
-                    
                     document.getElementById('footer_tracking').innerText = data.tracking_info || '';
                     
-                    // Calculations Data
-                    document.getElementById('calc_stipend').value = data.stipened || 0;
-                    document.getElementById('calc_cessation').value = data.termination_date || '';
-                    document.getElementById('monthly_income').value = 'R ' + (parseFloat(data.stipened) || 0).toLocaleString();
+                    // Populate & Clean Dates
+                    document.getElementById('b_dob').value = formatHTMLDate(data.dob);
+                    document.getElementById('term_date').value = formatHTMLDate(data.termination_date);
+                    document.getElementById('claim_form_date').value = formatHTMLDate(data.claim_form_date);
+                    document.getElementById('date_paid').value = formatHTMLDate(data.date_paid);
+                    document.getElementById('portfolio_date').value = formatHTMLDate(data.portfolio_date);
+                    document.getElementById('calc_cessation').value = formatHTMLDate(data.termination_date);
+                    
+                    // Populate & Clean Numbers
+                    const safePortfolio = cleanHTMLNumber(data.portfolio_value);
+                    const safeRequested = cleanHTMLNumber(data.amount_requested);
+                    const safeStipend = cleanHTMLNumber(data.stipened);
+
+                    document.getElementById('portfolio_value').value = safePortfolio;
+                    document.getElementById('amount_requested').value = safeRequested;
+                    document.getElementById('calc_stipend').value = safeStipend;
+                    document.getElementById('monthly_income').value = 'R ' + safeStipend.toLocaleString();
                     
                     if (data.attachment_path) {
                         document.getElementById('remove_attachment_btn').classList.remove('hidden');
@@ -424,7 +484,7 @@
                 })
                 .catch(err => console.error("Error fetching ad hoc details:", err));
         } else {
-            // New Entry Mode
+            console.log("Entering New Entry Mode");
             form.reset();
             document.getElementById('header_id_passport').innerText = "ID/Passport: -";
             document.getElementById('header_beneficiary_display').innerText = "Create New Ad Hoc Claim";
@@ -505,13 +565,15 @@
                 if(data.success) {
                     document.getElementById('b_name').value = data.beneficiary_name;
                     document.getElementById('g_name').value = data.guardian_name;
-                    document.getElementById('b_dob').value = data.dob;
-                    document.getElementById('term_date').value = data.term_date;
-                    document.getElementById('monthly_income').value = 'R ' + (parseFloat(data.stipened) || 0).toLocaleString();
+                    document.getElementById('b_dob').value = formatHTMLDate(data.dob);
+                    document.getElementById('term_date').value = formatHTMLDate(data.term_date);
+                    document.getElementById('calc_cessation').value = formatHTMLDate(data.term_date);
                     
-                    document.getElementById('calc_stipend').value = data.stipened;
-                    document.getElementById('calc_cessation').value = data.term_date;
-                    document.getElementById('portfolio_value').value = data.total_fund_value;
+                    const safeStipend = cleanHTMLNumber(data.stipened);
+                    document.getElementById('calc_stipend').value = safeStipend;
+                    document.getElementById('monthly_income').value = 'R ' + safeStipend.toLocaleString();
+                    
+                    document.getElementById('portfolio_value').value = cleanHTMLNumber(data.total_fund_value);
 
                     runCalculations();
                 } else {

@@ -1,11 +1,11 @@
 import base64
 import csv
-from datetime import date
+from datetime import date, datetime
 from email import parser
 import random
 import traceback
 from dateutil import parser as date_parser
-from time import timezone
+from django.utils import timezone  # Ensured django timezone is used
 from django.shortcuts import render, get_object_or_404, redirect
 from django.conf import settings
 from django.contrib import messages
@@ -19,7 +19,6 @@ import pandas as pd
 from django.db import transaction
 from dateutil.relativedelta import relativedelta
 from django.core.paginator import Paginator
-from datetime import datetime
 from .services.outlook_graph_service import OutlookGraphService
 
 logger = logging.getLogger(__name__)
@@ -1389,6 +1388,9 @@ def beneficiary_details_view(request, membership_number):
                 date_logged_str = request.POST.get('date_logged')
                 claim_date = datetime.strptime(date_logged_str, '%Y-%m-%d').date() if date_logged_str else date.today()
                 
+                date_paid_str = request.POST.get('date_paid')
+                date_paid_val = datetime.strptime(date_paid_str, '%Y-%m-%d').date() if date_paid_str else None
+
                 calculated_age_str = "---"
                 if member.dob:
                     diff_age = relativedelta(claim_date, member.dob)
@@ -1417,7 +1419,8 @@ def beneficiary_details_view(request, membership_number):
                     claim_type=request.POST.get('claim_type'),
                     date_logged=claim_date,
                     amount_requested=clean_decimal(request.POST.get('amount_requested')),
-                    status='Pending',
+                    status=request.POST.get('status', 'Pending'), # 🟢 Captured from form
+                    date_paid=date_paid_val, # 🟢 Captured from form
                     description=request.POST.get('description'),
                     guardian_name=f"{member.guardian_first_name} {member.guardian_last_name}".strip(),
                     beneficiary_name=f"{member.first_name} {member.last_name}".strip(),
@@ -1443,6 +1446,45 @@ def beneficiary_details_view(request, membership_number):
                 messages.success(request, f"New claim registered successfully. Reference Code: {generated_reference}")
             except Exception as e:
                 messages.error(request, f"Claim Error: {str(e)}")
+            return redirect('beneficiary_details', membership_number=membership_number)
+
+        # --- 4B. HANDLE UPDATE CLAIM ---
+        elif action == 'update_claim_entry':
+            try:
+                claim_id = request.POST.get('claim_id')
+                claim_record = get_object_or_404(ClaimList, id=claim_id)
+
+                date_logged_str = request.POST.get('date_logged')
+                if date_logged_str:
+                    claim_record.date_logged = datetime.strptime(date_logged_str, '%Y-%m-%d').date()
+
+                date_paid_str = request.POST.get('date_paid')
+                claim_record.date_paid = datetime.strptime(date_paid_str, '%Y-%m-%d').date() if date_paid_str else None
+
+                claim_record.claim_type = request.POST.get('claim_type', claim_record.claim_type)
+                claim_record.status = request.POST.get('status', claim_record.status) # 🟢 Update Status
+                claim_record.amount_requested = clean_decimal(request.POST.get('amount_requested'))
+                claim_record.description = request.POST.get('description', claim_record.description)
+
+                file_payload = request.FILES.get('supporting_document')
+                if file_payload:
+                    fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT))
+                    saved_filename = fs.save(file_payload.name, file_payload)
+                    claim_record.attachment_path = saved_filename
+                    claim_record.supporting_docs_attached = "Yes"
+
+                claim_record.save()
+
+                ClaimHistory.objects.create(
+                    claim_reference=claim_record.reference_no,
+                    action_type="Claim Updated",
+                    note_content=f"Updated status to {claim_record.status} and details.",
+                    agent_name=request.user.username
+                )
+
+                messages.success(request, f"Claim {claim_record.reference_no} updated successfully.")
+            except Exception as e:
+                messages.error(request, f"Claim Update Error: {str(e)}")
             return redirect('beneficiary_details', membership_number=membership_number)
 
         # --- 5. HANDLE NEW AD HOC ---
@@ -2045,7 +2087,7 @@ def claim_list_view(request):
 
 @login_required
 def ad_hoc_list_view(request):
-    """Main view for the Ad Hoc Registry with Dynamic Maturity Calculation"""
+    """Main view for the Ad Hoc Registry with Dynamic Maturity Calculation & Export"""
     
     def clean_numeric(val):
         if not val or str(val).lower() == 'undefined' or str(val).strip() == '':
@@ -2111,24 +2153,119 @@ def ad_hoc_list_view(request):
         except Exception as e:
             messages.error(request, f"Process Error: {str(e)}")
 
-    membership_number = request.GET.get('membership_number')
+    # 🟢 GET PARAMETERS FOR SEARCH & EXPORT
+    membership_number = request.GET.get('membership_number', '').strip()
+    date_from_str = request.GET.get('date_from', '').strip()
+    date_to_str = request.GET.get('date_to', '').strip()
+    export_format = request.GET.get('export')
+
     adhoc_records = AdHocList.objects.all().select_related('beneficiary').order_by('-date_created')
 
+    # 🟢 1. APPLY MEMBERSHIP NUMBER FILTER
     if membership_number:
-        adhoc_records = adhoc_records.filter(beneficiary__membership_number=membership_number)
+        adhoc_records = adhoc_records.filter(beneficiary__membership_number__icontains=membership_number)
+    
+    # 🟢 2. ADVANCED DATE FILTERING (Handling CharField dirty date strings)
+    if date_from_str or date_to_str:
+        parsed_from = None
+        parsed_to = None
+        
+        try:
+            if date_from_str:
+                parsed_from = datetime.strptime(date_from_str, '%Y-%m-%d').date()
+            if date_to_str:
+                parsed_to = datetime.strptime(date_to_str, '%Y-%m-%d').date()
+        except ValueError:
+            pass
+
+        # Parse and filter in Python to avoid string sorting issues in DB
+        filtered_list = []
+        for a in adhoc_records:
+            if not a.claim_form_date:
+                continue
+                
+            try:
+                # This safely handles "2024-06-07", "04/05/2026", "04-05-2026", etc.
+                record_date = date_parser.parse(str(a.claim_form_date), dayfirst=True).date()
+                
+                # Check if it falls outside the requested range
+                if parsed_from and record_date < parsed_from:
+                    continue
+                if parsed_to and record_date > parsed_to:
+                    continue
+                    
+                # If it passes the filter, keep it
+                filtered_list.append(a)
+            except Exception:
+                # If the string cannot be parsed as a date at all, skip it
+                continue
+                
+        # Reassign the filtered list back to adhoc_records
+        adhoc_records = filtered_list
 
     # 🟢 DYNAMIC DISPLAY CALCULATION: Years to Maturity
     for a in adhoc_records:
         if a.beneficiary and a.beneficiary.cessation_date and a.claim_form_date:
-            diff = relativedelta(a.beneficiary.cessation_date, a.claim_form_date)
-            total_m = round((diff.years * 12) + diff.months + (diff.days / 30.44))
-            a.maturity_display = f"{total_m // 12}Y {str(total_m % 12).zfill(2)}M"
+            try:
+                # Safely parse both dates just in case they are strings
+                c_date = date_parser.parse(str(a.beneficiary.cessation_date)).date() if isinstance(a.beneficiary.cessation_date, str) else a.beneficiary.cessation_date
+                f_date = date_parser.parse(str(a.claim_form_date), dayfirst=True).date() if isinstance(a.claim_form_date, str) else a.claim_form_date
+                
+                diff = relativedelta(c_date, f_date)
+                total_m = round((diff.years * 12) + diff.months + (diff.days / 30.44))
+                a.maturity_display = f"{total_m // 12}Y {str(total_m % 12).zfill(2)}M"
+            except Exception:
+                a.maturity_display = "---"
         else:
             a.maturity_display = "---"
 
+    # 🟢 CSV EXPORT LOGIC
+    if export_format == 'csv':
+        response = HttpResponse(content_type='text/csv')
+        filename = f"AdHoc_Registry_{timezone.now().strftime('%Y%m%d_%H%M')}.csv"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        writer = csv.writer(response)
+        
+        # Define CSV headers
+        writer.writerow([
+            'Membership Number',
+            'Title',
+            'Status',
+            'Date Created',
+            'Claim Form Date',
+            'Date Paid',
+            'Docs Attached',
+            'Portfolio Value',
+            'Amount Requested',
+            'Years to Maturity',
+            'Comments'
+        ])
+        
+        # Write data rows
+        for a in adhoc_records:
+            writer.writerow([
+                a.beneficiary.membership_number if a.beneficiary else 'N/A',
+                a.title,
+                a.status,
+                a.date_created.strftime('%Y-%m-%d') if hasattr(a, 'date_created') and a.date_created else 'N/A',
+                a.claim_form_date,
+                a.date_paid,
+                a.supporting_docs_attached,
+                a.portfolio_value,
+                a.amount_requested,
+                a.maturity_display,
+                a.comments
+            ])
+            
+        return response
+
     context = {
         'adhoc_list': adhoc_records,
-        'title': 'Ad Hoc Registry'
+        'title': 'Ad Hoc Registry',
+        'current_member': membership_number,
+        'date_from': date_from_str,
+        'date_to': date_to_str,
     }
     return render(request, 'Ad_hoc_list.html', context)
 
@@ -2166,7 +2303,7 @@ def get_claim_details(request, claim_id):
 
 @login_required
 def ad_hoc_list_view(request):
-    """Main view for the Ad Hoc Registry with Dynamic Maturity Calculation"""
+    """Main view for the Ad Hoc Registry with Dynamic Maturity Calculation & Export"""
     
     def clean_numeric(val):
         if not val or str(val).lower() == 'undefined' or str(val).strip() == '':
@@ -2232,24 +2369,119 @@ def ad_hoc_list_view(request):
         except Exception as e:
             messages.error(request, f"Process Error: {str(e)}")
 
-    membership_number = request.GET.get('membership_number')
+    # 🟢 GET PARAMETERS FOR SEARCH & EXPORT
+    membership_number = request.GET.get('membership_number', '').strip()
+    date_from_str = request.GET.get('date_from', '').strip()
+    date_to_str = request.GET.get('date_to', '').strip()
+    export_format = request.GET.get('export')
+
     adhoc_records = AdHocList.objects.all().select_related('beneficiary').order_by('-date_created')
 
+    # 🟢 1. APPLY MEMBERSHIP NUMBER FILTER
     if membership_number:
-        adhoc_records = adhoc_records.filter(beneficiary__membership_number=membership_number)
+        adhoc_records = adhoc_records.filter(beneficiary__membership_number__icontains=membership_number)
+    
+    # 🟢 2. ADVANCED DATE FILTERING (Handling CharField dirty date strings)
+    if date_from_str or date_to_str:
+        parsed_from = None
+        parsed_to = None
+        
+        try:
+            if date_from_str:
+                parsed_from = datetime.strptime(date_from_str, '%Y-%m-%d').date()
+            if date_to_str:
+                parsed_to = datetime.strptime(date_to_str, '%Y-%m-%d').date()
+        except ValueError:
+            pass
+
+        # Parse and filter in Python to avoid string sorting issues in DB
+        filtered_list = []
+        for a in adhoc_records:
+            if not a.claim_form_date:
+                continue
+                
+            try:
+                # This safely handles "2024-06-07", "04/05/2026", "04-05-2026", etc.
+                record_date = date_parser.parse(str(a.claim_form_date), dayfirst=True).date()
+                
+                # Check if it falls outside the requested range
+                if parsed_from and record_date < parsed_from:
+                    continue
+                if parsed_to and record_date > parsed_to:
+                    continue
+                    
+                # If it passes the filter, keep it
+                filtered_list.append(a)
+            except Exception:
+                # If the string cannot be parsed as a date at all, skip it
+                continue
+                
+        # Reassign the filtered list back to adhoc_records
+        adhoc_records = filtered_list
 
     # 🟢 DYNAMIC DISPLAY CALCULATION: Years to Maturity
     for a in adhoc_records:
         if a.beneficiary and a.beneficiary.cessation_date and a.claim_form_date:
-            diff = relativedelta(a.beneficiary.cessation_date, a.claim_form_date)
-            total_m = round((diff.years * 12) + diff.months + (diff.days / 30.44))
-            a.maturity_display = f"{total_m // 12}Y {str(total_m % 12).zfill(2)}M"
+            try:
+                # Safely parse both dates just in case they are strings
+                c_date = date_parser.parse(str(a.beneficiary.cessation_date)).date() if isinstance(a.beneficiary.cessation_date, str) else a.beneficiary.cessation_date
+                f_date = date_parser.parse(str(a.claim_form_date), dayfirst=True).date() if isinstance(a.claim_form_date, str) else a.claim_form_date
+                
+                diff = relativedelta(c_date, f_date)
+                total_m = round((diff.years * 12) + diff.months + (diff.days / 30.44))
+                a.maturity_display = f"{total_m // 12}Y {str(total_m % 12).zfill(2)}M"
+            except Exception:
+                a.maturity_display = "---"
         else:
             a.maturity_display = "---"
 
+    # 🟢 CSV EXPORT LOGIC
+    if export_format == 'csv':
+        response = HttpResponse(content_type='text/csv')
+        filename = f"AdHoc_Registry_{timezone.now().strftime('%Y%m%d_%H%M')}.csv"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        writer = csv.writer(response)
+        
+        # Define CSV headers
+        writer.writerow([
+            'Membership Number',
+            'Title',
+            'Status',
+            'Date Created',
+            'Claim Form Date',
+            'Date Paid',
+            'Docs Attached',
+            'Portfolio Value',
+            'Amount Requested',
+            'Years to Maturity',
+            'Comments'
+        ])
+        
+        # Write data rows
+        for a in adhoc_records:
+            writer.writerow([
+                a.beneficiary.membership_number if a.beneficiary else 'N/A',
+                a.title,
+                a.status,
+                a.date_created.strftime('%Y-%m-%d') if hasattr(a, 'date_created') and a.date_created else 'N/A',
+                a.claim_form_date,
+                a.date_paid,
+                a.supporting_docs_attached,
+                a.portfolio_value,
+                a.amount_requested,
+                a.maturity_display,
+                a.comments
+            ])
+            
+        return response
+
     context = {
         'adhoc_list': adhoc_records,
-        'title': 'Ad Hoc Registry'
+        'title': 'Ad Hoc Registry',
+        'current_member': membership_number,
+        'date_from': date_from_str,
+        'date_to': date_to_str,
     }
     return render(request, 'Ad_hoc_list.html', context)
 
@@ -2721,3 +2953,38 @@ def get_user_email_signature(user):
         signature_html = f"<br><br><p>Kind regards,<br><strong>{full_name}</strong><br>PSSUBF Administrator</p>"
         
     return signature_html
+
+@login_required
+def get_adhoc_details_view(request, record_id):
+    """API endpoint to fetch individual Ad Hoc claim details for the edit modal"""
+    try:
+        record = AdHocList.objects.select_related('beneficiary').get(id=record_id)
+        beneficiary = record.beneficiary
+        
+        data = {
+            'success': True,
+            'membership_number': beneficiary.membership_number if beneficiary else '',
+            'beneficiary_name': f"{beneficiary.first_name} {beneficiary.last_name}" if beneficiary else '',
+            'guardian_name': getattr(beneficiary, 'guardian_name', ''),
+            'id_number': getattr(beneficiary, 'id_number', ''),
+            'dob': str(beneficiary.dob) if beneficiary and beneficiary.dob else '',
+            'termination_date': str(beneficiary.cessation_date) if beneficiary and beneficiary.cessation_date else '',
+            'stipened': getattr(beneficiary, 'stipened', 0) if beneficiary else 0,
+            'total_fund_value': str(record.portfolio_value or getattr(beneficiary, 'total_fund_value', 0)),
+            'title': record.title,
+            'status': record.status,
+            'claim_form_date': str(record.claim_form_date) if record.claim_form_date else '',
+            'date_paid': str(record.date_paid) if record.date_paid else '',
+            'portfolio_value': str(record.portfolio_value or 0),
+            'portfolio_date': str(record.portfolio_date) if record.portfolio_date else '',
+            'amount_requested': str(record.amount_requested or 0),
+            'supporting_docs_attached': record.supporting_docs_attached,
+            'attachment_path': record.attachment_path.name if record.attachment_path else '',
+            'comments': record.comments,
+            'tracking_info': f"Created: {record.date_created.strftime('%Y-%m-%d %H:%M') if record.date_created else 'N/A'}"
+        }
+        return JsonResponse(data)
+    except AdHocList.DoesNotExist:
+        return JsonResponse({'success': False, 'error': 'Record not found'}, status=404)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)

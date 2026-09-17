@@ -50,4 +50,5 @@ urlpatterns = [
     path('reports/sla/', views.claim_sla_report_view, name='claim_sla_report'),
     path('download-pdf/<int:claim_id>/', views.download_claim_pdf, name='download_claim_pdf'),
     path('log-entry/', views.pssubf_log_view, name='pssubf_log_page'),
+    path('get-adhoc-details/<int:record_id>/', views.get_adhoc_details_view, name='get_adhoc_details'),
 ]
