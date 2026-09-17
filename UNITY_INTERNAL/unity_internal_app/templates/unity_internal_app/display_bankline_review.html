@@ -11,12 +11,37 @@
 <style>
 /* Basic Styles */
 body{font-family:sans-serif;background:linear-gradient(to bottom,#d1e2c4,#d1e2c4);margin:20px;color:#333;line-height:1.6}
-.container{max-width:800px;margin:2em auto;padding:20px;background-color:#f0fff0;border-radius:8px;box-shadow:0 4px 8px rgba(0,0,0,.1)}
+/* WIDENED CONTAINER FOR LANDSCAPE */
+.container{max-width:1400px;margin:2em auto;padding:20px;background-color:#f0fff0;border-radius:8px;box-shadow:0 4px 8px rgba(0,0,0,.1)}
+
 h2{color:#1b5e20;border-bottom:2px solid #aed581;padding-bottom:10px;margin-bottom:20px}
-h3{color:#1b5e20;margin-top:30px}
+h3{color:#1b5e20;margin-top:20px; font-size: 1.1em;}
 .data-table th,.data-table td{padding:10px;border-bottom:1px solid #aed581;text-align:left;font-size:.9em}
-.data-table th{width:35%;background-color:#e6ffe6;color:#1b5e20}
-.return-button,.edit-button{display:inline-block;padding:10px 20px;margin-top:20px;margin-right:10px;background-color:#81c784;border:1px solid #81c784;border-radius:5px;text-decoration:none;color:white;cursor:pointer;transition:background-color .3s ease}
+.data-table th{width:40%;background-color:#e6ffe6;color:#1b5e20}
+
+/* 🚀 NEW: 3 COLUMN GRID LAYOUT */
+.landscape-layout {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 24px;
+    align-items: start;
+}
+.column-card {
+    background: white;
+    border: 1px solid #c5e1a5;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+.column-card h3:first-child {
+    margin-top: 0;
+    border-bottom: 2px solid #e6ffe6;
+    padding-bottom: 8px;
+}
+
+/* Button Styles */
+.action-buttons-container { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+.return-button,.edit-button{display:block;padding:12px 20px;background-color:#81c784;border:1px solid #81c784;border-radius:5px;text-align:center;text-decoration:none;color:white;font-weight:bold;cursor:pointer;transition:background-color .3s ease}
 .edit-button{background-color:#3f51b5;border-color:#3f51b5}
 .edit-button:hover{background-color:#303f9f}
 .return-button:hover{background-color:#66bb6a}
@@ -59,6 +84,8 @@ h3{color:#1b5e20;margin-top:30px}
     display: inline-flex;
     align-items: center;
     gap: 5px;
+    width: 100%;
+    justify-content: center;
 }
 .view-notes-link:hover {
     background: #1976d2;
@@ -118,127 +145,146 @@ input:checked + .slider:before { transform: translateX(20px); }
 
     <h2>Review Bank Line: {{ recon_record.pk }}</h2>
     
-    <table class="data-table" style="width: 100%;">
-        <tr>
-            <th>Current Company Code</th>
-            <td><strong>{{ recon_record.company_code|default:"BULK ALLOCATION" }}</strong></td>
-        </tr>
-        <tr>
-            <th>Current Fiscal Date</th>
-            <td>{{ recon_record.fiscal_period_date|date:"Y-m-d"|default:"N/A" }}</td>
-        </tr>
-        <tr>
-            <th>Current Review Category</th>
-            <td>{{ current_category|default:"Not Categorized" }}</td>
-        </tr>
+    <div class="landscape-layout">
         
-        <tr>
-            <th>Internal Note History</th>
-            <td>
-                <button id="openNotesBtn" class="view-notes-link">
-                    <i class="fas fa-history"></i> View Audit Trail ({{ bank_notes|length }})
-                </button>
-            </td>
-        </tr>
+        <!-- ======================================= -->
+        <!-- COLUMN 1: RECON OVERVIEW & ACTIONS      -->
+        <!-- ======================================= -->
+        <div class="column-card">
+            <h3><i class="fas fa-info-circle"></i> Recon Overview</h3>
+            <table class="data-table" style="width: 100%;">
+                <tr>
+                    <th>Current Company Code</th>
+                    <td><strong>{{ recon_record.company_code|default:"BULK ALLOCATION" }}</strong></td>
+                </tr>
+                <tr>
+                    <th>Current Fiscal Date</th>
+                    <td>{{ recon_record.fiscal_period_date|date:"Y-m-d"|default:"N/A" }}</td>
+                </tr>
+                <tr>
+                    <th>Current Review Category</th>
+                    <td>{{ current_category|default:"Not Categorized" }}</td>
+                </tr>
+                <tr>
+                    <th>Internal Note History</th>
+                    <td>
+                        <button id="openNotesBtn" class="view-notes-link">
+                            <i class="fas fa-history"></i> Audit Trail ({{ bank_notes|length }})
+                        </button>
+                    </td>
+                </tr>
+                <tr>
+                    <th>Current Recon Status</th>
+                    <td>
+                        {% if "Partially Reconciled" in recon_record.recon_status %}
+                            <span class="status-partially-recon status-badge">{{ recon_record.recon_status }}</span>
+                        {% elif "Unreconciled" in recon_record.recon_status or "Assigned" in recon_record.recon_status %}
+                            <span class="status-reconciled status-badge">{{ recon_record.recon_status }}</span>
+                        {% elif "Fully Reconciled" in recon_record.recon_status or "Reconciled" == recon_record.recon_status %}
+                            <span class="status-fully-recon status-badge">{{ recon_record.recon_status }}</span>
+                        {% else %}
+                            <span class="status-reconciled status-badge">{{ recon_record.recon_status|default:"Unassigned" }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            </table>
 
-        <tr>
-            <th>Current Recon Status</th>
-            <td>
-                {% if "Partially Reconciled" in recon_record.recon_status %}
-                    <span class="status-partially-recon status-badge">{{ recon_record.recon_status }}</span>
-                {% elif "Unreconciled" in recon_record.recon_status or "Assigned" in recon_record.recon_status %}
-                    <span class="status-reconciled status-badge">{{ recon_record.recon_status }}</span>
-                {% elif "Fully Reconciled" in recon_record.recon_status or "Reconciled" == recon_record.recon_status %}
-                    <span class="status-fully-recon status-badge">{{ recon_record.recon_status }}</span>
+            <!-- Moved Actions Here for Better Flow -->
+            <div class="action-buttons-container">
+                <button id="editBtn" class="edit-button"><i class="fas fa-edit"></i> Edit/Confirm Details</button>
+                
+                {% if is_from_unity_info and recon_record.company_code %}
+                    <a href="{% url 'unity_information' company_code=recon_record.company_code %}#bank-lines" class="return-button">
+                        &larr; Back to {{ recon_record.company_code }} Information
+                    </a>
+                {% elif source == 'global' %}
+                    <a href="{% url 'global_bank' %}" class="return-button" style="background-color: #2e7d32; border-color: #1b5e20;">
+                        &larr; Back to Global Bank History
+                    </a>
                 {% else %}
-                    <span class="status-reconciled status-badge">{{ recon_record.recon_status|default:"Unassigned" }}</span>
+                    <a href="{% url 'bank_list' %}" class="return-button">
+                        &larr; Back to Bank Lines List
+                    </a>
                 {% endif %}
-            </td>
-        </tr>
-    </table>
+            </div>
+        </div>
 
-    {% if settlements %}
-    <h3><i class="fas fa-layer-group"></i> Detailed Bulk Allocation Breakdown</h3>
-    <table class="data-table" style="width: 100%; border-collapse: collapse;">
-        <thead>
-            <tr>
-                <th class="breakdown-header">Member Group Code</th>
-                <th class="breakdown-header">Fiscal / Pre-Bill Date</th>
-                <th class="breakdown-header" style="text-align: right;">Amount Allocated</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for settlement in settlements %}
-            <tr class="breakdown-row">
-                <td><strong>{{ settlement.unity_bill_source.C_Company_Code }}</strong></td>
-                <td>{{ settlement.unity_bill_source.A_CCDatesMonth|date:"Y-m-d" }}</td>
-                <td style="text-align: right; font-weight: bold; color: #2e7d32;">
-                    R {{ settlement.settled_amount|floatformat:2 }}
-                </td>
-            </tr>
-            {% endfor %}
-            <tr style="background-color: #e6ffe6;">
-                <td colspan="2" style="text-align: right; font-weight: bold;">Total Consumed From Bank:</td>
-                <td style="text-align: right; font-weight: bold; color: #1b5e20;">R {{ recon_record.amount_settled|floatformat:2 }}</td>
-            </tr>
-        </tbody>
-    </table>
-    {% endif %}
-    
-    <h3>Settlement Status</h3>
-    <table class="data-table" style="width: 100%;">
-        <tr>
-            <th>Segment Amount Assigned</th>
-            <td>R {{ recon_record.transaction_amount|floatformat:2 }}</td>
-        </tr>
-        <tr>
-            <th>Actual Bill Settlement (Consumed)</th>
-            <td style="font-weight: bold; color: #ff9800;">
-                R {{ recon_record.amount_settled|floatformat:2 }}
-            </td>
-        </tr>
-        <tr>
-            <th>Moved to Credit Pool (Overs)</th>
-            <td style="font-weight: bold; color: #1b5e20;">
-                R {{ recon_record.get_total_credit_moved|floatformat:2 }}
-            </td>
-        </tr>
-        
-        {% with total_out=recon_record.amount_settled %}
-        {% if recon_record.transaction_amount|sub:total_out > 0.009 %}
-        <tr>
-            <th style="background-color: #fff3e0;">Unallocated Balance</th>
-            <td style="font-weight: bold; color: #d32f2f; background-color: #fff3e0;">
-                R {{ recon_record.transaction_amount|sub:total_out|floatformat:2 }}
-            </td>
-        </tr>
-        {% endif %}
-        {% endwith %}
-    </table>
+        <!-- ======================================= -->
+        <!-- COLUMN 2: SETTLEMENT STATUS & ALLOCATION-->
+        <!-- ======================================= -->
+        <div class="column-card">
+            <h3><i class="fas fa-chart-pie"></i> Settlement Status</h3>
+            <table class="data-table" style="width: 100%;">
+                <tr>
+                    <th>Segment Amount Assigned</th>
+                    <td>R {{ recon_record.transaction_amount|floatformat:2 }}</td>
+                </tr>
+                <tr>
+                    <th>Actual Bill Settlement (Consumed)</th>
+                    <td style="font-weight: bold; color: #ff9800;">
+                        R {{ recon_record.amount_settled|floatformat:2 }}
+                    </td>
+                </tr>
+                <tr>
+                    <th>Moved to Credit Pool (Overs)</th>
+                    <td style="font-weight: bold; color: #1b5e20;">
+                        R {{ recon_record.get_total_credit_moved|floatformat:2 }}
+                    </td>
+                </tr>
+                
+                {% with total_out=recon_record.amount_settled %}
+                {% if recon_record.transaction_amount|sub:total_out > 0.009 %}
+                <tr>
+                    <th style="background-color: #fff3e0;">Unallocated Balance</th>
+                    <td style="font-weight: bold; color: #d32f2f; background-color: #fff3e0;">
+                        R {{ recon_record.transaction_amount|sub:total_out|floatformat:2 }}
+                    </td>
+                </tr>
+                {% endif %}
+                {% endwith %}
+            </table>
 
-    <h3>Source Transaction Details</h3>
-    <table class="data-table" style="width: 100%;">
-        <tr><th>Transaction Date</th><td>{{ bank_record.date|date:"Y-m-d" }}</td></tr>
-        <tr><th>Reference</th><td>{{ bank_record.statement_reference|default:"N/A" }}</td></tr>
-        <tr><th>Description</th><td>{{ bank_record.transaction_description|default:"N/A" }}</td></tr>
-    </table>
+            {% if settlements %}
+            <h3 style="margin-top: 25px;"><i class="fas fa-layer-group"></i> Detailed Bulk Allocation</h3>
+            <table class="data-table" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr>
+                        <th class="breakdown-header">Member Group</th>
+                        <th class="breakdown-header">Fiscal Date</th>
+                        <th class="breakdown-header" style="text-align: right;">Allocated</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for settlement in settlements %}
+                    <tr class="breakdown-row">
+                        <td><strong>{{ settlement.unity_bill_source.C_Company_Code }}</strong></td>
+                        <td>{{ settlement.unity_bill_source.A_CCDatesMonth|date:"Y-m-d" }}</td>
+                        <td style="text-align: right; font-weight: bold; color: #2e7d32;">
+                            R {{ settlement.settled_amount|floatformat:2 }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    <tr style="background-color: #e6ffe6;">
+                        <td colspan="2" style="text-align: right; font-weight: bold;">Total Consumed:</td>
+                        <td style="text-align: right; font-weight: bold; color: #1b5e20;">R {{ recon_record.amount_settled|floatformat:2 }}</td>
+                    </tr>
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
 
-    <div style="margin-top: 20px;">
-        {% if is_from_unity_info and recon_record.company_code %}
-            <a href="{% url 'unity_information' company_code=recon_record.company_code %}#bank-lines" class="return-button">
-                &larr; Back to {{ recon_record.company_code }} Information
-            </a>
-        {% elif source == 'global' %}
-            <a href="{% url 'global_bank' %}" class="return-button" style="background-color: #2e7d32; border-color: #1b5e20;">
-                &larr; Back to Global Bank History
-            </a>
-        {% else %}
-            <a href="{% url 'bank_list' %}" class="return-button">
-                &larr; Back to Bank Lines List
-            </a>
-        {% endif %}
-        
-        <button id="editBtn" class="edit-button">Edit/Confirm Details</button>
+        <!-- ======================================= -->
+        <!-- COLUMN 3: SOURCE TRANSACTION DETAILS    -->
+        <!-- ======================================= -->
+        <div class="column-card">
+            <h3><i class="fas fa-file-invoice-dollar"></i> Source Transaction Details</h3>
+            <table class="data-table" style="width: 100%;">
+                <tr><th>Transaction Date</th><td>{{ bank_record.date|date:"Y-m-d" }}</td></tr>
+                <tr><th>Reference</th><td>{{ bank_record.statement_reference|default:"N/A" }}</td></tr>
+                <tr><th>Description</th><td>{{ bank_record.transaction_description|default:"N/A" }}</td></tr>
+            </table>
+        </div>
+
     </div>
 </div>
 

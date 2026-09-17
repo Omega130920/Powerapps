@@ -4883,20 +4883,20 @@ def export_two_pot_tracking(request):
     display_start = start_date if start_date else now.replace(day=1).strftime('%d.%m.%Y')
     display_end = end_date if end_date else now.strftime('%d.%m.%Y')
     
-    # Row 1 Title (Changed from A4 to A1)
-    ws.merge_cells('A1:O1')
+    # Row 1 Title (Changed from A1:O1 to A1:N1 since one column was removed)
+    ws.merge_cells('A1:N1')
     header_cell = ws['A1']
     header_cell.value = f"Billing - Member Emergency Savings Pot Withdrawal Requested - {display_start} to {display_end}"
     header_cell.font = Font(bold=True, size=11, underline="single")
     header_cell.fill = yellow_fill
     header_cell.border = thin_border
 
-    # Row 2 Headers (Appends directly after Row 1)
+    # Row 2 Headers (Removed "Admin Fee R33+15%")
     headers = [
         "Date application extracted from Web: Savings Form Request", "Initials", "Surname", 
         "Member number", "ID NUMBER", "Fund Code", "Company Name", "Query", "Claim", 
         "Qualified Y/N", "Date submitted online", "Inform Employer that the claim is succesfully loaded", 
-        "Admin Front Office Application Submitted", "Admin Fee R33+15%", "Note"
+        "Admin Front Office Application Submitted", "Note"
     ]
     
     ws.append(headers)
@@ -4935,7 +4935,6 @@ def export_two_pot_tracking(request):
             submit_date_label, # Uses the correct date_submitted_online field
             "YES" if qualified_val == "YES" else "",  # Linked to Qualified Y/N check
             float(claim.claim_amount or 0),
-            "37.95",
             claim.notes.last().note_description if claim.notes.exists() else ""
         ]
         ws.append(row)
@@ -4946,7 +4945,8 @@ def export_two_pot_tracking(request):
             cell.alignment = Alignment(vertical='center', horizontal='left')
             cell.font = Font(size=9, color="FF0000") if qualified_val == "NO" else Font(size=9)
 
-    widths = [22, 8, 18, 14, 18, 10, 25, 20, 35, 10, 22, 18, 14, 14, 40]
+    # Removed one width item to match the missing column
+    widths = [22, 8, 18, 14, 18, 10, 25, 20, 35, 10, 22, 18, 14, 40]
     for i, width in enumerate(widths):
         ws.column_dimensions[get_column_letter(i+1)].width = width
 

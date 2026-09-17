@@ -327,7 +327,7 @@ def outlook_delegated_box(request):
 def outlook_delegated_action(request, delegation_id):
     """
     Allows the assigned user to view the full email, add notes, 
-    update metadata, reply (with attachments), and mark as completed.
+    update metadata, reply (with attachments, CC, BCC), and mark as completed.
     """
     delegation = get_object_or_404(EmailDelegation, pk=delegation_id)
     
@@ -379,6 +379,8 @@ def outlook_delegated_action(request, delegation_id):
         # 4. Handle Reply
         elif action_type == 'send_reply':
             recipient = request.POST.get('reply_recipient')
+            reply_cc = request.POST.get('reply_cc', '')    # <--- Captured CC
+            reply_bcc = request.POST.get('reply_bcc', '')  # <--- Captured BCC
             subject = request.POST.get('reply_subject')
             
             # 🚀 Convert textarea newlines to HTML <br> tags
@@ -449,7 +451,6 @@ def outlook_delegated_action(request, delegation_id):
                     {orig_body}
                     """
                     
-                    # Combine: New Body -> Signature -> Thread History
                     full_html_body = f"<div>{formatted_body}</div><br><br>{signature_html}{thread_history}"
                 else:
                     full_html_body = f"<div>{formatted_body}</div><br><br>{signature_html}"
@@ -464,7 +465,7 @@ def outlook_delegated_action(request, delegation_id):
             
             selected_action_type = request.POST.get('action_log_type') or "Correspondence"
             
-            # Pass down the complete file objects array context list safely
+            # Pass CC and BCC down to the service call
             result = OutlookGraphService.send_outlook_email(
                 target_email, 
                 recipient, 
@@ -472,6 +473,8 @@ def outlook_delegated_action(request, delegation_id):
                 full_html_body, 
                 content_type='Html', 
                 attachments=attachments_list,
+                cc=reply_cc,       # <--- Passed CC to service
+                bcc=reply_bcc,     # <--- Passed BCC to service
                 user=None  # 🚀 explicitly pass None so services doesn't duplicate the signature
             )
             
@@ -491,7 +494,7 @@ def outlook_delegated_action(request, delegation_id):
                 EmailDelegation.objects.create(
                     email_id=new_ms_id,
                     subject=subject,
-                    body=full_html_body,  # Saved the signature format to the DB as well
+                    body=full_html_body, # Saved the signature format to the DB as well
                     attachment=fallback_single_attachment,
                     sender_address=target_email,
                     assigned_user=request.user,
@@ -503,9 +506,13 @@ def outlook_delegated_action(request, delegation_id):
                     communication_type='Reply'
                 )
                 
+                # Include CC details in client note history if available
+                cc_note_segment = f"\nCC: {reply_cc}" if reply_cc else ""
+                bcc_note_segment = f"\nBCC: {reply_bcc}" if reply_bcc else ""
+                
                 ClientNotes.objects.create(
                     acvv_record=Globalacvv.objects.filter(Q(mip_names=delegation.mip_names) | Q(branch_code=delegation.mip_names)).first(),
-                    notes=f"Reply Sent: {subject}\nRecipient: {recipient}",
+                    notes=f"Reply Sent: {subject}\nRecipient: {recipient}{cc_note_segment}{bcc_note_segment}",
                     user=request.user.username,
                     date=timezone.now(),
                     communication_type="Email",

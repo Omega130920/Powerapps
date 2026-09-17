@@ -75,6 +75,22 @@ def get_user_signature(user):
     return ""
 
 
+def _parse_recipients(recipient_input):
+    """Helper function to parse strings or lists of email addresses into Microsoft Graph format."""
+    if not recipient_input:
+        return []
+    
+    if isinstance(recipient_input, str):
+        # Split by comma or semicolon
+        raw_emails = [e.strip() for e in recipient_input.replace(',', ';').split(';') if e.strip()]
+    elif isinstance(recipient_input, list):
+        raw_emails = [e.strip() for e in recipient_input if isinstance(e, str) and e.strip()]
+    else:
+        raw_emails = []
+        
+    return [{"emailAddress": {"address": email}} for email in raw_emails]
+
+
 class OutlookGraphService:
     """
     A service class to wrap Graph API calls, ensuring a consistent
@@ -95,7 +111,6 @@ class OutlookGraphService:
 
         url = f"{GRAPH_API_URL}/users/{target_email}/{endpoint}"
         
-        # 🛑 THIS IS THE FIX: Added 'Prefer': 'IdType="ImmutableId"'
         headers = {
             'Authorization': f'Bearer {access_token}',
             'Content-Type': 'application/json',
@@ -159,10 +174,9 @@ class OutlookGraphService:
         return response.get('value', []) if isinstance(response, dict) else []
 
     @staticmethod
-    def send_outlook_email(target_email, recipient_email, subject, body_content, content_type='HTML', attachments=None, user=None):
+    def send_outlook_email(target_email, recipient_email, subject, body_content, content_type='HTML', attachments=None, cc=None, bcc=None, user=None):
         """
-        Sends an email from the target mailbox with support for multiple attachments.
-        Fixed: Handles both list and string inputs for recipient_email to prevent AttributeError.
+        Sends an email from the target mailbox with support for multiple attachments, CC, and BCC.
         Added: Automatic signature injection based on the active user.
         """
 
@@ -171,19 +185,13 @@ class OutlookGraphService:
             signature = get_user_signature(user)
             body_content += signature
 
-        # Determine the list of addresses
-        if isinstance(recipient_email, str):
-            addresses = [email.strip() for email in recipient_email.split(',') if email.strip()]
-        elif isinstance(recipient_email, list):
-            addresses = [email.strip() for email in recipient_email if isinstance(email, str)]
-        else:
-            addresses = []
-
         email_data = {
             "message": {
                 "subject": subject,
                 "body": {"contentType": content_type, "content": body_content},
-                "toRecipients": [{"emailAddress": {"address": addr}} for addr in addresses],
+                "toRecipients": _parse_recipients(recipient_email),
+                "ccRecipients": _parse_recipients(cc),    # <--- Added CC Mapping
+                "bccRecipients": _parse_recipients(bcc),  # <--- Added BCC Mapping
                 "attachments": []
             },
             "saveToSentItems": "true"
