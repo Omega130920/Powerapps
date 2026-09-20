@@ -909,6 +909,11 @@
                     <td>
                         <!-- 🚀 HIDDEN: Edit button has been removed from view -->
                         
+                        <!-- NEW NOTE BUTTON -->
+                        <button type="button" class="dashboard-button" style="background-color: #2196F3; border-color: #1976d2; padding: 4px 8px; font-size: 0.85em; margin-right: 5px;" onclick="openViewNotesModal('{{ claim.id }}')">
+                            <i class="fas fa-sticky-note"></i> Note
+                        </button>
+                        
                         {% if claim.linked_email_id %}
                         <template id="email-content-{{ claim.id }}">
                             <div class="p-sender">{% firstof claim.email_preview_sender "Unknown" %}</div>
@@ -918,11 +923,35 @@
                         </template>
                         {% endif %}
 
+                        <!-- Existing 4-column template for the Edit Modal -->
                         <template id="notes-data-{{ claim.id }}">
                             {% for note in claim.notes.all %}
                             <tr><td>{{ note.note_description }}</td><td>{{ note.note_selection }}</td><td>{{ note.created_at|date:"Y-m-d H:i" }}</td><td>{{ note.created_by.username }}</td></tr>
                             {% empty %}
                             <tr><td colspan="4" style="text-align:center; color:#777;">No notes found for this claim.</td></tr>
+                            {% endfor %}
+                        </template>
+
+                        <!-- NEW 5-column template specifically for the View Notes Modal (Includes Attachments) -->
+                        <template id="view-notes-data-{{ claim.id }}">
+                            {% for note in claim.notes.all %}
+                            <tr>
+                                <td style="padding: 8px; border-bottom: 1px solid #ccc;">{{ note.note_description }}</td>
+                                <td style="padding: 8px; border-bottom: 1px solid #ccc;">{{ note.note_selection }}</td>
+                                <td style="padding: 8px; border-bottom: 1px solid #ccc;">{{ note.created_at|date:"Y-m-d H:i" }}</td>
+                                <td style="padding: 8px; border-bottom: 1px solid #ccc;">{{ note.created_by.username }}</td>
+                                <td style="padding: 8px; border-bottom: 1px solid #ccc; text-align: center;">
+                                    {% if note.note_attachment %}
+                                        <a href="{{ note.note_attachment.url }}" target="_blank" style="color: #1976d2; text-decoration: underline; font-weight: bold;">
+                                            <i class="fas fa-paperclip"></i> View File
+                                        </a>
+                                    {% else %}
+                                        <span style="color: #999;">N/A</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="5" style="text-align:center; color:#777; padding: 15px;">No notes found for this claim.</td></tr>
                             {% endfor %}
                         </template>
                     </td>
@@ -934,6 +963,37 @@
         <p class="empty-message">No claims found for this company.</p>
     {% endif %}
 
+    <!-- NEW VIEW NOTES MODAL -->
+    <div id="viewNotesModal" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2500;">
+        <div style="background: white; width: 90%; max-width: 900px; margin: 50px auto; padding: 20px; border-radius: 8px; position: relative; box-shadow: 0 5px 15px rgba(0,0,0,0.3);">
+            <div style="border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px;">
+                <h3 style="margin-top:0; color: #1b5e20;"><i class="fas fa-sticky-note"></i> Claim Notes & Attachments</h3>
+            </div>
+            
+            <div style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px;">
+                <table style="margin: 0; font-size: 13px; width: 100%; text-align: left; border-collapse: collapse;">
+                    <thead style="background-color: #f1f8e9; color: #1b5e20;">
+                        <tr>
+                            <th style="padding: 10px; border-bottom: 2px solid #c5e1a5;">Note Description</th>
+                            <th style="padding: 10px; border-bottom: 2px solid #c5e1a5;">Note Selection</th>
+                            <th style="padding: 10px; border-bottom: 2px solid #c5e1a5;">Created On</th>
+                            <th style="padding: 10px; border-bottom: 2px solid #c5e1a5;">User</th>
+                            <th style="padding: 10px; border-bottom: 2px solid #c5e1a5; text-align: center;">Attachment</th>
+                        </tr>
+                    </thead>
+                    <tbody id="view_notes_tbody">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div style="text-align: right; margin-top: 15px;">
+                <button type="button" class="dashboard-button" onclick="document.getElementById('viewNotesModal').style.display='none'" style="background-color: #607d8b; border-color: #455a64;">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- EXISTING EMAIL PREVIEW MODAL -->
     <div id="emailPreviewModal" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); z-index: 2000;">
         <div style="background: white; width: 80%; max-width: 800px; margin: 50px auto; padding: 20px; border-radius: 8px; position: relative;">
             <div style="border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 15px;">
@@ -949,6 +1009,7 @@
         </div>
     </div>
 
+    <!-- EXISTING CLAIM MODAL -->
     <div id="claimModal" style="display:none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
         <div style="background: white; width: 90%; max-width: 1000px; margin: 30px auto; padding: 20px; border-radius: 8px; max-height: 90vh; overflow-y: auto;">
             <h2 style="color: #1b5e20; border-bottom: 2px solid #aed581; padding-bottom: 10px;">Manage Claim</h2>
@@ -1151,6 +1212,22 @@
         </div>
     </div>
 </div>
+
+<script>
+    // NEW JAVASCRIPT FUNCTION TO OPEN THE VIEW NOTES MODAL
+    function openViewNotesModal(claimId) {
+        const tbody = document.getElementById('view_notes_tbody');
+        const template = document.getElementById('view-notes-data-' + claimId);
+        
+        if (template) {
+            tbody.innerHTML = template.innerHTML;
+        } else {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding: 15px;">No notes available.</td></tr>';
+        }
+        
+        document.getElementById('viewNotesModal').style.display = 'block';
+    }
+</script>
 <div id="recon" class="tab-pane">
     <h2 style="color:#388e3c; border-bottom: 2px solid #aed581; padding-bottom: 5px;">
         💰 Available Surplus: R {{ available_surplus|default:"0.00"|floatformat:2 }}
