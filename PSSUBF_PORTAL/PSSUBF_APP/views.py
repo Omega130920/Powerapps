@@ -472,9 +472,11 @@ def pssubf_action_view(request, email_id):
             )
             messages.success(request, "Internal note saved.")
 
-        # 3. Handle External Email Reply
+            # 3. Handle External Email Reply
         elif action_type == 'send_reply':
             recipient = request.POST.get('reply_recipient')
+            cc_recipient = request.POST.get('reply_cc', '').strip()
+            bcc_recipient = request.POST.get('reply_bcc', '').strip()
             subject = request.POST.get('reply_subject')
             raw_body_content = request.POST.get('reply_body')
             
@@ -512,6 +514,8 @@ def pssubf_action_view(request, email_id):
             response = OutlookGraphService.send_outlook_email(
                 sender=target_email,
                 recipient=recipient,
+                cc=cc_recipient,    # Passing CC to your service
+                bcc=bcc_recipient,  # Passing BCC to your service
                 subject=subject,
                 body=body_content,
                 attachments=attachments_payload,
@@ -523,7 +527,7 @@ def pssubf_action_view(request, email_id):
             else:
                 audit_string = "[Outbound | Email Reply Sent]"
                 
-                # --- ADDED: Log the outgoing reply into the direct email table ---
+                # Log the outgoing reply into the direct email table
                 PssubfDirectEmail.objects.create(
                     agent_name=request.user.username,
                     recipient=recipient,
@@ -533,19 +537,22 @@ def pssubf_action_view(request, email_id):
                     membership_number=getattr(task, 'membership_number', None),
                     attachment_path=file_saved_path  # Saved attachment reference
                 )
-                # -----------------------------------------------------------------
+                
+                # Build dynamic log string for CC/BCC to keep audit trails clean if empty
+                cc_log = f"\nCC: {cc_recipient}" if cc_recipient else ""
+                bcc_log = f"\nBCC: {bcc_recipient}" if bcc_recipient else ""
                 
                 PssubfAction.objects.create(
                     task_email_id=email_id,
                     action_user=request.user.username,
                     action_type="EMAIL_REPLY",
-                    note_content=f"{audit_string}\nTo: {recipient}\nSubject: {subject}\n\n{raw_body_content}"
+                    note_content=f"{audit_string}\nTo: {recipient}{cc_log}{bcc_log}\nSubject: {subject}\n\n{raw_body_content}"
                 )
 
                 PssubfNote.objects.create(
                     task_email_id=email_id,
                     agent_name=request.user.username,
-                    note_text=f"{audit_string} REPLY SENT TO {recipient}: {raw_body_content}",
+                    note_text=f"{audit_string} REPLY SENT TO {recipient}{cc_log}{bcc_log}: {raw_body_content}",
                     classification_at_time=getattr(task, 'email_category', 'N/A'),
                     status_at_time=task.status
                 )
@@ -618,18 +625,18 @@ def pssubf_view_thread(request, email_id):
     # 1. Determine if this is a local Direct Email or a Graph API email
     is_direct = str(email_id).startswith('DIRECT_')
     local_email = None
-    root_attachment_url = None
+    
+    email_body = "Could not retrieve content. (Email may have been moved or deleted)."
 
     if is_direct:
-        # --- HANDLE LOCAL DIRECT EMAILS ---
+        # --- HANDLE LOCAL DIRECT EMAILS (As root) ---
         try:
             db_id = str(email_id).split('_')[-1]
             local_email = PssubfDirectEmail.objects.get(id=db_id)
-            
-            # Reconstruct a Graph-like payload so the template can read it seamlessly
+            email_body = getattr(local_email, 'body_html', '')
             email_data = {
+                'id': email_id,
                 'subject': local_email.subject,
-                'body': {'content': getattr(local_email, 'body_html', '')},
                 'from': {
                     'emailAddress': {
                         'name': getattr(local_email, 'agent_name', request.user.username),
@@ -641,45 +648,48 @@ def pssubf_view_thread(request, email_id):
             
             # Check for local attachment on the root direct email
             if hasattr(local_email, 'attachment_path') and local_email.attachment_path:
-                import os
                 filename = os.path.basename(str(local_email.attachment_path))
-                file_url = f"{settings.MEDIA_URL}{local_email.attachment_path}"
-                root_attachment_url = file_url
                 attachments.append({
+                    'id': 'local',
                     'name': filename,
                     'isInline': False,
                     'contentType': 'application/octet-stream',
-                    'local_url': file_url
+                    'local_url': f"{settings.MEDIA_URL}{local_email.attachment_path}"
                 })
         except Exception as e:
-            email_data = {'subject': 'Error loading local email', 'body': {'content': str(e)}}
+            email_data = {'subject': 'Error loading local email', 'id': email_id}
+            email_body = str(e)
             
     else:
-        # --- HANDLE STANDARD OUTLOOK EMAILS ---
+        # --- HANDLE STANDARD OUTLOOK EMAILS (As root) ---
         try:
-            email_data = OutlookGraphService._make_graph_request(f"messages/{email_id}", method='GET') or {}
-            attachments = OutlookGraphService.fetch_attachments(target_email, email_id) or []
-        except Exception:
-            email_data = {}
-            attachments = []
+            response = OutlookGraphService._make_graph_request(f"messages/{email_id}", method='GET')
+            if response and 'error' not in response:
+                email_data = response
+                email_body = email_data.get('body', {}).get('content', '')
+                
+                # Fetch attachments
+                atts = OutlookGraphService.fetch_attachments(target_email, email_id)
+                if atts:
+                    for att in atts:
+                        content_type = att.get('contentType', 'image/png').lower()
+                        # Replace CID with Base64 for inline images
+                        if att.get('isInline') and att.get('contentId'):
+                            cid = att.get('contentId')
+                            raw_data = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
+                            if raw_data and 'contentBytes' in raw_data:
+                                base64_data = raw_data['contentBytes']
+                                email_body = email_body.replace(f"cid:{cid}", f"data:{content_type};base64,{base64_data}")
+                        attachments.append(att)
+            else:
+                email_data = {'subject': 'Email Not Found in Outlook', 'id': email_id}
+        except Exception as e:
+            logger.error(f"Error in pssubf_view_thread fetching graph: {e}")
+            email_data = {'subject': 'Error Loading Email', 'id': email_id}
 
-    email_body = email_data.get('body', {}).get('content', '')
-
-    # Replace CID with Base64 for inline images (Only applies to actual Outlook emails)
-    if not is_direct:
-        for att in attachments:
-            if att.get('isInline') and att.get('contentId'):
-                cid = att.get('contentId')
-                raw_data = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
-                if raw_data and 'contentBytes' in raw_data:
-                    base64_data = raw_data['contentBytes']
-                    content_type = att.get('contentType', 'image/png')
-                    
-                    data_url = f"data:{content_type};base64,{base64_data}"
-                    email_body = email_body.replace(f"cid:{cid}", data_url)
-
-    actions = PssubfAction.objects.filter(task_email_id=email_id).order_by('-action_timestamp')
-
+    # 2. Build Unified Timeline (Audit Trail + Replies)
+    actions = list(PssubfAction.objects.filter(task_email_id=email_id).order_by('-action_timestamp'))
+    
     # Fetch related local outbound emails/replies sharing the same thread subject
     subject = email_data.get('subject', 'No Subject')
     clean_subject = subject.replace("RE: ", "").replace("Re: ", "").replace("FW: ", "").replace("Fw: ", "").strip()
@@ -690,26 +700,20 @@ def pssubf_view_thread(request, email_id):
         # Exclude the root email if it is a local direct email to avoid duplicating it in the replies stream
         if is_direct and local_email:
             qs = qs.exclude(id=local_email.id)
-        outbound_replies = qs.order_by('sent_at')
+        outbound_replies = list(qs)
 
-    # Build chronological conversation stream for Outlook-style view
-    conversation_stream = []
+    combined_timeline = []
     
-    # Add main root message
-    conversation_stream.append({
-        'sender_name': email_data.get('from', {}).get('emailAddress', {}).get('name', 'Unknown'),
-        'sender_email': email_data.get('from', {}).get('emailAddress', {}).get('address', ''),
-        'recipient': getattr(local_email, 'recipient', target_email) if is_direct else target_email,
-        'subject': subject,
-        'body': email_body,
-        'date': email_data.get('receivedDateTime'),
-        'type': 'OUTGOING' if is_direct else 'INCOMING',
-        'attachment_url': root_attachment_url  # Passed attachment URL to stream card
-    })
-
-    # Add outbound agent replies / direct emails
+    # Add Audit Actions to Timeline
+    for act in actions:
+        combined_timeline.append({
+            'type': 'action',
+            'date': act.action_timestamp,
+            'obj': act
+        })
+        
+    # Add Replies to Timeline
     for rep in outbound_replies:
-        # Map agent username to Full Name
         agent_username = getattr(rep, 'agent_name', 'Agent')
         name_mapping = {
             'LuanovanEck': 'Luano van Eck',
@@ -718,16 +722,10 @@ def pssubf_view_thread(request, email_id):
         }
         full_name = name_mapping.get(agent_username, agent_username.replace('_', ' ').title())
 
-        # Fix formatting: Convert plain text linebreaks from the textarea into HTML <br> tags
-        raw_body = getattr(rep, 'body_html', '')
-        formatted_body = raw_body.replace('\r\n', '<br>').replace('\n', '<br>')
-
-        # Check if reply has a local attachment path
-        rep_attachment_url = None
-        if hasattr(rep, 'attachment_path') and rep.attachment_path:
-            rep_attachment_url = f"{settings.MEDIA_URL}{rep.attachment_path}"
-
-        # Append visual signature mirror to the thread card
+        # Fix formatting for simple textareas
+        raw_body = getattr(rep, 'body_html', '').replace('\r\n', '<br>').replace('\n', '<br>')
+        
+        # Standardize Signature Mirror
         signature_html = f"""
         <br><br>
         <div style="font-family: Arial, sans-serif; font-size: 13px; color: #333; margin-top: 20px; border-top: 1px solid #ccc; padding-top: 10px;">
@@ -747,28 +745,34 @@ def pssubf_view_thread(request, email_id):
             </table>
         </div>
         """
-
-        conversation_stream.append({
-            'sender_name': full_name,
-            'sender_email': target_email, 
-            'recipient': getattr(rep, 'recipient', ''),
-            'subject': rep.subject,
-            'body': formatted_body + signature_html,
+        
+        rep_attachment_url = None
+        if hasattr(rep, 'attachment_path') and rep.attachment_path:
+            rep_attachment_url = f"{settings.MEDIA_URL}{rep.attachment_path}"
+            
+        combined_timeline.append({
+            'type': 'reply',
             'date': rep.sent_at,
-            'type': 'OUTGOING',
-            'attachment_url': rep_attachment_url  # Passed attachment URL to reply card
+            'obj': rep,
+            'full_name': full_name,
+            'formatted_body': raw_body + signature_html,
+            'attachment_url': rep_attachment_url
         })
+        
+    # Sort timeline chronologically (Newest items First)
+    # Using a safe fallback date (year 1900) so records missing a timestamp don't crash the sorter
+    # and safely drop to the very bottom of the timeline.
+    fallback_date = timezone.now().replace(year=1900)
+    combined_timeline.sort(key=lambda x: x['date'] if x['date'] else fallback_date, reverse=True)
 
-    return render(request, 'pssubf/thread_history.html', {
-        'email_id': email_id,
-        'email_subject': subject,
-        'sender_name': email_data.get('from', {}).get('emailAddress', {}).get('name', 'Unknown'),
-        'sender_email': email_data.get('from', {}).get('emailAddress', {}).get('address', ''),
+    context = {
+        'email': email_data,
         'email_body': email_body,
         'attachments': attachments,
-        'actions': actions,
-        'conversation_stream': conversation_stream,
-    })
+        'combined_timeline': combined_timeline,
+        'is_direct': is_direct
+    }
+    return render(request, 'pssubf/thread_history.html', context)
 
 @login_required
 def download_pssubf_attachment(request, message_id, attachment_id):
