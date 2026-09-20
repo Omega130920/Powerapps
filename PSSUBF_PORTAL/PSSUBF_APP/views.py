@@ -342,6 +342,8 @@ def pssubf_delegate_view(request, email_id):
 
 logger = logging.getLogger(__name__)
 
+from .models import SystemLog, PssubfNote, PssubfAction, PssubfDirectEmail, PssubfDelegate, PssubfInbox
+
 @login_required
 def pssubf_action_view(request, email_id):
     """
@@ -454,8 +456,25 @@ def pssubf_action_view(request, email_id):
                 task.status = new_status
             task.save()
 
+            mip_number = getattr(task, 'member_group_code', None)
+            
+            # --- PUSH TO SYSTEM LOG (Beneficiary Page) ---
+            if mip_number:
+                SystemLog.objects.create(
+                    mip_number=mip_number,
+                    log_title="Task Action Note",
+                    call_direction=call_direction,
+                    call_method=call_method,
+                    call_type=call_type,
+                    category=new_category or getattr(task, 'email_category', 'Query'),
+                    status=new_status or getattr(task, 'status', 'In Progress'),
+                    note_content=note_text,
+                    created_by=request.user.username
+                )
+            
             audit_string = f"[{call_direction} | {call_method} | {call_type}]"
             
+            # --- PUSH TO PSSUBF NOTE (Thread History) ---
             PssubfNote.objects.create(
                 task_email_id=email_id,
                 agent_name=request.user.username,
@@ -472,7 +491,7 @@ def pssubf_action_view(request, email_id):
             )
             messages.success(request, "Internal note saved.")
 
-            # 3. Handle External Email Reply
+        # 3. Handle External Email Reply
         elif action_type == 'send_reply':
             recipient = request.POST.get('reply_recipient')
             cc_recipient = request.POST.get('reply_cc', '').strip()
@@ -514,8 +533,8 @@ def pssubf_action_view(request, email_id):
             response = OutlookGraphService.send_outlook_email(
                 sender=target_email,
                 recipient=recipient,
-                cc=cc_recipient,    # Passing CC to your service
-                bcc=bcc_recipient,  # Passing BCC to your service
+                cc=cc_recipient,
+                bcc=bcc_recipient,
                 subject=subject,
                 body=body_content,
                 attachments=attachments_payload,
@@ -527,6 +546,26 @@ def pssubf_action_view(request, email_id):
             else:
                 audit_string = "[Outbound | Email Reply Sent]"
                 
+                # Build dynamic log string for CC/BCC to keep audit trails clean if empty
+                cc_log = f"\nCC: {cc_recipient}" if cc_recipient else ""
+                bcc_log = f"\nBCC: {bcc_recipient}" if bcc_recipient else ""
+
+                mip_number = getattr(task, 'member_group_code', None)
+                
+                # --- PUSH TO SYSTEM LOG (Beneficiary Page) ---
+                if mip_number:
+                    SystemLog.objects.create(
+                        mip_number=mip_number,
+                        log_title="External Email Reply",
+                        call_direction=call_direction,
+                        call_method=call_method,
+                        call_type=call_type,
+                        category=getattr(task, 'email_category', 'Query'),
+                        status=getattr(task, 'status', 'In Progress'),
+                        note_content=f"REPLY SENT TO {recipient}{cc_log}{bcc_log}: {raw_body_content}",
+                        created_by=request.user.username
+                    )
+
                 # Log the outgoing reply into the direct email table
                 PssubfDirectEmail.objects.create(
                     agent_name=request.user.username,
@@ -534,13 +573,9 @@ def pssubf_action_view(request, email_id):
                     subject=subject,
                     body_html=body_content,
                     sent_at=timezone.now(),
-                    membership_number=getattr(task, 'membership_number', None),
-                    attachment_path=file_saved_path  # Saved attachment reference
+                    membership_number=mip_number,
+                    attachment_path=file_saved_path
                 )
-                
-                # Build dynamic log string for CC/BCC to keep audit trails clean if empty
-                cc_log = f"\nCC: {cc_recipient}" if cc_recipient else ""
-                bcc_log = f"\nBCC: {bcc_recipient}" if bcc_recipient else ""
                 
                 PssubfAction.objects.create(
                     task_email_id=email_id,
@@ -549,6 +584,7 @@ def pssubf_action_view(request, email_id):
                     note_content=f"{audit_string}\nTo: {recipient}{cc_log}{bcc_log}\nSubject: {subject}\n\n{raw_body_content}"
                 )
 
+                # --- PUSH TO PSSUBF NOTE (Thread History) ---
                 PssubfNote.objects.create(
                     task_email_id=email_id,
                     agent_name=request.user.username,
