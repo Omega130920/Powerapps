@@ -68,10 +68,10 @@ class OutlookGraphService:
             return {'error': str(e)}
 
     @staticmethod
-    def send_outlook_email(sender, recipient, subject, body, attachments=None, user=None):
+    def send_outlook_email(sender, recipient, subject, body, cc=None, bcc=None, attachments=None, user=None):
         """
         Sends an email via Microsoft Graph API.
-        Supports HTML body, Base64 attachments, and automatically appends 
+        Supports HTML body, Base64 attachments, CC, BCC, and automatically appends 
         the user's personalized HTML signature if a user is provided.
         """
         endpoint = "sendMail"
@@ -96,6 +96,22 @@ class OutlookGraphService:
                 }
             ]
         }
+
+        # Handle CC recipients (allows comma-separated multiple emails)
+        if cc:
+            cc_list = [email.strip() for email in cc.split(',') if email.strip()]
+            if cc_list:
+                message_payload["ccRecipients"] = [
+                    {"emailAddress": {"address": email}} for email in cc_list
+                ]
+
+        # Handle BCC recipients (allows comma-separated multiple emails)
+        if bcc:
+            bcc_list = [email.strip() for email in bcc.split(',') if email.strip()]
+            if bcc_list:
+                message_payload["bccRecipients"] = [
+                    {"emailAddress": {"address": email}} for email in bcc_list
+                ]
 
         # Add attachments if provided
         if attachments:

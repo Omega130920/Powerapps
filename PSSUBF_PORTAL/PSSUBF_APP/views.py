@@ -446,7 +446,8 @@ def pssubf_action_view(request, email_id):
             new_category = request.POST.get('email_category')
             new_status = request.POST.get('status')
             
-            call_direction = request.POST.get('call_direction', 'Outbound')
+            # FORCE direction to Inbound for internal task notes
+            call_direction = "Inbound"
             call_method = request.POST.get('call_method', 'Note')
             call_type = request.POST.get('call_type', 'General Note')
             
@@ -459,18 +460,18 @@ def pssubf_action_view(request, email_id):
             mip_number = getattr(task, 'member_group_code', None)
             
             # --- PUSH TO SYSTEM LOG (Beneficiary Page) ---
-            if mip_number:
-                SystemLog.objects.create(
-                    mip_number=mip_number,
-                    log_title="Task Action Note",
-                    call_direction=call_direction,
-                    call_method=call_method,
-                    call_type=call_type,
-                    category=new_category or getattr(task, 'email_category', 'Query'),
-                    status=new_status or getattr(task, 'status', 'In Progress'),
-                    note_content=note_text,
-                    created_by=request.user.username
-                )
+            # Unindented to run regardless of whether mip_number is populated
+            SystemLog.objects.create(
+                mip_number=mip_number,
+                log_title="Task Action Note",
+                call_direction=call_direction,
+                call_method=call_method,
+                call_type=call_type,
+                category=new_category or getattr(task, 'email_category', 'Query'),
+                status=new_status or getattr(task, 'status', 'In Progress'),
+                note_content=note_text,
+                created_by=request.user.username
+            )
             
             audit_string = f"[{call_direction} | {call_method} | {call_type}]"
             
