@@ -100,6 +100,7 @@
                         <td class="px-6 py-4 text-sm text-center">{{ item.supporting_docs_attached }}</td>
                         <td class="px-6 py-4 text-center">
                             {% if item.attachment_path %}
+                                <!-- 🟢 CORRECT: Must include /media/ so Django routes it to MEDIA_ROOT -->
                                 <a href="/media/{{ item.attachment_path }}" target="_blank" onclick="event.stopPropagation();" class="inline-flex items-center gap-1.5 text-xs bg-emerald-800 hover:bg-emerald-900 text-white font-semibold py-1 px-2.5 rounded-md transition shadow-sm">
                                     <i class="fas fa-paperclip"></i> View Doc
                                 </a>

@@ -113,7 +113,10 @@
             font-weight: 500; outline: none; transition: all 0.2s;
         }
 
-        .fund-edit-mode .fund-editable {
+        .fund-edit-mode .fund-editable,
+        .personal-edit-mode .personal-editable,
+        .contact-edit-mode .contact-editable,
+        .guardian-edit-mode .guardian-editable {
             background: rgba(255, 255, 255, 0.4) !important;
             border: 1px solid var(--glass-border) !important;
             font-weight: 600;
@@ -502,20 +505,36 @@
                 </ul>
 
                 <div class="tab-content flex-1 overflow-y-auto">
+                    
+                    <!-- MEMBER PROFILE TAB -->
                     <div id="personal" class="tab-pane active">
-                        <h3 class="text-emerald-900 font-bold uppercase text-sm mb-4">Personal Information</h3>
-                        <table class="w-full">
-                            <tr><th>Membership Number</th><td><input type="text" value="{{ member.membership_number }}" class="glass-input opacity-60" readonly></td></tr>
-                            <tr><th>Old Membership No.</th><td><input type="text" value="{{ member.old_membership_number|default:'' }}" class="glass-input" readonly></td></tr>
-                            <tr><th>Title</th><td><input type="text" value="{{ member.title }}" class="glass-input" readonly></td></tr>
-                            <tr><th>Initials</th><td><input type="text" value="{{ member.initials }}" class="glass-input" readonly></td></tr>
-                            <tr><th>First Name</th><td><input type="text" value="{{ member.first_name }}" class="glass-input" readonly></td></tr>
-                            <tr><th>Last Name</th><td><input type="text" value="{{ member.last_name }}" class="glass-input" readonly></td></tr>
-                            <tr><th>ID / Passport</th><td><input type="text" value="{{ member.id_number }}" class="glass-input" readonly></td></tr>
-                            <tr><th>Date of Birth</th><td><input type="text" value="{{ member.dob|date:'Y-m-d' }}" class="glass-input" readonly></td></tr>
-                        </table>
+                        <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}" id="personalForm">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="update_personal">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-emerald-900 font-bold uppercase text-sm">Personal Information</h3>
+                                <div id="personalViewControls">
+                                    <button type="button" onclick="toggleSectionEdit('personal', true)" class="text-xs bg-emerald-700 text-white px-3 py-1.5 rounded-lg font-bold"><i class="fas fa-edit mr-1"></i> Edit Profile</button>
+                                </div>
+                                <div id="personalEditControls" style="display: none;" class="flex gap-2">
+                                    <button type="button" onclick="toggleSectionEdit('personal', false)" class="text-xs bg-red-500 text-white px-3 py-1.5 rounded-lg font-bold">Cancel</button>
+                                    <button type="submit" class="text-xs bg-emerald-900 text-white px-3 py-1.5 rounded-lg font-bold">Save Changes</button>
+                                </div>
+                            </div>
+                            <table class="w-full">
+                                <tr><th>Membership Number</th><td><input type="text" value="{{ member.membership_number }}" class="glass-input opacity-60" readonly></td></tr>
+                                <tr><th>Old Membership No.</th><td><input type="text" name="old_membership_number" value="{{ member.old_membership_number|default:'' }}" class="glass-input personal-editable" readonly></td></tr>
+                                <tr><th>Title</th><td><input type="text" name="title" value="{{ member.title }}" class="glass-input personal-editable" readonly></td></tr>
+                                <tr><th>Initials</th><td><input type="text" name="initials" value="{{ member.initials }}" class="glass-input personal-editable" readonly></td></tr>
+                                <tr><th>First Name</th><td><input type="text" name="first_name" value="{{ member.first_name }}" class="glass-input personal-editable" readonly></td></tr>
+                                <tr><th>Last Name</th><td><input type="text" name="last_name" value="{{ member.last_name }}" class="glass-input personal-editable" readonly></td></tr>
+                                <tr><th>ID / Passport</th><td><input type="text" name="id_number" value="{{ member.id_number }}" class="glass-input personal-editable" readonly></td></tr>
+                                <tr><th>Date of Birth</th><td><input type="date" name="dob" value="{{ member.dob|date:'Y-m-d' }}" class="glass-input personal-editable" readonly></td></tr>
+                            </table>
+                        </form>
                     </div>
 
+                    <!-- FUND DETAILS TAB -->
                     <div id="financials" class="tab-pane">
                         <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}" id="fundForm">
                             {% csrf_token %}
@@ -523,10 +542,10 @@
                             <div class="flex justify-between items-center mb-4">
                                 <h3 class="text-emerald-900 font-bold uppercase text-sm">Financial Data</h3>
                                 <div id="fundViewControls">
-                                    <button type="button" onclick="toggleFundEdit(true)" class="text-xs bg-emerald-700 text-white px-3 py-1.5 rounded-lg font-bold"><i class="fas fa-edit mr-1"></i> Edit Fund Details</button>
+                                    <button type="button" onclick="toggleSectionEdit('fund', true)" class="text-xs bg-emerald-700 text-white px-3 py-1.5 rounded-lg font-bold"><i class="fas fa-edit mr-1"></i> Edit Fund Details</button>
                                 </div>
                                 <div id="fundEditControls" style="display: none;" class="flex gap-2">
-                                    <button type="button" onclick="toggleFundEdit(false)" class="text-xs bg-red-500 text-white px-3 py-1.5 rounded-lg font-bold">Cancel</button>
+                                    <button type="button" onclick="toggleSectionEdit('fund', false)" class="text-xs bg-red-500 text-white px-3 py-1.5 rounded-lg font-bold">Cancel</button>
                                     <button type="submit" class="text-xs bg-emerald-900 text-white px-3 py-1.5 rounded-lg font-bold">Save Fund Changes</button>
                                 </div>
                             </div>
@@ -542,6 +561,7 @@
                         </form>
                     </div>
 
+                    <!-- CLAIMS REGISTRY -->
                     <div id="claims_tab" class="tab-pane">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="text-emerald-900 font-bold uppercase text-sm">Linked Claim Records</h3>
@@ -568,7 +588,6 @@
                             </thead>
                             <tbody>
                                 {% for claim in claims %}
-                                <!-- Main Row now opens the Modal directly -->
                                 <tr class="hover:bg-white hover:bg-opacity-20 transition cursor-pointer" onclick="openClaimModal('{{ claim.id }}')">
                                     <td class="font-bold text-emerald-900">{{ claim.reference_no }}</td>
                                     <td>{{ claim.claim_type }}</td>
@@ -627,6 +646,7 @@
                         </div>
                     </div>
 
+                    <!-- AD HOC REGISTRY -->
                     <div id="adhoc_tab" class="tab-pane">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="text-emerald-900 font-bold uppercase text-sm">Linked Ad Hoc Records</h3>
@@ -675,26 +695,54 @@
                         </table>
                     </div>
 
+                    <!-- CONTACT CHANNELS -->
                     <div id="contact" class="tab-pane">
-                        <h3 class="text-emerald-900 font-bold uppercase text-sm mb-4">Contact Channels</h3>
-                        <table class="w-full">
-                            <tr><th>Mobile 1</th><td><input type="text" value="{{ member.mobile_1 }}" class="glass-input" readonly></td></tr>
-                            <tr><th>Email 1</th><td><input type="email" value="{{ member.email_1 }}" class="glass-input" readonly></td></tr>
-                            <tr><th>Mobile 2</th><td><input type="text" value="{{ member.mobile_2|default:'' }}" class="glass-input" readonly></td></tr>
-                            <tr><th>Email 2</th><td><input type="email" value="{{ member.email_2|default:'' }}" class="glass-input" readonly></td></tr>
-                        </table>
+                        <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}" id="contactForm">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="update_contact">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-emerald-900 font-bold uppercase text-sm">Contact Channels</h3>
+                                <div id="contactViewControls">
+                                    <button type="button" onclick="toggleSectionEdit('contact', true)" class="text-xs bg-emerald-700 text-white px-3 py-1.5 rounded-lg font-bold"><i class="fas fa-edit mr-1"></i> Edit Contacts</button>
+                                </div>
+                                <div id="contactEditControls" style="display: none;" class="flex gap-2">
+                                    <button type="button" onclick="toggleSectionEdit('contact', false)" class="text-xs bg-red-500 text-white px-3 py-1.5 rounded-lg font-bold">Cancel</button>
+                                    <button type="submit" class="text-xs bg-emerald-900 text-white px-3 py-1.5 rounded-lg font-bold">Save Changes</button>
+                                </div>
+                            </div>
+                            <table class="w-full">
+                                <tr><th>Mobile 1</th><td><input type="text" name="mobile_1" value="{{ member.mobile_1 }}" class="glass-input contact-editable" readonly></td></tr>
+                                <tr><th>Email 1</th><td><input type="email" name="email_1" value="{{ member.email_1 }}" class="glass-input contact-editable" readonly></td></tr>
+                                <tr><th>Mobile 2</th><td><input type="text" name="mobile_2" value="{{ member.mobile_2|default:'' }}" class="glass-input contact-editable" readonly></td></tr>
+                                <tr><th>Email 2</th><td><input type="email" name="email_2" value="{{ member.email_2|default:'' }}" class="glass-input contact-editable" readonly></td></tr>
+                            </table>
+                        </form>
                     </div>
 
+                    <!-- GUARDIAN INFO -->
                     <div id="guardian" class="tab-pane">
-                        <h3 class="text-emerald-900 font-bold uppercase text-sm mb-4">Guardian Info</h3>
-                        <table class="w-full">
-                            <tr><th>Guardian Title</th><td><input type="text" value="{{ member.guardian_title }}" class="glass-input" readonly></td></tr>
-                            <tr><th>First Name</th><td><input type="text" value="{{ member.guardian_first_name }}" class="glass-input" readonly></td></tr>
-                            <tr><th>Last Name</th><td><input type="text" value="{{ member.guardian_last_name }}" class="glass-input" readonly></td></tr>
-                            <tr><th>Guardian Mobile</th><td><input type="text" value="{{ member.guardian_mobile }}" class="glass-input" readonly></td></tr>
-                            <tr><th>Guardian Email</th><td><input type="email" value="{{ member.guardian_email }}" class="glass-input" readonly></td></tr>
-                            <tr><th>Address</th><td><textarea class="glass-input h-32" readonly>{{ member.guardian_address }}</textarea></td></tr>
-                        </table>
+                        <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}" id="guardianForm">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="update_guardian">
+                            <div class="flex justify-between items-center mb-4">
+                                <h3 class="text-emerald-900 font-bold uppercase text-sm">Guardian Info</h3>
+                                <div id="guardianViewControls">
+                                    <button type="button" onclick="toggleSectionEdit('guardian', true)" class="text-xs bg-emerald-700 text-white px-3 py-1.5 rounded-lg font-bold"><i class="fas fa-edit mr-1"></i> Edit Guardian Info</button>
+                                </div>
+                                <div id="guardianEditControls" style="display: none;" class="flex gap-2">
+                                    <button type="button" onclick="toggleSectionEdit('guardian', false)" class="text-xs bg-red-500 text-white px-3 py-1.5 rounded-lg font-bold">Cancel</button>
+                                    <button type="submit" class="text-xs bg-emerald-900 text-white px-3 py-1.5 rounded-lg font-bold">Save Changes</button>
+                                </div>
+                            </div>
+                            <table class="w-full">
+                                <tr><th>Guardian Title</th><td><input type="text" name="guardian_title" value="{{ member.guardian_title }}" class="glass-input guardian-editable" readonly></td></tr>
+                                <tr><th>First Name</th><td><input type="text" name="guardian_first_name" value="{{ member.guardian_first_name }}" class="glass-input guardian-editable" readonly></td></tr>
+                                <tr><th>Last Name</th><td><input type="text" name="guardian_last_name" value="{{ member.guardian_last_name }}" class="glass-input guardian-editable" readonly></td></tr>
+                                <tr><th>Guardian Mobile</th><td><input type="text" name="guardian_mobile" value="{{ member.guardian_mobile }}" class="glass-input guardian-editable" readonly></td></tr>
+                                <tr><th>Guardian Email</th><td><input type="email" name="guardian_email" value="{{ member.guardian_email }}" class="glass-input guardian-editable" readonly></td></tr>
+                                <tr><th>Address</th><td><textarea name="guardian_address" class="glass-input h-32 guardian-editable" readonly>{{ member.guardian_address }}</textarea></td></tr>
+                            </table>
+                        </form>
                     </div>
 
                     <div id="email-log" class="tab-pane">
@@ -754,6 +802,11 @@
                                 <div>
                                     <label class="text-xs font-bold uppercase opacity-60">To:</label>
                                     <input type="email" name="to_email" value="{{ member.email_1 }}" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10 w-full p-2 rounded">
+                                </div>
+
+                                <div>
+                                    <label class="text-xs font-bold uppercase opacity-60">CC:</label>
+                                    <input type="email" name="cc_email" placeholder="Optional CC recipient" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10 w-full p-2 rounded">
                                 </div>
 
                                 <div>
@@ -921,23 +974,25 @@
             };
         }
 
-        function toggleFundEdit(active) {
+        // --- NEW DYNAMIC TOGGLE EDIT SCRIPT ---
+        function toggleSectionEdit(section, active) {
             const container = document.getElementById('profileBody');
-            const inputs = document.querySelectorAll('.fund-editable');
-            const viewControls = document.getElementById('fundViewControls');
-            const editControls = document.getElementById('fundEditControls');
+            const inputs = document.querySelectorAll(`.${section}-editable`);
+            const viewControls = document.getElementById(`${section}ViewControls`);
+            const editControls = document.getElementById(`${section}EditControls`);
+            const form = document.getElementById(`${section}Form`);
 
             if (active) {
-                container.classList.add('fund-edit-mode');
+                container.classList.add(`${section}-edit-mode`);
                 inputs.forEach(i => i.readOnly = false);
                 viewControls.style.display = 'none';
                 editControls.style.display = 'flex';
             } else {
-                container.classList.remove('fund-edit-mode');
+                container.classList.remove(`${section}-edit-mode`);
                 inputs.forEach(i => i.readOnly = true);
                 viewControls.style.display = 'block';
                 editControls.style.display = 'none';
-                document.getElementById('fundForm').reset();
+                if(form) form.reset();
             }
         }
 
@@ -957,7 +1012,6 @@
                 form.querySelector('[name="action"]').value = "update_claim_entry";
                 document.getElementById('claim_record_id').value = recordId;
 
-                // INJECT HISTORY INTO MODAL
                 const hiddenHistoryData = document.getElementById('history_data_' + recordId);
                 if (hiddenHistoryData) {
                     historyContainer.innerHTML = hiddenHistoryData.innerHTML;
@@ -993,7 +1047,6 @@
                 if(document.getElementById('claim_status')) document.getElementById('claim_status').value = 'Pending';
                 if(document.getElementById('claim_date_paid')) document.getElementById('claim_date_paid').value = '';
                 
-                // HIDE HISTORY CONTAINER FOR BRAND NEW CLAIMS
                 historyContainer.innerHTML = '';
                 historyContainer.classList.add('hidden');
             }

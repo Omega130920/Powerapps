@@ -3,6 +3,7 @@ import csv
 from datetime import date, datetime
 from email import parser
 import random
+import re
 import traceback
 from dateutil import parser as date_parser
 from django.utils import timezone  # Ensured django timezone is used
@@ -187,10 +188,9 @@ def pssubf_log_view(request):
 
 @login_required
 def outlook_dashboard_view(request):
-    # ACCESS GRANTED: Hardcoded username restriction and superuser-only blocks removed.
-    # Any user logged into an account can now open this dashboard cleanly.
+    # Any user logged into an account can open this dashboard cleanly.
 
-    target_email = request.GET.get('email', 'your_default_email@domain.com')
+    target_email = request.GET.get('email', settings.OUTLOOK_EMAIL_ADDRESS)
     search_query = request.GET.get('q', '').strip().lower()
     sort_order = request.GET.get('sort', 'newest')
     
@@ -208,19 +208,33 @@ def outlook_dashboard_view(request):
     delegated_map = PssubfDelegate.objects.filter(email_id__in=email_ids).in_bulk(field_name='email_id')
 
     filtered_emails = []
+    
+    # Get the currently logged-in user's username
+    current_username = request.user.username
 
     for email in all_emails:
         e_id = email['id']
         
-        # Skip if already processed (anything not 'Assigned' is considered archived/done)
-        if e_id in delegated_map and delegated_map[e_id].status != 'Assigned':
-            continue
+        # --- SECURITY FILTERING START ---
+        if e_id in delegated_map:
+            delegation_record = delegated_map[e_id]
+            
+            # 1. Skip if already processed (anything not 'Assigned' is considered archived/done)
+            if delegation_record.status != 'Assigned':
+                continue
+                
+            # 2. HIDE OTHER AGENTS' TASKS
+            # If the task has an assigned agent, and it is NOT the person currently logged in, skip it.
+            # (Superusers/Admins bypass this and see everything)
+            if delegation_record.assigned_agent and delegation_record.assigned_agent != current_username:
+                if not request.user.is_superuser:
+                    continue
+        # --- SECURITY FILTERING END ---
 
         # Sync PssubfInbox (The Archive)
         if e_id not in local_inbox_map:
             received_date = email.get('receivedDateTime')
             
-            # FIX: Use 'or' to provide a fallback string if subject is None/Null from API
             safe_subject = email.get('subject') or '(No Subject)'
             
             local_record = PssubfInbox.objects.create(
@@ -253,11 +267,11 @@ def outlook_dashboard_view(request):
             'received_at': local_record.received_timestamp,
             'snippet': local_record.snippet,
             'status': delegation.status,
+            'assigned_agent': delegation.assigned_agent,
         }
 
         # Search Filter
         if search_query:
-            # Added safe handling for subject in search string
             subj_lower = (email_display['subject'] or '').lower()
             sender_lower = (email_display['sender'] or '').lower()
             content = f"{subj_lower} {sender_lower}"
@@ -768,15 +782,16 @@ def pssubf_view_thread(request, email_id):
         <div style="font-family: Arial, sans-serif; font-size: 13px; color: #333; margin-top: 20px; border-top: 1px solid #ccc; padding-top: 10px;">
             <table cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
                 <tr>
+                        <p style="margin: 0 0 4px 0; font-size: 14px;"><strong style="color: #1b5e20;">{full_name}</strong></p>
+                        <p style="margin: 0 0 6px 0; font-size: 12px; color: #555;">PSSUBF Beneficiary Operations</p>
                     <td style="padding-right: 20px; vertical-align: top; width: 160px;">
                         <img src="https://futurasa.co.za/wp-content/uploads/2023/10/Futura-Logo.png" alt="Futura Logo" style="width: 150px; display: block;">
                     </td>
                     <td style="vertical-align: top;">
-                        <p style="margin: 0 0 4px 0; font-size: 14px;"><strong style="color: #1b5e20;">{full_name}</strong></p>
-                        <p style="margin: 0 0 6px 0; font-size: 12px; color: #555;">PSSUBF Beneficiary Operations</p>
+
                         <p style="margin: 0 0 4px 0;"><strong>phone:</strong> 087 702 5950</p>
                         <p style="margin: 0 0 4px 0;"><strong>fax:</strong> 086 225 2554</p>
-                        <p style="margin: 0 0 0 0;"><strong>Email:</strong> <a href="mailto:acvv@futurasa.co.za" style="color: #2e7d32;">acvv@futurasa.co.za</a></p>
+                        <p style="margin: 0 0 0 0;"><strong>Email:</strong> <a href="mailto:pssubf@futurasa.co.za" style="color: #2e7d32;">pssubf@futurasa.co.za</a></p>
                     </td>
                 </tr>
             </table>
@@ -841,11 +856,20 @@ def sync_pssubf_inbox(request):
 def pssubf_delegations_list(request):
     """
     Displays the active queue, excluding completed and recycled items.
+    Only user 'omega' sees all active tasks; all other agents only see their own.
     """
-    # Exclude both Recycled and Completed to keep the dashboard focused on active work
-    delegations = PssubfDelegate.objects.exclude(
-        status__in=['Recycled', 'Completed', 'Complete']
-    ).order_by('-created_at')
+    if request.user.username == 'omega':
+        # User 'omega' sees all active tasks across the system
+        delegations = PssubfDelegate.objects.exclude(
+            status__in=['Recycled', 'Completed', 'Complete']
+        ).order_by('-created_at')
+    else:
+        # All other agents ONLY see tasks assigned to them
+        delegations = PssubfDelegate.objects.filter(
+            assigned_agent=request.user.username
+        ).exclude(
+            status__in=['Recycled', 'Completed', 'Complete']
+        ).order_by('-created_at')
     
     return render(request, 'pssubf/delegations_list.html', {
         'delegations': delegations
@@ -1250,10 +1274,11 @@ def beneficiary_details_view(request, membership_number):
     if request.method == 'POST':
         action = request.POST.get('action')
 
-# --- 1. HANDLE DIRECT EMAIL (COMPOSITION TAB) ---
+        # --- 1. HANDLE DIRECT EMAIL (COMPOSITION TAB) ---
         if action == 'send_direct_email':
             recipient = request.POST.get('to_email')
-            bcc_email = request.POST.get('bcc_email')
+            cc_email = request.POST.get('cc_email', '').strip()   # 🟢 Added CC support
+            bcc_email = request.POST.get('bcc_email', '').strip() # 🟢 Captured BCC
             subject = request.POST.get('subject')
             raw_body_html = request.POST.get('email_html_content')
             
@@ -1293,6 +1318,8 @@ def beneficiary_details_view(request, membership_number):
                 result = OutlookGraphService.send_outlook_email(
                     sender=settings.OUTLOOK_EMAIL_ADDRESS,
                     recipient=recipient, 
+                    cc=cc_email,      # 🟢 Passing CC to Graph Service
+                    bcc=bcc_email,    # 🟢 Passing BCC to Graph Service
                     subject=subject, 
                     body=formatted_body,
                     attachments=attachments_payload,
@@ -1314,11 +1341,15 @@ def beneficiary_details_view(request, membership_number):
                     direct_mail = PssubfDirectEmail.objects.create(**create_kwargs)
                     
                     email_id = f"DIRECT_{membership_number}_{direct_mail.id}"
+                    
+                    cc_display = f" (CC: {cc_email})" if cc_email else ""
+                    bcc_display = f" (BCC: {bcc_email})" if bcc_email else ""
+                    
                     PssubfInbox.objects.create(
                         email_id=email_id,
                         subject=subject,
                         sender=settings.OUTLOOK_EMAIL_ADDRESS,
-                        snippet=f"Direct Email to {recipient}" + (f" (BCC: {bcc_email})" if bcc_email else ""),
+                        snippet=f"Direct Email to {recipient}{cc_display}{bcc_display}",
                         status='Sent',
                         received_timestamp=timezone.now()
                     )
@@ -1327,7 +1358,7 @@ def beneficiary_details_view(request, membership_number):
                         task_email_id=email_id,
                         action_type="Direct Email Sent",
                         action_user=request.user.username,
-                        note_content=f"Sent to: {recipient} | BCC: {bcc_email or 'None'} | Subject: {subject}",
+                        note_content=f"Sent to: {recipient} | CC: {cc_email or 'None'} | BCC: {bcc_email or 'None'} | Subject: {subject}",
                         action_timestamp=timezone.now()
                     )
                     messages.success(request, f"Direct email sent successfully to {recipient}.")
@@ -1362,8 +1393,9 @@ def beneficiary_details_view(request, membership_number):
                 messages.success(request, "Internal note added to profile.")
             return redirect('beneficiary_details', membership_number=membership_number)
 
-        # --- 3. HANDLE CORE PROFILE UPDATES ---
-        elif action == 'update_profile':
+
+        # --- 3A. HANDLE PERSONAL PROFILE UPDATES ---
+        elif action == 'update_personal':
             try:
                 member.old_membership_number = request.POST.get('old_membership_number', member.old_membership_number)
                 member.title = request.POST.get('title', member.title)
@@ -1379,6 +1411,24 @@ def beneficiary_details_view(request, membership_number):
                     member.dob = dob_date
                     member.cessation_date = dob_date + relativedelta(years=18)
                 
+                member.save()
+
+                PssubfAction.objects.create(
+                    task_email_id=f"PROFILE_MOD_{membership_number}",
+                    action_type="Profile Update",
+                    action_user=request.user.username,
+                    note_content="Modified beneficiary personal details.",
+                    action_timestamp=timezone.now()
+                )
+                messages.success(request, f"Personal details saved successfully for Member {member.membership_number}.")
+            except Exception as e:
+                messages.error(request, f"Error updating personal record: {str(e)}")
+            return redirect('beneficiary_details', membership_number=member.membership_number)
+
+
+        # --- 3B. HANDLE FINANCIAL DATA UPDATES ---
+        elif action == 'update_profile':
+            try:
                 member.employee_number = request.POST.get('employee_number', member.employee_number)
                 member.stipened_frequency = request.POST.get('stipened_frequency', member.stipened_frequency)
                 
@@ -1394,14 +1444,50 @@ def beneficiary_details_view(request, membership_number):
                 join_date_str = request.POST.get('fund_join_date')
                 if join_date_str:
                     member.fund_join_date = datetime.strptime(join_date_str, '%Y-%m-%d').date()
+                
+                member.save()
 
+                PssubfAction.objects.create(
+                    task_email_id=f"PROFILE_MOD_{membership_number}",
+                    action_type="Fund Update",
+                    action_user=request.user.username,
+                    note_content="Modified beneficiary financial/fund details.",
+                    action_timestamp=timezone.now()
+                )
+                messages.success(request, f"Financial data saved successfully for Member {member.membership_number}.")
+            except Exception as e:
+                messages.error(request, f"Error updating financial record: {str(e)}")
+            return redirect('beneficiary_details', membership_number=member.membership_number)
+
+
+        # --- 3C. HANDLE CONTACT CHANNEL UPDATES ---
+        elif action == 'update_contact':
+            try:
                 member.mobile_1 = request.POST.get('mobile_1', member.mobile_1)
                 member.email_1 = request.POST.get('email_1', member.email_1)
                 member.mobile_2 = request.POST.get('mobile_2', member.mobile_2)
                 member.email_2 = request.POST.get('email_2', member.email_2)
                 member.mobile_3 = request.POST.get('mobile_3', member.mobile_3)
                 member.email_3 = request.POST.get('email_3', member.email_3)
+                
+                member.save()
 
+                PssubfAction.objects.create(
+                    task_email_id=f"PROFILE_MOD_{membership_number}",
+                    action_type="Contact Update",
+                    action_user=request.user.username,
+                    note_content="Modified beneficiary contact channels.",
+                    action_timestamp=timezone.now()
+                )
+                messages.success(request, f"Contact details saved successfully for Member {member.membership_number}.")
+            except Exception as e:
+                messages.error(request, f"Error updating contact record: {str(e)}")
+            return redirect('beneficiary_details', membership_number=member.membership_number)
+
+
+        # --- 3D. HANDLE GUARDIAN INFO UPDATES ---
+        elif action == 'update_guardian':
+            try:
                 member.guardian_title = request.POST.get('guardian_title', member.guardian_title)
                 member.guardian_first_name = request.POST.get('guardian_first_name', member.guardian_first_name)
                 member.guardian_last_name = request.POST.get('guardian_last_name', member.guardian_last_name)
@@ -1413,15 +1499,16 @@ def beneficiary_details_view(request, membership_number):
 
                 PssubfAction.objects.create(
                     task_email_id=f"PROFILE_MOD_{membership_number}",
-                    action_type="Profile Update",
+                    action_type="Guardian Update",
                     action_user=request.user.username,
-                    note_content="Modified beneficiary personal/financial details and fund values.",
+                    note_content="Modified guardian information.",
                     action_timestamp=timezone.now()
                 )
-                messages.success(request, f"Changes saved successfully for Member {member.membership_number}.")
-                return redirect('beneficiary_details', membership_number=member.membership_number)
+                messages.success(request, f"Guardian information saved successfully for Member {member.membership_number}.")
             except Exception as e:
-                messages.error(request, f"Error updating record: {str(e)}")
+                messages.error(request, f"Error updating guardian record: {str(e)}")
+            return redirect('beneficiary_details', membership_number=member.membership_number)
+
 
         # --- 4. HANDLE NEW CLAIM ---
         elif action == 'add_claim_entry':
@@ -1460,8 +1547,8 @@ def beneficiary_details_view(request, membership_number):
                     claim_type=request.POST.get('claim_type'),
                     date_logged=claim_date,
                     amount_requested=clean_decimal(request.POST.get('amount_requested')),
-                    status=request.POST.get('status', 'Pending'), # 🟢 Captured from form
-                    date_paid=date_paid_val, # 🟢 Captured from form
+                    status=request.POST.get('status', 'Pending'),
+                    date_paid=date_paid_val,
                     description=request.POST.get('description'),
                     guardian_name=f"{member.guardian_first_name} {member.guardian_last_name}".strip(),
                     beneficiary_name=f"{member.first_name} {member.last_name}".strip(),
@@ -1475,7 +1562,6 @@ def beneficiary_details_view(request, membership_number):
                     attachment_path=file_saved_path
                 )
 
-                # --- INSTANCE LOGGING: CLAIM CREATED FROM PROFILE ---
                 ClaimHistory.objects.create(
                     claim_reference=new_claim.reference_no,
                     action_type="Claim Logged",
@@ -1503,7 +1589,7 @@ def beneficiary_details_view(request, membership_number):
                 claim_record.date_paid = datetime.strptime(date_paid_str, '%Y-%m-%d').date() if date_paid_str else None
 
                 claim_record.claim_type = request.POST.get('claim_type', claim_record.claim_type)
-                claim_record.status = request.POST.get('status', claim_record.status) # 🟢 Update Status
+                claim_record.status = request.POST.get('status', claim_record.status)
                 claim_record.amount_requested = clean_decimal(request.POST.get('amount_requested'))
                 claim_record.description = request.POST.get('description', claim_record.description)
 
@@ -1587,28 +1673,22 @@ def beneficiary_details_view(request, membership_number):
     claims = ClaimList.objects.filter(beneficiary__membership_number=membership_number).order_by('-date_logged')
     adhoc_records = AdHocList.objects.filter(beneficiary=member).order_by('-claim_form_date')
     
-    # FETCH SYSTEM LOGS TO POPULATE THE NOTES TAB LOGS SECTION
     recent_logs = SystemLog.objects.all()[:50]
 
-    # --- FETCH CLAIM HISTORY TIMELINE DATA ---
     claim_refs = [c.reference_no for c in claims]
     all_history = ClaimHistory.objects.filter(claim_reference__in=claim_refs).order_by('-created_at')
 
-    # LIVE PROTECTION SAFEGUARD: Look up incoming/delegated records by group code/ID while explicitly excluding direct outgoing emails
     incoming_emails = PssubfDelegate.objects.filter(
         Q(member_group_code=membership_number) | 
         Q(email_id__icontains=membership_number)
     ).exclude(email_id__startswith='DIRECT_')
     
-    # LIVE PROTECTION SAFEGUARD: Check for outgoing entries by either numeric format or string version to defend against type mismatches on production database
     outgoing_emails = PssubfDirectEmail.objects.filter(
         Q(membership_number=membership_number) | 
         Q(membership_number=str(membership_number).strip())
     )
 
     combined_emails = []
-    
-    # Track task email IDs linked to this user to capture replies seamlessly
     associated_task_ids = set()
 
     for e in incoming_emails:
@@ -1632,15 +1712,12 @@ def beneficiary_details_view(request, membership_number):
             'type': 'OUTGOING'
         })
 
-    # 🟢 --- NEW: INCORPORATE SYSTEM TASK REPLIES ---
-    # Scans action tracking table for replies bound to any task associated with this member
     if associated_task_ids:
         replies = PssubfAction.objects.filter(
             task_email_id__in=associated_task_ids, 
             action_type="EMAIL_REPLY"
         )
         for r in replies:
-            # Safely isolate subject layout line out of saved audit trails if possible
             display_subject = "Reply to Task Request"
             if r.note_content and "Subject: " in r.note_content:
                 try:
@@ -1662,11 +1739,8 @@ def beneficiary_details_view(request, membership_number):
     internal_notes = PssubfNote.objects.filter(task_email_id__icontains=membership_number).order_by('-created_at')
     pssubf_actions = PssubfAction.objects.filter(Q(task_email_id__icontains=membership_number)).order_by('-action_timestamp')
 
-    # --- DYNAMICALLY CALCULATE DISPLAY STRINGS AND ATTACH HISTORY ---
     for c in claims:
-        # Attach the history ledger to the claim
         c.history_logs = [h for h in all_history if h.claim_reference == c.reference_no]
-        
         if member.dob and c.date_logged:
             diff = relativedelta(c.date_logged, member.dob)
             total_m = round((diff.years * 12) + diff.months + (diff.days / 30.44))
@@ -1678,13 +1752,10 @@ def beneficiary_details_view(request, membership_number):
         if member.cessation_date and a.claim_form_date:
             diff = relativedelta(member.cessation_date, a.claim_form_date)
             total_m = round((diff.years * 12) + diff.months + (diff.days / 30.44))
-            
             a.maturity_display = f"{total_m // 12}Y {str(total_m % 12).zfill(2)}M"
-            
             stipend_value = float(member.stipened or 0)
             total_liability = total_m * stipend_value
             portfolio_val = float(a.amount_requested or member.total_fund_value or 0)
-            
             surplus_val = portfolio_val - total_liability
             a.calculated_surplus = f"R {surplus_val:,.2f} ({'Surplus' if surplus_val >= 0 else 'Deficit'})"
         else:
@@ -2136,13 +2207,29 @@ def ad_hoc_list_view(request):
         return str(val).replace('R', '').replace(',', '').replace('%', '').strip()
 
     if request.method == 'POST':
+        # 🟢 DEBUG PRINTS TO VERIFY FORM SUBMISSION AND FILES
+        print("--- DEBUG FILES ---", request.FILES)
+        print("--- DEBUG POST ---", request.POST)
+
         action = request.POST.get('action')
         m_num = request.POST.get('membership_number')
         
         try:
             member = get_object_or_404(PssubfBeneficiary, membership_number=m_num)
+            
+            # 🟢 SECURE FILE UPLOAD WITH AUTO-SANITIZATION (Removes spaces, brackets, etc. to prevent 404s)
             uploaded_file = request.FILES.get('supporting_document')
-            file_name = uploaded_file.name if uploaded_file else None
+            file_saved_path = None
+            if uploaded_file:
+                 fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT))
+                 
+                 # Sanitize filename: replace spaces, parentheses, and special symbols with underscores
+                 safe_filename = re.sub(r'[()\s]+', '_', uploaded_file.name)
+                 safe_filename = safe_filename.replace('__', '_')
+                 
+                 saved_name = fs.save(safe_filename, uploaded_file)
+                 file_saved_path = os.path.basename(saved_name)
+            
             timestamp = timezone.now().strftime('%Y-%m-%d %H:%M')
             agent_stamp = f"\n\n--- Managed by {request.user.username} on {timestamp} ---"
 
@@ -2154,8 +2241,8 @@ def ad_hoc_list_view(request):
                     claim_form_date=request.POST.get('claim_form_date') or None,
                     date_paid=request.POST.get('date_paid') or None,
                     status=request.POST.get('status', 'Created'),
-                    supporting_docs_attached=request.POST.get('supporting_docs_attached', 'No'),
-                    attachment_path=file_name,
+                    supporting_docs_attached=request.POST.get('supporting_docs_attached', 'No') if not file_saved_path else 'Yes',
+                    attachment_path=file_saved_path, # Saves clean URL-safe filename string
                     portfolio_value=clean_numeric(request.POST.get('portfolio_value')),
                     portfolio_date=request.POST.get('portfolio_date') or None,
                     amount_requested=clean_numeric(request.POST.get('amount_requested')),
@@ -2166,16 +2253,21 @@ def ad_hoc_list_view(request):
                 record_id = request.POST.get('record_id')
                 record = get_object_or_404(AdHocList, id=record_id)
                 
-                if file_name:
-                    record.attachment_path = file_name
+                # Handle file upload or removal in the update process
+                if file_saved_path:
+                    record.attachment_path = file_saved_path
+                    record.supporting_docs_attached = 'Yes'
                 elif request.POST.get('remove_attachment') == 'true':
                     record.attachment_path = None
+                    record.supporting_docs_attached = 'No'
 
                 record.title = request.POST.get('title')
                 record.status = request.POST.get('status')
                 record.claim_form_date = request.POST.get('claim_form_date') or None
                 record.date_paid = request.POST.get('date_paid') or None
-                record.supporting_docs_attached = request.POST.get('supporting_docs_attached')
+                
+                if not file_saved_path and request.POST.get('remove_attachment') != 'true':
+                    record.supporting_docs_attached = request.POST.get('supporting_docs_attached')
                 record.portfolio_value = clean_numeric(request.POST.get('portfolio_value'))
                 record.portfolio_date = request.POST.get('portfolio_date') or None
                 record.amount_requested = clean_numeric(request.POST.get('amount_requested'))
@@ -2192,6 +2284,8 @@ def ad_hoc_list_view(request):
             return redirect('adhoc_list')
             
         except Exception as e:
+            import traceback
+            print(traceback.format_exc())
             messages.error(request, f"Process Error: {str(e)}")
 
     # 🟢 GET PARAMETERS FOR SEARCH & EXPORT
@@ -2200,13 +2294,13 @@ def ad_hoc_list_view(request):
     date_to_str = request.GET.get('date_to', '').strip()
     export_format = request.GET.get('export')
 
-    adhoc_records = AdHocList.objects.all().select_related('beneficiary').order_by('-date_created')
+    adhoc_records = AdHocList.objects.all().select_related('beneficiary').order_by('-date_created' if hasattr(AdHocList, 'date_created') else '-id')
 
     # 🟢 1. APPLY MEMBERSHIP NUMBER FILTER
     if membership_number:
         adhoc_records = adhoc_records.filter(beneficiary__membership_number__icontains=membership_number)
     
-    # 🟢 2. ADVANCED DATE FILTERING (Handling CharField dirty date strings)
+    # 🟢 2. ADVANCED DATE FILTERING
     if date_from_str or date_to_str:
         parsed_from = None
         parsed_to = None
@@ -2219,36 +2313,29 @@ def ad_hoc_list_view(request):
         except ValueError:
             pass
 
-        # Parse and filter in Python to avoid string sorting issues in DB
         filtered_list = []
         for a in adhoc_records:
             if not a.claim_form_date:
                 continue
                 
             try:
-                # This safely handles "2024-06-07", "04/05/2026", "04-05-2026", etc.
                 record_date = date_parser.parse(str(a.claim_form_date), dayfirst=True).date()
                 
-                # Check if it falls outside the requested range
                 if parsed_from and record_date < parsed_from:
                     continue
                 if parsed_to and record_date > parsed_to:
                     continue
                     
-                # If it passes the filter, keep it
                 filtered_list.append(a)
             except Exception:
-                # If the string cannot be parsed as a date at all, skip it
                 continue
                 
-        # Reassign the filtered list back to adhoc_records
         adhoc_records = filtered_list
 
     # 🟢 DYNAMIC DISPLAY CALCULATION: Years to Maturity
     for a in adhoc_records:
-        if a.beneficiary and a.beneficiary.cessation_date and a.claim_form_date:
+        if getattr(a, 'beneficiary', None) and getattr(a.beneficiary, 'cessation_date', None) and getattr(a, 'claim_form_date', None):
             try:
-                # Safely parse both dates just in case they are strings
                 c_date = date_parser.parse(str(a.beneficiary.cessation_date)).date() if isinstance(a.beneficiary.cessation_date, str) else a.beneficiary.cessation_date
                 f_date = date_parser.parse(str(a.claim_form_date), dayfirst=True).date() if isinstance(a.claim_form_date, str) else a.claim_form_date
                 
@@ -2268,7 +2355,6 @@ def ad_hoc_list_view(request):
         
         writer = csv.writer(response)
         
-        # Define CSV headers
         writer.writerow([
             'Membership Number',
             'Title',
@@ -2283,7 +2369,6 @@ def ad_hoc_list_view(request):
             'Comments'
         ])
         
-        # Write data rows
         for a in adhoc_records:
             writer.writerow([
                 a.beneficiary.membership_number if a.beneficiary else 'N/A',
@@ -3002,6 +3087,12 @@ def get_adhoc_details_view(request, record_id):
         record = AdHocList.objects.select_related('beneficiary').get(id=record_id)
         beneficiary = record.beneficiary
         
+        # Safely extract the file string and clean it up if necessary
+        attachment_file = ""
+        if hasattr(record, 'attachment_path') and record.attachment_path:
+            raw_path = record.attachment_path.name if hasattr(record.attachment_path, 'name') else str(record.attachment_path)
+            attachment_file = os.path.basename(raw_path)
+
         data = {
             'success': True,
             'membership_number': beneficiary.membership_number if beneficiary else '',
@@ -3020,12 +3111,15 @@ def get_adhoc_details_view(request, record_id):
             'portfolio_date': str(record.portfolio_date) if record.portfolio_date else '',
             'amount_requested': str(record.amount_requested or 0),
             'supporting_docs_attached': record.supporting_docs_attached,
-            'attachment_path': record.attachment_path.name if record.attachment_path else '',
+            'attachment_path': attachment_file,  # Clean filename here
             'comments': record.comments,
-            'tracking_info': f"Created: {record.date_created.strftime('%Y-%m-%d %H:%M') if record.date_created else 'N/A'}"
+            'tracking_info': f"Created: {record.date_created.strftime('%Y-%m-%d %H:%M') if hasattr(record, 'date_created') and record.date_created else 'N/A'}"
         }
         return JsonResponse(data)
     except AdHocList.DoesNotExist:
         return JsonResponse({'success': False, 'error': 'Record not found'}, status=404)
     except Exception as e:
+        import traceback
+        print("ERROR in get_adhoc_details_view:")
+        print(traceback.format_exc())
         return JsonResponse({'success': False, 'error': str(e)}, status=500)

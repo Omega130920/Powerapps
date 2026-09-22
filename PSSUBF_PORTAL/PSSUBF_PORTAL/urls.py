@@ -17,5 +17,6 @@ urlpatterns = [
     path('', include('PSSUBF_APP.urls')), 
 ]
 
+# 🟢 THIS LINE IS REQUIRED TO SERVE MEDIA FILES IN DEVELOPMENT
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
