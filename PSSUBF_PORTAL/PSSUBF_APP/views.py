@@ -187,10 +187,9 @@ def pssubf_log_view(request):
 
 @login_required
 def outlook_dashboard_view(request):
-    # ACCESS GRANTED: Hardcoded username restriction and superuser-only blocks removed.
-    # Any user logged into an account can now open this dashboard cleanly.
+    # Any user logged into an account can open this dashboard cleanly.
 
-    target_email = request.GET.get('email', 'your_default_email@domain.com')
+    target_email = request.GET.get('email', settings.OUTLOOK_EMAIL_ADDRESS)
     search_query = request.GET.get('q', '').strip().lower()
     sort_order = request.GET.get('sort', 'newest')
     
@@ -208,19 +207,33 @@ def outlook_dashboard_view(request):
     delegated_map = PssubfDelegate.objects.filter(email_id__in=email_ids).in_bulk(field_name='email_id')
 
     filtered_emails = []
+    
+    # Get the currently logged-in user's username
+    current_username = request.user.username
 
     for email in all_emails:
         e_id = email['id']
         
-        # Skip if already processed (anything not 'Assigned' is considered archived/done)
-        if e_id in delegated_map and delegated_map[e_id].status != 'Assigned':
-            continue
+        # --- SECURITY FILTERING START ---
+        if e_id in delegated_map:
+            delegation_record = delegated_map[e_id]
+            
+            # 1. Skip if already processed (anything not 'Assigned' is considered archived/done)
+            if delegation_record.status != 'Assigned':
+                continue
+                
+            # 2. HIDE OTHER AGENTS' TASKS
+            # If the task has an assigned agent, and it is NOT the person currently logged in, skip it.
+            # (Superusers/Admins bypass this and see everything)
+            if delegation_record.assigned_agent and delegation_record.assigned_agent != current_username:
+                if not request.user.is_superuser:
+                    continue
+        # --- SECURITY FILTERING END ---
 
         # Sync PssubfInbox (The Archive)
         if e_id not in local_inbox_map:
             received_date = email.get('receivedDateTime')
             
-            # FIX: Use 'or' to provide a fallback string if subject is None/Null from API
             safe_subject = email.get('subject') or '(No Subject)'
             
             local_record = PssubfInbox.objects.create(
@@ -253,11 +266,11 @@ def outlook_dashboard_view(request):
             'received_at': local_record.received_timestamp,
             'snippet': local_record.snippet,
             'status': delegation.status,
+            'assigned_agent': delegation.assigned_agent,
         }
 
         # Search Filter
         if search_query:
-            # Added safe handling for subject in search string
             subj_lower = (email_display['subject'] or '').lower()
             sender_lower = (email_display['sender'] or '').lower()
             content = f"{subj_lower} {sender_lower}"
