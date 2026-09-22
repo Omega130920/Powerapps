@@ -744,7 +744,7 @@
                         </table>
                     </div>
 
-                    <div id="direct-email" class="tab-pane">
+<div id="direct-email" class="tab-pane">
                         <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}" enctype="multipart/form-data">
                             {% csrf_token %}
                             <div class="space-y-4">
@@ -754,6 +754,11 @@
                                 <div>
                                     <label class="text-xs font-bold uppercase opacity-60">To:</label>
                                     <input type="email" name="to_email" value="{{ member.email_1 }}" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10 w-full p-2 rounded">
+                                </div>
+
+                                <div>
+                                    <label class="text-xs font-bold uppercase opacity-60">CC:</label>
+                                    <input type="email" name="cc_email" placeholder="Optional CC recipient" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10 w-full p-2 rounded">
                                 </div>
 
                                 <div>
@@ -957,7 +962,6 @@
                 form.querySelector('[name="action"]').value = "update_claim_entry";
                 document.getElementById('claim_record_id').value = recordId;
 
-                // INJECT HISTORY INTO MODAL
                 const hiddenHistoryData = document.getElementById('history_data_' + recordId);
                 if (hiddenHistoryData) {
                     historyContainer.innerHTML = hiddenHistoryData.innerHTML;
@@ -993,7 +997,6 @@
                 if(document.getElementById('claim_status')) document.getElementById('claim_status').value = 'Pending';
                 if(document.getElementById('claim_date_paid')) document.getElementById('claim_date_paid').value = '';
                 
-                // HIDE HISTORY CONTAINER FOR BRAND NEW CLAIMS
                 historyContainer.innerHTML = '';
                 historyContainer.classList.add('hidden');
             }
