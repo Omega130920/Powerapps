@@ -854,11 +854,20 @@ def sync_pssubf_inbox(request):
 def pssubf_delegations_list(request):
     """
     Displays the active queue, excluding completed and recycled items.
+    Only user 'omega' sees all active tasks; all other agents only see their own.
     """
-    # Exclude both Recycled and Completed to keep the dashboard focused on active work
-    delegations = PssubfDelegate.objects.exclude(
-        status__in=['Recycled', 'Completed', 'Complete']
-    ).order_by('-created_at')
+    if request.user.username == 'omega':
+        # User 'omega' sees all active tasks across the system
+        delegations = PssubfDelegate.objects.exclude(
+            status__in=['Recycled', 'Completed', 'Complete']
+        ).order_by('-created_at')
+    else:
+        # All other agents ONLY see tasks assigned to them
+        delegations = PssubfDelegate.objects.filter(
+            assigned_agent=request.user.username
+        ).exclude(
+            status__in=['Recycled', 'Completed', 'Complete']
+        ).order_by('-created_at')
     
     return render(request, 'pssubf/delegations_list.html', {
         'delegations': delegations
@@ -1266,7 +1275,8 @@ def beneficiary_details_view(request, membership_number):
 # --- 1. HANDLE DIRECT EMAIL (COMPOSITION TAB) ---
         if action == 'send_direct_email':
             recipient = request.POST.get('to_email')
-            bcc_email = request.POST.get('bcc_email')
+            cc_email = request.POST.get('cc_email', '').strip()   # 🟢 Added CC support
+            bcc_email = request.POST.get('bcc_email', '').strip() # 🟢 Captured BCC
             subject = request.POST.get('subject')
             raw_body_html = request.POST.get('email_html_content')
             
@@ -1306,6 +1316,8 @@ def beneficiary_details_view(request, membership_number):
                 result = OutlookGraphService.send_outlook_email(
                     sender=settings.OUTLOOK_EMAIL_ADDRESS,
                     recipient=recipient, 
+                    cc=cc_email,      # 🟢 Passing CC to Graph Service
+                    bcc=bcc_email,    # 🟢 Passing BCC to Graph Service
                     subject=subject, 
                     body=formatted_body,
                     attachments=attachments_payload,
@@ -1327,11 +1339,15 @@ def beneficiary_details_view(request, membership_number):
                     direct_mail = PssubfDirectEmail.objects.create(**create_kwargs)
                     
                     email_id = f"DIRECT_{membership_number}_{direct_mail.id}"
+                    
+                    cc_display = f" (CC: {cc_email})" if cc_email else ""
+                    bcc_display = f" (BCC: {bcc_email})" if bcc_email else ""
+                    
                     PssubfInbox.objects.create(
                         email_id=email_id,
                         subject=subject,
                         sender=settings.OUTLOOK_EMAIL_ADDRESS,
-                        snippet=f"Direct Email to {recipient}" + (f" (BCC: {bcc_email})" if bcc_email else ""),
+                        snippet=f"Direct Email to {recipient}{cc_display}{bcc_display}",
                         status='Sent',
                         received_timestamp=timezone.now()
                     )
@@ -1340,7 +1356,7 @@ def beneficiary_details_view(request, membership_number):
                         task_email_id=email_id,
                         action_type="Direct Email Sent",
                         action_user=request.user.username,
-                        note_content=f"Sent to: {recipient} | BCC: {bcc_email or 'None'} | Subject: {subject}",
+                        note_content=f"Sent to: {recipient} | CC: {cc_email or 'None'} | BCC: {bcc_email or 'None'} | Subject: {subject}",
                         action_timestamp=timezone.now()
                     )
                     messages.success(request, f"Direct email sent successfully to {recipient}.")
@@ -1473,8 +1489,8 @@ def beneficiary_details_view(request, membership_number):
                     claim_type=request.POST.get('claim_type'),
                     date_logged=claim_date,
                     amount_requested=clean_decimal(request.POST.get('amount_requested')),
-                    status=request.POST.get('status', 'Pending'), # 🟢 Captured from form
-                    date_paid=date_paid_val, # 🟢 Captured from form
+                    status=request.POST.get('status', 'Pending'),
+                    date_paid=date_paid_val,
                     description=request.POST.get('description'),
                     guardian_name=f"{member.guardian_first_name} {member.guardian_last_name}".strip(),
                     beneficiary_name=f"{member.first_name} {member.last_name}".strip(),
@@ -1488,7 +1504,6 @@ def beneficiary_details_view(request, membership_number):
                     attachment_path=file_saved_path
                 )
 
-                # --- INSTANCE LOGGING: CLAIM CREATED FROM PROFILE ---
                 ClaimHistory.objects.create(
                     claim_reference=new_claim.reference_no,
                     action_type="Claim Logged",
@@ -1516,7 +1531,7 @@ def beneficiary_details_view(request, membership_number):
                 claim_record.date_paid = datetime.strptime(date_paid_str, '%Y-%m-%d').date() if date_paid_str else None
 
                 claim_record.claim_type = request.POST.get('claim_type', claim_record.claim_type)
-                claim_record.status = request.POST.get('status', claim_record.status) # 🟢 Update Status
+                claim_record.status = request.POST.get('status', claim_record.status)
                 claim_record.amount_requested = clean_decimal(request.POST.get('amount_requested'))
                 claim_record.description = request.POST.get('description', claim_record.description)
 
@@ -1600,28 +1615,22 @@ def beneficiary_details_view(request, membership_number):
     claims = ClaimList.objects.filter(beneficiary__membership_number=membership_number).order_by('-date_logged')
     adhoc_records = AdHocList.objects.filter(beneficiary=member).order_by('-claim_form_date')
     
-    # FETCH SYSTEM LOGS TO POPULATE THE NOTES TAB LOGS SECTION
     recent_logs = SystemLog.objects.all()[:50]
 
-    # --- FETCH CLAIM HISTORY TIMELINE DATA ---
     claim_refs = [c.reference_no for c in claims]
     all_history = ClaimHistory.objects.filter(claim_reference__in=claim_refs).order_by('-created_at')
 
-    # LIVE PROTECTION SAFEGUARD: Look up incoming/delegated records by group code/ID while explicitly excluding direct outgoing emails
     incoming_emails = PssubfDelegate.objects.filter(
         Q(member_group_code=membership_number) | 
         Q(email_id__icontains=membership_number)
     ).exclude(email_id__startswith='DIRECT_')
     
-    # LIVE PROTECTION SAFEGUARD: Check for outgoing entries by either numeric format or string version to defend against type mismatches on production database
     outgoing_emails = PssubfDirectEmail.objects.filter(
         Q(membership_number=membership_number) | 
         Q(membership_number=str(membership_number).strip())
     )
 
     combined_emails = []
-    
-    # Track task email IDs linked to this user to capture replies seamlessly
     associated_task_ids = set()
 
     for e in incoming_emails:
@@ -1645,15 +1654,12 @@ def beneficiary_details_view(request, membership_number):
             'type': 'OUTGOING'
         })
 
-    # 🟢 --- NEW: INCORPORATE SYSTEM TASK REPLIES ---
-    # Scans action tracking table for replies bound to any task associated with this member
     if associated_task_ids:
         replies = PssubfAction.objects.filter(
             task_email_id__in=associated_task_ids, 
             action_type="EMAIL_REPLY"
         )
         for r in replies:
-            # Safely isolate subject layout line out of saved audit trails if possible
             display_subject = "Reply to Task Request"
             if r.note_content and "Subject: " in r.note_content:
                 try:
@@ -1675,11 +1681,8 @@ def beneficiary_details_view(request, membership_number):
     internal_notes = PssubfNote.objects.filter(task_email_id__icontains=membership_number).order_by('-created_at')
     pssubf_actions = PssubfAction.objects.filter(Q(task_email_id__icontains=membership_number)).order_by('-action_timestamp')
 
-    # --- DYNAMICALLY CALCULATE DISPLAY STRINGS AND ATTACH HISTORY ---
     for c in claims:
-        # Attach the history ledger to the claim
         c.history_logs = [h for h in all_history if h.claim_reference == c.reference_no]
-        
         if member.dob and c.date_logged:
             diff = relativedelta(c.date_logged, member.dob)
             total_m = round((diff.years * 12) + diff.months + (diff.days / 30.44))
@@ -1691,13 +1694,10 @@ def beneficiary_details_view(request, membership_number):
         if member.cessation_date and a.claim_form_date:
             diff = relativedelta(member.cessation_date, a.claim_form_date)
             total_m = round((diff.years * 12) + diff.months + (diff.days / 30.44))
-            
             a.maturity_display = f"{total_m // 12}Y {str(total_m % 12).zfill(2)}M"
-            
             stipend_value = float(member.stipened or 0)
             total_liability = total_m * stipend_value
             portfolio_val = float(a.amount_requested or member.total_fund_value or 0)
-            
             surplus_val = portfolio_val - total_liability
             a.calculated_surplus = f"R {surplus_val:,.2f} ({'Surplus' if surplus_val >= 0 else 'Deficit'})"
         else:
