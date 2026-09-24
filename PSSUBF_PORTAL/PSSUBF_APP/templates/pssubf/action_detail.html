@@ -102,6 +102,34 @@
         {% endfor %}
     {% endif %}
 
+    <!-- 🟢 MANAGER RE-DELEGATION OVERRIDE PANEL -->
+    {% if is_vanessa %}
+    <div class="card border-0 shadow-sm mb-4" style="background: rgba(255,255,255,0.85); border-radius: 16px;">
+        <div class="card-body d-flex flex-column flex-md-row align-items-center justify-content-between gap-3 p-3">
+            <div>
+                <h6 class="mb-1 fw-bold text-dark"><i class="bi bi-person-gear text-primary me-2"></i>Manager Override</h6>
+                <p class="mb-0 text-muted small">Re-assign this task to a different agent.</p>
+            </div>
+            
+            <form method="POST" action="{% url 'pssubf_action' email_id=email_id %}" class="d-flex align-items-center gap-2">
+                {% csrf_token %}
+                <input type="hidden" name="action_type" value="redelegate">
+                
+                <select name="assigned_agent" required class="form-select form-select-sm shadow-sm" style="min-width: 150px; border-radius: 8px;">
+                    <option value="" disabled selected>Select Agent...</option>
+                    {% for user in available_users %}
+                        <option value="{{ user.username }}">{{ user.username }}</option>
+                    {% endfor %}
+                </select>
+                
+                <button type="submit" class="btn btn-primary btn-sm shadow-sm fw-bold text-nowrap" style="border-radius: 8px;">
+                    <i class="bi bi-arrow-left-right me-1"></i> Re-Delegate
+                </button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
     <div class="row g-4">
         <div class="col-md-4">
             <div class="glass-card shadow-sm">

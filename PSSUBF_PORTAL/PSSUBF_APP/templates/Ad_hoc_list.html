@@ -24,6 +24,15 @@
         }
     </style>
 </head>
+{% if messages %}
+    <div class="max-w-full mx-auto mb-4 px-4">
+        {% for message in messages %}
+            <div class="p-4 rounded-md {% if message.tags == 'error' %}bg-red-100 text-red-800{% else %}bg-green-100 text-green-800{% endif %} font-semibold shadow-sm">
+                {{ message }}
+            </div>
+        {% endfor %}
+    </div>
+{% endif %}
 <body class="p-4 sm:p-8 text-gray-800">
 
     <div class="max-w-full mx-auto mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -100,9 +109,8 @@
                         <td class="px-6 py-4 text-sm text-center">{{ item.supporting_docs_attached }}</td>
                         <td class="px-6 py-4 text-center">
                             {% if item.attachment_path %}
-                                <!-- 🟢 CORRECT: Must include /media/ so Django routes it to MEDIA_ROOT -->
-                                <a href="/media/{{ item.attachment_path }}" target="_blank" onclick="event.stopPropagation();" class="inline-flex items-center gap-1.5 text-xs bg-emerald-800 hover:bg-emerald-900 text-white font-semibold py-1 px-2.5 rounded-md transition shadow-sm">
-                                    <i class="fas fa-paperclip"></i> View Doc
+                                <a href="{% url 'download_adhoc_attachment' item.id %}" onclick="event.stopPropagation();" class="inline-flex items-center gap-1.5 text-xs bg-emerald-800 hover:bg-emerald-900 text-white font-semibold py-1 px-2.5 rounded-md transition shadow-sm">
+                                    <i class="fas fa-download"></i> Download
                                 </a>
                             {% else %}
                                 <span class="text-xs opacity-40 italic">None</span>

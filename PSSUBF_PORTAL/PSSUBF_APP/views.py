@@ -358,12 +358,14 @@ logger = logging.getLogger(__name__)
 
 from .models import SystemLog, PssubfNote, PssubfAction, PssubfDirectEmail, PssubfDelegate, PssubfInbox
 
+logger = logging.getLogger(__name__)
+
 @login_required
 def pssubf_action_view(request, email_id):
     """
     Agent Action View: Handles Notes, Metadata Updates, Completion, 
     and Email Replies while resolving broken inline images.
-    
+     
     Dynamically routes system-generated tracking logs (PROFILE_MOD_, NOTE_, etc.)
     by bypassing Graph API calls while rendering authentic database action responses,
     history chains, and historical audit content.
@@ -373,15 +375,22 @@ def pssubf_action_view(request, email_id):
     attachments = []
     email_content = ""
     email_subject = "(No Subject)"
-    
+     
+    # 🟢 BULLETPROOF CHECK: Strip invisible spaces and force lowercase
+    current_user_clean = request.user.username.strip().lower()
+    is_vanessa = (current_user_clean == 'vanessa') or request.user.is_superuser
+     
+    available_users = User.objects.filter(is_active=True) if is_vanessa else []
+     
     # --- 1. DETECT AND INTERCEPT ADMINISTRATIVE SYSTEM LOG STRINGS ---
-    if any(str(email_id).startswith(prefix) for prefix in ["PROFILE_MOD_", "PROFILE_", "NOTE_"]):
+    # UPDATED CODE:
+    if any(str(email_id).startswith(prefix) for prefix in ["PROFILE_MOD_", "PROFILE_"]):
         is_system_log = True
         clean_numeric_id = str(email_id).replace("PROFILE_MOD_", "").replace("PROFILE_", "").replace("NOTE_", "")
-        
+         
         # Look into the action history ledger table to pull the earliest logged item for this ID
         first_action_occurrence = PssubfAction.objects.filter(task_email_id=email_id).order_by('action_timestamp').first()
-        
+         
         # Build synthetic mock task wrapper context object to satisfy template layout elements safely
         class VirtualSystemTask:
             def __init__(self):
@@ -392,10 +401,10 @@ def pssubf_action_view(request, email_id):
                 # Inherit subject line context from matching record if it exists
                 self.subject = f"System Log Activity Stream [Ref: #{clean_numeric_id}]"
                 self.snippet = first_action_occurrence.note_content if first_action_occurrence else f"Automated audit entry registered under Reference Key: {clean_numeric_id}."
-        
+         
         task = VirtualSystemTask()
         email_subject = task.subject
-        
+         
         # Render the logged note/reply action content right into the primary detail content container block
         if first_action_occurrence:
             # Re-format carriage breaks nicely into readable paragraphs for html
@@ -431,21 +440,52 @@ def pssubf_action_view(request, email_id):
 
         target_email = settings.OUTLOOK_EMAIL_ADDRESS 
 
+    # 🟢 TERMINAL DEBUGGER: View this in your VS Code terminal when reloading the page
+    print(f"--- DEBUG VANESSA ACCESS ---")
+    print(f"Cleaned Username: '{current_user_clean}'")
+    print(f"is_vanessa Evaluated To: {is_vanessa}")
+    print(f"is_system_log Evaluated To: {is_system_log}")
+    print(f"Task ID Clicked: {email_id}")
+    print(f"-----------------------------")
+
     # --- POST Logic ---
     if request.method == 'POST':
+        action_type = request.POST.get('action_type')
+
+        # 🟢 RE-DELEGATE OVERRIDE FOR VANESSA (Placed BEFORE system log block to allow manager overrides)
+        if action_type == 'redelegate' and is_vanessa:
+            new_agent = request.POST.get('assigned_agent')
+            if new_agent:
+                success, message = delegate_pssubf_task(
+                    email_id=email_id,
+                    agent_name=new_agent,
+                    delegator_user=request.user,
+                    form_data=request.POST,
+                    is_recycle=False
+                )
+                if success:
+                    # Keep local inbox updated if it exists
+                    inbox_item = PssubfInbox.objects.filter(email_id=email_id).first()
+                    if inbox_item:
+                        inbox_item.status = 'Delegated'
+                        inbox_item.save()
+                    messages.success(request, f"Manager Override: Task re-delegated to {new_agent}.")
+                    return redirect('pssubf_delegations_list')
+                else:
+                    messages.error(request, f"Error re-delegating: {message}")
+            return redirect('pssubf_action', email_id=email_id)
+
         if is_system_log:
             messages.error(request, "Modifying system baseline log entries directly is prohibited.")
             return redirect('pssubf_action', email_id=email_id)
 
-        action_type = request.POST.get('action_type')
-
         # 1. Update Metadata
-        if action_type == 'update_metadata':
+        elif action_type == 'update_metadata':
             task.member_group_code = request.POST.get('member_group_code')
             task.email_category = request.POST.get('email_category')
             task.status = request.POST.get('status')
             task.save()
-            
+             
             PssubfAction.objects.create(
                 task_email_id=email_id,
                 action_user=request.user.username,
@@ -459,12 +499,12 @@ def pssubf_action_view(request, email_id):
             note_text = request.POST.get('note_content')
             new_category = request.POST.get('email_category')
             new_status = request.POST.get('status')
-            
+             
             # FORCE direction to Inbound for internal task notes
             call_direction = "Inbound"
             call_method = request.POST.get('call_method', 'Note')
             call_type = request.POST.get('call_type', 'General Note')
-            
+             
             if new_category:
                 task.email_category = new_category
             if new_status:
@@ -472,9 +512,8 @@ def pssubf_action_view(request, email_id):
             task.save()
 
             mip_number = getattr(task, 'member_group_code', None)
-            
+             
             # --- PUSH TO SYSTEM LOG (Beneficiary Page) ---
-            # Unindented to run regardless of whether mip_number is populated
             SystemLog.objects.create(
                 mip_number=mip_number,
                 log_title="Task Action Note",
@@ -486,9 +525,9 @@ def pssubf_action_view(request, email_id):
                 note_content=note_text,
                 created_by=request.user.username
             )
-            
+             
             audit_string = f"[{call_direction} | {call_method} | {call_type}]"
-            
+             
             # --- PUSH TO PSSUBF NOTE (Thread History) ---
             PssubfNote.objects.create(
                 task_email_id=email_id,
@@ -513,10 +552,10 @@ def pssubf_action_view(request, email_id):
             bcc_recipient = request.POST.get('reply_bcc', '').strip()
             subject = request.POST.get('reply_subject')
             raw_body_content = request.POST.get('reply_body')
-            
+             
             # Format the email body to preserve paragraphs
             body_content = format_email_body(raw_body_content)
-            
+             
             call_direction = "Outbound"
             call_method = "Emails"
             call_type = "Feedback to Beneficiary"
@@ -524,16 +563,16 @@ def pssubf_action_view(request, email_id):
             uploaded_files = request.FILES.getlist('reply_attachments')
             attachments_payload = []
             file_saved_path = None
-            
+             
             for idx, f in enumerate(uploaded_files):
                 content_bytes = f.read()
                 f.seek(0) # Reset file pointer for local saving
-                
+                 
                 # Save the first attachment locally for database thread reference
                 if idx == 0:
                     fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT))
                     file_saved_path = fs.save(f.name, f)
-                
+                 
                 try:
                     encoded_content = base64.b64encode(content_bytes).decode('utf-8')
                     attachments_payload.append({
@@ -560,13 +599,13 @@ def pssubf_action_view(request, email_id):
                 messages.error(request, f"Email failed: {response.get('error')}")
             else:
                 audit_string = "[Outbound | Email Reply Sent]"
-                
+                 
                 # Build dynamic log string for CC/BCC to keep audit trails clean if empty
                 cc_log = f"\nCC: {cc_recipient}" if cc_recipient else ""
                 bcc_log = f"\nBCC: {bcc_recipient}" if bcc_recipient else ""
 
                 mip_number = getattr(task, 'member_group_code', None)
-                
+                 
                 # --- PUSH TO SYSTEM LOG (Beneficiary Page) ---
                 if mip_number:
                     SystemLog.objects.create(
@@ -591,7 +630,7 @@ def pssubf_action_view(request, email_id):
                     membership_number=mip_number,
                     attachment_path=file_saved_path
                 )
-                
+                 
                 PssubfAction.objects.create(
                     task_email_id=email_id,
                     action_user=request.user.username,
@@ -613,7 +652,7 @@ def pssubf_action_view(request, email_id):
         elif action_type == 'mark_complete':
             task.status = 'Completed'
             task.save()
-            
+             
             PssubfAction.objects.create(
                 task_email_id=email_id,
                 action_user=request.user.username,
@@ -663,7 +702,10 @@ def pssubf_action_view(request, email_id):
         'history': history,
         'email_id': email_id,
         'is_direct': is_direct_entry,
-        'is_system_log': is_system_log
+        'is_system_log': is_system_log,
+        # 🟢 PASS TO TEMPLATE FOR VANESSA
+        'is_vanessa': is_vanessa,
+        'available_users': available_users
     })
 
 
@@ -2217,18 +2259,15 @@ def ad_hoc_list_view(request):
         try:
             member = get_object_or_404(PssubfBeneficiary, membership_number=m_num)
             
-            # 🟢 SECURE FILE UPLOAD WITH AUTO-SANITIZATION (Removes spaces, brackets, etc. to prevent 404s)
+            # --- CORRECT FILE STORAGE HANDLING (Adopted from Claims) ---
             uploaded_file = request.FILES.get('supporting_document')
             file_saved_path = None
+            
             if uploaded_file:
-                 fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT))
-                 
-                 # Sanitize filename: replace spaces, parentheses, and special symbols with underscores
-                 safe_filename = re.sub(r'[()\s]+', '_', uploaded_file.name)
-                 safe_filename = safe_filename.replace('__', '_')
-                 
-                 saved_name = fs.save(safe_filename, uploaded_file)
-                 file_saved_path = os.path.basename(saved_name)
+                fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT))
+                # Let Django handle the file naming and duplicate resolution natively
+                saved_filename = fs.save(uploaded_file.name, uploaded_file)
+                file_saved_path = saved_filename # Saves properly to disk and gets path
             
             timestamp = timezone.now().strftime('%Y-%m-%d %H:%M')
             agent_stamp = f"\n\n--- Managed by {request.user.username} on {timestamp} ---"
@@ -2242,7 +2281,7 @@ def ad_hoc_list_view(request):
                     date_paid=request.POST.get('date_paid') or None,
                     status=request.POST.get('status', 'Created'),
                     supporting_docs_attached=request.POST.get('supporting_docs_attached', 'No') if not file_saved_path else 'Yes',
-                    attachment_path=file_saved_path, # Saves clean URL-safe filename string
+                    attachment_path=file_saved_path, # Saves exactly what Django wrote to disk
                     portfolio_value=clean_numeric(request.POST.get('portfolio_value')),
                     portfolio_date=request.POST.get('portfolio_date') or None,
                     amount_requested=clean_numeric(request.POST.get('amount_requested')),
@@ -2394,6 +2433,29 @@ def ad_hoc_list_view(request):
         'date_to': date_to_str,
     }
     return render(request, 'Ad_hoc_list.html', context)
+
+@login_required
+def download_adhoc_attachment(request, record_id):
+    """Securely downloads the Ad Hoc attachment and handles missing files gracefully."""
+    record = get_object_or_404(AdHocList, id=record_id)
+    
+    if not record.attachment_path:
+        messages.error(request, "No attachment is linked to this record.")
+        return redirect('adhoc_list')
+        
+    # Build the physical path to the file
+    file_path = os.path.join(settings.MEDIA_ROOT, str(record.attachment_path))
+    
+    # Check if the file actually exists on the hard drive
+    if os.path.exists(file_path):
+        response = FileResponse(open(file_path, 'rb'))
+        # Force download instead of opening in browser
+        response['Content-Disposition'] = f'attachment; filename="{os.path.basename(file_path)}"'
+        return response
+    else:
+        # Prevents the ugly 404 page if an old test file is missing
+        messages.error(request, f"The physical file '{record.attachment_path}' is missing from the server.")
+        return redirect('adhoc_list')
 
 @login_required
 def get_claim_details(request, claim_id):
