@@ -280,9 +280,10 @@ def unity_list(request):
         if b_id in bill_map:
             allocation_map[bill_map[b_id]] += (a['amount'] or Decimal('0.00'))
 
-    # Calculate "Current Billing Status" AND "Fiscal Date" Map (Normalized to Month Start)
+    # Calculate "Current Billing Status", "Fiscal Date", and "Last Recon Date" Maps
     billing_status_map = {}
     fiscal_date_map = {} 
+    last_recon_date_map = {} # 🚀 NEW: Tracks last recon date where is_reconciled = 1
     
     all_bills = UnityBill.objects.all().order_by('A_CCDatesMonth')
     
@@ -290,6 +291,13 @@ def unity_list(request):
         code = b.C_Company_Code
         total_covered = JournalEntry.objects.filter(target_bill=b).aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
         
+        # 🚀 Track Last Recon Date (if is_reconciled is true/1)
+        if b.is_reconciled and b.A_CCDatesMonth:
+            if hasattr(b.A_CCDatesMonth, 'strftime'):
+                last_recon_date_map[code] = b.A_CCDatesMonth.strftime('%Y-%m-%d')
+            else:
+                last_recon_date_map[code] = str(b.A_CCDatesMonth)
+
         # Priority Logic for Status
         if b.is_reconciled:
             status = "RECON COMPLETE"
@@ -331,6 +339,9 @@ def unity_list(request):
         if not final_fiscal and detail_record:
             final_fiscal = detail_record.g_current_fiscal
 
+        # 🚀 Fallback to '1900-01-00' if no reconciled bill exists for this company
+        last_recon_val = last_recon_date_map.get(company_code, '1900-01-00')
+
         combined_records.append({
             'A_Company_Code': fund_record.A_Company_Code,
             'B_Company_Name': fund_record.B_Company_Name,
@@ -341,7 +352,7 @@ def unity_list(request):
             'f_billing_method': detail_record.f_billing_method if detail_record else None,
             'g_current_fiscal': final_fiscal or "N/A",
             'h_current_status': billing_status_map.get(company_code, "N/A"),
-            'j_arrears': detail_record.j_arrears if detail_record else None,
+            'j_arrears': last_recon_val, # 🚀 Replaced old arrears with Last Recon Date
             'has_details': bool(detail_record),
             'active_surplus': active_surplus_value,
         })
@@ -351,6 +362,7 @@ def unity_list(request):
         active_surplus_value = surplus_map.get(company_code, Decimal('0.00')) - allocation_map.get(company_code, Decimal('0.00'))
         
         final_fiscal = fiscal_date_map.get(company_code) or detail_record.g_current_fiscal
+        last_recon_val = last_recon_date_map.get(company_code, '1900-01-00')
 
         combined_records.append({
             'A_Company_Code': detail_record.a_company_code,
@@ -362,7 +374,7 @@ def unity_list(request):
             'f_billing_method': detail_record.f_billing_method,
             'g_current_fiscal': final_fiscal,
             'h_current_status': billing_status_map.get(company_code, "NO BILLING"),
-            'j_arrears': detail_record.j_arrears,
+            'j_arrears': last_recon_val, # 🚀 Replaced old arrears with Last Recon Date
             'has_details': True,
             'active_surplus': active_surplus_value,
         })
