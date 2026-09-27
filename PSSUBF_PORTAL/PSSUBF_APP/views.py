@@ -305,11 +305,31 @@ def pssubf_delegate_view(request, email_id):
         agent_name = request.POST.get('assigned_agent')
         is_recycle = 'recycle' in request.POST
         
+        # 🟢 1. MAKE A MUTABLE COPY OF POST DATA
+        form_data = request.POST.copy()
+        
+        provided_mip = form_data.get('member_group_code', '').strip()
+        provided_id = form_data.get('id_number', '').strip()
+        
+        # 🟢 2. SMART MAPPING: CHECK BENEFICIARIES TABLE
+        if provided_id and not provided_mip:
+            # They entered an ID Number, but no MIP. Check if they exist in the master table!
+            beneficiary = PssubfBeneficiary.objects.filter(id_number=provided_id).first()
+            if beneficiary and beneficiary.membership_number:
+                form_data['member_group_code'] = beneficiary.membership_number
+                
+        elif provided_mip and not provided_id:
+            # Optional: If they entered a MIP but no ID, back-fill the ID from the master table!
+            beneficiary = PssubfBeneficiary.objects.filter(membership_number=provided_mip).first()
+            if beneficiary and beneficiary.id_number:
+                form_data['id_number'] = beneficiary.id_number
+
+        # 🟢 3. PASS THE ENRICHED FORM DATA TO THE SERVICE
         success, message = delegate_pssubf_task(
             email_id=email_id,
             agent_name=agent_name,
             delegator_user=request.user,
-            form_data=request.POST,
+            form_data=form_data, 
             is_recycle=is_recycle
         )
         
@@ -1720,8 +1740,10 @@ def beneficiary_details_view(request, membership_number):
     claim_refs = [c.reference_no for c in claims]
     all_history = ClaimHistory.objects.filter(claim_reference__in=claim_refs).order_by('-created_at')
 
+# 🟢 UPDATED: Now searches by MIP number OR the Member's ID Number
     incoming_emails = PssubfDelegate.objects.filter(
         Q(member_group_code=membership_number) | 
+        Q(id_number=member.id_number) |          # <--- THIS IS THE MAGIC LINK
         Q(email_id__icontains=membership_number)
     ).exclude(email_id__startswith='DIRECT_')
     

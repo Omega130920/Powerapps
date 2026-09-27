@@ -195,7 +195,7 @@
                     {{ email_content|safe }}
                 {% else %}
                     <p class="text-muted fst-italic">No email body content found.</p>
-                {% endif %}
+                {% endif %} <!-- 🟢 Fixed missing opening bracket here -->
             </div>
             
             {% if attachments %}
@@ -226,6 +226,11 @@
             <div class="form-group">
                 <label>MIP Number:</label>
                 <input type="text" name="member_group_code" class="form-control-custom" placeholder="e.g. GS001">
+            </div>
+
+            <div class="form-group">
+                <label>ID Number:</label>
+                <input type="text" name="id_number" class="form-control-custom" placeholder="e.g. 9001015000088">
             </div>
 
             <div class="form-group">

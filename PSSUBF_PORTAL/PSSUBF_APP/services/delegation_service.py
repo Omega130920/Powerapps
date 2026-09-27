@@ -33,6 +33,7 @@ def delegate_pssubf_task(email_id, agent_name, delegator_user, form_data, is_rec
             defaults={
                 'assigned_agent': display_agent,
                 'member_group_code': form_data.get('member_group_code'),
+                'id_number': form_data.get('id_number'), # 🟢 NEW: Saves ID Number from form
                 'email_category': form_data.get('email_category'),
                 'status': final_status,
                 'subject': inbox_item.subject,

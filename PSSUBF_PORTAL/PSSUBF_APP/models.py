@@ -1,5 +1,7 @@
 from django.db import models
 from datetime import date
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 class PssubfInbox(models.Model):
     email_id = models.CharField(max_length=255, primary_key=True)
@@ -18,6 +20,10 @@ class PssubfDelegate(models.Model):
     email_id = models.CharField(max_length=255, primary_key=True)
     assigned_agent = models.CharField(max_length=150, blank=True, null=True)
     member_group_code = models.CharField(max_length=100, blank=True, null=True)
+    
+    # 🟢 NEW: id_number added here to capture pre-loaded member tasks!
+    id_number = models.CharField(max_length=50, blank=True, null=True)
+    
     email_category = models.CharField(max_length=100, blank=True, null=True)
     subject = models.CharField(max_length=255, blank=True, null=True)
     sender = models.CharField(max_length=255, blank=True, null=True)
@@ -149,6 +155,9 @@ class PssubfBeneficiary(models.Model):
 
     @property
     def is_expired(self):
+        # 🟢 Added a safety check to prevent crashes if cessation_date is empty
+        if not self.cessation_date:
+            return False
         return date.today() >= self.cessation_date
 
     def __str__(self):
@@ -164,8 +173,6 @@ class PssubfProfileNote(models.Model):
         managed = False
         db_table = 'pssubf_profile_notes'
 
-from django.db import models
-
 class PssubfDirectEmail(models.Model):
     # Added null=True and blank=True to prevent IntegrityErrors
     membership_number = models.CharField(max_length=100, null=True, blank=True)
@@ -180,10 +187,6 @@ class PssubfDirectEmail(models.Model):
     class Meta:
         managed = False
         db_table = 'pssubf_direct_emails'
-        
-from django.db import models
-
-from django.db import models
 
 class ClaimList(models.Model):
     # This is the ONLY field. It handles the DB column AND the relationship.
@@ -224,8 +227,6 @@ class ClaimList(models.Model):
     class Meta:
         db_table = 'pssubf_claim_list'
         managed = False
-
-from django.db import models
 
 class AdHocList(models.Model):
     # Foreign Key Relation to Beneficiary
@@ -318,6 +319,9 @@ class SystemLog(models.Model):
     # Added MIP Number
     mip_number = models.CharField(max_length=100, blank=True, null=True)
     
+    # 🟢 NEW: id_number added here to capture pre-loaded member logs!
+    id_number = models.CharField(max_length=50, blank=True, null=True)
+    
     # Text inputs
     log_title = models.CharField(max_length=200)
     
@@ -355,3 +359,29 @@ class ClaimHistory(models.Model):
     class Meta:
         db_table = 'pssubf_claim_history'
         managed = False
+
+# 🟢 RETROACTIVE HISTORY LINKER
+@receiver(post_save, sender=PssubfBeneficiary)
+def link_historical_delegations(sender, instance, created, **kwargs):
+    """
+    When a new beneficiary is saved to the database, this automatically scans 
+    the PssubfDelegate and SystemLog tables for any old tasks/logs that have this person's ID Number 
+    but are missing a MIP number, and stamps them with the new official MIP Number.
+    """
+    if instance.id_number and instance.membership_number:
+        # Find all historical delegations matching the ID, but missing the MIP
+        unlinked_tasks = PssubfDelegate.objects.filter(
+            id_number=instance.id_number, 
+            member_group_code__in=[None, '']
+        )
+        # Update them all in one go with the new MIP number
+        if unlinked_tasks.exists():
+            unlinked_tasks.update(member_group_code=instance.membership_number)
+            
+        # Do the exact same thing for the SystemLog table
+        unlinked_logs = SystemLog.objects.filter(
+            id_number=instance.id_number, 
+            mip_number__in=[None, '']
+        )
+        if unlinked_logs.exists():
+            unlinked_logs.update(mip_number=instance.membership_number)
