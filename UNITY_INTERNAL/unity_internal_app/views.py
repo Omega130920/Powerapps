@@ -5783,10 +5783,11 @@ def create_manual_credit(request):
 def export_unity_list_excel(request):
     """
     Exports the combined Unity List (InternalFunds + UnityMgListing) to Excel.
-    Includes the calculated 'Active Surplus'.
+    Includes the calculated 'Active Surplus' and the correct Last Recon Date.
     """
     from collections import defaultdict
     from decimal import Decimal
+    from datetime import datetime
     import openpyxl
     from django.http import HttpResponse
     
@@ -5800,7 +5801,7 @@ def export_unity_list_excel(request):
         record.a_company_code: record for record in UnityMgListing.objects.all()
     }
     
-    # 2. Calculate Surplus/Allocation (Manual Calculation)
+    # 2. Calculate Surplus/Allocation & Last Recon Date
     bill_map = dict(UnityBill.objects.values_list('id', 'C_Company_Code'))
     ZERO_DECIMAL = Decimal('0.00')
 
@@ -5822,6 +5823,17 @@ def export_unity_list_excel(request):
         if b_id in bill_map:
             allocation_map[bill_map[b_id]] += amount
 
+    # 🚀 Track Last Recon Date from UnityBill where is_reconciled = 1
+    last_recon_date_map = {}
+    all_bills = UnityBill.objects.all().order_by('A_CCDatesMonth')
+    for b in all_bills:
+        code = b.C_Company_Code
+        if b.is_reconciled and b.A_CCDatesMonth:
+            if hasattr(b.A_CCDatesMonth, 'strftime'):
+                last_recon_date_map[code] = b.A_CCDatesMonth.strftime('%Y-%m-%d')
+            else:
+                last_recon_date_map[code] = str(b.A_CCDatesMonth)
+
     # 3. Build Combined List
     combined_records = []
 
@@ -5834,6 +5846,8 @@ def export_unity_list_excel(request):
         total_used = allocation_map.get(company_code, ZERO_DECIMAL)
         active_surplus_value = total_gained - total_used
         
+        last_recon_val = last_recon_date_map.get(company_code, '1900-01-00')
+        
         combined_records.append({
             'code': fund_record.A_Company_Code,
             'name': fund_record.B_Company_Name,
@@ -5844,8 +5858,7 @@ def export_unity_list_excel(request):
             'billing': detail_record.f_billing_method if detail_record else None,
             'fiscal': detail_record.g_current_fiscal if detail_record else None,
             'current_status': detail_record.h_current_status if detail_record else None,
-            'last_recon': detail_record.i_last_recon if detail_record else None,
-            'arrears': detail_record.j_arrears if detail_record else None,
+            'last_recon': last_recon_val,
             'email': detail_record.contact_email if detail_record else None,
             'surplus': active_surplus_value,
         })
@@ -5855,6 +5868,8 @@ def export_unity_list_excel(request):
         total_gained = surplus_map.get(company_code, ZERO_DECIMAL)
         total_used = allocation_map.get(company_code, ZERO_DECIMAL)
         active_surplus_value = total_gained - total_used
+        
+        last_recon_val = last_recon_date_map.get(company_code, '1900-01-00')
         
         combined_records.append({
             'code': detail_record.a_company_code,
@@ -5866,8 +5881,7 @@ def export_unity_list_excel(request):
             'billing': detail_record.f_billing_method,
             'fiscal': detail_record.g_current_fiscal,
             'current_status': detail_record.h_current_status,
-            'last_recon': detail_record.i_last_recon,
-            'arrears': detail_record.j_arrears,
+            'last_recon': last_recon_val,
             'email': detail_record.contact_email,
             'surplus': active_surplus_value,
         })
@@ -5877,11 +5891,11 @@ def export_unity_list_excel(request):
     ws = wb.active
     ws.title = "Unity List Export"
 
-    # Define Headers
+    # Define Headers (Replaced Arrears with Last Recon Date)
     headers = [
         "Company Code", "Company Name", "Source", "Company Status", 
         "Agent", "Payment Method", "Billing Method", "Fiscal Year", 
-        "Current Status", "Last Recon Note", "Arrears", "Contact Email", "Active Surplus"
+        "Current Status", "Last Recon", "Contact Email", "Active Surplus"
     ]
     ws.append(headers)
 
@@ -5898,7 +5912,6 @@ def export_unity_list_excel(request):
             r['fiscal'],
             r['current_status'],
             r['last_recon'],
-            r['arrears'],
             r['email'],
             r['surplus']
         ])
