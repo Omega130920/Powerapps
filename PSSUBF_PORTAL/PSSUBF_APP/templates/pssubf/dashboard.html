@@ -19,7 +19,7 @@
             width: 100%;
             margin: 0;
             padding: 0;
-            overflow: hidden;
+            overflow: hidden; /* Locks page to prevent scrollbars */
         }
 
         body {
@@ -29,13 +29,13 @@
             flex-direction: column;
             align-items: center;
             box-sizing: border-box;
-            padding: 2vh 2vw;
+            padding: 1.5vh 2vw;
         }
 
         h1 {
-            font-size: clamp(1.8rem, 3.5vh, 2.8rem);
+            font-size: clamp(1.4rem, 2.5vh, 2rem);
             text-align: center;
-            margin: 2vh 0 1vh 0;
+            margin: 0.5vh 0 0.2vh 0;
             color: var(--text-dark);
             font-weight: 300;
             letter-spacing: 1px;
@@ -44,20 +44,20 @@
         .subtitle {
             color: var(--text-dark);
             opacity: 0.7;
-            margin-bottom: 4vh;
-            font-size: 1.1rem;
+            margin-bottom: 1.5vh;
+            font-size: 0.9rem;
         }
 
         .button-container {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 25px;
+            grid-template-rows: repeat(3, minmax(0, 1fr));
+            gap: 15px;
             width: 100%;
-            max-width: 1300px;
+            max-width: 1250px;
             flex: 1;
             min-height: 0;
-            padding-bottom: 40px;
-            align-content: center;
+            margin-bottom: 1vh;
         }
 
         /* --- MODERN GLASS CARD STYLING --- */
@@ -66,57 +66,59 @@
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
             border: 1px solid var(--glass-border);
-            border-radius: 20px;
+            border-radius: 14px;
             text-decoration: none;
             color: var(--text-dark);
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            padding: 30px 20px;
+            padding: 12px 10px;
             transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
             position: relative;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
             text-align: center;
+            overflow: hidden;
         }
 
         .button-block:hover {
             background: rgba(255, 255, 255, 0.4);
-            transform: translateY(-10px);
-            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+            transform: translateY(-4px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
             border-color: rgba(255, 255, 255, 0.5);
         }
 
         .button-block i {
-            font-size: 2.5rem; 
-            margin-bottom: 15px;
+            font-size: 1.6rem; 
+            margin-bottom: 6px;
             color: var(--text-dark);
             opacity: 0.8;
         }
 
         .button-text {
-            font-size: 1.1rem;
+            font-size: 0.95rem;
             font-weight: 600;
-            line-height: 1.2;
-            margin-bottom: 8px;
+            line-height: 1.1;
+            margin-bottom: 3px;
         }
 
         .button-desc {
-            font-size: 0.8rem;
+            font-size: 0.7rem;
             opacity: 0.7;
-            padding: 0 10px;
+            padding: 0 5px;
+            line-height: 1;
         }
 
         /* --- BADGE STYLING --- */
         .badge {
             position: absolute;
-            top: 15px;
-            right: 15px;
+            top: 8px;
+            right: 8px;
             background-color: #ef5350;
             color: white;
-            border-radius: 10px;
-            padding: 5px 10px;
-            font-size: 0.8rem;
+            border-radius: 8px;
+            padding: 2px 6px;
+            font-size: 0.65rem;
             font-weight: bold;
             box-shadow: 0 2px 8px rgba(239, 83, 80, 0.4);
             border: 1px solid rgba(255,255,255,0.3);
@@ -130,36 +132,40 @@
         .badge.dark-badge { background-color: #455a64; }
 
         /* --- LOGOUT & FOOTER --- */
-        .logout-wrapper { position: absolute; top: 20px; right: 20px; }
+        .logout-wrapper { position: absolute; top: 15px; right: 20px; }
         .logout-button {
             background: var(--glass-bg);
             backdrop-filter: blur(5px);
             color: var(--text-dark);
-            padding: 8px 16px;
+            padding: 6px 14px;
             border: 1px solid var(--glass-border);
-            border-radius: 12px;
+            border-radius: 10px;
             cursor: pointer;
             font-weight: bold;
+            font-size: 0.85rem;
             transition: all 0.2s;
         }
         .logout-button:hover { background: rgba(255,255,255,0.4); }
 
         .footer-info {
-            margin-top: auto;
-            margin-bottom: 20px;
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             text-transform: uppercase;
             letter-spacing: 1px;
             color: var(--text-dark);
             opacity: 0.6;
+            padding-bottom: 0.5vh;
         }
 
         /* --- RESPONSIVE --- */
-        @media (max-width: 1200px) { .button-container { grid-template-columns: repeat(3, 1fr); } }
-        @media (max-width: 900px) { .button-container { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 1200px) { 
+            .button-container { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, minmax(0, 1fr)); } 
+        }
+        @media (max-width: 900px) { 
+            .button-container { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(5, minmax(0, 1fr)); } 
+            html, body { overflow-y: auto; }
+        }
         @media (max-width: 600px) { 
-            .button-container { grid-template-columns: 1fr; overflow-y: auto; }
-            body { overflow-y: auto; height: auto; }
+            .button-container { grid-template-columns: 1fr; grid-template-rows: repeat(9, minmax(0, 1fr)); } 
         }
     </style>
 </head>
@@ -175,7 +181,7 @@
     </div>
 
     <h1>PSSUBF <strong>Home Screen</strong></h1>
-    <p class="subtitle">Welcome back, {{ user.username }}</p>
+    <p class="subtitle"></p>
 
     <div class="button-container">
         <a href="{% url 'pssubf_dashboard' %}" class="button-block">
@@ -222,7 +228,6 @@
             <span class="button-desc">Track claim processing times</span>
         </a>
 
-        <!-- NEW QUICK LOG BUTTON -->
         <a href="{% url 'pssubf_log_page' %}" class="button-block">
             <i class="fas fa-book-open"></i>
             <span class="button-text">Quick Log</span>
@@ -237,13 +242,8 @@
         </a>
     </div>
 
-    <div class="footer-info">
-        Connected: <span style="font-weight:bold;">{{ settings.OUTLOOK_EMAIL_ADDRESS }}</span>
-    </div>
-
     <script>
         function refreshDashboardStats() {
-            // FIXED: Removed the /pssubf/ prefix so it points to the correct backend route
             fetch('/dashboard-stats/') 
                 .then(response => {
                     if (!response.ok) throw new Error('Network response was not ok');

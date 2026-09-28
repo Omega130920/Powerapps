@@ -1085,27 +1085,37 @@ def pssubf_recycle_view(request, email_id):
     
 @login_required
 def pssubf_delete_permanent(request, email_id):
-    """Permanently deletes a single record from the database."""
-    task = get_object_or_404(PssubfDelegate, email_id=email_id)
-    task.delete()
+    """
+    Permanently deletes a single record from both the Delegate and Inbox tables 
+    so it is completely scrubbed from local app views and cannot return.
+    """
+    # 1. Delete from Delegate table (Removes it from Recycle Bin view)
+    PssubfDelegate.objects.filter(email_id=email_id).delete()
     
-    # Also clean up the inbox status if needed, or just leave it
-    PssubfInbox.objects.filter(email_id=email_id).update(status='DELETED')
+    # 2. ALSO explicitly delete from Inbox table (Prevents it from reappearing in inbox/dashboard)
+    PssubfInbox.objects.filter(email_id=email_id).delete()
     
-    messages.error(request, "Record permanently deleted.")
+    messages.error(request, "Record permanently deleted from the system.")
     return redirect('pssubf_recycle_bin')
+
 
 @login_required
 def pssubf_bulk_delete(request):
-    """Handles multiple deletions at once."""
+    """
+    Handles multiple permanent deletions from the recycle bin.
+    """
     if request.method == 'POST':
         selected_ids = request.POST.getlist('selected_ids')
-        if selected_ids:
-            # Delete from delegate table
+        action = request.POST.get('action')
+
+        if selected_ids and action == 'permanent_delete':
+            # 🔴 Hard delete from both tables simultaneously
             PssubfDelegate.objects.filter(email_id__in=selected_ids).delete()
-            # Mark as deleted in inbox
-            PssubfInbox.objects.filter(email_id__in=selected_ids).update(status='DELETED')
-            messages.error(request, f"Permanently deleted {len(selected_ids)} records.")
+            PssubfInbox.objects.filter(email_id__in=selected_ids).delete()
+            
+            messages.error(request, f"Permanently deleted {len(selected_ids)} records from the system.")
+        else:
+            messages.warning(request, "Invalid action or no items selected.")
             
     return redirect('pssubf_recycle_bin')
 
@@ -1952,19 +1962,29 @@ def export_beneficiaries_excel(request):
 
 @login_required
 def get_beneficiary_data(request, membership_number):
-    """API endpoint to auto-populate the New Claim popup"""
+    """
+    API endpoint to auto-populate the New Claim popup.
+    Matches your DB Schema: 'stipened' and 'total_fund_value'.
+    """
     member = get_object_or_404(PssubfBeneficiary, membership_number=membership_number)
     
-    # Calculate age for the age_at_claim field (initial calculation)
+    # Calculate current age for the initial view
     today = timezone.now().date()
-    age = today.year - member.dob.year - ((today.month, today.day) < (member.dob.month, member.dob.day))
+    age = 0
+    if member.dob:
+        age = today.year - member.dob.year - ((today.month, today.day) < (member.dob.month, member.dob.day))
     
     data = {
+        'success': True,
+        'membership_number': member.membership_number,
         'guardian_name': f"{member.guardian_first_name or ''} {member.guardian_last_name or ''}".strip(),
-        'beneficiary_name': f"{member.first_name} {member.last_name}",
-        'dob': member.dob.strftime('%Y-%m-%d'),
-        'termination_date': member.cessation_date.strftime('%Y-%m-%d') if member.cessation_date else '',
+        'beneficiary_name': f"{member.first_name or ''} {member.last_name or ''}".strip(),
+        # Date inputs in HTML require YYYY-MM-DD format
+        'dob': member.dob.strftime('%Y-%m-%d') if member.dob else '',
+        'term_date': member.cessation_date.strftime('%Y-%m-%d') if member.cessation_date else '',
+        # Use exact DB column names from your table definition
         'stipened': float(member.stipened or 0),
+        'total_fund_value': float(member.total_fund_value or 0),
         'age': age
     }
     return JsonResponse(data)
@@ -2249,8 +2269,15 @@ def claim_list_view(request):
     if date_to:
         claims = claims.filter(date_logged__lte=date_to)
 
-    # DYNAMIC DISPLAY CALCULATION: Age at Claim
+    # DYNAMIC DISPLAY CALCULATION: Age at Claim & Injecting Live Beneficiary Data
     for c in claims:
+        if c.beneficiary:
+            c.live_beneficiary_name = f"{c.beneficiary.first_name or ''} {c.beneficiary.last_name or ''}".strip()
+            c.live_guardian_name = f"{c.beneficiary.guardian_first_name or ''} {c.beneficiary.guardian_last_name or ''}".strip()
+        else:
+            c.live_beneficiary_name = c.beneficiary_name or "---"
+            c.live_guardian_name = c.guardian_name or "---"
+
         if c.beneficiary and c.beneficiary.dob and c.date_logged:
             diff = relativedelta(c.date_logged, c.beneficiary.dob)
             total_m = round((diff.years * 12) + diff.months + (diff.days / 30.44))
@@ -2271,26 +2298,13 @@ def ad_hoc_list_view(request):
         return str(val).replace('R', '').replace(',', '').replace('%', '').strip()
 
     if request.method == 'POST':
-        # 🟢 DEBUG PRINTS TO VERIFY FORM SUBMISSION AND FILES
-        print("--- DEBUG FILES ---", request.FILES)
-        print("--- DEBUG POST ---", request.POST)
-
         action = request.POST.get('action')
         m_num = request.POST.get('membership_number')
         
         try:
             member = get_object_or_404(PssubfBeneficiary, membership_number=m_num)
-            
-            # --- CORRECT FILE STORAGE HANDLING (Adopted from Claims) ---
             uploaded_file = request.FILES.get('supporting_document')
-            file_saved_path = None
-            
-            if uploaded_file:
-                fs = FileSystemStorage(location=os.path.join(settings.MEDIA_ROOT))
-                # Let Django handle the file naming and duplicate resolution natively
-                saved_filename = fs.save(uploaded_file.name, uploaded_file)
-                file_saved_path = saved_filename # Saves properly to disk and gets path
-            
+            file_name = uploaded_file.name if uploaded_file else None
             timestamp = timezone.now().strftime('%Y-%m-%d %H:%M')
             agent_stamp = f"\n\n--- Managed by {request.user.username} on {timestamp} ---"
 
@@ -2302,8 +2316,8 @@ def ad_hoc_list_view(request):
                     claim_form_date=request.POST.get('claim_form_date') or None,
                     date_paid=request.POST.get('date_paid') or None,
                     status=request.POST.get('status', 'Created'),
-                    supporting_docs_attached=request.POST.get('supporting_docs_attached', 'No') if not file_saved_path else 'Yes',
-                    attachment_path=file_saved_path, # Saves exactly what Django wrote to disk
+                    supporting_docs_attached=request.POST.get('supporting_docs_attached', 'No'),
+                    attachment_path=file_name,
                     portfolio_value=clean_numeric(request.POST.get('portfolio_value')),
                     portfolio_date=request.POST.get('portfolio_date') or None,
                     amount_requested=clean_numeric(request.POST.get('amount_requested')),
@@ -2314,21 +2328,16 @@ def ad_hoc_list_view(request):
                 record_id = request.POST.get('record_id')
                 record = get_object_or_404(AdHocList, id=record_id)
                 
-                # Handle file upload or removal in the update process
-                if file_saved_path:
-                    record.attachment_path = file_saved_path
-                    record.supporting_docs_attached = 'Yes'
+                if file_name:
+                    record.attachment_path = file_name
                 elif request.POST.get('remove_attachment') == 'true':
                     record.attachment_path = None
-                    record.supporting_docs_attached = 'No'
 
                 record.title = request.POST.get('title')
                 record.status = request.POST.get('status')
                 record.claim_form_date = request.POST.get('claim_form_date') or None
                 record.date_paid = request.POST.get('date_paid') or None
-                
-                if not file_saved_path and request.POST.get('remove_attachment') != 'true':
-                    record.supporting_docs_attached = request.POST.get('supporting_docs_attached')
+                record.supporting_docs_attached = request.POST.get('supporting_docs_attached')
                 record.portfolio_value = clean_numeric(request.POST.get('portfolio_value'))
                 record.portfolio_date = request.POST.get('portfolio_date') or None
                 record.amount_requested = clean_numeric(request.POST.get('amount_requested'))
@@ -2345,8 +2354,6 @@ def ad_hoc_list_view(request):
             return redirect('adhoc_list')
             
         except Exception as e:
-            import traceback
-            print(traceback.format_exc())
             messages.error(request, f"Process Error: {str(e)}")
 
     # 🟢 GET PARAMETERS FOR SEARCH & EXPORT
@@ -2355,13 +2362,13 @@ def ad_hoc_list_view(request):
     date_to_str = request.GET.get('date_to', '').strip()
     export_format = request.GET.get('export')
 
-    adhoc_records = AdHocList.objects.all().select_related('beneficiary').order_by('-date_created' if hasattr(AdHocList, 'date_created') else '-id')
+    adhoc_records = AdHocList.objects.all().select_related('beneficiary').order_by('-date_created')
 
     # 🟢 1. APPLY MEMBERSHIP NUMBER FILTER
     if membership_number:
         adhoc_records = adhoc_records.filter(beneficiary__membership_number__icontains=membership_number)
     
-    # 🟢 2. ADVANCED DATE FILTERING
+    # 🟢 2. ADVANCED DATE FILTERING (Handling CharField dirty date strings)
     if date_from_str or date_to_str:
         parsed_from = None
         parsed_to = None
@@ -2374,6 +2381,7 @@ def ad_hoc_list_view(request):
         except ValueError:
             pass
 
+        # Parse and filter in Python to avoid string sorting issues in DB
         filtered_list = []
         for a in adhoc_records:
             if not a.claim_form_date:
@@ -2393,19 +2401,28 @@ def ad_hoc_list_view(request):
                 
         adhoc_records = filtered_list
 
-    # 🟢 DYNAMIC DISPLAY CALCULATION: Years to Maturity
+    # 🟢 DYNAMIC DISPLAY CALCULATION: Years to Maturity & Injecting Live Beneficiary Data
     for a in adhoc_records:
-        if getattr(a, 'beneficiary', None) and getattr(a.beneficiary, 'cessation_date', None) and getattr(a, 'claim_form_date', None):
-            try:
-                c_date = date_parser.parse(str(a.beneficiary.cessation_date)).date() if isinstance(a.beneficiary.cessation_date, str) else a.beneficiary.cessation_date
-                f_date = date_parser.parse(str(a.claim_form_date), dayfirst=True).date() if isinstance(a.claim_form_date, str) else a.claim_form_date
-                
-                diff = relativedelta(c_date, f_date)
-                total_m = round((diff.years * 12) + diff.months + (diff.days / 30.44))
-                a.maturity_display = f"{total_m // 12}Y {str(total_m % 12).zfill(2)}M"
-            except Exception:
+        if a.beneficiary:
+            # Dynamically pull live guardian names/beneficiary attributes so updates reflect immediately
+            a.live_guardian_name = f"{a.beneficiary.guardian_first_name or ''} {a.beneficiary.guardian_last_name or ''}".strip()
+            a.live_beneficiary_name = f"{a.beneficiary.first_name or ''} {a.beneficiary.last_name or ''}".strip()
+            
+            if a.beneficiary.cessation_date and a.claim_form_date:
+                try:
+                    c_date = date_parser.parse(str(a.beneficiary.cessation_date)).date() if isinstance(a.beneficiary.cessation_date, str) else a.beneficiary.cessation_date
+                    f_date = date_parser.parse(str(a.claim_form_date), dayfirst=True).date() if isinstance(a.claim_form_date, str) else a.claim_form_date
+                    
+                    diff = relativedelta(c_date, f_date)
+                    total_m = round((diff.years * 12) + diff.months + (diff.days / 30.44))
+                    a.maturity_display = f"{total_m // 12}Y {str(total_m % 12).zfill(2)}M"
+                except Exception:
+                    a.maturity_display = "---"
+            else:
                 a.maturity_display = "---"
         else:
+            a.live_guardian_name = "---"
+            a.live_beneficiary_name = "---"
             a.maturity_display = "---"
 
     # 🟢 CSV EXPORT LOGIC
@@ -2456,6 +2473,45 @@ def ad_hoc_list_view(request):
     }
     return render(request, 'Ad_hoc_list.html', context)
 
+
+@login_required
+def get_adhoc_details_view(request, record_id):
+    """API endpoint to fetch Ad Hoc record details including live updated beneficiary information."""
+    try:
+        record = get_object_or_404(AdHocList, id=record_id)
+        beneficiary = record.beneficiary
+
+        # Pull live values from PssubfBeneficiary if linked, ensuring updates show up immediately
+        guardian_name = ""
+        beneficiary_name = ""
+        dob = ""
+        
+        if beneficiary:
+            guardian_name = f"{beneficiary.guardian_first_name or ''} {beneficiary.guardian_last_name or ''}".strip()
+            beneficiary_name = f"{beneficiary.first_name or ''} {beneficiary.last_name or ''}".strip()
+            dob = beneficiary.dob.strftime('%Y-%m-%d') if beneficiary.dob else ''
+
+        data = {
+            'success': True,
+            'membership_number': beneficiary.membership_number if beneficiary else '',
+            'guardian_name': guardian_name, # 🔴 Returns live updated guardian name
+            'beneficiary_name': beneficiary_name, # 🔴 Returns live updated beneficiary name
+            'dob': dob,
+            'title': record.title,
+            'status': record.status,
+            'claim_form_date': str(record.claim_form_date) if record.claim_form_date else '',
+            'date_paid': str(record.date_paid) if record.date_paid else '',
+            'supporting_docs_attached': record.supporting_docs_attached,
+            'portfolio_value': float(record.portfolio_value or 0),
+            'portfolio_date': str(record.portfolio_date) if record.portfolio_date else '',
+            'amount_requested': float(record.amount_requested or 0),
+            'comments': record.comments,
+            'attachment_path': record.attachment_path if record.attachment_path else None
+        }
+        return JsonResponse(data)
+    except Exception as e:
+        return JsonResponse({'success': False, 'error': str(e)})
+
 @login_required
 def download_adhoc_attachment(request, record_id):
     """Securely downloads the Ad Hoc attachment and handles missing files gracefully."""
@@ -2481,7 +2537,7 @@ def download_adhoc_attachment(request, record_id):
 
 @login_required
 def get_claim_details(request, claim_id):
-    """Fetches full claim data and cleans the description for editing"""
+    """Fetches full claim data, pulling live updated beneficiary and guardian information."""
     claim = get_object_or_404(ClaimList, id=claim_id)
     member = claim.beneficiary
     
@@ -2490,18 +2546,41 @@ def get_claim_details(request, claim_id):
     if "--- Managed by" in clean_description:
         clean_description = clean_description.split("---")[0].strip()
 
+    # Pull live values from the linked PssubfBeneficiary record if available, 
+    # falling back to frozen claim column data if necessary.
+    guardian_name = ""
+    beneficiary_name = ""
+    dob = ""
+    term_date = ""
+    monthly_income = float(claim.monthly_income_payment or 0)
+    portfolio_value = float(claim.portfolio_value or 0)
+
+    if member:
+        guardian_name = f"{member.guardian_first_name or ''} {member.guardian_last_name or ''}".strip()
+        beneficiary_name = f"{member.first_name or ''} {member.last_name or ''}".strip()
+        dob = member.dob.strftime('%Y-%m-%d') if member.dob else ''
+        term_date = member.cessation_date.strftime('%Y-%m-%d') if member.cessation_date else ''
+        if member.stipened:
+            monthly_income = float(member.stipened)
+        if member.total_fund_value:
+            portfolio_value = float(member.total_fund_value)
+    else:
+        guardian_name = claim.guardian_name or ""
+        beneficiary_name = claim.beneficiary_name or ""
+        dob = claim.beneficiary_dob.strftime('%Y-%m-%d') if claim.beneficiary_dob else ''
+        term_date = claim.termination_date.strftime('%Y-%m-%d') if claim.termination_date else ''
+
     data = {
-        'membership_number': member.membership_number,
-        'guardian_name': f"{member.guardian_first_name or ''} {member.guardian_last_name or ''}".strip(),
-        'beneficiary_name': f"{member.first_name} {member.last_name}",
-        'dob': member.dob.strftime('%Y-%m-%d') if member.dob else '',
-        'term_date': member.cessation_date.strftime('%Y-%m-%d') if member.cessation_date else '',
-        
+        'membership_number': member.membership_number if member else '',
+        'guardian_name': guardian_name, # 🔴 Returns live updated guardian name
+        'beneficiary_name': beneficiary_name, # 🔴 Returns live updated beneficiary name
+        'dob': dob,
+        'term_date': term_date,
         'claim_type': claim.claim_type,
         'age_at_claim': claim.age_at_claim,
-        'monthly_income': float(claim.monthly_income_payment or 0),
+        'monthly_income': monthly_income,
         'date_logged': claim.date_logged.strftime('%Y-%m-%d') if claim.date_logged else '',
-        'portfolio_value': float(claim.portfolio_value or 0),
+        'portfolio_value': portfolio_value,
         'portfolio_date': claim.portfolio_date.strftime('%Y-%m-%d') if claim.portfolio_date else '',
         'amount_requested': float(claim.amount_requested or 0),
         'status': claim.status,
@@ -3166,44 +3245,38 @@ def get_user_email_signature(user):
 
 @login_required
 def get_adhoc_details_view(request, record_id):
-    """API endpoint to fetch individual Ad Hoc claim details for the edit modal"""
+    """API endpoint to fetch Ad Hoc record details including live updated beneficiary information."""
     try:
-        record = AdHocList.objects.select_related('beneficiary').get(id=record_id)
+        record = get_object_or_404(AdHocList, id=record_id)
         beneficiary = record.beneficiary
+
+        # Pull live values from PssubfBeneficiary if linked, ensuring updates show up immediately
+        guardian_name = ""
+        beneficiary_name = ""
+        dob = ""
         
-        # Safely extract the file string and clean it up if necessary
-        attachment_file = ""
-        if hasattr(record, 'attachment_path') and record.attachment_path:
-            raw_path = record.attachment_path.name if hasattr(record.attachment_path, 'name') else str(record.attachment_path)
-            attachment_file = os.path.basename(raw_path)
+        if beneficiary:
+            guardian_name = f"{beneficiary.guardian_first_name or ''} {beneficiary.guardian_last_name or ''}".strip()
+            beneficiary_name = f"{beneficiary.first_name or ''} {beneficiary.last_name or ''}".strip()
+            dob = beneficiary.dob.strftime('%Y-%m-%d') if beneficiary.dob else ''
 
         data = {
             'success': True,
             'membership_number': beneficiary.membership_number if beneficiary else '',
-            'beneficiary_name': f"{beneficiary.first_name} {beneficiary.last_name}" if beneficiary else '',
-            'guardian_name': getattr(beneficiary, 'guardian_name', ''),
-            'id_number': getattr(beneficiary, 'id_number', ''),
-            'dob': str(beneficiary.dob) if beneficiary and beneficiary.dob else '',
-            'termination_date': str(beneficiary.cessation_date) if beneficiary and beneficiary.cessation_date else '',
-            'stipened': getattr(beneficiary, 'stipened', 0) if beneficiary else 0,
-            'total_fund_value': str(record.portfolio_value or getattr(beneficiary, 'total_fund_value', 0)),
+            'guardian_name': guardian_name, # 🔴 Returns live updated guardian name
+            'beneficiary_name': beneficiary_name, # 🔴 Returns live updated beneficiary name
+            'dob': dob,
             'title': record.title,
             'status': record.status,
             'claim_form_date': str(record.claim_form_date) if record.claim_form_date else '',
             'date_paid': str(record.date_paid) if record.date_paid else '',
-            'portfolio_value': str(record.portfolio_value or 0),
-            'portfolio_date': str(record.portfolio_date) if record.portfolio_date else '',
-            'amount_requested': str(record.amount_requested or 0),
             'supporting_docs_attached': record.supporting_docs_attached,
-            'attachment_path': attachment_file,  # Clean filename here
+            'portfolio_value': float(record.portfolio_value or 0),
+            'portfolio_date': str(record.portfolio_date) if record.portfolio_date else '',
+            'amount_requested': float(record.amount_requested or 0),
             'comments': record.comments,
-            'tracking_info': f"Created: {record.date_created.strftime('%Y-%m-%d %H:%M') if hasattr(record, 'date_created') and record.date_created else 'N/A'}"
+            'attachment_path': record.attachment_path if record.attachment_path else None
         }
         return JsonResponse(data)
-    except AdHocList.DoesNotExist:
-        return JsonResponse({'success': False, 'error': 'Record not found'}, status=404)
     except Exception as e:
-        import traceback
-        print("ERROR in get_adhoc_details_view:")
-        print(traceback.format_exc())
-        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+        return JsonResponse({'success': False, 'error': str(e)})

@@ -271,12 +271,17 @@
                     <p id="footer_tracking" class="text-xs text-gray-500 italic"></p>
                 </div>
 
-                <div class="md:col-span-4 flex justify-end gap-3 pt-4 border-t mt-4">
-                    <button type="button" id="generatePdfBtn" onclick="triggerLetterGeneration()" class="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition">
-                        <i class="fas fa-print mr-2"></i> Print Declination Notice
+                <div class="md:col-span-4 flex justify-between items-center pt-4 border-t mt-4">
+                    <button type="button" id="deleteClaimBtn" onclick="deleteClaim()" class="hidden px-6 py-2.5 bg-red-100 text-red-700 font-bold rounded-lg hover:bg-red-200 transition">
+                        <i class="fas fa-trash mr-2"></i> Delete Claim
                     </button>
-                    <button type="button" onclick="closeAdHocModal()" class="px-8 py-2.5 bg-gray-400 text-white font-bold rounded-lg hover:bg-gray-500 transition">Cancel</button>
-                    <button type="submit" class="px-8 py-2.5 bg-green-700 text-white font-bold rounded-lg hover:bg-green-800 shadow-lg transition">Save Entry</button>
+                    <div class="flex gap-3 ml-auto">
+                        <button type="button" id="generatePdfBtn" onclick="triggerLetterGeneration()" class="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition">
+                            <i class="fas fa-print mr-2"></i> Print Declination Notice
+                        </button>
+                        <button type="button" onclick="closeAdHocModal()" class="px-8 py-2.5 bg-gray-400 text-white font-bold rounded-lg hover:bg-gray-500 transition">Cancel</button>
+                        <button type="submit" class="px-8 py-2.5 bg-green-700 text-white font-bold rounded-lg hover:bg-green-800 shadow-lg transition">Save Entry</button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -430,6 +435,7 @@
         console.log("Opening modal. Record ID received:", recordId);
         const modal = document.getElementById('adhocModal');
         const form = document.getElementById('adhocForm');
+        const deleteBtn = document.getElementById('deleteClaimBtn');
         modal.classList.remove('hidden');
         document.getElementById('footer_tracking').innerText = '';
 
@@ -442,6 +448,7 @@
         if (recordId && recordId !== 'None' && recordId !== 'null' && recordId !== '') {
             document.getElementById('formAction').value = "update_adhoc_entry";
             document.getElementById('record_id').value = recordId;
+            deleteBtn.classList.remove('hidden');
 
             console.log("Fetching details from:", `/get-adhoc-details/${recordId}/`);
 
@@ -495,6 +502,7 @@
         } else {
             console.log("Entering New Entry Mode");
             form.reset();
+            deleteBtn.classList.add('hidden');
             document.getElementById('header_id_passport').innerText = "ID/Passport: -";
             document.getElementById('header_beneficiary_display').innerText = "Create New Ad Hoc Claim";
             document.getElementById('formAction').value = "add_adhoc_entry";

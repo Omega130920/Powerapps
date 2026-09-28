@@ -108,7 +108,7 @@
                         </td>
                         
                         <td class="px-6 py-4 text-sm">
-                            <span class="font-semibold">{{ claim.beneficiary_name }}</span>
+                            <span class="font-semibold">{{ claim.live_beneficiary_name }}</span>
                             {% if not claim.beneficiary %}<span class="ml-1 text-[10px] bg-yellow-200 text-yellow-800 px-1 rounded">HIST</span>{% endif %}<br>
                             <span class="text-xs text-gray-500">DOB: {{ claim.beneficiary_dob|date:"d/m/Y" }}</span>
                         </td>
