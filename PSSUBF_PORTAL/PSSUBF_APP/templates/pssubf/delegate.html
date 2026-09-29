@@ -195,7 +195,7 @@
                     {{ email_content|safe }}
                 {% else %}
                     <p class="text-muted fst-italic">No email body content found.</p>
-                {% endif %} <!-- 🟢 Fixed missing opening bracket here -->
+                {% endif %}
             </div>
             
             {% if attachments %}
@@ -231,6 +231,18 @@
             <div class="form-group">
                 <label>ID Number:</label>
                 <input type="text" name="id_number" class="form-control-custom" placeholder="e.g. 9001015000088">
+            </div>
+
+            <!-- 🟢 ADDED EMAIL CATEGORY DROPDOWN -->
+            <div class="form-group">
+                <label for="email_category">Email Category:</label>
+                <select id="email_category" name="email_category" class="form-control-custom">
+                    <option value="Query" selected>Query</option>
+                    <option value="Claim">Claim</option>
+                    <option value="Schedule">Schedule</option>
+                    <option value="Fund Value Confirmation">Fund Value Confirmation</option>
+                    <option value="Unsure">Unsure</option>
+                </select>
             </div>
 
             <div class="form-group">

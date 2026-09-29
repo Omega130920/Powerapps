@@ -150,7 +150,6 @@
                                 <option value="Query" {% if task.email_category == 'Query' %}selected{% endif %}>Query</option>
                                 <option value="Claim" {% if task.email_category == 'Claim' %}selected{% endif %}>Claim</option>
                                 <option value="Schedule" {% if task.email_category == 'Schedule' %}selected{% endif %}>Schedule</option>
-                                <option value="Fund Value Confirmation" {% if task.email_category == 'Fund Value Confirmation' %}selected{% endif %}>Fund Value Confirmation</option>
                                 <option value="Unsure" {% if task.email_category == 'Unsure' %}selected{% endif %}>Unsure</option>
                             </select>
                         </div>
@@ -191,56 +190,33 @@
                             <label class="small fw-bold opacity-75">Call Type:</label>
                             <select name="call_type" class="form-select form-select-sm form-control-glass" required>
                                 <option value="" disabled selected>Select Type</option>
-                                <option value="Inbound - Change of contact/banking details received">Inbound - Change of contact/banking details received</option>
-                                <option value="Inbound - Guardian/beneficiary requested proof of payment">Inbound - Guardian/beneficiary requested proof of payment</option>
-                                <option value="Inbound - Complaint received">Inbound - Complaint received</option>
-                                <option value="Inbound - How to claim - Termination">Inbound - How to claim - Termination</option>
-                                <option value="Inbound - Overdue Payment - Termination Query">Inbound - Overdue Payment - Termination Query</option>
-                                <option value="Inbound - Fund Value Confirmation">Inbound - Fund Value Confirmation</option>
-                                <option value="Inbound - New Claim Pack Received (Complete)">Inbound - New Claim Pack Received (Complete)</option>
-                                <option value="Inbound - Overdue Payment - Ad-Hoc">Inbound - Overdue Payment - Ad-Hoc</option>
-                                <option value="Inbound - Feedback from SALT">Inbound - Feedback from SALT</option>
-                                <option value="Inbound - New Claim Pack Received (Incomplete)">Inbound - New Claim Pack Received (Incomplete)</option>
-                                <option value="Inbound - Feedback from Sanlam">Inbound - Feedback from Sanlam</option>
-                                <option value="Inbound - Fund Rules">Inbound - Fund Rules</option>
-                                <option value="Inbound - Proof of Payment Received">Inbound - Proof of Payment Received</option>
-                                <option value="Inbound - SALT - New Entrance Pack Received (Incomplete)">Inbound - SALT - New Entrance Pack Received (Incomplete)</option>
-                                <option value="Inbound - Change in Guardianship">Inbound - Change in Guardianship</option>
-                                <option value="Inbound - Duplicate Claim Received">Inbound - Duplicate Claim Received</option>
-                                <option value="Inbound - Acknowledgement Letter Received">Inbound - Acknowledgement Letter Received</option>
-                                <option value="Inbound - Claim Received from Tracing Agency">Inbound - Claim Received from Tracing Agency</option>
-                                <option value="Inbound - Overdue Payment - Monthly Income">Inbound - Overdue Payment - Monthly Income</option>
-                                <option value="Inbound - How to claim - Ad Hoc">Inbound - How to claim - Ad Hoc</option>
-                                <option value="Inbound - How to claim - Monthly Income">Inbound - How to claim - Monthly Income</option>
-                                <option value="Inbound - SALT - New Entrance Pack Received (Complete)">Inbound - SALT - New Entrance Pack Received (Complete)</option>
-                                <option value="Inbound - Guardian - Monthly Income Requested">Inbound - Guardian - Monthly Income Requested</option>
-                                <option value="Inbound - Beneficiary fund credit below 10k">Inbound - Beneficiary fund credit below 10k</option>
-                                <option value="Inbound - Depleted records">Inbound - Depleted records</option>
-                                <option value="Inbound - Fund Credit depleted within 3months">Inbound - Fund Credit depleted within 3months</option>
-                                <option value="Inbound - Beneficiary turned 18years">Inbound - Beneficiary turned 18years</option>
-                                <option value="Outbound - Change of contact/banking details submitted to Sanlam">Outbound - Change of contact/banking details submitted to Sanlam</option>
-                                <option value="Outbound - Change of guardianship submitted to Sanlam">Outbound - Change of guardianship submitted to Sanlam</option>
-                                <option value="Outbound - Complaint filed and reported">Outbound - Complaint filed and reported</option>
-                                <option value="Outbound - Benefit statement sent">Outbound - Benefit statement sent</option>
-                                <option value="Outbound - Follow up on incomplete claim">Outbound - Follow up on incomplete claim</option>
-                                <option value="Outbound - Funds Less than R10 000">Outbound - Funds Less than R10 000</option>
-                                <option value="Outbound - Feedback to Beneficiary">Outbound - Feedback to Beneficiary</option>
-                                <option value="Outbound - Feedback to SALT">Outbound - Feedback to SALT</option>
-                                <option value="Outbound - Acknowledgement Letter Sent">Outbound - Acknowledgement Letter Sent</option>
-                                <option value="Outbound - Feedback to Sanlam">Outbound - Feedback to Sanlam</option>
-                                <option value="Outbound - Feedback to Guardian">Outbound - Feedback to Guardian</option>
-                                <option value="Outbound - Follow Up Incomplete Claim Pack">Outbound - Follow Up Incomplete Claim Pack</option>
-                                <option value="Outbound - Failed Bank Validation">Outbound - Failed Bank Validation</option>
-                                <option value="Outbound - SALT - Return New Entrance Pack (Incomplete)">Outbound - SALT - Return New Entrance Pack (Incomplete)</option>
-                                <option value="Outbound - Complete Claim Loaded">Outbound - Complete Claim Loaded</option>
-                                <option value="Outbound - Tracing Claim Sent to Sanlam">Outbound - Tracing Claim Sent to Sanlam</option>
-                                <option value="Outbound - Feedback to Other">Outbound - Feedback to Other</option>
-                                <option value="Outbound - Proof of Payment Sent">Outbound - Proof of Payment Sent</option>
-                                <option value="Outbound - Funds Depleted">Outbound - Funds Depleted</option>
-                                <option value="Outbound - New Entrance Pack Submitted to Sanlam">Outbound - New Entrance Pack Submitted to Sanlam</option>
-                                <option value="Outbound - Sanlam - Overdue Payments">Outbound - Sanlam - Overdue Payments</option>
-                                <option value="Outbound - Guardian Deceased">Outbound - Guardian Deceased</option>
-                                <option value="Outbound - Beneficiary Reached Maturity">Outbound - Beneficiary Reached Maturity</option>
+                                <option value="Change of contact/banking details received">Change of contact/banking details received</option>
+                                <option value="Guardian/beneficiary requested proof of payment">Guardian/beneficiary requested proof of payment</option>
+                                <option value="Complaint received">Complaint received</option>
+                                <option value="How to claim - Termination">How to claim - Termination</option>
+                                <option value="Overdue Payment - Termination Query">Overdue Payment - Termination Query</option>
+                                <option value="Fund Value Confirmation">Fund Value Confirmation</option>
+                                <option value="New Claim Pack Received (Complete)">New Claim Pack Received (Complete)</option>
+                                <option value="Overdue Payment - Ad-Hoc">Overdue Payment - Ad-Hoc</option>
+                                <option value="Feedback from SALT">Feedback from SALT</option>
+                                <option value="New Claim Pack Received (Incomplete)">New Claim Pack Received (Incomplete)</option>
+                                <option value="Feedback from Sanlam">Feedback from Sanlam</option>
+                                <option value="Fund Rules">Fund Rules</option>
+                                <option value="Proof of Payment Received">Proof of Payment Received</option>
+                                <option value="SALT - New Entrance Pack Received (Incomplete)">SALT - New Entrance Pack Received (Incomplete)</option>
+                                <option value="Change in Guardianship">Change in Guardianship</option>
+                                <option value="Duplicate Claim Received">Duplicate Claim Received</option>
+                                <option value="Acknowledgement Letter Received">Acknowledgement Letter Received</option>
+                                <option value="Claim Received from Tracing Agency">Claim Received from Tracing Agency</option>
+                                <option value="Overdue Payment - Monthly Income">Overdue Payment - Monthly Income</option>
+                                <option value="How to claim - Ad Hoc">How to claim - Ad Hoc</option>
+                                <option value="How to claim - Monthly Income">How to claim - Monthly Income</option>
+                                <option value="SALT - New Entrance Pack Received (Complete)">SALT - New Entrance Pack Received (Complete)</option>
+                                <option value="Guardian - Monthly Income Requested">Guardian - Monthly Income Requested</option>
+                                <option value="Beneficiary fund credit below 10k">Beneficiary fund credit below 10k</option>
+                                <option value="Depleted records">Depleted records</option>
+                                <option value="Fund Credit depleted within 3months">Fund Credit depleted within 3months</option>
+                                <option value="Beneficiary turned 18years">Beneficiary turned 18years</option>
                             </select>
                         </div>
                         <div class="mb-2">

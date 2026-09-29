@@ -291,58 +291,126 @@ def outlook_dashboard_view(request):
         'target_email': target_email
     })
 
-@login_required
 def pssubf_delegate_view(request, email_id):
-    """View to fetch live email details and delegate."""
+    """View to fetch live email details and delegate tasks or log internal notes."""
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     available_users = User.objects.filter(is_active=True)
 
-    # We still keep a reference to local inbox if you need to update a status 
-    # but the primary view is now live.
+    # Fetch reference to local inbox and delegate task data
     inbox_item = PssubfInbox.objects.filter(email_id=email_id).first()
+    task = PssubfDelegate.objects.filter(email_id=email_id).first()
+    
+    # Check if the user is Vanessa (Manager override check)
+    is_vanessa = request.user.username.lower() in ['vanessa', 'admin', 'luanovaneck']
 
     if request.method == 'POST':
-        agent_name = request.POST.get('assigned_agent')
-        is_recycle = 'recycle' in request.POST
-        
-        # 🟢 1. MAKE A MUTABLE COPY OF POST DATA
-        form_data = request.POST.copy()
-        
-        provided_mip = form_data.get('member_group_code', '').strip()
-        provided_id = form_data.get('id_number', '').strip()
-        
-        # 🟢 2. SMART MAPPING: CHECK BENEFICIARIES TABLE
-        if provided_id and not provided_mip:
-            # They entered an ID Number, but no MIP. Check if they exist in the master table!
-            beneficiary = PssubfBeneficiary.objects.filter(id_number=provided_id).first()
-            if beneficiary and beneficiary.membership_number:
-                form_data['member_group_code'] = beneficiary.membership_number
-                
-        elif provided_mip and not provided_id:
-            # Optional: If they entered a MIP but no ID, back-fill the ID from the master table!
-            beneficiary = PssubfBeneficiary.objects.filter(membership_number=provided_mip).first()
-            if beneficiary and beneficiary.id_number:
-                form_data['id_number'] = beneficiary.id_number
+        action_type = request.POST.get('action_type')
 
-        # 🟢 3. PASS THE ENRICHED FORM DATA TO THE SERVICE
-        success, message = delegate_pssubf_task(
-            email_id=email_id,
-            agent_name=agent_name,
-            delegator_user=request.user,
-            form_data=form_data, 
-            is_recycle=is_recycle
-        )
-        
-        if success:
-            # Sync the local PssubfInbox status if the record exists
+        # --- 1. HANDLE INTERNAL NOTE / QUICK LOG SUBMISSION ---
+        if action_type == 'add_note':
+            # 🟢 Explicitly capture the selected call direction from the dropdown (fallback to Inbound)
+            call_direction = request.POST.get('call_direction', 'Inbound').strip()
+            call_method = request.POST.get('call_method', 'Phone')
+            call_type = request.POST.get('call_type', 'General Query')
+            note_content = request.POST.get('note_content', '')
+            email_category = request.POST.get('email_category', task.email_category if task else 'Query')
+            status = request.POST.get('status', task.status if task else 'In Progress')
+
+            # 🟢 Dynamically set action label based on whether it's Outbound or Inbound
+            action_type_label = 'Outbound Note' if call_direction == 'Outbound' else 'Inbound Note'
+
+            mip_code = task.member_group_code if task else None
+            id_num = task.id_number if task else None
+
+            # Create Quick Log (SystemLog) with the exact user-selected direction
+            SystemLog.objects.create(
+                mip_number=mip_code,
+                id_number=id_num,
+                log_title=f"{call_direction} - {call_method}: {call_type[:40]}",
+                call_direction=call_direction,  # Captures 'Outbound' or 'Inbound' properly
+                call_method=call_method,
+                call_type=call_type,
+                category=email_category if email_category in dict(SystemLog.CATEGORY_CHOICES) else 'Query',
+                status=status,
+                note_content=note_content,
+                created_by=request.user.username
+            )
+
+            # Create Action History Entry with the matching label ('Outbound Note' or 'Inbound Note')
+            PssubfAction.objects.create(
+                task_email_id=email_id,
+                action_type=action_type_label,
+                action_user=request.user.username,
+                note_content=f"[{call_direction} | {call_method}] {note_content}",
+                action_timestamp=timezone.now()
+            )
+
+            # Update task metadata if changed
+            if task:
+                task.email_category = email_category
+                task.status = status
+                task.save()
+
+            messages.success(request, f"[{call_direction}] Internal note and Quick Log saved successfully.")
+            return redirect('pssubf_action', email_id=email_id)
+
+        # --- 2. HANDLE TASK METADATA UPDATE ---
+        elif action_type == 'update_metadata':
+            if task:
+                task.member_group_code = request.POST.get('member_group_code', task.member_group_code)
+                task.email_category = request.POST.get('email_category', task.email_category)
+                task.status = request.POST.get('status', task.status)
+                task.save()
+                messages.success(request, "Task metadata updated successfully.")
+            return redirect('pssubf_action', email_id=email_id)
+
+        # --- 3. HANDLE MARK COMPLETE ---
+        elif action_type == 'mark_complete':
+            if task:
+                task.status = 'Completed'
+                task.save()
             if inbox_item:
-                inbox_item.status = 'Recycled' if is_recycle else 'Delegated'
+                inbox_item.status = 'Completed'
                 inbox_item.save()
-
-            messages.success(request, message)
+            messages.success(request, "Task marked as complete.")
             return redirect('pssubf_delegations_list')
+
+        # --- 4. DEFAULT DELEGATION SUBMISSION ---
         else:
-            messages.error(request, f"Error: {message}")
+            agent_name = request.POST.get('assigned_agent')
+            is_recycle = 'recycle' in request.POST
+            
+            form_data = request.POST.copy()
+            provided_mip = form_data.get('member_group_code', '').strip()
+            provided_id = form_data.get('id_number', '').strip()
+            
+            if provided_id and not provided_mip:
+                beneficiary = PssubfBeneficiary.objects.filter(id_number=provided_id).first()
+                if beneficiary and beneficiary.membership_number:
+                    form_data['member_group_code'] = beneficiary.membership_number
+                    
+            elif provided_mip and not provided_id:
+                beneficiary = PssubfBeneficiary.objects.filter(membership_number=provided_mip).first()
+                if beneficiary and beneficiary.id_number:
+                    form_data['id_number'] = beneficiary.id_number
+
+            success, message = delegate_pssubf_task(
+                email_id=email_id,
+                agent_name=agent_name,
+                delegator_user=request.user,
+                form_data=form_data, 
+                is_recycle=is_recycle
+            )
+            
+            if success:
+                if inbox_item:
+                    inbox_item.status = 'Recycled' if is_recycle else 'Delegated'
+                    inbox_item.save()
+
+                messages.success(request, message)
+                return redirect('pssubf_delegations_list')
+            else:
+                messages.error(request, f"Error: {message}")
 
     # Fetch live content for the detail view
     email_data = OutlookGraphService._make_graph_request(f"messages/{email_id}", method='GET')
@@ -371,7 +439,9 @@ def pssubf_delegate_view(request, email_id):
         'email_content': email_content,
         'attachments': attachments,
         'available_users': available_users,
-        'inbox_item': inbox_item
+        'inbox_item': inbox_item,
+        'task': task,
+        'is_vanessa': is_vanessa
     })
 
 logger = logging.getLogger(__name__)
@@ -939,10 +1009,55 @@ def pssubf_delegations_list(request):
     
 @login_required
 def pssubf_audit_logs(request):
-    """The Master Archive / Audit Log view."""
-    logs = PssubfAction.objects.all().order_by('-action_timestamp')
+    """
+    Master Audit Log: Shows strictly email-related actions and maps their live status from pssubf_delegate.
+    """
+    query = request.GET.get('q')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+
+    # Strict filter: Only allow email-related action types
+    email_action_types = [
+        'Delegation', 
+        'Direct Email Sent', 
+        'EMAIL_REPLY', 
+        'Email Sent', 
+        'Task Delegation'
+    ]
+    logs = PssubfAction.objects.filter(action_type__in=email_action_types)
+
+    # Apply Search Filter (User, Type, or Content)
+    if query:
+        logs = logs.filter(
+            Q(action_user__icontains=query) |
+            Q(action_type__icontains=query) |
+            Q(note_content__icontains=query)
+        )
+
+    # Apply Date Range Filters
+    if start_date:
+        logs = logs.filter(action_timestamp__date__gte=start_date)
+    if end_date:
+        logs = logs.filter(action_timestamp__date__lte=end_date)
+
+    logs = logs.order_by('-action_timestamp')
+
+    # 🟢 Map live status from PssubfDelegate to each log entry
+    # We collect unique task email IDs to query the delegate table efficiently
+    email_ids = [log.task_email_id for log in logs if log.task_email_id]
+    delegate_status_map = {
+        d.email_id: d.status for d in PssubfDelegate.objects.filter(email_id__in=email_ids)
+    }
+
+    for log in logs:
+        # Attach the live status attribute (defaults to 'Unknown' or 'Pending' if not found)
+        log.live_status = delegate_status_map.get(log.task_email_id, 'Pending')
+
     return render(request, 'pssubf/audit_logs.html', {
-        'logs': logs
+        'logs': logs,
+        'query': query,
+        'start_date': start_date,
+        'end_date': end_date
     })
     
 @login_required
@@ -993,43 +1108,6 @@ def pssubf_restore_item(request, email_id):
     return redirect('pssubf_dashboard')
 
 logger = logging.getLogger(__name__)
-
-@login_required
-def pssubf_audit_logs(request):
-    """
-    Master Audit Log: Shows New, Delegated, and Completed actions.
-    EXCLUDES all Recycle actions to keep the focus on productive workflows.
-    """
-    query = request.GET.get('q')
-    start_date = request.GET.get('start_date')
-    end_date = request.GET.get('end_date')
-
-    # 1. Start with all logs
-    # 2. Exclude 'Recycle' action types and 'RESTORE' if you want a clean work log
-    logs = PssubfAction.objects.exclude(action_type__in=['Recycle', 'RESTORE'])
-
-    # Apply Search Filter (User, Type, or Content)
-    if query:
-        logs = logs.filter(
-            Q(action_user__icontains=query) |
-            Q(action_type__icontains=query) |
-            Q(note_content__icontains=query)
-        )
-
-    # Apply Date Range Filters
-    if start_date:
-        logs = logs.filter(action_timestamp__date__gte=start_date)
-    if end_date:
-        logs = logs.filter(action_timestamp__date__lte=end_date)
-
-    logs = logs.order_by('-action_timestamp')
-
-    return render(request, 'pssubf/audit_logs.html', {
-        'logs': logs,
-        'query': query,
-        'start_date': start_date,
-        'end_date': end_date
-    })
     
 @login_required
 def pssubf_recycle_view(request, email_id):

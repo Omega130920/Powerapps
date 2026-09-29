@@ -163,11 +163,12 @@
     <table class="task-table">
         <thead>
             <tr>
-                <th style="width: 15%;">Timestamp</th>
-                <th style="width: 15%;">User</th>
-                <th style="width: 15%;">Action Type</th>
-                <th style="width: 15%;">Task ID</th>
-                <th style="width: 30%;">Details / Notes</th>
+                <th style="width: 14%;">Timestamp</th>
+                <th style="width: 13%;">User</th>
+                <th style="width: 14%;">Action Type</th>
+                <th style="width: 12%;">Live Status</th> <!-- 🟢 Added Live Status Column -->
+                <th style="width: 12%;">Task ID</th>
+                <th style="width: 25%;">Details / Notes</th>
                 <th style="width: 10%;" class="text-end">View</th>
             </tr>
         </thead>
@@ -178,14 +179,22 @@
                 <td><strong class="text-primary">{{ log.action_user }}</strong></td>
                 <td>
                     <span class="badge-glass 
-                        {% if log.action_type == 'Delegation' %}badge-delegation
-                        {% elif log.action_type == 'NOTE' %}badge-note
-                        {% elif log.action_type == 'EMAIL_REPLY' %}badge-reply
+                        {% if log.action_type == 'Delegation' or log.action_type == 'Task Delegation' %}badge-delegation
+                        {% elif 'Note' in log.action_type %}badge-note
+                        {% elif log.action_type == 'EMAIL_REPLY' or log.action_type == 'Direct Email Sent' %}badge-reply
                         {% elif log.action_type == 'COMPLETED' %}badge-complete
                         {% else %}bg-secondary{% endif %}">
                         {{ log.action_type }}
                     </span>
                 </td>
+                
+                <!-- 🟢 Rendering status from pssubf_delegate -->
+                <td>
+                    <span class="badge {% if log.live_status == 'Completed' %}bg-primary{% elif log.live_status == 'Delegated' %}bg-info text-dark{% else %}bg-secondary{% endif %} rounded-pill px-2 py-1" style="font-size: 11px;">
+                        {{ log.live_status }}
+                    </span>
+                </td>
+
                 <td class="small"><code class="text-dark bg-white bg-opacity-50 p-1 px-2 rounded">{{ log.task_email_id|truncatechars:12 }}</code></td>
                 <td class="small fw-bold opacity-75">{{ log.note_content }}</td>
                 <td class="text-end">
@@ -202,9 +211,9 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="6" class="text-center py-5">
+                <td colspan="7" class="text-center py-5">
                     <i class="bi bi-search fs-1 opacity-25"></i>
-                    <p class="text-muted mt-3">No work-related logs found matching your filters.</p>
+                    <p class="text-muted mt-3">No email-related audit logs found matching your filters.</p>
                 </td>
             </tr>
             {% endfor %}
