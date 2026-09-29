@@ -2084,6 +2084,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as RLImage, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.lib.units import inch
+import urllib.request
 
 def generate_excess_claim_pdf(claim):
     output_stream = io.BytesIO()
@@ -2103,28 +2104,37 @@ def generate_excess_claim_pdf(claim):
     normal_style = styles['Normal']
     normal_style.fontName = 'Helvetica'
     normal_style.fontSize = 11
-    normal_style.leading = 16  # Comfortable line spacing for paragraphs
+    normal_style.leading = 16  
     
     elements = []
 
-    # 3. Add Header Logo
-    # Ensure "image001 (3).png" is saved in your static/images/ folder
-    logo_path = os.path.join(settings.BASE_DIR, 'static', 'images', 'image001 (3).png')
-    
-    if os.path.exists(logo_path):
-        img = RLImage(logo_path, width=5*inch, height=1.3*inch, kind='proportional')
-        img.hAlign = 'LEFT'
-        elements.append(img)
-        elements.append(Spacer(1, 0.4*inch))
-    else:
-        # Fallback text if the image is missing from the directory
+    # 3. Add Header Logo via URL
+    logo_url = "https://static.futurasa.co.za/images/pssubf-logo.png"
+    logo_added = False
+
+    try:
+        # Fetch image from URL into memory stream
+        req = urllib.request.Request(logo_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            image_data = response.read()
+            image_stream = io.BytesIO(image_data)
+            
+            img = RLImage(image_stream, width=5*inch, height=1.3*inch, kind='proportional')
+            img.hAlign = 'LEFT'
+            elements.append(img)
+            elements.append(Spacer(1, 0.4*inch))
+            logo_added = True
+    except Exception as e:
+        # Fallback if network request fails or URL is unreachable
+        pass
+
+    if not logo_added:
         elements.append(Paragraph("<b>Private Security Sector Umbrella Beneficiary Fund</b>", styles['Heading3']))
         elements.append(Spacer(1, 0.4*inch))
 
     # 4. Extract and Format Database Variables
     current_date = timezone.now().strftime('%d/%m/%Y')
     
-    # Safely get properties (fallback to empty lines if they don't exist on the model)
     guardian_name = getattr(claim, 'guardian_name', '_________________________')
     beneficiary_name = getattr(claim, 'beneficiary_name', '_________________________')
     
