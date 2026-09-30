@@ -1006,15 +1006,36 @@ def pssubf_delegations_list(request):
     return render(request, 'pssubf/delegations_list.html', {
         'delegations': delegations
     })
-    
+
+import openpyxl
+from django.http import HttpResponse
+from datetime import datetime, time
+from django.utils.timezone import make_aware, localtime
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
+from django.db.models import Q
+from .models import PssubfAction, PssubfDelegate
+
+import openpyxl
+from django.http import HttpResponse
+from datetime import datetime, time
+from django.utils.timezone import make_aware, localtime, is_aware
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
+from django.db.models import Q
+from .models import PssubfAction, PssubfDelegate
+
 @login_required
 def pssubf_audit_logs(request):
     """
-    Master Audit Log: Shows strictly email-related actions and maps their live status from pssubf_delegate.
+    Master Audit Log: Shows strictly email-related actions and maps their live status.
+    Includes an export-to-Excel (XLSX) function that respects applied filters.
     """
-    query = request.GET.get('q')
-    start_date = request.GET.get('start_date')
-    end_date = request.GET.get('end_date')
+    query = request.GET.get('q', '').strip()
+    start_date_str = request.GET.get('start_date')
+    end_date_str = request.GET.get('end_date')
+    
+    is_export = request.GET.get('export') == 'excel'
 
     # Strict filter: Only allow email-related action types
     email_action_types = [
@@ -1026,7 +1047,7 @@ def pssubf_audit_logs(request):
     ]
     logs = PssubfAction.objects.filter(action_type__in=email_action_types)
 
-    # Apply Search Filter (User, Type, or Content)
+    # Apply Search Filter
     if query:
         logs = logs.filter(
             Q(action_user__icontains=query) |
@@ -1034,16 +1055,26 @@ def pssubf_audit_logs(request):
             Q(note_content__icontains=query)
         )
 
-    # Apply Date Range Filters
-    if start_date:
-        logs = logs.filter(action_timestamp__date__gte=start_date)
-    if end_date:
-        logs = logs.filter(action_timestamp__date__lte=end_date)
+    # Bulletproof Date Range Filters (Timezone Aware Boundaries)
+    if start_date_str:
+        try:
+            start_d = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            start_dt = make_aware(datetime.combine(start_d, time.min))
+            logs = logs.filter(action_timestamp__gte=start_dt)
+        except ValueError:
+            pass
+
+    if end_date_str:
+        try:
+            end_d = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            end_dt = make_aware(datetime.combine(end_d, time.max))
+            logs = logs.filter(action_timestamp__lte=end_dt)
+        except ValueError:
+            pass
 
     logs = logs.order_by('-action_timestamp')
 
-    # 🟢 Map live status from PssubfDelegate to each log entry
-    # We collect unique task email IDs to query the delegate table efficiently
+    # Map live status from PssubfDelegate to each log entry
     email_ids = [log.task_email_id for log in logs if log.task_email_id]
     delegate_status_map = {
         d.email_id: d.status for d in PssubfDelegate.objects.filter(email_id__in=email_ids)
@@ -1052,12 +1083,66 @@ def pssubf_audit_logs(request):
     for log in logs:
         # Attach the live status attribute (defaults to 'Unknown' or 'Pending' if not found)
         log.live_status = delegate_status_map.get(log.task_email_id, 'Pending')
+        
+        # 🟢 FIX: Handle database quirks where datetime fields are returned as strings
+        # This bypasses Django's template filter entirely and forces a clean date string.
+        if log.action_timestamp:
+            try:
+                if isinstance(log.action_timestamp, str):
+                    # Clean the string and parse it manually if Django didn't convert it to a datetime object
+                    clean_str = log.action_timestamp.split('.')[0]
+                    parsed_dt = datetime.strptime(clean_str, "%Y-%m-%d %H:%M:%S")
+                    log.display_date = parsed_dt.strftime("%d %b %Y %H:%M:%S")
+                    log.excel_date = parsed_dt.strftime("%Y-%m-%d %H:%M:%S")
+                else:
+                    # Normal Python datetime object formatting
+                    dt = localtime(log.action_timestamp) if is_aware(log.action_timestamp) else log.action_timestamp
+                    log.display_date = dt.strftime("%d %b %Y %H:%M:%S")
+                    log.excel_date = dt.strftime("%Y-%m-%d %H:%M:%S")
+            except Exception:
+                # Absolute fallback if format is corrupted but exists
+                log.display_date = str(log.action_timestamp)
+                log.excel_date = str(log.action_timestamp)
+        else:
+            log.display_date = "No Timestamp"
+            log.excel_date = "No Timestamp"
+
+    # GENERATE XLSX SPREADSHEET IF REQUESTED
+    if is_export:
+        response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        filename = f'Audit_Logs_{datetime.now().strftime("%Y-%m-%d")}.xlsx'
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        
+        wb = openpyxl.Workbook()
+        ws = wb.active
+        ws.title = "Audit Logs"
+        
+        # Write Headers (Task ID Removed)
+        headers = ['Timestamp', 'User', 'Action Type', 'Live Status', 'Details / Notes']
+        ws.append(headers)
+        
+        # Format Header Row (Bold)
+        for cell in ws[1]:
+            cell.font = openpyxl.styles.Font(bold=True)
+            
+        # Write Data Rows using our newly parsed safe string
+        for log in logs:
+            ws.append([
+                log.excel_date,
+                log.action_user,
+                log.action_type,
+                log.live_status,
+                log.note_content
+            ])
+            
+        wb.save(response)
+        return response
 
     return render(request, 'pssubf/audit_logs.html', {
         'logs': logs,
         'query': query,
-        'start_date': start_date,
-        'end_date': end_date
+        'start_date': start_date_str,
+        'end_date': end_date_str
     })
     
 @login_required
@@ -1484,6 +1569,7 @@ def beneficiary_details_view(request, membership_number):
                         'recipient': recipient,
                         'subject': subject,
                         'body_html': formatted_body,
+                        'sent_at': timezone.now(), # 🟢 FIX: Explicitly setting the direct email timestamp!
                     }
                     if file_saved_path:
                         create_kwargs['attachment_path'] = file_saved_path
@@ -1828,7 +1914,7 @@ def beneficiary_details_view(request, membership_number):
     claim_refs = [c.reference_no for c in claims]
     all_history = ClaimHistory.objects.filter(claim_reference__in=claim_refs).order_by('-created_at')
 
-# 🟢 UPDATED: Now searches by MIP number OR the Member's ID Number
+    # 🟢 UPDATED: Now searches by MIP number OR the Member's ID Number
     incoming_emails = PssubfDelegate.objects.filter(
         Q(member_group_code=membership_number) | 
         Q(id_number=member.id_number) |          # <--- THIS IS THE MAGIC LINK

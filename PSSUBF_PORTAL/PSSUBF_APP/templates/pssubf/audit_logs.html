@@ -138,23 +138,30 @@
 
     <div class="filter-section shadow-sm">
         <form method="GET" class="row g-3 align-items-end">
-            <div class="col-md-4">
+            <!-- 🟢 Input fields layout -->
+            <div class="col-md-3">
                 <label class="form-label small fw-bold opacity-75">Search Keywords:</label>
                 <div class="input-group">
                     <span class="input-group-text bg-white bg-opacity-50 border-0"><i class="bi bi-search"></i></span>
-                    <input type="text" name="q" class="form-control form-control-glass" placeholder="User, Action, or Notes..." value="{{ query|default:'' }}">
+                    <input type="text" name="q" class="form-control form-control-glass" placeholder="User, Action, Notes..." value="{{ query|default:'' }}">
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label small fw-bold opacity-75">Start Date:</label>
                 <input type="date" name="start_date" class="form-control form-control-glass" value="{{ start_date|default:'' }}">
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label class="form-label small fw-bold opacity-75">End Date:</label>
                 <input type="date" name="end_date" class="form-control form-control-glass" value="{{ end_date|default:'' }}">
             </div>
-            <div class="col-md-2 d-flex gap-2">
-                <button type="submit" class="btn btn-success w-100 rounded-pill fw-bold">Filter</button>
+            <div class="col-md-5 d-flex gap-2">
+                <button type="submit" class="btn btn-success flex-grow-1 rounded-pill fw-bold">Filter</button>
+                
+                <!-- 🟢 Export Excel Button updated with Text -->
+                <button type="submit" name="export" value="excel" class="btn btn-primary rounded-pill px-4 fw-bold" title="Export to Excel">
+                    <i class="bi bi-file-earmark-excel-fill me-1"></i> Export to Excel
+                </button>
+                
                 <a href="{% url 'pssubf_audit_logs' %}" class="btn btn-glass" title="Reset Filters"><i class="bi bi-arrow-clockwise"></i></a>
             </div>
         </form>
@@ -163,39 +170,37 @@
     <table class="task-table">
         <thead>
             <tr>
-                <th style="width: 14%;">Timestamp</th>
-                <th style="width: 13%;">User</th>
-                <th style="width: 14%;">Action Type</th>
-                <th style="width: 12%;">Live Status</th> <!-- 🟢 Added Live Status Column -->
-                <th style="width: 12%;">Task ID</th>
-                <th style="width: 25%;">Details / Notes</th>
+                <th style="width: 18%;">Timestamp</th>
+                <th style="width: 15%;">User</th>
+                <th style="width: 15%;">Action Type</th>
+                <th style="width: 12%;">Live Status</th>
+                <th style="width: 30%;">Details / Notes</th>
                 <th style="width: 10%;" class="text-end">View</th>
             </tr>
         </thead>
         <tbody>
             {% for log in logs %}
             <tr>
-                <td class="small opacity-75 fw-bold">{{ log.action_timestamp|date:"d M Y H:i:s" }}</td>
+                <!-- 🟢 FIX: Replaced action_timestamp with display_date -->
+                <td class="small opacity-75 fw-bold">{{ log.display_date }}</td>
                 <td><strong class="text-primary">{{ log.action_user }}</strong></td>
                 <td>
                     <span class="badge-glass 
                         {% if log.action_type == 'Delegation' or log.action_type == 'Task Delegation' %}badge-delegation
                         {% elif 'Note' in log.action_type %}badge-note
-                        {% elif log.action_type == 'EMAIL_REPLY' or log.action_type == 'Direct Email Sent' %}badge-reply
+                        {% elif log.action_type == 'EMAIL_REPLY' or log.action_type == 'Direct Email Sent' or log.action_type == 'Email Sent' %}badge-reply
                         {% elif log.action_type == 'COMPLETED' %}badge-complete
                         {% else %}bg-secondary{% endif %}">
                         {{ log.action_type }}
                     </span>
                 </td>
                 
-                <!-- 🟢 Rendering status from pssubf_delegate -->
                 <td>
                     <span class="badge {% if log.live_status == 'Completed' %}bg-primary{% elif log.live_status == 'Delegated' %}bg-info text-dark{% else %}bg-secondary{% endif %} rounded-pill px-2 py-1" style="font-size: 11px;">
                         {{ log.live_status }}
                     </span>
                 </td>
 
-                <td class="small"><code class="text-dark bg-white bg-opacity-50 p-1 px-2 rounded">{{ log.task_email_id|truncatechars:12 }}</code></td>
                 <td class="small fw-bold opacity-75">{{ log.note_content }}</td>
                 <td class="text-end">
                     {% if log.task_email_id %}
@@ -211,7 +216,7 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="7" class="text-center py-5">
+                <td colspan="6" class="text-center py-5">
                     <i class="bi bi-search fs-1 opacity-25"></i>
                     <p class="text-muted mt-3">No email-related audit logs found matching your filters.</p>
                 </td>
