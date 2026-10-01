@@ -208,6 +208,7 @@
                         <label class="form-label">Enquiry Type:</label>
                         <select id="email_type" name="email_type" class="form-control">
                             <option value="" data-category="none">-- Select Type --</option>
+                            <option value="0.1 No Action Required" data-category="0">0.1 No Action Required</option>
                             <option value="1.1 Schedule Query" data-category="1">1.1 Schedule Query</option>
                             <option value="1.2 Member Data Query" data-category="1">1.2 Member Data Query</option>
                             <option value="1.3 Payment Query" data-category="1">1.3 Payment Query</option>
@@ -541,6 +542,7 @@
 
 <script>
     const CATEGORY_MAP = [
+        { value: '0', label: '0. No Action Required' },
         { value: '1', label: '1. Reconciliation' },
         { value: '2', label: '2. Claim' },
         { value: '3', label: '3. Section 13A' },

@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Recycle Bin / Archived Log</title>
 <style>
 /* -------------------------------------- */
@@ -164,11 +164,10 @@ body {
         <thead>
             <tr>
                 <th style="width: 3%;"><input type="checkbox" id="select_all"></th>
-                <th style="width: 27%;">Subject</th>
+                <th style="width: 25%;">Subject</th>
                 <th style="width: 12%;">Archived By</th>
-                <th style="width: 10%;">Category</th>
-                <th style="width: 10%;">Member Code</th>
-                <th style="width: 10%;">Archive Date</th>
+                <th style="width: 18%;">Sender</th>
+                <th style="width: 14%;">Received Timestamp</th>
                 <th style="width: 18%;">Reason / Enquiry Type</th> 
                 <th style="width: 10%;">Status</th> 
             </tr>
@@ -191,12 +190,10 @@ body {
                 
                 <td><strong>{{ task.delegated_by }}</strong></td>
                 
-                <td>{{ task.category|default:"N/A" }}</td>
-                
-                <td>{{ task.mip_number|default:"N/A" }}</td>
+                <td>{{ task.sender|default:"N/A" }}</td>
                 
                 <td>
-                    {{ task.received_timestamp|date:"d M Y" }}
+                    {{ task.received_timestamp|date:"Y-m-d H:i"|default:"N/A" }}
                 </td>
                 
                 <td>

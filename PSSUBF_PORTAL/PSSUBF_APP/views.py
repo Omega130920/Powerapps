@@ -1435,10 +1435,65 @@ def beneficiary_import_view(request):
 
 @login_required
 def beneficiary_list_view(request):
-    # 1. Get all records from the database
+    # --- 🟢 1. HANDLE NEW MEMBER POST FROM MODAL ---
+    if request.method == 'POST' and request.POST.get('action') == 'add_new_beneficiary':
+        membership_number = request.POST.get('membership_number', '').strip()
+        
+        # Enforce exact 8-digit membership number validation
+        if not membership_number or not re.match(r'^\d{8}$', membership_number):
+            messages.error(request, "Error: Membership Number is mandatory and must be exactly an 8-digit number.")
+            return redirect(request.path)
+            
+        # Check if membership number already exists in database
+        if PssubfBeneficiary.objects.filter(membership_number=membership_number).exists():
+            messages.error(request, f"Error: Membership Number '{membership_number}' already exists in the system.")
+            return redirect(request.path)
+
+        def clean_dec(val):
+            if not val: return 0.00
+            try:
+                return float(str(val).replace('R', '').replace(' ', '').replace(',', '.'))
+            except ValueError:
+                return 0.00
+
+        try:
+            # 🟢 Safely extract dob and provide a fallback to prevent the 1048 Not Null error
+            dob_str = request.POST.get('dob')
+            dob_value = dob_str if dob_str else '1900-01-01'
+
+            PssubfBeneficiary.objects.create(
+                membership_number=membership_number,
+                title=request.POST.get('title', ''),
+                initials=request.POST.get('initials', ''),
+                first_name=request.POST.get('first_name', ''),
+                second_name=request.POST.get('second_name', ''),
+                last_name=request.POST.get('last_name', ''),
+                id_number=request.POST.get('id_number', ''),
+                dob=dob_value,  # 🟢 Added dob field to database insert
+                gender=request.POST.get('gender', ''),
+                employee_number=request.POST.get('employee_number', ''),
+                fund_join_date=request.POST.get('fund_join_date') or None,
+                cessation_date=request.POST.get('cessation_date') or None,
+                stipened_frequency=request.POST.get('stipened_frequency', ''),
+                stipened=clean_dec(request.POST.get('stipened')),
+                total_fund_value=clean_dec(request.POST.get('total_fund_value')),
+                portfolio_date=request.POST.get('portfolio_date') or None,
+                mobile_1=request.POST.get('mobile_1', ''),
+                email_1=request.POST.get('email_1', ''),
+            )
+            messages.success(request, f"Member {membership_number} successfully registered!")
+        except Exception as e:
+            messages.error(request, f"Database Error: {str(e)}")
+            
+        # Reload the page to clear the form and display the success message
+        return redirect(request.path)
+
+
+    # --- 🟢 2. STANDARD BENEFICIARY LIST GET LOGIC ---
+    # Get all records from the database
     queryset = PssubfBeneficiary.objects.all().order_by('last_name')
 
-    # 1.5. SEARCH LOGIC (Global database execution)
+    # SEARCH LOGIC (Global database execution)
     search_query = request.GET.get('search')
     if search_query:
         queryset = queryset.filter(
@@ -1448,7 +1503,7 @@ def beneficiary_list_view(request):
             Q(membership_number__icontains=search_query)  # Added so users can search by membership numbers too
         )
 
-    # 2. Filter Logic (Status based on cessation_date)
+    # Filter Logic (Status based on cessation_date)
     status_filter = request.GET.get('status')
     today = date.today()
 
@@ -1457,15 +1512,15 @@ def beneficiary_list_view(request):
     elif status_filter == 'active':
         queryset = queryset.filter(cessation_date__gt=today)
 
-    # 2.5. Capture total count before breaking the queryset up via pagination
+    # Capture total count before breaking the queryset up via pagination
     total_count = queryset.count()
 
-    # 3. Pagination (36 records per page)
+    # Pagination (36 records per page)
     paginator = Paginator(queryset, 36)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
-    # 4. LIVE CALCULATION: Years and Months
+    # LIVE CALCULATION: Years and Months
     for member in page_obj:
         if member.dob:
             birth = member.dob
@@ -1479,7 +1534,7 @@ def beneficiary_list_view(request):
         else:
             member.calculated_age = "N/A"
 
-    # 5. Handle Session Errors (from Excel imports)
+    # Handle Session Errors (from Excel imports)
     import_errors = request.session.pop('import_errors', [])
     
     return render(request, 'pssubf/beneficiary_list.html', {

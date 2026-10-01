@@ -174,12 +174,18 @@
 <body>
 
 <div class="container-custom">
+
     <div class="header-section">
         <div>
             <h2 class="fw-bold"><i class="bi bi-people-fill me-2"></i> Beneficiary Master List</h2>
             <small class="text-muted">Live Age Monitoring | Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ total_count }} total records</small>
         </div>
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2 align-items-center flex-wrap">
+            <!-- 🟢 ADD NEW MEMBER BUTTON -->
+            <button type="button" class="btn btn-success rounded-pill fw-bold px-3 shadow-sm" onclick="openNewMemberModal()">
+                <i class="bi bi-person-plus-fill me-1"></i> Add New Member
+            </button>
+
             <button onclick="exportToExcel()" class="btn btn-outline-primary border-white rounded-pill">
                 <i class="bi bi-file-earmark-excel me-1"></i> Export Excel
             </button>
@@ -293,8 +299,112 @@
     </div>
 </div>
 
+<!-- 🟢 ADD NEW MEMBER MODAL -->
+<div id="newMemberModal" class="fixed inset-0 z-50 bg-success/20 backdrop-blur-sm align-items-center justify-content-center p-4" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.5); z-index: 1050;">
+    <div class="bg-white w-full max-w-3xl rounded-4 shadow-lg overflow-hidden border border-white mx-auto mt-4" style="max-width: 750px; background: #ffffff;">
+        <div class="p-4 border-bottom d-flex justify-content-between align-items-center bg-light">
+            <h5 class="mb-0 fw-bold text-success"><i class="bi bi-person-plus me-2"></i> Register New Beneficiary</h5>
+            <button type="button" class="btn-close" onclick="closeNewMemberModal()"></button>
+        </div>
+
+        <form method="POST" action="" class="p-4 row g-3 overflow-y-auto" style="max-height: 75vh;" onsubmit="return validateMemberForm()">
+            {% csrf_token %}
+            <input type="hidden" name="action" value="add_new_beneficiary">
+
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-muted">* Membership No (8 Digits):</label>
+                <input type="text" name="membership_number" id="modal_membership_number" class="form-control" placeholder="e.g. 12345678" maxlength="8" pattern="\d{8}" required>
+                <small class="text-danger" id="membershipError" style="display:none; font-size: 11px;">Must be exactly an 8-digit number.</small>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-bold text-muted">Title:</label>
+                <input type="text" name="title" class="form-control" placeholder="Mr/Ms">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">Initials:</label>
+                <input type="text" name="initials" class="form-control" placeholder="J.A.">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-bold text-muted">Gender:</label>
+                <select name="gender" class="form-select">
+                    <option value="">Select...</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-muted">First Name:</label>
+                <input type="text" name="first_name" class="form-control">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-muted">Second Name:</label>
+                <input type="text" name="second_name" class="form-control">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-muted">Last Name:</label>
+                <input type="text" name="last_name" class="form-control">
+            </div>
+
+            <!-- 🟢 UPDATED: Adjusted col widths and added Date of Birth -->
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-muted">ID Number:</label>
+                <input type="text" name="id_number" class="form-control">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-muted">Employee Number:</label>
+                <input type="text" name="employee_number" class="form-control">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-muted">* Date of Birth:</label>
+                <input type="date" name="dob" class="form-control" required>
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-muted">Fund Join Date:</label>
+                <input type="date" name="fund_join_date" class="form-control">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-muted">Cessation Date:</label>
+                <input type="date" name="cessation_date" class="form-control">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-muted">Stipend Frequency:</label>
+                <input type="text" name="stipened_frequency" class="form-control" placeholder="Monthly">
+            </div>
+
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-muted">Stipend (R):</label>
+                <input type="number" step="0.01" name="stipened" class="form-control" value="0.00">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-muted">Total Fund Value (R):</label>
+                <input type="number" step="0.01" name="total_fund_value" class="form-control" value="0.00">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label small fw-bold text-muted">Portfolio Date:</label>
+                <input type="date" name="portfolio_date" class="form-control">
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label small fw-bold text-muted">Mobile Number:</label>
+                <input type="text" name="mobile_1" class="form-control">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label small fw-bold text-muted">Email Address:</label>
+                <input type="email" name="email_1" class="form-control">
+            </div>
+
+            <div class="col-12 text-end mt-4 border-top pt-3">
+                <button type="button" class="btn btn-secondary px-4 me-2 rounded-pill" onclick="closeNewMemberModal()">Cancel</button>
+                <button type="submit" class="btn btn-success px-5 fw-bold rounded-pill">Save Member</button>
+            </div>
+        </form>
+    </div>
+</div>
+
 <script>
-    // Global Database Search (Triggers submission across all pages on Enter or field change)
     const searchInputEl = document.getElementById('memberSearch');
     
     searchInputEl.addEventListener('keydown', function(e) {
@@ -308,12 +418,36 @@
         this.form.submit();
     });
 
-    // Excel Export Logic
     function exportToExcel() {
         const status = document.querySelector('select[name="status"]').value;
         const searchInput = document.getElementById('memberSearch').value;
         const exportUrl = "{% url 'export_beneficiaries' %}?status=" + status + "&search=" + encodeURIComponent(searchInput);
         window.location.href = exportUrl;
+    }
+
+    function openNewMemberModal() {
+        document.getElementById('newMemberModal').style.display = 'flex';
+    }
+
+    function closeNewMemberModal() {
+        document.getElementById('newMemberModal').style.display = 'none';
+        document.getElementById('membershipError').style.display = 'none';
+    }
+
+    function validateMemberForm() {
+        const mNum = document.getElementById('modal_membership_number').value.trim();
+        const errorTag = document.getElementById('membershipError');
+        
+        const isEightDigits = /^\d{8}$/.test(mNum);
+        
+        if (!isEightDigits) {
+            errorTag.style.display = 'block';
+            document.getElementById('modal_membership_number').focus();
+            return false;
+        }
+        
+        errorTag.style.display = 'none';
+        return true;
     }
 </script>
 

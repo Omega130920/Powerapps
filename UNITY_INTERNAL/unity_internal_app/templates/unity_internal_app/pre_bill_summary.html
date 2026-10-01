@@ -61,8 +61,10 @@ tbody tr:nth-child(even){background-color:#e6ffe6;}
 <body>
 <div class="container">
 <h2>
-{{ bill_record.C_Company_Code|default:"N/A" }}-
-{{ bill_record.D_Company_Name|default:"N/A" }}-
+{{ bill_record.C_Company_Code|default:"N/A" }} ||
+{{ bill_record.D_Company_Name|default:"N/A" }} ||
+{{ bill_record.A_CCDatesMonth|date:"Y-m-d" }} 
+{% if bill_record.pre_bill_date %}({{ bill_record.pre_bill_date|date:"Y-m-d" }}){% endif %}-
 💰 Pre-Bill Summary: Debt Reconciliation
 </h2>
 <a href="{% url 'unity_information' company_code=company_code %}" class="return-button">
@@ -356,7 +358,7 @@ Description: {{ line.bank_line.transaction_description|truncatechars:100 }}
 💰 Available Surplus Funds (Manual Allocation)
 </h3>
 <p style="font-size: 0.9em; color: #555;">
-The following funds are available from previous bills for <strong>{{ company_code }}</strong>.
+The following funds are available from previous bills for <strong>{{ company_code }}</strong> .
 Allocating these funds will create a Journal Entry to reduce the remaining schedule.
 </p>
 <table style="width: 100%; background: white; border-collapse: collapse;">
