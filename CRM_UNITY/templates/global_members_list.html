@@ -1,3 +1,4 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -152,6 +153,16 @@
 <body>
     <div class="container">
         <h1>Global List</h1>
+        
+        <!-- Top Status Summary Banner -->
+        <div style="background-color: white; border: 1px solid #000; padding: 6px 10px; margin-bottom: 20px; font-family: sans-serif; font-size: 14px; width: 100%; box-sizing: border-box;">
+            <div style="border-bottom: 1px solid #000; padding-bottom: 4px; margin-bottom: 4px;">
+                Total MG Count: {{ total_mg_count }}
+            </div>
+            <div>
+                {{ status_summary }}
+            </div>
+        </div>
         
         <div class="controls-container">
             <a href="{% url 'dashboard' %}" class="return-button">Back to Home</a>

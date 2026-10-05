@@ -216,19 +216,32 @@
         <table class="task-table" id="main_table">
             <thead>
                 <tr>
-                    <th style="width: 12%;">Received Date</th>
+                    <th style="width: 10%;">Received Date</th>
+                    <!-- 🟢 ADDED: Delegated Date -->
+                    <th style="width: 10%;">Delegated Date</th>
                     <th style="width: 25%;">Subject</th>
-                    <th style="width: 17%;">From</th>
-                    <th style="width: 9%;">MG Code</th>
-                    <th style="width: 10%;">Status</th>
+                    <th style="width: 14%;">From</th>
+                    <th style="width: 8%;">MG Code</th>
+                    <th style="width: 8%;">Status</th>
                     <th style="width: 12%;">Delegated To</th>
-                    <th style="width: 15%;">Last Replied</th>
+                    <!-- 🟢 ADDED: Action Note -->
+                    <th style="width: 13%;">Action Note</th>
                 </tr>
             </thead>
             <tbody id="table_body">
                 {% for row in page_obj %}
                 <tr onclick="window.location.href='{% if request.user.is_superuser or request.user.groups.all.0.name == 'Managers' %}{% url 'delegate_email' email_id=row.email_id %}{% elif row.is_delegated %}{% url 'delegate_action' email_id=row.email_id %}{% else %}{% url 'delegate_email' email_id=row.email_id %}{% endif %}';" class="clickable-row">
                     <td class="font-mono">{{ row.received_timestamp|date:"Y-m-d H:i" }}</td>
+                    
+                    <!-- 🟢 ADDED: Delegated Date Data -->
+                    <td class="font-mono">
+                        {% if row.delegated_timestamp %}
+                            {{ row.delegated_timestamp|date:"Y-m-d H:i" }}
+                        {% else %}
+                            <span style="color: #bbb; font-style: italic;">N/A</span>
+                        {% endif %}
+                    </td>
+
                     <td>
                         <div style="font-weight: 600; color: #333;">{{ row.subject|truncatechars:60 }}</div>
                         <div class="log-notes"><i class="fas fa-tag"></i> {{ row.category|default:"Unclassified" }}</div>
@@ -247,13 +260,15 @@
                         </span>
                     </td>
                     <td style="font-weight: 500;">{{ row.delegated_to|default:"-" }}</td>
+                    
+                    <!-- 🟢 ADDED: Action Note Data -->
                     <td>
-                        {% if row.last_replied_timestamp %}
-                            <span style="color: #2e7d32; font-weight: 600;">
-                                <i class="fas fa-reply"></i> {{ row.last_replied_timestamp|date:"Y-m-d H:i" }}
+                        {% if row.action_note %}
+                            <span style="color: #2e7d32; font-weight: 500;">
+                                <i class="fas fa-sticky-note"></i> {{ row.action_note|truncatechars:50 }}
                             </span>
                         {% else %}
-                            <span style="color: #bbb; font-style: italic;">No Reply Yet</span>
+                            <span style="color: #bbb; font-style: italic;">No Note</span>
                         {% endif %}
                     </td>
                 </tr>

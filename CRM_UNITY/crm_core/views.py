@@ -510,7 +510,7 @@ def send_task_email_view(request, email_id):
         message_body = raw_message_body.replace('\r\n', '<br>').replace('\n', '<br>')
 
         # 🟢 Updated static logo URL
-        logo_full_url = "https://static.futurasa.co.za/images/pssubf-logo.png"
+        logo_full_url = "https://futurasa.co.za/wp-content/uploads/2021/04/futura-logo.png"
 
         # Fetch dynamic name and title using the helper
         agent_name, agent_title = get_crm_signature_details(request.user)
@@ -609,6 +609,25 @@ def global_members_list(request):
     # 1. Fetch base members
     members = GlobalFundContact.objects.all().order_by('member_group_code')
     
+    # --- NEW: Calculate Stats for the Banner ---
+    # Get total count of all members
+    total_mg_count = members.count()
+    
+    # Group by fund_status and count them
+    status_counts = GlobalFundContact.objects.values('fund_status').annotate(
+        count=Count('fund_status')
+    ).order_by('fund_status')
+    
+    # Format the string to match: "Active - 717; Amendment - 2; Blank - 11"
+    status_summary_parts = []
+    for item in status_counts:
+        # Handle blank/null statuses gracefully
+        status_name = item['fund_status'] if item['fund_status'] else "Blank"
+        status_summary_parts.append(f"{status_name} - {item['count']}")
+        
+    status_summary_string = "; ".join(status_summary_parts)
+    # -------------------------------------------
+
     # 2. Get unique statuses for the dropdown
     fund_statuses = GlobalFundContact.objects.values_list('fund_status', flat=True).distinct().order_by('fund_status')
 
@@ -650,6 +669,8 @@ def global_members_list(request):
         'fund_statuses': fund_statuses,
         'search_query': search_query,
         'fund_status_filter': status_filter,
+        'total_mg_count': total_mg_count,           # <-- Added to context
+        'status_summary': status_summary_string,    # <-- Added to context
     }
 
     return render(request, 'global_members_list.html', context)
@@ -778,7 +799,7 @@ def member_information(request, member_group_code):
             bcc_recipients = request.POST.get('member_bcc_email', '')
 
             # Before render_to_string, calculate the full URL
-            logo_full_url = "https://static.futurasa.co.za/images/pssubf-logo.png"
+            logo_full_url = "https://futurasa.co.za/wp-content/uploads/2021/04/futura-logo.png"
 
             # Fetch dynamic name and title using the helper
             agent_name, agent_title = get_crm_signature_details(request.user)
@@ -1298,7 +1319,7 @@ def delegate_action_view(request, email_id):
 
                 if recipient and subject and body_html:
                     # 🚀 DYNAMIC SIGNATURE INJECTION 🚀
-                    logo_full_url = "https://static.futurasa.co.za/images/pssubf-logo.png"
+                    logo_full_url = "https://futurasa.co.za/wp-content/uploads/2021/04/futura-logo.png"
                     
                     # Fetch dynamic name and title using the helper
                     agent_name, agent_title = get_crm_signature_details(request.user)
@@ -2103,18 +2124,21 @@ def get_date_filters(request):
     filters = Q()
     
     if is_valid(start_str):
-        parsed_start = parse_date(start_str)
-        if parsed_start:
-            # Evaluates to >= YYYY-MM-DD 00:00:00
+        try:
+            # 🚀 FIX: Use standard datetime.strptime instead of missing parse_date import
+            parsed_start = datetime.strptime(start_str.strip(), "%Y-%m-%d").date()
             filters &= Q(received_timestamp__gte=parsed_start)
+        except ValueError:
+            pass
             
     if is_valid(end_str):
-        parsed_end = parse_date(end_str)
-        if parsed_end:
-            # 🚀 FIX: Add 1 day and use Less-Than (<) to capture up to 23:59:59 of the end_date.
-            # This completely bypasses the MySQL __date timezone cast bug.
+        try:
+            # 🚀 FIX: Use standard datetime.strptime instead of missing parse_date import
+            parsed_end = datetime.strptime(end_str.strip(), "%Y-%m-%d").date()
             next_day = parsed_end + timedelta(days=1)
             filters &= Q(received_timestamp__lt=next_day)
+        except ValueError:
+            pass
             
     return filters, start_str, end_str
 
@@ -2129,19 +2153,40 @@ def get_unified_email_data(request):
     last_reply_map = CrmDelegateAction.objects.filter(
         action_type='REPLY_SENT'
     ).values('task_email_id').annotate(last_replied=Max('action_timestamp'))
-    last_reply_dict = {item['task_email_id']: item['last_replied'] for item in last_reply_map}
+    last_reply_dict = {item['task_email_id']: item['last_replied'] for item in last_reply_map if item.get('task_email_id')}
 
     delegation_user_map = CrmDelegateAction.objects.filter(
         action_type='restore_to_inbox' 
     ).values('task_email_id', 'action_user')
-    user_dict = {item['task_email_id']: item['action_user'] for item in delegation_user_map}
+    user_dict = {item['task_email_id']: item['action_user'] for item in delegation_user_map if item.get('task_email_id')}
 
-    # 2. Setup Filters (Now safely bypasses MySQL date bugs)
+    delegated_actions = CrmDelegateAction.objects.filter(
+        action_type__in=['DELEGATE', 'DELEGATED', 'ASSIGNED']
+    ).values('task_email_id', 'action_timestamp')
+    delegated_date_map = {item['task_email_id']: item['action_timestamp'] for item in delegated_actions if item.get('task_email_id')}
+
+    action_notes_qs = CrmDelegateAction.objects.exclude(
+        note_content__isnull=True
+    ).exclude(
+        note_content__exact=''
+    ).values('task_email_id', 'note_content', 'action_timestamp').order_by('action_timestamp')
+
+    action_note_map = {}
+    for note in action_notes_qs:
+        eid = note.get('task_email_id')
+        content = str(note.get('note_content') or '').strip()
+        if eid and content:
+            if eid in action_note_map:
+                action_note_map[eid] += f" | {content}"
+            else:
+                action_note_map[eid] = content
+
+    # 2. Setup Filters 
     date_filter, _, _ = get_date_filters(request)
 
     # 3. Fetch Delegated Emails
     delegated_qs = CrmDelegateTo.objects.filter(date_filter).order_by('-received_timestamp')
-    delegated_ids = {task.email_id for task in delegated_qs}
+    delegated_ids = {getattr(task, 'email_id') for task in delegated_qs if getattr(task, 'email_id', None)}
 
     # 4. Fetch New/Pending Emails
     new_emails_qs = CrmInbox.objects.filter(date_filter).exclude(
@@ -2150,7 +2195,6 @@ def get_unified_email_data(request):
 
     unified_list = []
     
-    # Check if CATEGORY_NAMES is defined in the file, otherwise safely ignore
     try:
         cat_dict = CATEGORY_NAMES
     except NameError:
@@ -2158,41 +2202,51 @@ def get_unified_email_data(request):
 
     # Process Delegated
     for task in delegated_qs:
+        eid = getattr(task, 'email_id', '')
         unified_list.append({
-            'email_id': task.email_id,
-            'subject': task.subject,
-            'sender': task.sender or "Unknown",
-            'status': task.status,
-            'delegated_to': task.delegated_to or user_dict.get(task.email_id, "System"),
-            'member_group_code': task.member_group_code,
+            'email_id': eid,
+            'subject': getattr(task, 'subject', 'No Subject') or "No Subject",
+            'sender': getattr(task, 'sender', 'Unknown') or "Unknown",
+            'status': getattr(task, 'status', 'Delegated'),
+            'delegated_to': getattr(task, 'delegated_to', None) or user_dict.get(eid, "System"),
+            'member_group_code': getattr(task, 'member_group_code', getattr(task, 'Member_Group_Code', 'N/A')),
             
             'membership_number': getattr(task, 'mip_number', getattr(task, 'membership_number', 'N/A')), 
             'id_passport': getattr(task, 'id_passport', 'N/A'),
             
-            'category': cat_dict.get(str(task.category), task.category) if cat_dict else getattr(task, 'category', 'Unclassified'),
+            'category': cat_dict.get(str(getattr(task, 'category', '')), getattr(task, 'category', 'Unclassified')),
             'type': getattr(task, 'type', 'None'), 
-            'received_timestamp': task.received_timestamp,
-            'last_replied_timestamp': last_reply_dict.get(task.email_id),
+            'received_timestamp': getattr(task, 'received_timestamp', None),
+            'last_replied_timestamp': last_reply_dict.get(eid),
+            
+            'delegated_timestamp': delegated_date_map.get(eid),
+            'action_note': action_note_map.get(eid, ''),
+            
             'is_delegated': True
         })
 
     # Process New
     for email in new_emails_qs:
+        eid = getattr(email, 'email_id', '')
         unified_list.append({
-            'email_id': email.email_id,
-            'subject': email.subject,
-            'sender': email.sender,
+            'email_id': eid,
+            'subject': getattr(email, 'subject', 'No Subject') or "No Subject",
+            'sender': getattr(email, 'sender', 'Unknown') or "Unknown",
             'status': 'New',
             'delegated_to': 'Inbox (Unassigned)',
-            'member_group_code': 'N/A',
+            'member_group_code': getattr(email, 'Member_Group_Code', getattr(email, 'member_group_code', 'N/A')),
             
             'membership_number': 'N/A',
-            'id_passport': 'N/A',
+            'id_passport': getattr(email, 'id_passport', 'N/A'),
             
-            'category': 'Unclassified',
-            'type': 'Incoming Email', 
-            'received_timestamp': email.received_timestamp,
+            'category': getattr(email, 'category', 'Unclassified'),
+            'type': getattr(email, 'type', 'Incoming Email'), 
+            'received_timestamp': getattr(email, 'received_timestamp', None),
             'last_replied_timestamp': None,
+            
+            'delegated_timestamp': None,
+            'action_note': action_note_map.get(eid, ''),
+            
             'is_delegated': False
         })
 
@@ -2201,9 +2255,9 @@ def get_unified_email_data(request):
     if search_text:
         unified_list = [
             row for row in unified_list 
-            if search_text in row['subject'].lower() or 
-               search_text in row['sender'].lower() or 
-               search_text in str(row['member_group_code']).lower()
+            if search_text in str(row.get('subject', '')).lower() or 
+               search_text in str(row.get('sender', '')).lower() or 
+               search_text in str(row.get('member_group_code', '')).lower()
         ]
 
     # Final Sort
@@ -2225,29 +2279,35 @@ def email_workflow_log_view(request):
 def export_email_workflow_csv(request):
     data = get_unified_email_data(request)
     
-    # --- 🚀 NEW: Bulk fetch notes for only the emails currently being exported ---
-    email_ids = [row['email_id'] for row in data]
+    # --- 🚀 BULK FETCH NOTES FROM crm_delegate_actions ---
+    email_ids = [row['email_id'] for row in data if row.get('email_id')]
     notes_dict = {}
     
     if email_ids:
-        # Order by date so multiple notes append chronologically
-        notes_qs = ClientNotes.objects.filter(
-            attached_email_id__in=email_ids
-        ).values('attached_email_id', 'notes').order_by('date')
+        # Fetch actions with non-empty note_content for the current emails, ordered by timestamp
+        notes_qs = CrmDelegateAction.objects.filter(
+            task_email_id__in=email_ids
+        ).exclude(
+            note_content__isnull=True
+        ).exclude(
+            note_content__exact=''
+        ).values('task_email_id', 'note_content', 'action_user', 'action_timestamp').order_by('action_timestamp')
         
         for note in notes_qs:
-            eid = note['attached_email_id']
-            note_text = note['notes']
+            eid = note.get('task_email_id')
+            # Safe string cast
+            content = str(note.get('note_content') or '').strip()
             
-            if not note_text:
+            if not content or not eid:
                 continue
                 
-            # If an email has multiple notes, combine them with a separator
+            formatted_note = content
+            
             if eid in notes_dict:
-                notes_dict[eid] += f" | {note_text}" 
+                notes_dict[eid] += f" | {formatted_note}"
             else:
-                notes_dict[eid] = str(note_text)
-    # ----------------------------------------------------------------------------
+                notes_dict[eid] = formatted_note
+    # ---------------------------------------------------
     
     response = HttpResponse(content_type='text/csv')
     filename = f"Email_Workflow_{timezone.now().strftime('%Y-%m-%d')}.csv"
@@ -2255,9 +2315,10 @@ def export_email_workflow_csv(request):
 
     writer = csv.writer(response)
     
-    # 🟢 ADDED 'Notes' HEADER
+    # 🚀 ADDED 'Delegated Date' AND KEPT ALL EXISTING HEADERS
     writer.writerow([
         'Received Date', 
+        'Delegated Date',
         'Sender', 
         'Subject', 
         'Status', 
@@ -2272,7 +2333,9 @@ def export_email_workflow_csv(request):
     ])
 
     for row in data:
-        received_dt = row['received_timestamp'].strftime('%Y-%m-%d %H:%M') if row['received_timestamp'] else 'N/A'
+        # Safely check if received_timestamp exists before calling strftime
+        received_dt = row['received_timestamp'].strftime('%Y-%m-%d %H:%M') if row.get('received_timestamp') else 'N/A'
+        delegated_dt = row['delegated_timestamp'].strftime('%Y-%m-%d %H:%M') if row.get('delegated_timestamp') else 'N/A'
         
         reply_dt = 'No Reply'
         if row.get('last_replied_timestamp'):
@@ -2280,12 +2343,12 @@ def export_email_workflow_csv(request):
 
         agent_name = row.get('delegated_to') or 'Inbox (Unassigned)'
         
-        # 🚀 Fetch the combined note(s) for this specific email, default to empty string
-        email_note = notes_dict.get(row['email_id'], '')
+        # Pull note matching task_email_id (or fallback to row['action_note'])
+        email_note = notes_dict.get(row['email_id'], row.get('action_note', ''))
 
-        # 🟢 ADDED 'email_note' DATA
         writer.writerow([
             received_dt,
+            delegated_dt,
             row.get('sender', 'Unknown'),
             row.get('subject', 'No Subject'),
             row.get('status', 'New'),
