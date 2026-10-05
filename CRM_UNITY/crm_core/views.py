@@ -2098,19 +2098,23 @@ def get_date_filters(request):
     
     # Check if the string is empty or literally the string "None"
     def is_valid(val):
-        return val and val != "None" and val != ""
+        return val and isinstance(val, str) and val.strip() not in ["None", ""]
 
     filters = Q()
     
     if is_valid(start_str):
         parsed_start = parse_date(start_str)
         if parsed_start:
-            filters &= Q(received_timestamp__date__gte=parsed_start)
+            # Evaluates to >= YYYY-MM-DD 00:00:00
+            filters &= Q(received_timestamp__gte=parsed_start)
             
     if is_valid(end_str):
         parsed_end = parse_date(end_str)
         if parsed_end:
-            filters &= Q(received_timestamp__date__lte=parsed_end)
+            # 🚀 FIX: Add 1 day and use Less-Than (<) to capture up to 23:59:59 of the end_date.
+            # This completely bypasses the MySQL __date timezone cast bug.
+            next_day = parsed_end + timedelta(days=1)
+            filters &= Q(received_timestamp__lt=next_day)
             
     return filters, start_str, end_str
 
@@ -2121,9 +2125,6 @@ def get_unified_email_data(request):
     data into a single list for the UI and CSV Export.
     Includes safety checks for 'None' strings and Agent lookups.
     """
-    from django.db.models import Max, Q
-    from datetime import datetime
-
     # 1. Action Lookup (Check for replies and original delegation actions)
     last_reply_map = CrmDelegateAction.objects.filter(
         action_type='REPLY_SENT'
@@ -2135,18 +2136,8 @@ def get_unified_email_data(request):
     ).values('task_email_id', 'action_user')
     user_dict = {item['task_email_id']: item['action_user'] for item in delegation_user_map}
 
-    # 2. Setup Filters
-    date_filter = Q()
-    start_date_str = request.GET.get('start_date')
-    end_date_str = request.GET.get('end_date')
-
-    def is_valid_date(val):
-        return val and val != "None" and val != ""
-
-    if is_valid_date(start_date_str):
-        date_filter &= Q(received_timestamp__date__gte=start_date_str)
-    if is_valid_date(end_date_str):
-        date_filter &= Q(received_timestamp__date__lte=end_date_str)
+    # 2. Setup Filters (Now safely bypasses MySQL date bugs)
+    date_filter, _, _ = get_date_filters(request)
 
     # 3. Fetch Delegated Emails
     delegated_qs = CrmDelegateTo.objects.filter(date_filter).order_by('-received_timestamp')
@@ -2158,6 +2149,12 @@ def get_unified_email_data(request):
     ).order_by('-received_timestamp')
 
     unified_list = []
+    
+    # Check if CATEGORY_NAMES is defined in the file, otherwise safely ignore
+    try:
+        cat_dict = CATEGORY_NAMES
+    except NameError:
+        cat_dict = {}
 
     # Process Delegated
     for task in delegated_qs:
@@ -2168,8 +2165,12 @@ def get_unified_email_data(request):
             'status': task.status,
             'delegated_to': task.delegated_to or user_dict.get(task.email_id, "System"),
             'member_group_code': task.member_group_code,
-            'category': CATEGORY_NAMES.get(str(task.category), task.category),
-            'type': task.type,  # <--- CRITICAL: Now pulls Enquiry Selection from DB
+            
+            'membership_number': getattr(task, 'mip_number', getattr(task, 'membership_number', 'N/A')), 
+            'id_passport': getattr(task, 'id_passport', 'N/A'),
+            
+            'category': cat_dict.get(str(task.category), task.category) if cat_dict else getattr(task, 'category', 'Unclassified'),
+            'type': getattr(task, 'type', 'None'), 
             'received_timestamp': task.received_timestamp,
             'last_replied_timestamp': last_reply_dict.get(task.email_id),
             'is_delegated': True
@@ -2184,8 +2185,12 @@ def get_unified_email_data(request):
             'status': 'New',
             'delegated_to': 'Inbox (Unassigned)',
             'member_group_code': 'N/A',
+            
+            'membership_number': 'N/A',
+            'id_passport': 'N/A',
+            
             'category': 'Unclassified',
-            'type': 'Incoming Email', # Default for un-delegated items
+            'type': 'Incoming Email', 
             'received_timestamp': email.received_timestamp,
             'last_replied_timestamp': None,
             'is_delegated': False
@@ -2202,14 +2207,12 @@ def get_unified_email_data(request):
         ]
 
     # Final Sort
-    unified_list.sort(key=lambda x: x['received_timestamp'] if x['received_timestamp'] else datetime.min, reverse=True)
+    fallback_date = timezone.now().replace(year=1900)
+    unified_list.sort(key=lambda x: x['received_timestamp'] or fallback_date, reverse=True)
     return unified_list
 
 @login_required
 def email_workflow_log_view(request):
-    from django.core.paginator import Paginator
-
-    # Uses the helper above which now includes the 'type' field
     data = get_unified_email_data(request)
     
     paginator = Paginator(data, 25) 
@@ -2220,11 +2223,6 @@ def email_workflow_log_view(request):
 
 @login_required
 def export_email_workflow_csv(request):
-    import csv
-    from django.http import HttpResponse
-    from django.utils import timezone
-
-    # Fetches the filtered data based on current UI filters
     data = get_unified_email_data(request)
     
     response = HttpResponse(content_type='text/csv')
@@ -2233,16 +2231,15 @@ def export_email_workflow_csv(request):
 
     writer = csv.writer(response)
     
-    # 🟢 UPDATED HEADERS
     writer.writerow([
         'Received Date', 
         'Sender', 
         'Subject', 
         'Status', 
         'Agent (Assigned)', 
-        'Member Group Code',    # Added
-        'Membership Number',    # Added
-        'ID/Passport Number',   # Added
+        'Member Group Code',    
+        'Membership Number',    
+        'ID/Passport Number',   
         'Category',
         'Enquiry Selection', 
         'Date Replied'
@@ -2257,7 +2254,6 @@ def export_email_workflow_csv(request):
 
         agent_name = row.get('delegated_to') or 'Inbox (Unassigned)'
 
-        # 🟢 UPDATED ROW DATA
         writer.writerow([
             received_dt,
             row.get('sender', 'Unknown'),
@@ -2265,8 +2261,8 @@ def export_email_workflow_csv(request):
             row.get('status', 'New'),
             agent_name,
             row.get('member_group_code', 'N/A'),
-            row.get('membership_number', 'N/A'), # Ensure this key exists in get_unified_email_data
-            row.get('id_passport', 'N/A'),       # Ensure this key exists in get_unified_email_data
+            row.get('membership_number', 'N/A'),
+            row.get('id_passport', 'N/A'),       
             row.get('category', 'Unclassified'),
             row.get('type', 'None'),
             reply_dt
