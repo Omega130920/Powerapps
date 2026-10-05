@@ -2225,12 +2225,37 @@ def email_workflow_log_view(request):
 def export_email_workflow_csv(request):
     data = get_unified_email_data(request)
     
+    # --- 🚀 NEW: Bulk fetch notes for only the emails currently being exported ---
+    email_ids = [row['email_id'] for row in data]
+    notes_dict = {}
+    
+    if email_ids:
+        # Order by date so multiple notes append chronologically
+        notes_qs = ClientNotes.objects.filter(
+            attached_email_id__in=email_ids
+        ).values('attached_email_id', 'notes').order_by('date')
+        
+        for note in notes_qs:
+            eid = note['attached_email_id']
+            note_text = note['notes']
+            
+            if not note_text:
+                continue
+                
+            # If an email has multiple notes, combine them with a separator
+            if eid in notes_dict:
+                notes_dict[eid] += f" | {note_text}" 
+            else:
+                notes_dict[eid] = str(note_text)
+    # ----------------------------------------------------------------------------
+    
     response = HttpResponse(content_type='text/csv')
     filename = f"Email_Workflow_{timezone.now().strftime('%Y-%m-%d')}.csv"
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
 
     writer = csv.writer(response)
     
+    # 🟢 ADDED 'Notes' HEADER
     writer.writerow([
         'Received Date', 
         'Sender', 
@@ -2242,7 +2267,8 @@ def export_email_workflow_csv(request):
         'ID/Passport Number',   
         'Category',
         'Enquiry Selection', 
-        'Date Replied'
+        'Date Replied',
+        'Notes'
     ])
 
     for row in data:
@@ -2253,7 +2279,11 @@ def export_email_workflow_csv(request):
             reply_dt = row['last_replied_timestamp'].strftime('%Y-%m-%d %H:%M')
 
         agent_name = row.get('delegated_to') or 'Inbox (Unassigned)'
+        
+        # 🚀 Fetch the combined note(s) for this specific email, default to empty string
+        email_note = notes_dict.get(row['email_id'], '')
 
+        # 🟢 ADDED 'email_note' DATA
         writer.writerow([
             received_dt,
             row.get('sender', 'Unknown'),
@@ -2265,7 +2295,8 @@ def export_email_workflow_csv(request):
             row.get('id_passport', 'N/A'),       
             row.get('category', 'Unclassified'),
             row.get('type', 'None'),
-            reply_dt
+            reply_dt,
+            email_note
         ])
 
     return response
