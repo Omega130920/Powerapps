@@ -510,7 +510,7 @@ def send_task_email_view(request, email_id):
         message_body = raw_message_body.replace('\r\n', '<br>').replace('\n', '<br>')
 
         # 🟢 Updated static logo URL
-        logo_full_url = "https://futurasa.co.za/wp-content/uploads/2021/04/futura-logo.png"
+        logo_url = "https://static.futurasa.co.za/images/futura-logo.png"
 
         # Fetch dynamic name and title using the helper
         agent_name, agent_title = get_crm_signature_details(request.user)
@@ -519,7 +519,7 @@ def send_task_email_view(request, email_id):
         signature_html = render_to_string('email_signature.html', {
             'request': request,
             'MEDIA_URL': settings.MEDIA_URL,
-            'logo_url': logo_full_url,
+            'logo_url': logo_url,
             'agent_name': agent_name,
             'agent_title': agent_title
         })
@@ -831,7 +831,7 @@ def member_information(request, member_group_code):
             bcc_recipients = request.POST.get('member_bcc_email', '')
 
             # Before render_to_string, calculate the full URL
-            logo_full_url = "https://futurasa.co.za/wp-content/uploads/2021/04/futura-logo.png"
+            logo_url = "https://static.futurasa.co.za/images/futura-logo.png"
 
             # Fetch dynamic name and title using the helper
             agent_name, agent_title = get_crm_signature_details(request.user)
@@ -840,7 +840,7 @@ def member_information(request, member_group_code):
             signature_html = render_to_string('email_signature.html', {
                 'request': request,
                 'MEDIA_URL': settings.MEDIA_URL,
-                'logo_full_url': logo_full_url,
+                'logo_url': logo_url,
                 'agent_name': agent_name,
                 'agent_title': agent_title
             })
@@ -1014,36 +1014,26 @@ def add_member(request):
 
 @login_required
 def import_global_data(request):
-    """Excel master file import handler with status tracking and record processing."""
-
     if request.method == 'POST' and 'master_file' in request.FILES:
         master_file = request.FILES['master_file']
         
-        # 2. Tracking Statistics for the UI Prompt
         stats = {
             'total_created': 0,
             'total_updated': 0,
-            'sheets_processed': 0
+            'sheets_processed': 0,
+            'errors': []  # 🟢 NEW: Track specific row errors
         }
 
-        # 3. Validation: Extension and Integrity
         if not master_file.name.lower().endswith('.xlsx'):
-            return render(request, 'import_global_data.html', {
-                'error_message': "Invalid Format: Only '.xlsx' files are supported."
-            })
+            return render(request, 'import_global_data.html', {'error_message': "Only '.xlsx' files are supported."})
 
         import zipfile
         if not zipfile.is_zipfile(master_file):
-            return render(request, 'import_global_data.html', {
-                'error_message': "File Structure Error: This file is not a valid Zip/XML workbook. Please re-save as 'Excel Workbook (*.xlsx)'."
-            })
+            return render(request, 'import_global_data.html', {'error_message': "File Structure Error."})
 
         try:
-            # Load workbook (data_only=True ensures we get values, not formulas)
             workbook = openpyxl.load_workbook(master_file, data_only=True)
             
-            # 4. Sheet to Model Mapping
-            # This covers your RELATED_FORMS list and the primary GlobalFundContact table
             sheet_model_map = {
                 'global_fund_contact_list': GlobalFundContact,
                 'cbc': Cbc,
@@ -1058,59 +1048,68 @@ def import_global_data(request):
                 'section13a': Section13a,
             }
 
-            with transaction.atomic():
-                for sheet_name, model_class in sheet_model_map.items():
-                    if sheet_name in workbook.sheetnames:
-                        sheet = workbook[sheet_name]
-                        stats['sheets_processed'] += 1
-                        
-                        rows = list(sheet.rows)
-                        if len(rows) < 1:
-                            continue
+            for sheet_name, model_class in sheet_model_map.items():
+                if sheet_name in workbook.sheetnames:
+                    sheet = workbook[sheet_name]
+                    stats['sheets_processed'] += 1
+                    
+                    rows = list(sheet.rows)
+                    if len(rows) < 2:
+                        continue
 
-                        # Identify header row
-                        header = [str(cell.value).strip() if cell.value else None for cell in rows[0]]
-                        
-                        # Process data rows
-                        for row in rows[1:]:
-                            # Convert row to dictionary mapping headers to cell values
-                            row_values = [cell.value for cell in row]
-                            row_data = dict(zip(header, row_values))
+                    header = []
+                    for cell in rows[0]:
+                        if cell.value:
+                            header.append(str(cell.value).strip().lower().replace(' ', '_'))
+                        else:
+                            header.append(None)
+                    
+                    for row_idx, row in enumerate(rows[1:], start=2):
+                        row_values = [cell.value for cell in row]
+                        row_data = dict(zip(header, row_values))
 
-                            # Clean data: Remove None keys or empty values
-                            row_data = {k: v for k, v in row_data.items() if k and k != 'None'}
+                        clean_data = {}
+                        for k, v in row_data.items():
+                            if k and v is not None and str(v).strip() != '':
+                                clean_data[k] = v
 
-                            # Identify Unique Key (mip_number / member_group_code)
-                            # Checking both potential column naming conventions
-                            mg_code = row_data.get('member_group_code') or row_data.get('Member_Group_Code')
+                        # 🟢 FIX: Check multiple common header names for the code column
+                        mg_code = (
+                            clean_data.pop('member_group_code', None) or 
+                            clean_data.pop('group_code', None) or 
+                            clean_data.pop('code', None)
+                        )
 
-                            if mg_code:
-                                # Logic: Update if exists, Create if not
-                                obj, created = model_class.objects.update_or_create(
-                                    member_group_code=mg_code,
-                                    defaults=row_data
-                                )
-                                
-                                if created:
-                                    stats['total_created'] += 1
-                                else:
-                                    stats['total_updated'] += 1
+                        if mg_code:
+                            mg_code_str = str(mg_code).strip()
+                            
+                            # 🟢 FIX: Catch row-level database errors so one bad row doesn't skip silently
+                            try:
+                                with transaction.atomic():
+                                    obj, created = model_class.objects.update_or_create(
+                                        member_group_code=mg_code_str,
+                                        defaults=clean_data
+                                    )
+                                    if created:
+                                        stats['total_created'] += 1
+                                    else:
+                                        stats['total_updated'] += 1
+                            except Exception as e:
+                                stats['errors'].append(f"Sheet '{sheet_name}', Row {row_idx} (Code: {mg_code_str}): {str(e)}")
 
-            # 5. Build the detailed success message for the HTML 'import-summary'
             summary_msg = (
-                f"Successfully processed {stats['sheets_processed']} sheets. "
-                f"{stats['total_updated']} existing records were updated and "
-                f"{stats['total_created']} new records were created."
+                f"Processed {stats['sheets_processed']} sheets. "
+                f"{stats['total_updated']} updated, "
+                f"{stats['total_created']} created."
             )
             
             return render(request, 'import_global_data.html', {
-                'success_message': summary_msg
+                'success_message': summary_msg,
+                'import_errors': stats['errors'] # 🟢 Pass the errors to the HTML
             })
 
         except Exception as e:
-            return render(request, 'import_global_data.html', {
-                'error_message': f"Critical failure during Excel processing: {str(e)}"
-            })
+            return render(request, 'import_global_data.html', {'error_message': f"Critical failure: {str(e)}"})
 
     return render(request, 'import_global_data.html')
 
@@ -1125,6 +1124,26 @@ def tasks_view(request):
     Manager (omega) sees ALL delegated tasks (Delegated AND Completed).
     Agents see ONLY tasks assigned to them.
     """
+    
+    # 🟢 EXACT MAPPING APPLIED HERE
+    CATEGORY_CHOICES = {
+        '0': '0. No Action Required',
+        '1': '1. Reconciliation',
+        '2': '2. Claim',
+        '3': '3. Section 13A',
+        '4': '4. New Business',
+        '5': '5. Amendments',
+        '6': '6. Section 28',
+        '7': '7. Section 14',
+        '8': '8. Section 27',
+        '9': '9. Complaints',
+        '10': '10. Two Pot',
+        '11': '11. Report Back',
+        '12': '12. Broker Investigations',
+        '13': '13. General',
+        '14': '14. Other'
+    }
+
     # 1. Define the statuses we want to see
     VISIBLE_STATUSES = ['Delegated', 'Completed']
 
@@ -1152,6 +1171,11 @@ def tasks_view(request):
         # Get the corresponding inbox record if it exists
         inbox_item = inbox_map.get(t.email_id)
         
+        # Convert the raw category to a string, then look it up in our dictionary.
+        # If it's not found in the dictionary, it safely falls back to the original value.
+        raw_cat = str(t.category).strip() if t.category else ""
+        display_category = CATEGORY_CHOICES.get(raw_cat, t.category)
+        
         display_tasks.append({
             'subject': t.subject,
             'email_id': t.email_id,
@@ -1160,13 +1184,15 @@ def tasks_view(request):
             # Timestamp A: When it originally arrived (from Inbox)
             'arrival_timestamp': inbox_item.received_timestamp if inbox_item else None,
             
-            # NEW: Sender Email Address (from Inbox)
+            # Sender Email Address (from Inbox)
             'sender': inbox_item.sender if inbox_item else "Unknown Sender",
             
             # Timestamp B: When it was delegated (from DelegateTo table)
             'delegation_timestamp': t.received_timestamp,
             
-            'category': t.category,
+            # 🟢 Inject the mapped category text here
+            'category': display_category,
+            
             'enquiry_type': t.type, 
             'status': t.status,
             'delegated_to': t.delegated_to
@@ -1351,7 +1377,7 @@ def delegate_action_view(request, email_id):
 
                 if recipient and subject and body_html:
                     # 🚀 DYNAMIC SIGNATURE INJECTION 🚀
-                    logo_full_url = "https://futurasa.co.za/wp-content/uploads/2021/04/futura-logo.png"
+                    logo_url = "https://static.futurasa.co.za/images/futura-logo.png"
                     
                     # Fetch dynamic name and title using the helper
                     agent_name, agent_title = get_crm_signature_details(request.user)
@@ -1359,7 +1385,7 @@ def delegate_action_view(request, email_id):
                     signature_html = render_to_string('email_signature.html', {
                         'request': request,
                         'MEDIA_URL': settings.MEDIA_URL,
-                        'logo_url': logo_full_url,
+                        'logo_url': logo_url,
                         'agent_name': agent_name,
                         'agent_title': agent_title
                     })

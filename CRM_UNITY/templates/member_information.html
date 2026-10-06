@@ -1404,7 +1404,10 @@
                             {% endif %}
                         </td>
                         <td style="padding: 10px;">{{ email.arrival_timestamp|date:"Y-m-d H:i"|default:"-" }}</td>
-                        <td style="padding: 10px;">{{ email.timestamp|date:"Y-m-d H:i"|default:email.delegation_timestamp|date:"Y-m-d H:i" }}</td>
+                        
+                        <!-- 🟢 FIXED: Simplified the filter to explicitly format the delegation_timestamp with hours and minutes -->
+                        <td style="padding: 10px;">{{ email.delegation_timestamp|date:"Y-m-d H:i"|default:"-" }}</td>
+                        
                         <td style="padding: 10px;">{{ email.assigned_to }}</td>
                         <td style="padding: 10px;">
                             {% if email.status == 'Completed' %}

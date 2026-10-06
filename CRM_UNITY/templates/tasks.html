@@ -6,7 +6,6 @@
 <title>Delegated Tasks Log</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 <style>
-/* ... (Existing CSS remains the same) ... */
 body {
     font-family: sans-serif;
     background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
@@ -64,7 +63,7 @@ body {
     color: white;
     font-weight: 600;
     text-transform: uppercase;
-    cursor: pointer; /* Makes it obvious they are clickable */
+    cursor: pointer; 
     position: relative;
     user-select: none;
 }
@@ -135,7 +134,8 @@ body {
                         {{ task.arrival_timestamp|date:"d M Y H:i" }}
                     </td>
                     <td data-sort="{{ task.delegation_timestamp|date:'U' }}">
-                        {{ task.delegation_timestamp|date:"d M Y" }}
+                        <!-- 🟢 FIXED: Format now includes hours and minutes to display the full timestamp -->
+                        {{ task.delegation_timestamp|date:"d M Y H:i" }}
                     </td>
                     <td>{{ task.category|default:"N/A" }}</td>
                     <td>{{ task.enquiry_type|default:"N/A" }}</td>
@@ -184,14 +184,13 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // --- Sorting Logic ---
-let sortOrder = {}; // Track direction for each column
+let sortOrder = {}; 
 
 function sortTable(n) {
     const table = document.getElementById("main_table");
     const tbody = document.getElementById("table_body");
     const rows = Array.from(tbody.rows);
     
-    // Toggle sort order
     sortOrder[n] = !sortOrder[n];
     const isAscending = sortOrder[n];
 
@@ -199,7 +198,6 @@ function sortTable(n) {
         let valA = rowA.cells[n].innerText.trim();
         let valB = rowB.cells[n].innerText.trim();
 
-        // Check for special data-sort attribute (used for dates)
         const sortValA = rowA.cells[n].getAttribute('data-sort');
         const sortValB = rowB.cells[n].getAttribute('data-sort');
         
@@ -207,18 +205,15 @@ function sortTable(n) {
             return isAscending ? sortValA - sortValB : sortValB - sortValA;
         }
 
-        // Default string comparison
         return isAscending 
             ? valA.localeCompare(valB, undefined, {numeric: true, sensitivity: 'base'})
             : valB.localeCompare(valA, undefined, {numeric: true, sensitivity: 'base'});
     });
 
-    // Re-append sorted rows
     rows.forEach(row => tbody.appendChild(row));
     
-    // Update Icons
     const headers = table.querySelectorAll('th i');
-    headers.forEach(icon => icon.className = 'fas fa-sort'); // Reset all
+    headers.forEach(icon => icon.className = 'fas fa-sort'); 
     const currentIcon = table.rows[0].cells[n].querySelector('i');
     currentIcon.className = isAscending ? 'fas fa-sort-up' : 'fas fa-sort-down';
 }

@@ -21,7 +21,7 @@ def get_user_signature(user):
     first_name = user.first_name.lower() if user.first_name else ""
 
     # Replace with the direct link to the Futura logo hosted on your server
-    logo_url = "https://futurasa.co.za/wp-content/uploads/2021/04/futura-logo.png"
+    logo_url = "https://static.futurasa.co.za/images/futura-logo.png"
 
     base_disclaimer = """
     <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 11px; color: #333; margin-top: 15px;">

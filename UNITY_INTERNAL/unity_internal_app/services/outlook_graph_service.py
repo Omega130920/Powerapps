@@ -44,7 +44,7 @@ def get_user_signature(user):
     found_user = team.get(user_key) or team.get(first_name)
     
     # Always use a public web URL for email signatures so external clients can render it
-    logo_url = "https://futurasa.co.za/wp-content/uploads/2021/04/futura-logo.png"
+    logo_url = "https://static.futurasa.co.za/images/futura-logo.png"
 
     if found_user:
         full_name = found_user[0]

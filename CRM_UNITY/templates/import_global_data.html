@@ -155,6 +155,16 @@
             </div>
             
         {% endif %}
+        {% if import_errors %}
+        <div style="background-color: #ffebee; border: 1px solid #c62828; padding: 15px; margin-top: 20px; border-radius: 8px;">
+            <h3 style="color: #c62828; margin-top: 0;">Some records could not be imported:</h3>
+            <ul style="color: #c62828; font-size: 13px; font-family: monospace; max-height: 200px; overflow-y: auto;">
+                {% for error in import_errors %}
+                    <li>{{ error }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
 
         <form action="{% url 'import_global_data' %}" method="post" enctype="multipart/form-data">
             {% csrf_token %}

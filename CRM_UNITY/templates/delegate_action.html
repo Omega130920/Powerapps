@@ -440,8 +440,8 @@
 
                         <div>
                             <label class="form-label">Subject:</label>
-                            <input type="text" id="email_subject_reply" name="subject" 
-                                   value="RE: {{ task.subject|slice:'0:40' }}..." class="form-control" required>
+                        <input type="text" id="email_subject_reply" name="subject" 
+                            value="RE: {{ task.subject }}" class="form-control" required>
                             <small style="color: #777; font-size: 11px;">
                                 **Reference:** <span id="display_unique_ref">{{ task.member_group_code|default:"NO_REF" }}</span>
                             </small>
