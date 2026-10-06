@@ -510,7 +510,7 @@ def send_task_email_view(request, email_id):
         message_body = raw_message_body.replace('\r\n', '<br>').replace('\n', '<br>')
 
         # 🟢 Updated static logo URL
-        logo_url = 'https://acvv.futurasa.co.za/static/images/futura_logo.png'
+        logo_url = "https://static.futurasa.co.za/images/futura-logo.png"
 
         # Fetch dynamic name and title using the helper
         agent_name, agent_title = get_crm_signature_details(request.user)
@@ -831,7 +831,7 @@ def member_information(request, member_group_code):
             bcc_recipients = request.POST.get('member_bcc_email', '')
 
             # Before render_to_string, calculate the full URL
-            logo_url = 'https://acvv.futurasa.co.za/static/images/futura_logo.png'
+            logo_url = "https://static.futurasa.co.za/images/futura-logo.png"
 
             # Fetch dynamic name and title using the helper
             agent_name, agent_title = get_crm_signature_details(request.user)
@@ -1377,7 +1377,7 @@ def delegate_action_view(request, email_id):
 
                 if recipient and subject and body_html:
                     # 🚀 DYNAMIC SIGNATURE INJECTION 🚀
-                    logo_url = "https://acvv.futurasa.co.za/static/images/futura_logo.png"
+                    logo_url = "https://static.futurasa.co.za/images/futura-logo.png"
                     
                     # Fetch dynamic name and title using the helper
                     agent_name, agent_title = get_crm_signature_details(request.user)
