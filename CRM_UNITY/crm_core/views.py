@@ -510,7 +510,7 @@ def send_task_email_view(request, email_id):
         message_body = raw_message_body.replace('\r\n', '<br>').replace('\n', '<br>')
 
         # 🟢 Updated static logo URL
-        logo_full_url = "https://futurasa.co.za/wp-content/uploads/2021/04/futura-logo.png"
+        logo_url = "https://futurasa.co.za/wp-content/uploads/2021/04/futura-logo.png"
 
         # Fetch dynamic name and title using the helper
         agent_name, agent_title = get_crm_signature_details(request.user)
@@ -519,7 +519,7 @@ def send_task_email_view(request, email_id):
         signature_html = render_to_string('email_signature.html', {
             'request': request,
             'MEDIA_URL': settings.MEDIA_URL,
-            'logo_url': logo_full_url,
+            'logo_url': logo_url,
             'agent_name': agent_name,
             'agent_title': agent_title
         })
@@ -831,7 +831,7 @@ def member_information(request, member_group_code):
             bcc_recipients = request.POST.get('member_bcc_email', '')
 
             # Before render_to_string, calculate the full URL
-            logo_full_url = "https://futurasa.co.za/wp-content/uploads/2021/04/futura-logo.png"
+            logo_url = "https://futurasa.co.za/wp-content/uploads/2021/04/futura-logo.png"
 
             # Fetch dynamic name and title using the helper
             agent_name, agent_title = get_crm_signature_details(request.user)
@@ -840,7 +840,7 @@ def member_information(request, member_group_code):
             signature_html = render_to_string('email_signature.html', {
                 'request': request,
                 'MEDIA_URL': settings.MEDIA_URL,
-                'logo_full_url': logo_full_url,
+                'logo_url': logo_url,
                 'agent_name': agent_name,
                 'agent_title': agent_title
             })
@@ -1351,7 +1351,7 @@ def delegate_action_view(request, email_id):
 
                 if recipient and subject and body_html:
                     # 🚀 DYNAMIC SIGNATURE INJECTION 🚀
-                    logo_full_url = "https://futurasa.co.za/wp-content/uploads/2021/04/futura-logo.png"
+                    logo_url = "https://futurasa.co.za/wp-content/uploads/2021/04/futura-logo.png"
                     
                     # Fetch dynamic name and title using the helper
                     agent_name, agent_title = get_crm_signature_details(request.user)
@@ -1359,7 +1359,7 @@ def delegate_action_view(request, email_id):
                     signature_html = render_to_string('email_signature.html', {
                         'request': request,
                         'MEDIA_URL': settings.MEDIA_URL,
-                        'logo_url': logo_full_url,
+                        'logo_url': logo_url,
                         'agent_name': agent_name,
                         'agent_title': agent_title
                     })
