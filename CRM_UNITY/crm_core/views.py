@@ -609,33 +609,27 @@ def global_members_list(request):
     # 1. Fetch base members
     members = GlobalFundContact.objects.all().order_by('member_group_code')
     
-    # --- NEW: Calculate Stats for the Banner ---
-    # Get total count of all members
+    # 2. Calculate Stats for the Banner
     total_mg_count = members.count()
-    
-    # Group by fund_status and count them
     status_counts = GlobalFundContact.objects.values('fund_status').annotate(
         count=Count('fund_status')
     ).order_by('fund_status')
     
-    # Format the string to match: "Active - 717; Amendment - 2; Blank - 11"
     status_summary_parts = []
     for item in status_counts:
-        # Handle blank/null statuses gracefully
         status_name = item['fund_status'] if item['fund_status'] else "Blank"
         status_summary_parts.append(f"{status_name} - {item['count']}")
         
     status_summary_string = "; ".join(status_summary_parts)
-    # -------------------------------------------
 
-    # 2. Get unique statuses for the dropdown
+    # 3. Get unique statuses for the dropdown
     fund_statuses = GlobalFundContact.objects.values_list('fund_status', flat=True).distinct().order_by('fund_status')
 
-    # 3. Get filter values
+    # 4. Get filter values
     search_query = request.GET.get('search_query')
     status_filter = request.GET.get('fund_status_filter')
 
-    # 4. Apply Filters
+    # 5. Apply Filters
     if search_query:
         members = members.filter(
             Q(member_group_code__icontains=search_query) |
@@ -645,23 +639,61 @@ def global_members_list(request):
     if status_filter and status_filter != 'all':
         members = members.filter(fund_status=status_filter)
 
-    # --- 5. Fetch Related Data from separate tables (Requirement 12.1/12.4) ---
-    # We use dictionaries for O(1) lookup speed to keep the page load fast
+    # 6. Fetch Related Data from separate tables
     comm_map = {c.member_group_code: c for c in CommunicationsPerson.objects.all()}
     cbc_map = {c.member_group_code: c for c in Cbc.objects.all()}
 
-    # 6. Attach data to the member objects for the template
+    # --- 🚀 NEW: CSV EXPORT LOGIC ---
+    # If the export button was clicked, generate the CSV using the currently filtered members
+    if request.GET.get('export') == 'csv':
+        response = HttpResponse(content_type='text/csv')
+        filename = f"Global_List_{timezone.now().strftime('%Y-%m-%d')}.csv"
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+        writer = csv.writer(response)
+        writer.writerow([
+            'Group Code', 'Member Group Name', 'Fund Status',
+            'Comm. Name', 'Comm. Contact', 'Comm. E-mail',
+            'CBC Name', 'CBC Contact', 'CBC E-mail'
+        ])
+
+        for member in members:
+            comm = comm_map.get(member.member_group_code)
+            cbc = cbc_map.get(member.member_group_code)
+
+            # Safely format related data
+            comm_name = f"{comm.first_name or ''} {comm.surname or ''}".strip() if comm else "N/A"
+            comm_contact = f"{comm.work_dial_code or ''} {comm.work_contact_number or 'N/A'}".strip() if comm else "N/A"
+            comm_email = comm.email_address if comm and comm.email_address else "N/A"
+
+            cbc_name = f"{cbc.first_name or ''} {cbc.surname or ''}".strip() if cbc else "N/A"
+            cbc_contact = f"{cbc.work_dial_code or ''} {cbc.work_contact_number or 'N/A'}".strip() if cbc else "N/A"
+            cbc_email = cbc.email_address if cbc and cbc.email_address else "N/A"
+
+            writer.writerow([
+                member.member_group_code,
+                member.member_group_name,
+                member.fund_status,
+                comm_name,
+                comm_contact,
+                comm_email,
+                cbc_name,
+                cbc_contact,
+                cbc_email
+            ])
+            
+        return response
+    # --------------------------------
+
+    # 7. Attach data to the member objects for the template
     for member in members:
-        # Get Communication Person details
         comm = comm_map.get(member.member_group_code)
         member.comm_data = comm
         if comm:
-            # Create full name for the "Communications Contact Name" column
             member.comm_full_name = f"{comm.first_name or ''} {comm.surname or ''}".strip()
         else:
             member.comm_full_name = "N/A"
 
-        # Get CBC details
         member.cbc_data = cbc_map.get(member.member_group_code)
 
     context = {
@@ -669,8 +701,8 @@ def global_members_list(request):
         'fund_statuses': fund_statuses,
         'search_query': search_query,
         'fund_status_filter': status_filter,
-        'total_mg_count': total_mg_count,           # <-- Added to context
-        'status_summary': status_summary_string,    # <-- Added to context
+        'total_mg_count': total_mg_count,           
+        'status_summary': status_summary_string,    
     }
 
     return render(request, 'global_members_list.html', context)
@@ -808,7 +840,7 @@ def member_information(request, member_group_code):
             signature_html = render_to_string('email_signature.html', {
                 'request': request,
                 'MEDIA_URL': settings.MEDIA_URL,
-                'logo_url': logo_full_url,
+                'logo_full_url': logo_full_url,
                 'agent_name': agent_name,
                 'agent_title': agent_title
             })
