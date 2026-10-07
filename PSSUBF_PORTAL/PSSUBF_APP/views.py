@@ -231,30 +231,33 @@ def outlook_dashboard_view(request):
                     continue
         # --- SECURITY FILTERING END ---
 
-        # Sync PssubfInbox (The Archive)
+        # Sync PssubfInbox (The Archive) - Safe get_or_create prevents duplicate key errors
         if e_id not in local_inbox_map:
             received_date = email.get('receivedDateTime')
-            
             safe_subject = email.get('subject') or '(No Subject)'
             
-            local_record = PssubfInbox.objects.create(
+            local_record, created = PssubfInbox.objects.get_or_create(
                 email_id=e_id,
-                subject=safe_subject,
-                sender=email.get('from', {}).get('emailAddress', {}).get('address', '').lower(),
-                received_timestamp=date_parser.isoparse(received_date) if received_date else timezone.now(),
-                snippet=email.get('bodyPreview', '') or '',
-                status='Pending'
+                defaults={
+                    'subject': safe_subject,
+                    'sender': email.get('from', {}).get('emailAddress', {}).get('address', '').lower(),
+                    'received_timestamp': date_parser.isoparse(received_date) if received_date else timezone.now(),
+                    'snippet': email.get('bodyPreview', '') or '',
+                    'status': 'Pending'
+                }
             )
         else:
             local_record = local_inbox_map[e_id]
 
-        # Sync PssubfDelegate (The Active Task List)
+        # Sync PssubfDelegate (The Active Task List) - Safe get_or_create prevents duplicate key errors
         if e_id not in delegated_map:
-            delegation = PssubfDelegate.objects.create(
+            delegation, created = PssubfDelegate.objects.get_or_create(
                 email_id=e_id,
-                status='Assigned',
-                subject=local_record.subject or '(No Subject)',
-                sender=local_record.sender,
+                defaults={
+                    'status': 'Assigned',
+                    'subject': local_record.subject or '(No Subject)',
+                    'sender': local_record.sender,
+                }
             )
         else:
             delegation = delegated_map[e_id]
