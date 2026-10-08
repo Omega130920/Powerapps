@@ -4,7 +4,7 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 
 class PssubfInbox(models.Model):
-    email_id = models.CharField(max_length=255, primary_key=True)
+    email_id = models.CharField(max_length=255, primary_key=True, db_collation='utf8mb4_bin')
     # Added null=True and blank=True to handle emails with no subject line
     subject = models.CharField(max_length=255, null=True, blank=True) 
     sender = models.CharField(max_length=255)
@@ -17,7 +17,7 @@ class PssubfInbox(models.Model):
         db_table = 'pssubf_inbox'
 
 class PssubfDelegate(models.Model):
-    email_id = models.CharField(max_length=255, primary_key=True)
+    email_id = models.CharField(max_length=255, primary_key=True, db_collation='utf8mb4_bin')
     assigned_agent = models.CharField(max_length=150, blank=True, null=True)
     member_group_code = models.CharField(max_length=100, blank=True, null=True)
     

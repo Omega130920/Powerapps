@@ -204,7 +204,8 @@
                 <td class="small fw-bold opacity-75">{{ log.note_content }}</td>
                 <td class="text-end">
                     {% if log.task_email_id %}
-                        <a href="{% url 'pssubf_action' log.task_email_id %}" class="btn btn-sm btn-glass px-2" title="Inspect Log Entry Context">
+                        <!-- 🟢 ADDED |urlencode to protect the Outlook ID -->
+                        <a href="{% url 'pssubf_action' log.task_email_id|urlencode %}" class="btn btn-sm btn-glass px-2" title="Inspect Log Entry Context">
                             <i class="bi bi-eye-fill"></i>
                         </a>
                     {% else %}

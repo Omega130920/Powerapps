@@ -203,14 +203,15 @@
                     <div class="small fw-bold">{{ item.sender }}</div>
                 </td>
                 <td class="text-center">
-                    <!-- Updated modal trigger to use item.sender -->
+                    <!-- 🟢 ADDED |urlencode and |escapejs to protect special characters -->
                     <button class="btn-ogie" 
-                            onclick="openHistoryModal('{{ item.id }}', '{{ item.sender }}')"
+                            onclick="openHistoryModal('{{ item.id|urlencode }}', '{{ item.sender|escapejs }}')"
                             title="View History">
                         <i class="bi bi-eye"></i>
                     </button>
 
-                    <a href="{% url 'pssubf_delegate' item.id %}" class="btn-delegate-link">
+                    <!-- 🟢 ADDED |urlencode to prevent the browser from breaking the Outlook ID string -->
+                    <a href="{% url 'pssubf_delegate' item.id|urlencode %}" class="btn-delegate-link">
                         <i class="bi bi-share-fill me-1"></i> Delegate
                     </a>
                 </td>
