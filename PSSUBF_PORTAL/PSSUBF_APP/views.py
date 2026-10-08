@@ -2713,34 +2713,46 @@ def get_adhoc_details_view(request, record_id):
         record = get_object_or_404(AdHocList, id=record_id)
         beneficiary = record.beneficiary
 
-        # Pull live values from PssubfBeneficiary if linked, ensuring updates show up immediately
         guardian_name = ""
         beneficiary_name = ""
         dob = ""
+        termination_date = ""
+        stipened = 0  # Default to 0
         
         if beneficiary:
             guardian_name = f"{beneficiary.guardian_first_name or ''} {beneficiary.guardian_last_name or ''}".strip()
             beneficiary_name = f"{beneficiary.first_name or ''} {beneficiary.last_name or ''}".strip()
             dob = beneficiary.dob.strftime('%Y-%m-%d') if beneficiary.dob else ''
+            
+            # Matches claims logic exactly
+            if beneficiary.cessation_date:
+                termination_date = beneficiary.cessation_date.strftime('%Y-%m-%d')
+                
+            # Matches claims logic exactly - simple float cast
+            if beneficiary.stipened:
+                stipened = float(beneficiary.stipened)
 
         data = {
             'success': True,
             'membership_number': beneficiary.membership_number if beneficiary else '',
-            'guardian_name': guardian_name, # 🔴 Returns live updated guardian name
-            'beneficiary_name': beneficiary_name, # 🔴 Returns live updated beneficiary name
+            'guardian_name': guardian_name, 
+            'beneficiary_name': beneficiary_name, 
             'dob': dob,
+            'termination_date': termination_date,
+            'stipened': stipened,  # 🟢 Safe native float, perfectly matching JS expected key
             'title': record.title,
             'status': record.status,
-            'claim_form_date': str(record.claim_form_date) if record.claim_form_date else '',
-            'date_paid': str(record.date_paid) if record.date_paid else '',
+            'claim_form_date': record.claim_form_date.strftime('%Y-%m-%d') if record.claim_form_date else '',
+            'date_paid': record.date_paid.strftime('%Y-%m-%d') if record.date_paid else '',
             'supporting_docs_attached': record.supporting_docs_attached,
             'portfolio_value': float(record.portfolio_value or 0),
-            'portfolio_date': str(record.portfolio_date) if record.portfolio_date else '',
+            'portfolio_date': record.portfolio_date.strftime('%Y-%m-%d') if record.portfolio_date else '',
             'amount_requested': float(record.amount_requested or 0),
             'comments': record.comments,
-            'attachment_path': record.attachment_path if record.attachment_path else None
+            'attachment_path': record.attachment_path.name if hasattr(record.attachment_path, 'name') else str(record.attachment_path) if record.attachment_path else None
         }
         return JsonResponse(data)
+    
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
 
@@ -3482,33 +3494,45 @@ def get_adhoc_details_view(request, record_id):
         record = get_object_or_404(AdHocList, id=record_id)
         beneficiary = record.beneficiary
 
-        # Pull live values from PssubfBeneficiary if linked, ensuring updates show up immediately
         guardian_name = ""
         beneficiary_name = ""
         dob = ""
+        termination_date = ""
+        stipened = 0  # Default to 0
         
         if beneficiary:
             guardian_name = f"{beneficiary.guardian_first_name or ''} {beneficiary.guardian_last_name or ''}".strip()
             beneficiary_name = f"{beneficiary.first_name or ''} {beneficiary.last_name or ''}".strip()
             dob = beneficiary.dob.strftime('%Y-%m-%d') if beneficiary.dob else ''
+            
+            # Matches claims logic exactly
+            if beneficiary.cessation_date:
+                termination_date = beneficiary.cessation_date.strftime('%Y-%m-%d')
+                
+            # Matches claims logic exactly - simple float cast
+            if beneficiary.stipened:
+                stipened = float(beneficiary.stipened)
 
         data = {
             'success': True,
             'membership_number': beneficiary.membership_number if beneficiary else '',
-            'guardian_name': guardian_name, # 🔴 Returns live updated guardian name
-            'beneficiary_name': beneficiary_name, # 🔴 Returns live updated beneficiary name
+            'guardian_name': guardian_name, 
+            'beneficiary_name': beneficiary_name, 
             'dob': dob,
+            'termination_date': termination_date,
+            'stipened': stipened,  # 🟢 Safe native float, perfectly matching JS expected key
             'title': record.title,
             'status': record.status,
-            'claim_form_date': str(record.claim_form_date) if record.claim_form_date else '',
-            'date_paid': str(record.date_paid) if record.date_paid else '',
+            'claim_form_date': record.claim_form_date.strftime('%Y-%m-%d') if record.claim_form_date else '',
+            'date_paid': record.date_paid.strftime('%Y-%m-%d') if record.date_paid else '',
             'supporting_docs_attached': record.supporting_docs_attached,
             'portfolio_value': float(record.portfolio_value or 0),
-            'portfolio_date': str(record.portfolio_date) if record.portfolio_date else '',
+            'portfolio_date': record.portfolio_date.strftime('%Y-%m-%d') if record.portfolio_date else '',
             'amount_requested': float(record.amount_requested or 0),
             'comments': record.comments,
-            'attachment_path': record.attachment_path if record.attachment_path else None
+            'attachment_path': record.attachment_path.name if hasattr(record.attachment_path, 'name') else str(record.attachment_path) if record.attachment_path else None
         }
         return JsonResponse(data)
+    
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
