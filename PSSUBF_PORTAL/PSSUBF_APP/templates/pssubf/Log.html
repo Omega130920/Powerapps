@@ -274,8 +274,8 @@
                                     <span class="badge badge-urgent">Urgent</span>
                                 {% elif log.category == 'Claim' %}
                                     <span class="badge badge-claim">Claim</span>
-                                {% elif log.category == 'Follow-up' %}
-                                    <span class="badge badge-followup">Follow-up</span>
+                                {% elif log.category == 'Monthly Follow up' %}
+                                    <span class="badge badge-followup">Monthly Follow up</span>
                                 {% else %}
                                     <span class="badge badge-default">{{ log.category }}</span>
                                 {% endif %}
@@ -354,7 +354,6 @@
                         <option value="" disabled selected>Select Action Type</option>
                         <option value="Inbound">Inbound</option>
                         <option value="Outbound">Outbound</option>
-                        <option value="Monthly Follow up">Monthly Follow up</option>
                     </select>
                 </div>
 
@@ -381,7 +380,7 @@
                     <select name="category" id="category" class="form-input">
                         <option value="Query">Query</option>
                         <option value="Claim">Claim</option>
-                        <option value="Follow-up">Follow-up</option>
+                        <option value="Monthly Follow up">Monthly Follow up</option>
                         <option value="Urgent">Urgent</option>
                         <option value="Unsure">Unsure</option>
                     </select>
@@ -466,7 +465,7 @@
             "Guardian Deceased",
             "Beneficiary Reached Maturity"
         ],
-        "Monthly Follow up": [
+        "Follow up": [
             "None"
         ]
     };

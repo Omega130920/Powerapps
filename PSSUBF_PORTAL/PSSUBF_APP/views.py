@@ -21,6 +21,7 @@ from django.db import transaction
 from dateutil.relativedelta import relativedelta
 from django.core.paginator import Paginator
 from .services.outlook_graph_service import OutlookGraphService
+from urllib.parse import unquote
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +127,7 @@ def pssubf_log_view(request):
             messages.error(request, "Note Content is required.")
 
     # Base logs queryset
-    logs_queryset = SystemLog.objects.all()
+    logs_queryset = SystemLog.objects.all().order_by('-created_at')
     
     # Retrieve Date Range parameters & action from GET request
     date_from = request.GET.get('date_from')
@@ -134,18 +135,32 @@ def pssubf_log_view(request):
     action = request.GET.get('action')
 
     if date_from:
-        try:
-            dt_from = datetime.strptime(date_from, '%Y-%m-%d')
-            logs_queryset = logs_queryset.filter(created_at__date__gte=dt_from.date())
-        except ValueError:
-            pass
+        parsed_date_from = None
+        for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%Y/%m/%d'):
+            try:
+                parsed_date_from = datetime.strptime(date_from.strip(), fmt)
+                break
+            except ValueError:
+                continue
+        if parsed_date_from:
+            # Set to beginning of the day (00:00:00)
+            naive_start = datetime.combine(parsed_date_from.date(), time.min)
+            start_dt = timezone.make_aware(naive_start) if getattr(settings, 'USE_TZ', False) else naive_start
+            logs_queryset = logs_queryset.filter(created_at__gte=start_dt)
 
     if date_to:
-        try:
-            dt_to = datetime.strptime(date_to, '%Y-%m-%d')
-            logs_queryset = logs_queryset.filter(created_at__date__lte=dt_to.date())
-        except ValueError:
-            pass
+        parsed_date_to = None
+        for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%Y/%m/%d'):
+            try:
+                parsed_date_to = datetime.strptime(date_to.strip(), fmt)
+                break
+            except ValueError:
+                continue
+        if parsed_date_to:
+            # Set to end of the day (23:59:59)
+            naive_end = datetime.combine(parsed_date_to.date(), time.max)
+            end_dt = timezone.make_aware(naive_end) if getattr(settings, 'USE_TZ', False) else naive_end
+            logs_queryset = logs_queryset.filter(created_at__lte=end_dt)
 
     # Handle Export functionality (exports all matching filtered records)
     if action == 'export':
@@ -296,6 +311,10 @@ def outlook_dashboard_view(request):
 
 def pssubf_delegate_view(request, email_id):
     """View to fetch live email details and delegate tasks or log internal notes."""
+    
+    # 🟢 Decode the URL-encoded email ID to prevent lookup mismatches
+    email_id = unquote(email_id)
+
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     available_users = User.objects.filter(is_active=True)
 
@@ -463,6 +482,9 @@ def pssubf_action_view(request, email_id):
     by bypassing Graph API calls while rendering authentic database action responses,
     history chains, and historical audit content.
     """
+    # 🟢 Decode the URL-encoded email ID to prevent lookup mismatches and 404 errors
+    email_id = unquote(email_id)
+
     is_direct_entry = False
     is_system_log = False
     attachments = []
@@ -993,7 +1015,9 @@ def pssubf_delegations_list(request):
     Displays the active queue, excluding completed and recycled items.
     Only user 'omega' sees all active tasks; all other agents only see their own.
     """
-    if request.user.username == 'omega':
+    current_username = request.user.username.strip().lower()
+    
+    if current_username == 'omega':
         # User 'omega' sees all active tasks across the system
         delegations = PssubfDelegate.objects.exclude(
             status__in=['Recycled', 'Completed', 'Complete']
@@ -1001,11 +1025,18 @@ def pssubf_delegations_list(request):
     else:
         # All other agents ONLY see tasks assigned to them
         delegations = PssubfDelegate.objects.filter(
-            assigned_agent=request.user.username
+            assigned_agent__iexact=request.user.username
         ).exclude(
             status__in=['Recycled', 'Completed', 'Complete']
         ).order_by('-created_at')
     
+    # Enrich delegation objects using custom attributes to avoid property assignment errors
+    for task in delegations:
+        inbox_match = PssubfInbox.objects.filter(email_id=task.email_id).first()
+        task.display_received_timestamp = inbox_match.received_timestamp if inbox_match and inbox_match.received_timestamp else getattr(task, 'created_at', timezone.now())
+        task.display_sender = task.sender or (inbox_match.sender if inbox_match else 'Unknown Sender')
+        task.has_replied = PssubfAction.objects.filter(task_email_id=task.email_id, action_type="EMAIL_REPLY").exists()
+
     return render(request, 'pssubf/delegations_list.html', {
         'delegations': delegations
     })

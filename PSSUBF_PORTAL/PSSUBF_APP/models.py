@@ -306,7 +306,7 @@ class SystemLog(models.Model):
     CATEGORY_CHOICES = [
         ('Query', 'Query'),
         ('Claim', 'Claim'),
-        ('Follow-up', 'Follow-up'),
+        ('Monthly Follow-up', 'Monthly Follow-up'),
         ('Urgent', 'Urgent'),
         ('Unsure', 'Unsure'),
     ]
