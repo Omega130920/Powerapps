@@ -4589,6 +4589,8 @@ def outlook_delete_permanent(request):
             
         return redirect('outlook_recycle_bin')
     
+import urllib.parse
+
 @login_required
 def view_email_thread(request, email_id):
     """
@@ -4598,14 +4600,16 @@ def view_email_thread(request, email_id):
     from .models import EmailDelegation, DelegationTransactionLog, UnityNotes, DelegationNote, OutlookInbox
     from django.http import Http404
 
+    # 🟢 Decode URL-encoded characters (e.g. %3D to =) to match the exact database record
+    email_id = urllib.parse.unquote(email_id)
+
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
 
-    # 1. Fetch Local Data (Task, Transactions, and Manual Notes)
-    # We fetch this first so we have access to local data even if Graph API call fails
+    # 1. Fetch Local Data safely without crashing if missing
     task = EmailDelegation.objects.filter(email_id=email_id).first()
     inbox_item = OutlookInbox.objects.filter(email_id=email_id).first()
     
-    # 2. Fetch Live Content from Graph API with 404 safety
+    # 2. Fetch Live Content from Graph API with safety fallback
     email_body = "Could not retrieve content from Outlook (Email may have been moved or archived)."
     attachments = []
     email_data = {}
@@ -4614,7 +4618,6 @@ def view_email_thread(request, email_id):
         endpoint = f"messages/{email_id}"
         email_data = OutlookGraphService._make_graph_request(endpoint, target_email, method='GET')
         
-        # Check if email is missing in Outlook
         if isinstance(email_data, dict) and email_data.get('details', {}).get('code') == 'ErrorItemNotFound':
             if inbox_item:
                 email_body = inbox_item.body_content
@@ -4659,13 +4662,14 @@ def view_email_thread(request, email_id):
     combined_timeline.sort(key=lambda x: x['date'], reverse=True)
 
     # 7. Final Context Preparation
+    fallback_subject = inbox_item.subject if inbox_item else (task.subject if task else 'Unknown Thread')
     context = {
         'task': task,
-        'email': email_data if 'error' not in email_data else {'subject': inbox_item.subject if inbox_item else 'Unknown Thread'},
+        'email': email_data if 'error' not in email_data else {'subject': fallback_subject},
         'email_body': email_body,
         'attachments': attachments,
         'combined_timeline': combined_timeline,
-        'inbox_item': inbox_item if inbox_item else task, 
+        'inbox_item': inbox_item if inbox_item else task,  
     }
     
     return render(request, 'unity_internal_app/view_email_thread.html', context)
