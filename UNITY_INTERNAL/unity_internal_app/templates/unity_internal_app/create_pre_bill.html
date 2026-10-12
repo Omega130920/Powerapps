@@ -1,142 +1,225 @@
 {% load static %}
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Create New Pre-Bill</title>
-<style>
-/* ... (Your existing CSS remains exactly as you had it) ... */
-body {
-    font-family: sans-serif;
-    background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
-    margin: 20px;
-    color: #333;
-}
-.container {
-    max-width: 700px;
-    margin: 2em auto;
-    padding: 30px;
-    background-color: #f0fff0;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
-h2 { color: #1b5e20; border-bottom: 2px solid #aed581; padding-bottom: 10px; margin-bottom: 20px; }
-.form-group {
-    margin-bottom: 15px;
-}
-label {
-    display: block;
-    font-weight: bold;
-    color: #1b5e20;
-    margin-bottom: 5px;
-}
-input[type="text"], input[type="number"], input[type="date"] {
-    width: 100%;
-    padding: 10px;
-    border: 1px solid #aed581;
-    border-radius: 4px;
-    box-sizing: border-box;
-    font-size: 1em;
-}
-.submit-button, .return-button {
-    padding: 10px 20px;
-    background-color: #43a047;
-    border: none;
-    border-radius: 5px;
-    color: white;
-    font-weight: bold;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-    text-decoration: none;
-    display: inline-block;
-}
-.return-button {
-    background-color: #81c784;
-    margin-right: 10px;
-}
-.submit-button:hover, .return-button:hover {
-    background-color: #388e3c;
-}
-.button-row {
-    margin-top: 20px;
-    display: flex;
-    justify-content: flex-start;
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% if is_editing %}Edit Bill{% else %}Create New Pre-Bill{% endif %}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
+            margin: 0;
+            padding: 20px;
+            color: #333;
+            line-height: 1.6;
+            min-height: 100vh;
+            box-sizing: border-box;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 1100px;
+            margin: auto;
+            padding: 35px 40px;
+            background-color: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        }
+        h2 {
+            color: #1b5e20;
+            margin-top: 0;
+            margin-bottom: 25px;
+            border-bottom: 2px solid #81c784;
+            padding-bottom: 12px;
+            font-size: 1.8em;
+            letter-spacing: -0.5px;
+        }
+        
+        /* Horizontal Multi-Column Grid Layout */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 18px 24px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            margin-bottom: 6px;
+            font-weight: bold;
+            color: #2e7d32;
+            font-size: 0.95rem;
+        }
+
+        input[type="text"], 
+        input[type="number"], 
+        input[type="date"], 
+        textarea, 
+        select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 0.95rem;
+            background-color: #fafafa;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        input:focus, select:focus, textarea:focus {
+            outline: none;
+            border-color: #4CAF50;
+            box-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
+            background-color: #fff;
+        }
+
+        .error-msg {
+            color: #d32f2f;
+            font-size: 0.85rem;
+            margin-top: 4px;
+        }
+
+        .button-group {
+            grid-column: 1 / -1;
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 1px solid #e0e0e0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .save-button {
+            padding: 12px 30px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 500;
+            transition: background-color 0.3s;
+            box-shadow: 0 4px 6px rgba(76, 175, 80, 0.2);
+        }
+
+        .save-button:hover {
+            background-color: #388e3c;
+            transform: translateY(-1px);
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            padding: 12px 25px;
+            background-color: #e8f5e9;
+            color: #2e7d32;
+            text-decoration: none;
+            border-radius: 6px;
+            font-size: 1em;
+            font-weight: 500;
+            transition: background-color 0.3s;
+        }
+
+        .back-link:hover {
+            background-color: #c8e6c9;
+            color: #1b5e20;
+        }
+
+        @media (max-width: 768px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>➕ Create New Pre-Bill for {{ company_name }} ({{ company_code }})</h2>
+    <h2>
+        {% if is_editing %}
+            ✏️ Edit Bill for {{ company_code }}
+        {% else %}
+            ➕ Create New Pre-Bill for {{ company_code }}
+        {% endif %}
+    </h2>
 
-    <form method="post">
+    <form method="post" action="{% if is_editing %}{% url 'edit_bill' company_code=company_code bill_id=bill_id %}{% else %}{% url 'create_pre_bill' company_code=company_code %}{% endif %}">
         {% csrf_token %}
-        
-        {# Hidden fields for C_Company_Code and D_Company_Name #}
-        {{ form.C_Company_Code }}
-        {{ form.D_Company_Name }}
-        
-        <div class="form-group">
-            <label>Company Code (Read-only)</label>
-            <input type="text" value="{{ form.C_Company_Code.value }}" readonly>
-        </div>
 
-        {% for field in form %}
-            
-            {% if field.name == 'A_CCDatesMonth' %}
-                <div class="form-group">
-                    {{ field.label_tag }}
-                    {{ field }}
-                    <small class="form-text text-muted">**CRITICAL**: This date determines which reconciled transactions are included in the calculated debt for this bill.</small>
-                    {% if field.errors %}
-                        <small style="color: red;">{{ field.errors }}</small>
-                    {% endif %}
-                </div>
-
-            {% elif field.name == 'H_Schedule_Amount' %}
-                <div class="form-group">
-                    {{ field.label_tag }}
-                    {{ field }}
-                    <small class="form-text text-muted">
-                        Pre-filled with calculated debt based on the **Bill Date** above. **Can be edited.**
-                        (Calculated Debt: R{{ calculated_debt_for_prefill|floatformat:2 }})
-                    </small>
-                    {% if field.errors %}
-                        <small style="color: red;">{{ field.errors }}</small>
-                    {% endif %}
-                </div>
-
-            {# 🚀 ADDED: Explicit handling for salary_amount #}
-            {% elif field.name == 'salary_amount' %}
-                <div class="form-group">
-                    {{ field.label_tag }}
-                    {{ field }}
-                    {% if field.errors %}
-                        <small style="color: red;">{{ field.errors }}</small>
-                    {% endif %}
-                </div>
-            
-            {% elif field.name != 'C_Company_Code' and field.name != 'D_Company_Name' %}
-                <div class="form-group">
-                    {{ field.label_tag }}
-                    {{ field }}
-                    {% if field.errors %}
-                        <small style="color: red;">{{ field.errors }}</small>
-                    {% endif %}
-                </div>
-            {% endif %}
+        <!-- 🟢 CRITICAL: Render all hidden fields (like primary keys or system tracking variables) -->
+        {% for field in form.hidden_fields %}
+            {{ field }}
         {% endfor %}
 
-        <div class="button-row">
-            <a href="{% url 'unity_information' company_code=company_code %}" class="return-button">
-                ← Cancel and Back
-            </a>
-            <button type="submit" class="submit-button">Save Pre-Bill Record</button>
+        <!-- 🟢 CRITICAL: Render background/system fields needed for database validation as hidden inputs so they don't break creation -->
+        <div style="display:none;">
+            {{ form.A_CCDatesMonth }}
+            {{ form.C_Company_Code }}
+            {{ form.D_Company_Name }}
+        </div>
+
+        <div class="form-grid">
+            <!-- First Horizontal Row (3 items) -->
+            <div class="form-group">
+                <label for="{{ form.E_Active_Members.id_for_label }}">{{ form.E_Active_Members.label }}</label>
+                {{ form.E_Active_Members }}
+                {% if form.E_Active_Members.errors %}<small class="error-msg">{{ form.E_Active_Members.errors }}</small>{% endif %}
+            </div>
+            <div class="form-group">
+                <label for="{{ form.H_Schedule_Amount.id_for_label }}">{{ form.H_Schedule_Amount.label }}</label>
+                {{ form.H_Schedule_Amount }}
+                {% if form.H_Schedule_Amount.errors %}<small class="error-msg">{{ form.H_Schedule_Amount.errors }}</small>{% endif %}
+            </div>
+            <div class="form-group">
+                <label for="{{ form.F_Pre_Bill_Date.id_for_label }}">{{ form.F_Pre_Bill_Date.label }}</label>
+                {{ form.F_Pre_Bill_Date }}
+                {% if form.F_Pre_Bill_Date.errors %}<small class="error-msg">{{ form.F_Pre_Bill_Date.errors }}</small>{% endif %}
+            </div>
+
+            <!-- Second Horizontal Row (3 items) -->
+            <div class="form-group">
+                <label for="{{ form.G_Schedule_Date.id_for_label }}">{{ form.G_Schedule_Date.label }}</label>
+                {{ form.G_Schedule_Date }}
+                {% if form.G_Schedule_Date.errors %}<small class="error-msg">{{ form.G_Schedule_Date.errors }}</small>{% endif %}
+            </div>
+            <div class="form-group">
+                <label for="{{ form.J_Final_Date.id_for_label }}">{{ form.J_Final_Date.label }}</label>
+                {{ form.J_Final_Date }}
+                {% if form.J_Final_Date.errors %}<small class="error-msg">{{ form.J_Final_Date.errors }}</small>{% endif %}
+            </div>
+            <div class="form-group">
+                <label for="{{ form.I_Submitted_Date.id_for_label }}">{{ form.I_Submitted_Date.label }}</label>
+                {{ form.I_Submitted_Date }}
+                {% if form.I_Submitted_Date.errors %}<small class="error-msg">{{ form.I_Submitted_Date.errors }}</small>{% endif %}
+            </div>
+
+            <!-- Last Horizontal Row -->
+            <div class="form-group">
+                <label for="{{ form.salary_amount.id_for_label }}">{{ form.salary_amount.label }}</label>
+                {{ form.salary_amount }}
+                {% if form.salary_amount.errors %}<small class="error-msg">{{ form.salary_amount.errors }}</small>{% endif %}
+            </div>
+
+            <div class="button-group">
+                <a href="{% url 'unity_information' company_code=company_code %}" class="back-link">
+                    ← Back to Information
+                </a>
+                <button type="submit" class="save-button">
+                    {% if is_editing %}
+                        Save Changes
+                    {% else %}
+                        Create Bill
+                    {% endif %}
+                </button>
+            </div>
         </div>
     </form>
-
 </div>
 
 </body>
