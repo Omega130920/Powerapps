@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Billing Summary Report</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            background: linear-gradient(to bottom, #d1e2c4, #81c784);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1500px;
+            margin: 0 auto;
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #43a047;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        h1 { color: #2e7d32; margin: 0; font-size: 24px; }
+        
+        /* --- FILTER BAR --- */
+        .filter-bar {
+            background-color: #f1f8e9;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid #c8e6c9;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            align-items: end;
+        }
+
+        .filter-group { display: flex; flex-direction: column; gap: 8px; position: relative; }
+        .filter-group label { font-weight: bold; color: #2e7d32; font-size: 13px; }
+        
+        .search-input {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            height: 38px;
+            box-sizing: border-box;
+        }
+
+        /* Collapsible Dropdown Styling */
+        .dropdown-container {
+            position: relative;
+            width: 100%;
+        }
+
+        .dropdown-button {
+            width: 100%;
+            height: 38px;
+            padding: 8px 12px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: white;
+            text-align: left;
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-sizing: border-box;
+        }
+
+        .dropdown-button:after {
+            content: '▼';
+            font-size: 10px;
+            color: #666;
+        }
+
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: white;
+            min-width: 100%;
+            max-height: 200px;
+            overflow-y: auto;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 100;
+            border: 1px solid #ddd;
+            border-radius: 0 0 4px 4px;
+            padding: 8px;
+            margin-top: 1px;
+            box-sizing: border-box;
+        }
+
+        .dropdown-content.show { display: block; }
+
+        .dropdown-content label {
+            display: flex;
+            align-items: center;
+            padding: 6px 8px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #333;
+            white-space: nowrap;
+            font-weight: normal;
+        }
+
+        .dropdown-content label:hover { background-color: #e8f5e9; }
+        .dropdown-content input { margin-right: 8px; }
+
+        .btn-apply {
+            background-color: #2e7d32;
+            color: white;
+            border: none;
+            height: 38px;
+            padding: 0 20px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-apply:hover { background-color: #1b5e20; }
+        
+        .btn-export {
+            background-color: #1565c0;
+            color: white;
+            border: none;
+            height: 38px;
+            padding: 0 20px;
+            border-radius: 4px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 5px;
+        }
+        .btn-export:hover { background-color: #0d47a1; }
+        
+        .back-btn {
+            text-decoration: none;
+            background: #43a047;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 4px;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        .back-btn:hover { background: #2e7d32; }
+        
+        /* --- TABLE STYLES --- */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { background-color: #43a047; color: white; text-align: left; padding: 12px; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+        td { padding: 12px; border-bottom: 1px solid #ddd; font-size: 14px; }
+        tr:hover { background-color: #f1f8e9; }
+        .status-pill { padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; text-transform: uppercase; }
+        .mip-active { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
+        .amount-cell { text-align: right; font-family: monospace; font-weight: bold; color: #1b5e20; }
+        .meta-text { display: block; font-size: 10px; color: #777; margin-top: 2px; }
+        tfoot tr td { background-color: #f9f9f9; font-weight: bold; font-size: 15px; border-top: 2px solid #43a047; color: #2e7d32; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h1>Billing Summary Report</h1>
+        <a href="{% url 'dashboard' %}" class="back-btn">← Back to Dashboard</a>
+    </div>
+
+    <form method="GET" action="." id="filterForm">
+        <div class="filter-bar">
+            <div class="filter-group">
+                <label for="search">Search Levy # or Name</label>
+                <input type="text" name="search" id="search" class="search-input" placeholder="Type here..." value="{{ search_query }}">
+            </div>
+
+            <div class="filter-group">
+                <label>Billing Period</label>
+                <div class="dropdown-container">
+                    <div class="dropdown-button" onclick="toggleDropdown('periodDropdown')">Select Periods</div>
+                    <div id="periodDropdown" class="dropdown-content">
+                        {% for period in billing_periods %}
+                        <label>
+                            <input type="checkbox" name="period" value="{{ period }}" {% if period in selected_periods %}checked{% endif %}>
+                            {{ period }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="filter-group">
+                <label>CBR Status</label>
+                <div class="dropdown-container">
+                    <div class="dropdown-button" onclick="toggleDropdown('cbrDropdown')">Select Status</div>
+                    <div id="cbrDropdown" class="dropdown-content">
+                        {% for status in cbr_statuses %}
+                        <label>
+                            <input type="checkbox" name="cbr" value="{{ status }}" {% if status in selected_cbr %}checked{% endif %}>
+                            {{ status|default:"(Blank)" }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="filter-group">
+                <label>MIP Status</label>
+                <div class="dropdown-container">
+                    <div class="dropdown-button" onclick="toggleDropdown('mipDropdown')">Select MIP</div>
+                    <div id="mipDropdown" class="dropdown-content">
+                        {% for mip in mip_statuses %}
+                        <label>
+                            <input type="checkbox" name="mip" value="{{ mip }}" {% if mip in selected_mip %}checked{% endif %}>
+                            {{ mip|default:"(Blank)" }}
+                        </label>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="filter-group">
+                <button type="submit" class="btn-apply">Apply Filters</button>
+                <button type="button" class="btn-export" onclick="exportData()">📥 Export to CSV</button>
+                <a href="?" style="text-align:center; color:#666; font-size:11px; margin-top:5px; text-decoration:none;">Clear All</a>
+            </div>
+        </div>
+    </form>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 15%;">Levy Number</th>
+                <th style="width: 30%;">Employer Name</th>
+                <th style="width: 15%;">Billing Period</th>
+                <th style="width: 10%;">CBR Status</th>
+                <th style="width: 15%;">MIP Status</th>
+                <th style="text-align: right; width: 15%;">Due Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in billing_data %}
+            <tr>
+                <td>
+                    <strong>{{ row.levy_number }}</strong>
+                    <span class="meta-text">Imported: {{ row.import_date|date:"Y-m-d" }}</span>
+                </td>
+                <td>{{ row.display_name }}</td>
+                <td>{{ row.billing_period }}</td>
+                <td>{{ row.cbr_status|default:"-" }}</td>
+                <td>
+                    <span class="status-pill mip-active">{{ row.display_mip }}</span>
+                </td>
+                <td class="amount-cell">
+                    R {{ row.due_amount|floatformat:2 }}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="6" style="text-align: center; padding: 40px; color: #888;">No billing records found matching your filters.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+        
+        {% if billing_data %}
+        <tfoot>
+            <tr>
+                <td colspan="5" style="text-align: right;">Filtered Total:</td>
+                <td class="amount-cell" style="font-size: 16px;">
+                    R {{ total_due|floatformat:2 }}
+                </td>
+            </tr>
+        </tfoot>
+        {% endif %}
+    </table>
+</div>
+
+<script>
+    function toggleDropdown(id) {
+        document.querySelectorAll('.dropdown-content').forEach(content => {
+            if (content.id !== id) content.classList.remove('show');
+        });
+        document.getElementById(id).classList.toggle("show");
+    }
+
+    window.onclick = function(event) {
+        if (!event.target.closest('.dropdown-container')) {
+            document.querySelectorAll('.dropdown-content').forEach(content => {
+                content.classList.remove('show');
+            });
+        }
+    }
+
+    function exportData() {
+        // This function clones current filters and adds the export parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        urlParams.set('export', 'csv');
+        window.location.href = window.location.pathname + '?' + urlParams.toString();
+    }
+</script>
+
+</body>
+</html>

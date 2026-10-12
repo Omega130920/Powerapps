@@ -1,0 +1,98 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FSCA Sanction List Import</title>
+    <style>
+        :root {
+            --primary-green: #4CAF50;
+            --accent-green: #2e7d32;
+            --bg-light-green: #f1f8e9;
+            --text-default: #2c3e50;
+            --border-light: #dcdde1;
+        }
+
+        body { 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            background: linear-gradient(135deg, #e8f5e9 0%, #ffffff 100%);
+            color: var(--text-default);
+            margin: 0; padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+
+        h1 { color: var(--accent-green); border-bottom: 4px solid var(--primary-green); padding-bottom: 15px; }
+
+        .upload-box {
+            border: 2px dashed var(--primary-green);
+            padding: 30px;
+            border-radius: 12px;
+            background: var(--bg-light-green);
+            text-align: center;
+            margin-top: 30px;
+        }
+
+        input[type="file"] {
+            margin: 20px 0;
+            display: block;
+            width: 100%;
+        }
+
+        .btn-save {
+            background-color: var(--primary-green);
+            color: white;
+            padding: 14px 30px;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+
+        .btn-save:hover { background-color: var(--accent-green); }
+
+        .messages { list-style: none; padding: 0; }
+        .success { color: #2e7d32; background: #dff0d8; padding: 10px; border-radius: 4px; }
+        .error { color: #a94442; background: #f2dede; padding: 10px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{% url 'consulting_home' %}" style="text-decoration: none; color: var(--text-default);">← Back</a>
+        <h1>FSCA Sanction List</h1>
+        <p>Import the latest CSV list to update the unmanaged MySQL database.</p>
+
+        {% if messages %}
+        <ul class="messages">
+            {% for message in messages %}
+            <li class="{{ message.tags }}">{{ message }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        <div class="upload-box">
+            <form method="POST" enctype="multipart/form-data">
+                {% csrf_token %}
+                <label style="font-weight: bold;">Select Sanction List CSV:</label>
+                <input type="file" name="file" accept=".csv" required>
+                <button type="submit" class="btn-save">Upload and Process</button>
+            </form>
+        </div>
+        
+        <div style="margin-top: 20px;">
+            <p style="font-size: 0.85rem; color: #666;">
+                Required Columns: IndividualID, ReferenceNumber, FullName, ListedOn, Comments, Title, Designation, DOB, PlaceOfBirth, Alias, Nationality, Document, Address, Status.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

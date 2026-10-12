@@ -1,0 +1,456 @@
+{% load static %}
+{% block content %}
+<style>
+/* === GENERAL STYLES === */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* More modern font stack */
+    background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+/* === Status Badges (Professional Palette) === */
+.status-badge {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 20px; /* Pill shape for modern look */
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    letter-spacing: 0.5px;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+/* Status Colors (Harmonized with your preferences) */
+.status-new { 
+    background-color: #f7e0c4; /* Soft Orange */
+    color: #c78d0f; 
+    border: 1px solid #f0d5a3; 
+} 
+.status-pending, .status-inprogress { 
+    background-color: #f7e0c4; 
+    color: #c78d0f; 
+    border: 1px solid #f0d5a3; 
+} 
+.status-delegated { 
+    background-color: #c4d8f7; /* Soft Blue */
+    color: #1e62c7; 
+    border: 1px solid #a3c4f0; 
+} 
+.status-replied { 
+    background-color: #c5f0c5; /* Soft Green */
+    color: #2e7d32; 
+    border: 1px solid #a8d6a8; 
+} 
+.status-completed { 
+    background-color: #f0c5f0; /* Soft Pink/Purple */
+    color: #b040b0; 
+    border: 1px solid #d8a3d8; 
+} 
+.status-recyclebin { 
+    background-color: #f7d4d4; /* Soft Red */
+    color: #c62828; 
+    border: 1px solid #f0a3a3; 
+} 
+
+
+/* === LOG CONTAINER === */
+.log-container {
+    max-width: 1400px;
+    margin: 10px auto 20px auto; /* Better spacing */
+    padding: 30px; /* Increased padding */
+    background-color: #ffffff;
+    border-radius: 12px; /* Smoother corners */
+    box-shadow: 0 8px 16px rgba(0,0,0,0.15); /* More pronounced shadow */
+    width: 95%; 
+}
+.log-header {
+    border-bottom: 2px solid #aed581;
+    padding-bottom: 15px;
+    margin-bottom: 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.log-header h1 {
+    margin: 0;
+    color: #388e3c; /* Darker, professional green */
+    font-size: 26px;
+    font-weight: 600;
+}
+.log-controls {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    flex-wrap: wrap; /* Allow controls to wrap on small screens */
+}
+.date-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+.date-input-group {
+    display: flex;
+    gap: 5px;
+    align-items: center;
+}
+#search_input, .date-input {
+    padding: 10px 15px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+#search_input {
+    width: 300px;
+}
+#search_input:focus, .date-input:focus {
+    border-color: #66bb6a;
+    box-shadow: 0 0 0 3px rgba(102, 187, 106, 0.2);
+    outline: none;
+}
+.date-input-group label {
+    font-weight: 500;
+    color: #333;
+    white-space: nowrap;
+}
+#clear_dates {
+    padding: 10px 15px;
+    background-color: #f44336; /* Red for clear action */
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s;
+}
+#clear_dates:hover {
+    background-color: #d32f2f;
+}
+
+/* NEW: Export Button Style */
+#export_excel {
+    padding: 10px 15px;
+    background-color: #1a76d2; /* Match header blue */
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s;
+    white-space: nowrap;
+}
+#export_excel:hover {
+    background-color: #125aa3;
+}
+
+
+/* === TABLE STYLES === */
+.table-container {
+    overflow-x: auto;
+}
+.task-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    border-radius: 8px;
+    overflow: hidden; /* Ensures rounded corners affect table borders */
+}
+.task-table th, .task-table td {
+    padding: 14px 18px; /* Increased vertical padding */
+    border-bottom: 1pt solid #eee;
+    text-align: left;
+    font-size: 14px;
+    word-wrap: break-word;
+}
+.task-table th {
+    background-color: #1a76d2; /* Deeper blue header */
+    color: white;
+    font-weight: 700;
+    text-transform: capitalize; /* Title case for less aggressive look */
+    border-bottom: 2pt solid #1a76d2;
+}
+.task-table tr:nth-child(even) { background-color: #fcfcfc; } 
+.task-table tr:hover { 
+    background-color: #e8f5e9; /* Light green hover */
+    cursor: default; 
+}
+
+/* Specific field width adjustments (UPDATED FOR 8 COLUMNS) */
+.task-table th:nth-child(1), .task-table td:nth-child(1) { width: 20%; } /* Subject */
+.task-table th:nth-child(2), .task-table td:nth-child(2) { width: 15%; } /* Email From (Sender) */
+.task-table th:nth-child(3), .task-table td:nth-child(3) { width: 10%; } /* Member Code */
+.task-table th:nth-child(4), .task-table td:nth-child(4) { width: 8%; } /* Status */
+.task-table th:nth-child(5), .task-table td:nth-child(5) { width: 10%; } /* Delegated To */
+.task-table th:nth-child(6), .task-table td:nth-child(6) { width: 12%; } /* Date Received (Original) */
+.task-table th:nth-child(7), .task-table td:nth-child(7) { width: 12%; } /* Date Delegated/Processed */
+.task-table th:nth-child(8), .task-table td:nth-child(8) { width: 13%; } /* Category */
+
+
+/* === CONTROL BUTTONS === */
+.dashboard-links {
+    margin-bottom: 15px;
+    width: 95%;
+    max-width: 1400px;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: right;
+}
+.return-button {
+    padding: 10px 20px;
+    background-color: #4CAF50; /* Primary Green */
+    border: none;
+    border-radius: 5px;
+    text-decoration: none;
+    color: white;
+    cursor: pointer;
+    transition: background-color 0.3s ease, transform 0.1s;
+    margin-left: 10px;
+    font-size: 14px;
+    font-weight: 500;
+}
+.return-button:hover {
+    background-color: #43a047;
+    transform: translateY(-1px);
+}
+
+.text-center { text-align: center; }
+</style>
+
+<div class="dashboard-links">
+<a href="{% url 'dashboard' %}" class="return-button">Back to Home Screen</a>
+<a href="{% url 'fetch_emails' %}" class="return-button">Go to Live Inbox</a>
+<a href="{% url 'recycle_bin' %}" class="return-button">View Recycle Bin</a>
+<a href="{% url 'tasks' %}" class="return-button">My Delegated Tasks</a>
+</div>
+
+
+<div class="log-container">
+<div class="log-header">
+<h1>📨 Email Workflow History Overview (All Emails)</h1>
+<div class="log-controls">
+<input type="text" id="search_input" placeholder="🔍 Search all columns..." autofocus>
+
+<div class="date-controls">
+    <div class="date-input-group">
+        <label for="start_date">From:</label>
+        <input type="date" id="start_date" class="date-input">
+    </div>
+    <div class="date-input-group">
+        <label for="end_date">To:</label>
+        <input type="date" id="end_date" class="date-input">
+    </div>
+    <button id="clear_dates">Clear</button>
+</div>
+
+<button id="export_excel">Export to Excel</button>
+
+<p>Emails on page: <strong>{{ email_workflow_data|length }}</strong></p> 
+</div>
+</div>
+
+<div class="table-container">
+<table class="task-table" id="main_table">
+<thead>
+<tr>
+<th>Subject</th>
+<th>Email From</th>
+<th>Member Code</th>
+<th>Status</th>
+<th>Delegated To</th>
+<th>Date Received</th>
+<th>Date Delegated</th>
+<th>Category</th>
+</tr>
+</thead>
+<tbody id="table_body">
+{% for task in email_workflow_data %}
+<tr>
+<td title="{{ task.subject }}">{{ task.subject|truncatechars:40 }}</td>
+<td>{{ task.sender }}</td>
+<td>{{ task.mip_number|default:"N/A" }}</td>
+<td>
+{# Map status to CSS class (lowercase, remove spaces) #}
+<span class="status-badge status-{{ task.status|lower|cut:" " }}">
+{{ task.status }}
+</span>
+</td>
+<td>{{ task.delegated_to|default:"Inbox" }}</td>
+<td>
+{{ task.original_received_date|date:"d M Y H:i" }}
+</td>
+<td>
+{{ task.delegated_date|date:"d M Y H:i"|default:"" }}
+</td>
+<td>
+{{ task.category }}
+</td>
+</tr>
+{% empty %}
+<tr>
+<td colspan="8" class="text-center">🎉 No email records found in the system.</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+
+{# Pagination Controls #}
+<nav aria-label="Task Pagination">
+<ul class="pagination justify-content-center">
+{% if email_workflow_data.has_previous %}
+<li class="page-item"><a class="page-link" href="?page=1">&laquo; First</a></li>
+<li class="page-item"><a class="page-link" href="?page={{ email_workflow_data.previous_page_number }}">Previous</a></li>
+{% endif %}
+
+<li class="page-item disabled">
+<span class="page-link">Page {{ email_workflow_data.number }} of {{ email_workflow_data.paginator.num_pages }}</span>
+</li>
+
+{% if email_workflow_data.has_next %}
+<li class="page-item"><a class="page-link" href="?page={{ email_workflow_data.next_page_number }}">Next</a></li>
+<li class="page-item"><a class="page-link" href="?page={{ email_workflow_data.paginator.num_pages }}">Last &raquo;</a></li>
+{% endif %}
+</ul>
+</nav>
+</div>
+
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('search_input');
+    const startDateInput = document.getElementById('start_date');
+    const endDateInput = document.getElementById('end_date');
+    const clearButton = document.getElementById('clear_dates');
+    const exportButton = document.getElementById('export_excel');
+    const tableBody = document.getElementById('table_body');
+    
+    if (!searchInput || !startDateInput || !endDateInput || !clearButton || !exportButton || !tableBody) {
+        return;
+    }
+
+    const rows = tableBody.getElementsByTagName('tr');
+
+    function parseDisplayDate(dateString) {
+        try {
+            // Example: "01 Dec 2025 14:24"
+            const parts = dateString.split(' ');
+            if (parts.length < 3) return null;
+            
+            // Re-order for reliable Date parsing: "Dec 01 2025"
+            const dateOnlyString = `${parts[1]} ${parts[0]} ${parts[2]}`;
+            const date = new Date(dateOnlyString);
+            
+            if (isNaN(date.getTime())) return null;
+
+            // Return a date object set to midnight for start of day comparison
+            date.setHours(0, 0, 0, 0); 
+            return date;
+        } catch (e) {
+            return null;
+        }
+    }
+    
+    function liveSearch() {
+        const textFilter = searchInput.value.toLowerCase();
+        
+        const startFilterDateStr = startDateInput.value;
+        const endFilterDateStr = endDateInput.value;
+
+        // Convert filter dates to milliseconds since epoch for comparison
+        // Note: For end date, we check for the start of the next day to include the full day.
+        let startFilterTime = startFilterDateStr ? new Date(startFilterDateStr).setHours(0, 0, 0, 0) : null;
+        let endFilterTime = endFilterDateStr ? new Date(endFilterDateStr).setHours(23, 59, 59, 999) : null;
+
+
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            const cells = row.getElementsByTagName('td');
+            
+            if (cells.length === 0) continue;
+
+            let textMatch = false;
+            let dateMatch = false;
+
+            // 1. Check for Text Match (Wildcard Search)
+            for (let j = 0; j < cells.length; j++) {
+                const cellText = cells[j].innerText || cells[j].textContent;
+                
+                if (cellText.toLowerCase().indexOf(textFilter) > -1) {
+                    textMatch = true;
+                    break; 
+                }
+            }
+
+            // 2. Check for Date Range Match
+            // Date Received is in the 6th cell (index 5)
+            const receivedDateCell = cells[5].innerText;
+            const receivedDate = parseDisplayDate(receivedDateCell);
+            
+            if (!receivedDate) {
+                 // No date or invalid date: only match if no date filters are applied
+                 dateMatch = (!startFilterTime && !endFilterTime);
+            } else {
+                const receivedDateTime = receivedDate.getTime();
+                
+                // Start date condition: receivedDateTime must be >= startFilterTime (if present)
+                const startCondition = !startFilterTime || (receivedDateTime >= startFilterTime);
+                // End date condition: receivedDateTime must be <= endFilterTime (if present)
+                const endCondition = !endFilterTime || (receivedDateTime <= endFilterTime);
+
+                dateMatch = startCondition && endCondition;
+            }
+            
+
+            // 3. Show or Hide Row
+            if (textMatch && dateMatch) {
+                row.style.display = ""; 
+            } else {
+                row.style.display = "none";
+            }
+        }
+    }
+    
+    function clearDates() {
+        startDateInput.value = '';
+        endDateInput.value = '';
+        liveSearch();
+    }
+    
+    function handleExport() {
+        const searchText = searchInput.value;
+        const startDate = startDateInput.value;
+        const endDate = endDateInput.value;
+
+        // Build the query string with the current filters
+        let params = new URLSearchParams();
+        if (searchText) {
+            params.append('search', searchText);
+        }
+        if (startDate) {
+            params.append('start_date', startDate);
+        }
+        if (endDate) {
+            params.append('end_date', endDate);
+        }
+
+        // Redirect to the new export view (assuming you map 'export_email_history' in urls.py)
+        window.location.href = "{% url 'export_email_history' %}" + '?' + params.toString();
+    }
+
+    // Attach Event Listeners
+    searchInput.addEventListener('input', liveSearch);
+    startDateInput.addEventListener('change', liveSearch);
+    endDateInput.addEventListener('change', liveSearch);
+    clearButton.addEventListener('click', clearDates);
+    exportButton.addEventListener('click', handleExport);
+});
+</script>
+{% endblock %}

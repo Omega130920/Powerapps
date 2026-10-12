@@ -1,0 +1,271 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PSSUBF Management Portal</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.2);
+            --glass-border: rgba(255, 255, 255, 0.3);
+            --text-dark: #1b5e20;
+            --accent-green: #43a047;
+        }
+
+        html, body {
+            height: 100%;
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Locks page to prevent scrollbars */
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(135deg, #d1e2c4 0%, #8fcf7f 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-sizing: border-box;
+            padding: 1.5vh 2vw;
+        }
+
+        h1 {
+            font-size: clamp(1.4rem, 2.5vh, 2rem);
+            text-align: center;
+            margin: 0.5vh 0 0.2vh 0;
+            color: var(--text-dark);
+            font-weight: 300;
+            letter-spacing: 1px;
+        }
+
+        .subtitle {
+            color: var(--text-dark);
+            opacity: 0.7;
+            margin-bottom: 1.5vh;
+            font-size: 0.9rem;
+        }
+
+        .button-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(3, minmax(0, 1fr));
+            gap: 15px;
+            width: 100%;
+            max-width: 1250px;
+            flex: 1;
+            min-height: 0;
+            margin-bottom: 1vh;
+        }
+
+        /* --- MODERN GLASS CARD STYLING --- */
+        .button-block {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid var(--glass-border);
+            border-radius: 14px;
+            text-decoration: none;
+            color: var(--text-dark);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 12px 10px;
+            transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+            position: relative;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            text-align: center;
+            overflow: hidden;
+        }
+
+        .button-block:hover {
+            background: rgba(255, 255, 255, 0.4);
+            transform: translateY(-4px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.1);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .button-block i {
+            font-size: 1.6rem; 
+            margin-bottom: 6px;
+            color: var(--text-dark);
+            opacity: 0.8;
+        }
+
+        .button-text {
+            font-size: 0.95rem;
+            font-weight: 600;
+            line-height: 1.1;
+            margin-bottom: 3px;
+        }
+
+        .button-desc {
+            font-size: 0.7rem;
+            opacity: 0.7;
+            padding: 0 5px;
+            line-height: 1;
+        }
+
+        /* --- BADGE STYLING --- */
+        .badge {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background-color: #ef5350;
+            color: white;
+            border-radius: 8px;
+            padding: 2px 6px;
+            font-size: 0.65rem;
+            font-weight: bold;
+            box-shadow: 0 2px 8px rgba(239, 83, 80, 0.4);
+            border: 1px solid rgba(255,255,255,0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .badge.blue-badge { background-color: #42a5f5; }
+        .badge.orange-badge { background-color: #ffa726; }
+        .badge.dark-badge { background-color: #455a64; }
+
+        /* --- LOGOUT & FOOTER --- */
+        .logout-wrapper { position: absolute; top: 15px; right: 20px; }
+        .logout-button {
+            background: var(--glass-bg);
+            backdrop-filter: blur(5px);
+            color: var(--text-dark);
+            padding: 6px 14px;
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.85rem;
+            transition: all 0.2s;
+        }
+        .logout-button:hover { background: rgba(255,255,255,0.4); }
+
+        .footer-info {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-dark);
+            opacity: 0.6;
+            padding-bottom: 0.5vh;
+        }
+
+        /* --- RESPONSIVE --- */
+        @media (max-width: 1200px) { 
+            .button-container { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, minmax(0, 1fr)); } 
+        }
+        @media (max-width: 900px) { 
+            .button-container { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(5, minmax(0, 1fr)); } 
+            html, body { overflow-y: auto; }
+        }
+        @media (max-width: 600px) { 
+            .button-container { grid-template-columns: 1fr; grid-template-rows: repeat(9, minmax(0, 1fr)); } 
+        }
+    </style>
+</head>
+<body>
+
+    <div class="logout-wrapper">
+        <form method="post" action="{% url 'logout' %}">
+            {% csrf_token %}
+            <button type="submit" class="logout-button">
+                <i class="fas fa-sign-out-alt"></i> Logout
+            </button>
+        </form>
+    </div>
+
+    <h1>PSSUBF <strong>Home Screen</strong></h1>
+    <p class="subtitle"></p>
+
+    <div class="button-container">
+        <a href="{% url 'pssubf_dashboard' %}" class="button-block">
+            <i class="fas fa-envelope-open-text"></i>
+            <span class="button-text">Delegations</span>
+            <span class="button-desc">Process incoming mail</span>
+            <span id="badge-new-emails" class="badge blue-badge" {% if not new_emails_count %}style="display:none;"{% endif %}>{{ new_emails_count }}</span>
+        </a>
+
+        <a href="{% url 'pssubf_delegations_list' %}" class="button-block">
+            <i class="fas fa-tasks"></i>
+            <span class="button-text">Dashboard</span>
+            <span class="button-desc">Track active work</span>
+            <span id="badge-my-delegations" class="badge orange-badge" {% if not my_pending_delegations_count %}style="display:none;"{% endif %}>{{ my_pending_delegations_count }}</span>
+        </a>
+
+        <a href="{% url 'beneficiary_list' %}" class="button-block">
+            <i class="fas fa-users"></i>
+            <span class="button-text">Beneficiaries</span>
+            <span class="button-desc">Member list & details</span>
+        </a>
+
+        <a href="{% url 'claim_list' %}" class="button-block">
+            <i class="fas fa-file-invoice-dollar"></i>
+            <span class="button-text">Claim List</span>
+            <span class="button-desc">Manage service claims</span>
+        </a>
+
+        <a href="{% url 'adhoc_list' %}" class="button-block">
+            <i class="fas fa-clipboard-check"></i>
+            <span class="button-text">Ad Hoc List</span>
+            <span class="button-desc">General record tracking</span>
+        </a>
+
+        <a href="{% url 'pssubf_audit_logs' %}" class="button-block">
+            <i class="fas fa-clipboard-list"></i>
+            <span class="button-text">Email List</span>
+            <span class="button-desc">Complete interaction log</span>
+        </a>
+
+        <a href="{% url 'claim_sla_report' %}" class="button-block">
+            <i class="fas fa-chart-bar"></i>
+            <span class="button-text">Claims SLA Report</span>
+            <span class="button-desc">Track claim processing times</span>
+        </a>
+
+        <a href="{% url 'pssubf_log_page' %}" class="button-block">
+            <i class="fas fa-book-open"></i>
+            <span class="button-text">Quick Log</span>
+            <span class="button-desc">Record system notes</span>
+        </a>
+
+        <a href="{% url 'pssubf_recycle_bin' %}" class="button-block">
+            <i class="fas fa-trash-can"></i>
+            <span class="button-text">Recycle Bin</span>
+            <span class="button-desc">Recover deleted tasks</span>
+            <span id="badge-recycled" class="badge dark-badge" {% if not recycled_count %}style="display:none;"{% endif %}>{{ recycled_count }}</span>
+        </a>
+    </div>
+
+    <script>
+        function refreshDashboardStats() {
+            fetch('/dashboard-stats/') 
+                .then(response => {
+                    if (!response.ok) throw new Error('Network response was not ok');
+                    return response.json();
+                })
+                .then(data => {
+                    updateBadge('badge-new-emails', data.new_emails_count);
+                    updateBadge('badge-recycled', data.recycled_count);
+                    updateBadge('badge-my-delegations', data.my_pending_delegations_count);
+                })
+                .catch(error => console.error('Dashboard Stats Error:', error));
+        }
+
+        function updateBadge(id, count) {
+            const badge = document.getElementById(id);
+            if (!badge) return;
+            badge.innerText = count;
+            badge.style.display = count > 0 ? 'flex' : 'none';
+        }
+        
+        refreshDashboardStats();
+        setInterval(refreshDashboardStats, 30000);
+    </script>
+</body>
+</html>

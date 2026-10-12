@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login</title>
+<style>
+body {
+font-family: sans-serif;
+background: linear-gradient(to bottom, #d1e2c4, #d1e2c4);
+margin: 0;
+color: #333;
+line-height: 1.6;
+display: flex;
+justify-content: center;
+align-items: center;
+height: 100vh;
+}
+.login-container {
+background: #f0fff0;
+padding: 2em;
+border-radius: 8px;
+box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+border: 1px solid #c3e6cb;
+text-align: center;
+}
+h2 {
+color: #1b5e20;
+margin-top: 0;
+margin-bottom: 20px;
+}
+.errorlist {
+color: red;
+list-style-type: none;
+padding: 0;
+margin-bottom: 1em;
+text-align: left;
+}
+.form-row {
+margin-bottom: 1em;
+}
+label {
+display: block;
+margin-bottom: 0.5em;
+font-weight: bold;
+text-align: left;
+}
+input {
+width: 100%;
+padding: 0.5em;
+border: 1px solid #aed581;
+border-radius: 4px;
+box-sizing: border-box;
+}
+button {
+width: 100%;
+padding: 0.75em;
+background-color: #81c784;
+color: white;
+border: none;
+border-radius: 4px;
+cursor: pointer;
+transition: background-color 0.3s ease;
+}
+button:hover {
+background-color: #66bb6a;
+}
+</style>
+</head>
+<body>
+<div class="login-container">
+<h2>Unity Internal</h2>
+<form method="post">
+{% csrf_token %}
+{{ form.as_p }}
+<button type="submit">Login</button>
+</form>
+</div>
+</body>
+</html>

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stipend & Claims Audit</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .mono { font-family: 'Monaco', 'Consolas', monospace; }
+    </style>
+</head>
+<body class="p-6 md:p-12">
+
+    <div class="max-w-xl mx-auto mb-12">
+        <div class="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-gray-100">
+            <label class="text-[10px] font-black uppercase text-gray-400 mb-2 block tracking-widest text-center">Comprehensive Audit</label>
+            <div class="flex gap-3">
+                <input type="text" id="m_num_input" placeholder="Member ID..." class="flex-1 p-4 bg-gray-50 border-2 border-gray-100 rounded-2xl focus:border-green-600 outline-none text-xl font-bold">
+                <button onclick="lookupMember()" class="bg-green-700 text-white px-10 rounded-2xl font-black hover:bg-green-800 transition shadow-lg">RUN</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="results_card" class="hidden max-w-6xl mx-auto space-y-6">
+        
+        <div class="bg-gray-900 rounded-[2rem] p-8 text-white flex justify-between items-center">
+            <div>
+                <h2 id="res_name" class="text-3xl font-black">---</h2>
+                <span id="res_age_label" class="text-green-500 font-bold text-xs uppercase"></span>
+            </div>
+            <div class="text-right">
+                <p class="text-[10px] font-black text-gray-500 uppercase">Opening Capital</p>
+                <p class="text-3xl font-black mono text-blue-400">R 500,000.00</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="bg-white p-6 rounded-3xl shadow-lg border-b-4 border-red-400">
+                <h3 class="text-[10px] font-black text-gray-400 uppercase">Stipends Paid</h3>
+                <div id="res_paid_amt" class="text-xl font-black mono text-red-600">- R 0.00</div>
+                <p id="res_paid_months" class="text-[10px] text-gray-400 mt-1 italic"></p>
+            </div>
+
+            <div class="bg-white p-6 rounded-3xl shadow-lg border-b-4 border-orange-400">
+                <h3 class="text-[10px] font-black text-gray-400 uppercase">Reserved Stipends</h3>
+                <div id="res_due_amt" class="text-xl font-black mono text-orange-600">- R 0.00</div>
+                <p id="res_due_months" class="text-[10px] text-gray-400 mt-1 italic"></p>
+            </div>
+
+            <div class="bg-white p-6 rounded-3xl shadow-lg border-b-4 border-purple-400">
+                <h3 class="text-[10px] font-black text-gray-400 uppercase">Claims History</h3>
+                <div id="res_claims_amt" class="text-xl font-black mono text-purple-600">- R 0.00</div>
+                <p class="text-[10px] text-gray-400 mt-1 italic">Total Claims to date</p>
+            </div>
+
+            <div class="bg-white p-6 rounded-3xl shadow-lg border-b-4 border-pink-400">
+                <h3 class="text-[10px] font-black text-gray-400 uppercase">Ad Hoc History</h3>
+                <div id="res_adhoc_amt" class="text-xl font-black mono text-pink-600">- R 0.00</div>
+                <p class="text-[10px] text-gray-400 mt-1 italic">Total Ad Hoc to date</p>
+            </div>
+        </div>
+
+        <div id="footer_bg" class="p-12 rounded-[2.5rem] flex justify-between items-center shadow-2xl border-t-8 transition-all">
+            <div>
+                <h4 class="text-sm font-black uppercase text-gray-500 tracking-wider">Final Sustainability Balance at 18</h4>
+                <p class="text-[11px] text-gray-400 font-medium italic mt-1">Formula: Capital - (All Stipends + All Claims + All AdHocs)</p>
+            </div>
+            <div id="res_final_bal" class="text-7xl font-black mono tracking-tighter">R 0.00</div>
+        </div>
+    </div>
+
+    <script>
+        function lookupMember() {
+            const mNum = document.getElementById('m_num_input').value;
+            fetch(`/get-beneficiary-data/${mNum}/`)
+                .then(res => res.json())
+                .then(data => {
+                    const fund = 500000;
+                    const stipend = 1000;
+
+                    const paidStipends = data.months_paid * stipend;
+                    const futureStipends = data.months_remaining * stipend;
+                    const claims = data.past_claims_total || 0;
+                    const adhocs = data.past_adhoc_total || 0;
+
+                    const finalBalance = fund - (paidStipends + futureStipends + claims + adhocs);
+
+                    document.getElementById('res_name').innerText = data.beneficiary_name;
+                    document.getElementById('res_age_label').innerText = data.age + " Years Old";
+                    
+                    document.getElementById('res_paid_amt').innerText = "- R " + paidStipends.toLocaleString();
+                    document.getElementById('res_paid_months').innerText = data.months_paid + " months from birth";
+
+                    document.getElementById('res_due_amt').innerText = "- R " + futureStipends.toLocaleString();
+                    document.getElementById('res_due_months').innerText = data.months_remaining + " months remaining";
+
+                    document.getElementById('res_claims_amt').innerText = "- R " + claims.toLocaleString();
+                    document.getElementById('res_adhoc_amt').innerText = "- R " + adhocs.toLocaleString();
+
+                    const finalField = document.getElementById('res_final_bal');
+                    const footer = document.getElementById('footer_bg');
+                    finalField.innerText = "R " + finalBalance.toLocaleString(undefined, {minimumFractionDigits: 2});
+
+                    if(finalBalance < 0) {
+                        finalField.className = "text-7xl font-black mono text-red-600";
+                        footer.className = "p-12 rounded-[2.5rem] flex justify-between items-center border-t-8 bg-red-50 border-red-600";
+                    } else {
+                        finalField.className = "text-7xl font-black mono text-green-600";
+                        footer.className = "p-12 rounded-[2.5rem] flex justify-between items-center border-t-8 bg-green-50 border-green-600";
+                    }
+                    document.getElementById('results_card').classList.remove('hidden');
+                });
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Late Payment Interest List</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body { font-family: sans-serif; background-color: #d1e2c4; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
+        h1 { color: #1b5e20; border-bottom: 2px solid #81c784; padding-bottom: 10px; font-weight: normal; font-size: 2.5em; text-align: center; margin-top: 0;}
+        
+        /* Filter Form */
+        .filter-form { 
+            background: #f1f8e9; 
+            padding: 15px; 
+            border-radius: 6px; 
+            margin-bottom: 15px; 
+            display: flex; 
+            gap: 15px; 
+            align-items: flex-end;
+            border: 1px solid #c8e6c9;
+        }
+        .filter-group { display: flex; flex-direction: column; gap: 4px; }
+        .filter-group label { font-size: 11px; font-weight: bold; color: #2e7d32; text-transform: uppercase; }
+        .filter-group input { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+        
+        .btn { padding: 8px 15px; border-radius: 4px; border: none; cursor: pointer; color: white; font-size: 13px; text-decoration: none; }
+        .btn-filter { background: #43a047; }
+        .btn-export { background: #1b5e20; }
+        .btn-reset { background: #757575; }
+
+        .result-count { font-size: 13px; color: #666; font-style: italic; margin-bottom: 10px; }
+
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; background: white; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; font-size: 13px; }
+        th { background-color: #43a047; color: white; font-weight: bold;}
+        tr:nth-child(even) { background-color: #f9f9f9; }
+        tr:hover { background-color: #f1f8e9; }
+        
+        .back-btn { display: inline-block; margin-bottom: 15px; padding: 8px 15px; background: #555; color: white; text-decoration: none; border-radius: 4px; }
+
+        /* Pagination */
+        .pagination { margin-top: 20px; display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .pagination a, .pagination span { padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; text-decoration: none; color: #333; background: white; }
+        .pagination .active { background: #43a047; color: white; border-color: #43a047; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{% url 'dashboard' %}" class="back-btn">← Back to Dashboard</a>
+        <h1>Late Payment Interest</h1>
+
+        <form method="GET" class="filter-form">
+            <div class="filter-group">
+                <label>Levy Number</label>
+                <input type="text" name="levy" value="{{ request.GET.levy }}" placeholder="Filter Levy...">
+            </div>
+            <div class="filter-group">
+                <label>LPI Reference</label>
+                <input type="text" name="reference" value="{{ request.GET.reference }}" placeholder="Filter Ref...">
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <button type="submit" class="btn btn-filter">Filter</button>
+                <button type="submit" name="export" value="1" class="btn btn-export"><i class="fas fa-file-excel"></i> Export</button>
+                <a href="{% url 'lpi_list' %}" class="btn btn-reset">Reset</a>
+            </div>
+        </form>
+
+        <div class="result-count">
+            Showing <strong>{{ page_obj.start_index }} - {{ page_obj.end_index }}</strong> of <strong>{{ page_obj.paginator.count }}</strong> LPI records.
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Levy</th>
+                    <th>LPI Reference</th>
+                    <th>Fiscal Date</th>
+                    <th>LPI Raised</th>
+                    <th>Total Contribution</th>
+                    <th>Late Contribution</th>
+                    <th>LPI Calc Date</th>
+                    <th>LPI Create Date</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in page_obj %}
+                <tr>
+                    <td>{{ record.employer_number }}</td>
+                    <td>{{ record.reference }}</td>
+                    <td>{{ record.fiscal_date|date:"d/m/Y" }}</td>
+                    <td>R {{ record.lpi_raised_amount|floatformat:2 }}</td>
+                    <td>R {{ record.contribution_amount|floatformat:2 }}</td>
+                    <td>R {{ record.late_payment_contribution_amount|floatformat:2 }}</td>
+                    <td>{{ record.lpi_calculation_date|date:"d/m/Y" }}</td>
+                    <td>{{ record.lpi_create_date|date:"d/m/Y" }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" style="text-align:center;">No LPI records found matching your filters.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if page_obj.has_other_pages %}
+        <div class="pagination">
+            {% if page_obj.has_previous %}
+                <a href="?page=1{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">&laquo; First</a>
+                <a href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Prev</a>
+            {% endif %}
+
+            <span class="active">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next</a>
+                <a href="?page={{ page_obj.paginator.num_pages }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Last &raquo;</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

@@ -1,0 +1,156 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        'ledger-blue': '#2e7d32', 
+                        'hover-blue': '#1b5e20',
+                        'accent-border': '#c3e6cb',
+                    }
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-[#d1e2c4] p-4 min-h-screen font-sans">
+
+    <div class="max-w-full mx-auto mb-6 flex justify-between items-center">
+        <div class="flex gap-2">
+            <a href="{% url 'dashboard' %}" class="bg-gray-700 text-white px-4 py-2 rounded shadow hover:bg-gray-800 transition font-bold">Dashboard</a>
+        </div>
+        <h1 class="text-3xl font-bold text-[#1b5e20]">Global Bank</h1>
+        
+        <a href="{% url 'export_bank_csv' %}?status_filter={{ status_filter }}&start_date={{ start_date }}&end_date={{ end_date }}&search_query={{ search_query }}" 
+           class="bg-yellow-600 text-white px-4 py-2 rounded shadow hover:bg-yellow-700 transition flex items-center gap-2 font-bold">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+            </svg>
+            Export to CSV
+        </a>
+    </div>
+
+    <div class="bg-white p-6 rounded-xl shadow-md border border-accent-border mb-6">
+        <form method="get" action="{% url 'global_bank' %}" class="grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+            
+            <div class="md:col-span-2">
+                <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Search Levy No / Description</label>
+                <input type="text" name="search_query" value="{{ search_query }}" placeholder="Enter Search here" class="w-full p-2 border rounded outline-none focus:ring-2 focus:ring-ledger-blue">
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold uppercase text-gray-500 mb-1">Status</label>
+                <select name="status_filter" class="w-full p-2 border rounded outline-none">
+                    <option value="">-- All Status --</option>
+                    <option value="Reconciled" {% if status_filter == 'Reconciled' %}selected{% endif %}>Reconciled Only</option>
+                    <option value="Unreconciled" {% if status_filter == 'Unreconciled' %}selected{% endif %}>Unreconciled Only</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold uppercase text-gray-500 mb-1">From Date</label>
+                <input type="date" name="start_date" value="{{ start_date }}" class="w-full p-2 border rounded outline-none">
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold uppercase text-gray-500 mb-1">To Date</label>
+                <input type="date" name="end_date" value="{{ end_date }}" class="w-full p-2 border rounded outline-none">
+            </div>
+
+            <div class="flex gap-2">
+                <button type="submit" class="bg-ledger-blue text-white px-4 py-2 rounded font-bold hover:bg-hover-blue transition flex-grow">Apply Filters</button>
+                <a href="{% url 'global_bank' %}" class="bg-gray-100 text-gray-600 px-4 py-2 rounded font-bold hover:bg-gray-200 transition">Reset</a>
+            </div>
+        </form>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-2xl border border-accent-border overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="w-full border-collapse text-xs">
+                <thead class="bg-ledger-blue text-white uppercase">
+                    <tr>
+                        <th class="p-4 text-left">Status</th>
+                        <th class="p-4 text-left">Reference Description</th>
+                        <th class="p-4 text-right">Deposit Amount</th>
+                        <th class="p-4 text-center">Note Selector</th>
+                        <th class="p-4 text-left">Deposit Date</th>
+                        <th class="p-4 text-left">Levy No</th>
+                        <th class="p-4 text-left">Administrator</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-200">
+                    {% for line in bank_lines_page %}
+                    <tr class="hover:bg-gray-50 transition">
+                        <td class="p-4">
+                            {% if line.Recon == 'Reconciled' %}
+                                <span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-[10px] font-black border border-green-200 uppercase">
+                                    Reconciled
+                                </span>
+                            {% else %}
+                                <span class="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-[10px] font-black border border-orange-200 uppercase">
+                                    Unreconciled
+                                </span>
+                            {% endif %}
+                        </td>
+
+                        <td class="p-4 font-medium text-gray-800">{{ line.Reference_Description }}</td>
+
+                        <td class="p-4 text-right font-mono font-bold {% if line.Amount < 0 %}text-red-600{% else %}text-green-700{% endif %}">
+                            {{ line.Amount|floatformat:2 }}
+                        </td>
+
+                        <td class="p-4 text-center">
+                            {% if line.Column_5 %}
+                                <span class="uppercase text-[9px] font-bold px-2 py-1 rounded bg-gray-50 border border-gray-200 text-gray-600">
+                                    {{ line.Column_5 }}
+                                </span>
+                            {% else %}
+                                <span class="text-gray-300 italic">None</span>
+                            {% endif %}
+                        </td>
+
+                        <td class="p-4 text-gray-600 whitespace-nowrap">{{ line.Date|date:"Y-m-d" }}</td>
+                        
+                        <td class="p-4">
+                            {% if line.Levy_number %}
+                                <span class="bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-100 font-bold">{{ line.Levy_number }}</span>
+                            {% else %}
+                                <span class="text-gray-400 italic">Not Assigned</span>
+                            {% endif %}
+                        </td>
+                        
+                        <td class="p-4 text-gray-500 italic max-w-xs truncate" title="{{ line.Column_6 }}">
+                            {{ line.Column_6|default:"No notes" }}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="7" class="p-20 text-center text-gray-400">No records match the current filters.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div class="bg-gray-50 p-4 border-t flex items-center justify-between">
+            <p class="text-xs text-gray-500 font-bold uppercase">Master Ledger | Total Records: {{ bank_lines_page.paginator.count }}</p>
+            <div class="flex gap-1">
+                {% if bank_lines_page.has_previous %}
+                    <a href="?page={{ bank_lines_page.previous_page_number }}&search_query={{ search_query }}&status_filter={{ status_filter }}&start_date={{ start_date }}&end_date={{ end_date }}" class="px-4 py-2 border rounded bg-white hover:bg-gray-100 text-xs transition">Previous</a>
+                {% endif %}
+                <span class="px-4 py-2 font-bold text-ledger-blue text-xs">Page {{ bank_lines_page.number }} of {{ bank_lines_page.paginator.num_pages }}</span>
+                {% if bank_lines_page.has_next %}
+                    <a href="?page={{ bank_lines_page.next_page_number }}&search_query={{ search_query }}&status_filter={{ status_filter }}&start_date={{ start_date }}&end_date={{ end_date }}" class="px-4 py-2 border rounded bg-white hover:bg-gray-100 text-xs transition">Next</a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</body>
+</html>

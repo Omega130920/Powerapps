@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Mario Bros. Engine Sandbox</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght=700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --container-bg: #020617;
+            --border-color: #334155;
+            --accent-color: #ef4444;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Share Tech Mono', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        #game-container {
+            background-color: var(--container-bg);
+            border: 4px solid var(--border-color);
+            border-radius: 8px;
+            padding: 16px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        header {
+            width: 100%;
+            margin-bottom: 12px;
+            border-bottom: 2px dashed var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        h1 {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.5rem;
+            margin: 0 0 4px 0;
+            color: var(--accent-color);
+            letter-spacing: 2px;
+            text-align: center;
+        }
+
+        #g-meta {
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 1.1rem;
+            color: var(--text-main);
+            text-align: center;
+            background: #1e293b;
+            padding: 6px 12px;
+            border-radius: 4px;
+            letter-spacing: 1px;
+            min-width: 480px;
+        }
+
+        canvas {
+            background-color: #5c94fc;
+            border: 2px solid #000;
+            display: block;
+            image-rendering: pixelated;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.4);
+        }
+
+        footer {
+            margin-top: 12px;
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        .controls-hint {
+            color: #10b981;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <header>
+            <h1 id="g-title">SUPER MARIO BROS.</h1>
+            <div id="g-meta">INITIALIZING SIMULATION MATRIX...</div>
+        </header>
+
+        <canvas id="gameCanvas" width="512" height="400"></canvas>
+
+        <footer>
+            <p>CONTROLS: <span class="controls-hint">A/D</span> or <span class="controls-hint">←/→</span> to Move | <span class="controls-hint">W / Space</span> to Jump | <span class="controls-hint">Shift</span> to Sprint | <span class="controls-hint">F</span> for Fireballs</p>
+        </footer>
+    </div>
+
+    <script>
+        // =========================================================================
+        // MODULE 07: AUTHENTIC SUPER MARIO BROS ENGINE (V3 - REFACTORED ARCHITECTURE)
+        // =========================================================================
+
+        const PALETTES = [
+            { sky: '#5c94fc', ground: '#d82800', groundTrim: '#fc9838', brick: '#b83400', brickLine: '#000000', pipe: '#00a800', pipeTrim: '#005800' }, 
+            { sky: '#000000', ground: '#0044aa', groundTrim: '#0088ff', brick: '#0044aa', brickLine: '#88d8ff', pipe: '#00a800', pipeTrim: '#005800' }, 
+            { sky: '#000000', ground: '#545454', groundTrim: '#949494', brick: '#202020', brickLine: '#d82800', pipe: '#d82800', pipeTrim: '#545454' }  
+        ];
+
+        const LEVEL_BLUEPRINTS = [
+            {
+                name: "WORLD 1-1", length: 2600,
+                pits: [[480, 544], [1024, 1120], [1728, 1824]],
+                pipes: [{x: 350, h: 48}, {x: 720, h: 64}, {x: 1300, h: 80}, {x: 1950, h: 48}],
+                blocks: [
+                    {x: 200, y: 240, t: "Q_COIN"}, {x: 264, y: 240, t: "BRICK"}, {x: 296, y: 240, t: "Q_MUSHROOM"}, 
+                    {x: 328, y: 240, t: "BRICK"}, {x: 360, y: 240, t: "Q_COIN"}, {x: 328, y: 120, t: "Q_COIN"},
+                    {x: 850, y: 240, t: "BRICK"}, {x: 882, y: 240, t: "Q_FLOWER"}, {x: 914, y: 240, t: "BRICK"},
+                    {x: 1400, y: 240, t: "BRICK"}, {x: 1432, y: 240, t: "Q_COIN"}, {x: 1464, y: 240, t: "BRICK"}
+                ],
+                stairs: [{x: 2200, steps: 5, dir: 1}, {x: 2350, steps: 5, dir: -1}],
+                enemies: [{x: 250, t:"GOOMBA"}, {x: 420, t:"GOOMBA"}, {x: 650, t:"KOOPA"}, {x: 890, t:"GOOMBA"}, {x: 1200, t:"KOOPA"}],
+                flagpole: 2450
+            },
+            {
+                name: "WORLD 1-2", length: 2400,
+                pits: [[600, 720], [1400, 1520]],
+                pipes: [{x: 450, h: 80}, {x: 1100, h: 64}],
+                blocks: [
+                    {x: 160, y: 200, t: "BRICK"}, {x: 192, y: 200, t: "BRICK"}, {x: 224, y: 200, t: "Q_MUSHROOM"},
+                    {x: 352, y: 120, t: "Q_COIN"}, {x: 800, y: 240, t: "Q_COIN"}, {x: 1282, y: 160, t: "Q_FLOWER"}
+                ],
+                stairs: [{x: 950, steps: 4, dir: 1}],
+                enemies: [{x: 220, t:"GOOMBA"}, {x: 520, t:"GOOMBA"}, {x: 780, t:"KOOPA"}, {x: 1350, t:"GOOMBA"}],
+                flagpole: 2250
+            },
+            {
+                name: "WORLD 1-3", length: 2500,
+                pits: [[300, 396], [800, 928], [1400, 1560]],
+                pipes: [],
+                blocks: [
+                    {x: 160, y: 240, t: "BRICK"}, {x: 450, y: 200, t: "Q_MUSHROOM"}, {x: 1132, y: 240, t: "Q_FLOWER"}
+                ],
+                stairs: [{x: 1250, steps: 6, dir: 1}],
+                enemies: [{x: 200, t:"GOOMBA"}, {x: 550, t:"KOOPA"}, {x: 1050, t:"KOOPA"}, {x: 2180, t:"BOWSER"}],
+                flagpole: 2380
+            }
+        ];
+
+        function handleAABB(a, b) {
+            return (a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y);
+        }
+
+        class InputHandler {
+            constructor() {
+                this.keys = {};
+                window.addEventListener('keydown', e => this.keys[e.code] = true);
+                window.addEventListener('keyup', e => this.keys[e.code] = false);
+            }
+            isPressed(code) { return !!this.keys[code]; }
+            isLeft() { return this.isPressed('KeyA') || this.isPressed('ArrowLeft'); }
+            isRight() { return this.isPressed('KeyD') || this.isPressed('ArrowRight'); }
+            isJump() { return this.isPressed('KeyW') || this.isPressed('ArrowUp') || this.isPressed('Space'); }
+            isRun() { return this.isPressed('ShiftLeft') || this.isPressed('ShiftRight'); }
+            isFire() { return this.isPressed('KeyF'); }
+        }
+
+        class Player {
+            constructor() {
+                this.x = 40; this.y = 300; this.w = 14; this.h = 16;
+                this.vx = 0; this.vy = 0;
+                
+                // --- NES AUTHENTIC PHYSICS COEFFICIENTS ---
+                this.isGrounded = false;
+                this.facingLeft = false;
+                this.state = "FIRE"; 
+                this.invulnFrames = 0;
+                this.isSkidding = false;
+            }
+
+            updatePhysics(input) {
+                if (this.invulnFrames > 0) this.invulnFrames--;
+
+                // 1. Determine Horizontal Speed Limits & Friction Profiles based on NES metrics
+                let isRunning = input.isRun();
+                let maxWalkSpeed = 1.8;
+                let maxRunSpeed = 3.3;
+                let targetMaxSpeed = isRunning ? maxRunSpeed : maxWalkSpeed;
+
+                let accelRate = 0.045;
+                let skidDecel = 0.12; 
+                let releaseFriction = 0.055;
+
+                // 2. Horizontal Processing Loop (With Skidding Mechanics)
+                this.isSkidding = false;
+                if (input.isLeft()) {
+                    if (this.vx > 0) {
+                        this.isSkidding = true;
+                        this.vx -= skidDecel;
+                    } else if (this.vx > -targetMaxSpeed) {
+                        this.vx -= accelRate;
+                    } else {
+                        this.vx += releaseFriction; // Natural drag back down to run cap
+                    }
+                    this.facingLeft = true;
+                } else if (input.isRight()) {
+                    if (this.vx < 0) {
+                        this.isSkidding = true;
+                        this.vx += skidDecel;
+                    } else if (this.vx < targetMaxSpeed) {
+                        this.vx += accelRate;
+                    } else {
+                        this.vx -= releaseFriction;
+                    }
+                    this.facingLeft = false;
+                } else {
+                    // Natural Drag dampening when no inputs are loaded
+                    if (this.vx > 0) this.vx = Math.max(0, this.vx - releaseFriction);
+                    if (this.vx < 0) this.vx = Math.min(0, this.vx + releaseFriction);
+                }
+
+                // 3. Dynamic Jump Processing Matrix (Authentic Dynamic NES Logic Arrays)
+                if (input.isJump() && this.isGrounded) {
+                    let absVx = Math.abs(this.vx);
+                    // Jump velocity scales dynamically with step speed!
+                    if (absVx < 1.0) {
+                        this.vy = -7.3;
+                    } else if (absVx < 2.5) {
+                        this.vy = -7.8;
+                    } else {
+                        this.vy = -8.5;
+                    }
+                    this.isGrounded = false;
+                }
+
+                // 4. Multi-Tier Variable Gravity Engine Simulation Loop
+                let dynamicGravity = 0.45; 
+                let absVx = Math.abs(this.vx);
+
+                if (this.vy < 0) {
+                    if (input.isJump()) {
+                        // Hold down the button to decrease step drag based on velocity tiering
+                        if (absVx < 1.0) dynamicGravity = 0.14;
+                        else if (absVx < 2.3) dynamicGravity = 0.12;
+                        else dynamicGravity = 0.10;
+                    } else {
+                        // Release button early to execute a shortened cutoff jump profile
+                        if (absVx < 1.0) dynamicGravity = 0.52;
+                        else if (absVx < 2.3) dynamicGravity = 0.45;
+                        else dynamicGravity = 0.38;
+                    }
+                } else {
+                    // Downward descent gravity tracking metrics
+                    dynamicGravity = 0.58;
+                }
+
+                // Apply updates to tracking values
+                this.vy += dynamicGravity;
+                let terminalVelocity = 8.5;
+                if (this.vy > terminalVelocity) this.vy = terminalVelocity;
+            }
+
+            damage(gameSession) {
+                if (this.state === "FIRE") { this.state = "SUPER"; this.invulnFrames = 60; }
+                else if (this.state === "SUPER") { this.state = "SMALL"; this.h = 16; this.y += 16; this.invulnFrames = 60; }
+                else { gameSession.handlePlayerDeath(); }
+                gameSession.ui.updateMeta(gameSession);
+            }
+        }
+
+        class Enemy {
+            constructor(x, y, blueprintType) {
+                this.x = x; this.y = y;
+                this.type = blueprintType;
+                this.w = blueprintType === "BOWSER" ? 32 : 16;
+                this.h = blueprintType === "BOWSER" ? 32 : (blueprintType === "KOOPA" ? 24 : 16);
+                this.vx = blueprintType === "BOWSER" ? -0.5 : -1.0;
+                this.vy = 0;
+                this.alive = true;
+                this.state = "WALK";
+                this.squashTimer = 0;
+                this.hp = blueprintType === "BOWSER" ? 5 : 1;
+                this.jumpTimer = 0;
+            }
+
+            update(levelLength, projectiles) {
+                if (this.state === "FLIPPED") {
+                    this.vy += 0.3; this.x += this.vx; this.y += this.vy;
+                    return;
+                }
+                if (!this.alive) {
+                    if (this.squashTimer > 0) this.squashTimer--;
+                    return;
+                }
+
+                this.x += this.vx; this.vy += 0.4; this.y += this.vy;
+
+                if (this.type === "BOWSER") {
+                    this.jumpTimer++;
+                    if (this.jumpTimer % 150 === 0) this.vy = -6.5;
+                    if (this.jumpTimer % 100 === 0) {
+                        projectiles.push({ x: this.x - 12, y: this.y + 6, w: 20, h: 10, vx: -2.2, vy: 0, type: "BOWSER_FIRE" });
+                    }
+                    if (this.x < levelLength - 260) this.vx = 0.4;
+                    if (this.x > levelLength - 60) this.vx = -0.4;
+                }
+            }
+        }
+
+        class CanvasRenderer {
+            constructor(canvasId) {
+                this.canvas = document.getElementById(canvasId);
+                this.ctx = this.canvas.getContext('2d');
+            }
+
+            clear(skyColor) {
+                this.ctx.fillStyle = skyColor;
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            }
+
+            renderScene(cameraX, palette, blocks, projectiles, enemies, particles, player) {
+                this.ctx.save();
+                this.ctx.translate(-cameraX, 0);
+
+                blocks.forEach(b => {
+                    let yOff = b.hitYOffset || 0;
+                    if (b.type === "GROUND" || b.type === "GROUND_SUB") {
+                        this.ctx.fillStyle = palette.ground; this.ctx.fillRect(b.x, b.y, b.w, b.h);
+                        if(b.type === "GROUND") {
+                            this.ctx.fillStyle = palette.groundTrim; this.ctx.fillRect(b.x, b.y, b.w, 3);
+                            this.ctx.fillStyle = palette.brickLine; this.ctx.fillRect(b.x, b.y+3, b.w, 1);
+                        }
+                    } else if (b.type === "PIPE") {
+                        this.ctx.fillStyle = palette.pipe; this.ctx.fillRect(b.x, b.y, b.w, b.h);
+                        this.ctx.fillStyle = palette.pipeTrim; this.ctx.fillRect(b.x, b.y, 3, b.h); this.ctx.fillRect(b.x+b.w-3, b.y, 3, b.h);
+                    } else if (b.type === "STAIR") {
+                        this.ctx.fillStyle = palette.brick; this.ctx.fillRect(b.x, b.y, b.w, b.h);
+                        this.ctx.strokeStyle = palette.brickLine; this.ctx.strokeRect(b.x, b.y, b.w, b.h);
+                    } else if (b.type === "FLAGPOLE") {
+                        this.ctx.fillStyle = '#ffffff'; this.ctx.fillRect(b.x, b.y, b.w, b.h);
+                    } else {
+                        this.ctx.fillStyle = b.spent ? '#737373' : palette.brick;
+                        this.ctx.fillRect(b.x, b.y + yOff, b.w, b.h);
+                        this.ctx.strokeStyle = palette.brickLine; this.ctx.strokeRect(b.x, b.y + yOff, b.w, b.h);
+                        if (!b.spent && b.type.startsWith("Q_")) {
+                            this.ctx.fillStyle = '#fc9838'; this.ctx.font = "11px monospace";
+                            this.ctx.fillText("?", b.x + 5, b.y + 12 + yOff);
+                        }
+                    }
+                });
+
+                projectiles.forEach(pr => {
+                    if (pr.type === "MUSHROOM") {
+                        this.ctx.fillStyle = '#d82800'; this.ctx.fillRect(pr.x, pr.y+4, pr.w, pr.h-4);
+                        this.ctx.fillStyle = '#fce4a0'; this.ctx.fillRect(pr.x+4, pr.y+10, pr.w-8, 6);
+                    } else if (pr.type === "FLOWER") {
+                        this.ctx.fillStyle = '#fc9838'; this.ctx.fillRect(pr.x, pr.y, pr.w, pr.h);
+                        this.ctx.fillStyle = '#ffffff'; this.ctx.fillRect(pr.x+3, pr.y+3, pr.w-6, pr.h-6);
+                    } else if (pr.type === "FIREBALL") {
+                        this.ctx.fillStyle = '#fc9838'; this.ctx.beginPath(); this.ctx.arc(pr.x+4, pr.y+4, 4, 0, Math.PI*2); this.ctx.fill();
+                    } else if (pr.type === "BOWSER_FIRE") {
+                        this.ctx.fillStyle = '#fc9838'; this.ctx.fillRect(pr.x, pr.y, pr.w, pr.h);
+                    }
+                });
+
+                enemies.forEach(e => {
+                    if (e.type === "GOOMBA") {
+                        this.ctx.fillStyle = '#a84400';
+                        if (!e.alive) { this.ctx.fillRect(e.x, e.y + 12, e.w, 4); }
+                        else { 
+                            this.ctx.fillRect(e.x, e.y, e.w, e.h); 
+                            this.ctx.fillStyle = '#fce4a0'; this.ctx.fillRect(e.x+4, e.y+10, e.w-8, 6);
+                        }
+                    } else if (e.type === "KOOPA") {
+                        this.ctx.fillStyle = e.state.startsWith("SHELL") ? '#00a800' : '#f8b800';
+                        this.ctx.fillRect(e.x, e.y, e.w, e.h);
+                    } else if (e.type === "BOWSER") {
+                        this.ctx.fillStyle = '#00a800'; this.ctx.fillRect(e.x, e.y, e.w, e.h);
+                        this.ctx.fillStyle = '#fc9838'; this.ctx.fillRect(e.x+4, e.y+8, e.w-8, e.h-8);
+                    }
+                });
+
+                particles.forEach(pt => {
+                    this.ctx.fillStyle = pt.color;
+                    this.ctx.fillRect(pt.x, pt.y, pt.isCoin ? 6 : 3, pt.isCoin ? 10 : 3);
+                });
+
+                if (player.invulnFrames % 4 < 2) {
+                    let mainColor = player.state === "FIRE" ? '#ffffff' : '#d82800';
+                    let accentColor = player.state === "SMALL" ? '#0044aa' : (player.state === "FIRE" ? '#d82800' : '#0044aa');
+                    
+                    // If skidding away, flash bright white trim accents to simulate particle dust smoke frames
+                    if (player.isSkidding && Math.floor(Date.now() / 30) % 2 === 0) {
+                        mainColor = '#ffffff';
+                    }
+
+                    this.ctx.fillStyle = accentColor;
+                    this.ctx.fillRect(player.x, player.y, player.w, player.h);
+                    this.ctx.fillStyle = mainColor;
+                    this.ctx.fillRect(player.x, player.y, player.w, 4); 
+                    this.ctx.fillRect(player.x + (player.facingLeft ? 0 : player.w - 5), player.y + 4, 5, 5); 
+                    this.ctx.fillStyle = '#fce4a0'; 
+                    this.ctx.fillRect(player.x + (player.facingLeft ? 2 : player.w - 7), player.y + 4, 5, 4);
+                }
+
+                this.ctx.restore();
+            }
+
+            renderOverlayText(text, subtext, fontColor = '#ffffff') {
+                this.ctx.fillStyle = fontColor;
+                this.ctx.font = "24px 'Orbitron'";
+                this.ctx.textAlign = "center";
+                this.ctx.fillText(text, this.canvas.width / 2, 160);
+                if(subtext) {
+                    this.ctx.font = "14px 'Share Tech Mono'";
+                    this.ctx.fillText(subtext, this.canvas.width / 2, 210);
+                }
+            }
+        }
+
+        class DOMInterface {
+            setInitialData(title, desc, controls, meta) {
+                const titleEl = document.getElementById('g-title');
+                if (titleEl) titleEl.innerText = title;
+            }
+            updateMeta(session) {
+                let bp = LEVEL_BLUEPRINTS[session.currentLevelIndex];
+                const metaEl = document.getElementById('g-meta');
+                if (metaEl) {
+                    metaEl.innerText = `${bp.name} // LIVES: 0${session.lives} // COINS: ${String(session.levelCoins).padStart(2, '0')} // POWER: ${session.player.state} // SCORE: ${String(session.score).padStart(6, '0')}`;
+                }
+            }
+        }
+
+        class GameSession {
+            constructor() {
+                this.input = new InputHandler();
+                this.renderer = new CanvasRenderer('gameCanvas'); 
+                this.ui = new DOMInterface();
+                
+                this.score = 0;
+                this.lives = 3;
+                this.levelCoins = 0;
+                this.currentLevelIndex = 0;
+                this.globalLoopId = null;
+
+                this.cameraX = 0;
+                this.blocks = [];
+                this.enemies = [];
+                this.projectiles = [];
+                this.particles = [];
+                
+                this.gameCleared = false;
+                this.fKeyDebounce = false;
+                this.player = new Player();
+            }
+
+            start() {
+                this.ui.setInitialData("SUPER MARIO BROS.", "Authentic NES physics loop.", "Controls Applied...", "WORLD: 1-1");
+                this.initLevel(this.currentLevelIndex);
+                this.tick();
+            }
+
+            initLevel(index) {
+                let bp = LEVEL_BLUEPRINTS[index];
+                this.blocks = []; this.enemies = []; this.projectiles = []; this.particles = [];
+                this.cameraX = 0; this.fKeyDebounce = false;
+                
+                this.player.x = 40; this.player.y = 200; this.player.vx = 0; this.player.vy = 0;
+                this.player.isGrounded = false;
+
+                for (let i = 0; i < bp.length; i += 16) {
+                    let inPit = bp.pits.some(pit => i >= pit[0] && i < pit[1]);
+                    if (!inPit) {
+                        this.blocks.push({ x: i, y: 352, w: 16, h: 16, type: "GROUND" });
+                        this.blocks.push({ x: i, y: 368, w: 16, h: 32, type: "GROUND_SUB" });
+                    }
+                }
+
+                bp.pipes.forEach(p => this.blocks.push({ x: p.x, y: 352 - p.h, w: 32, h: p.h, type: "PIPE" }));
+                bp.blocks.forEach(b => this.blocks.push({ x: b.x, y: b.y, w: 16, h: 16, type: b.t, spent: false, hitYOffset: 0 }));
+
+                bp.stairs.forEach(st => {
+                    for (let row = 0; row < st.steps; row++) {
+                        let stepCount = st.steps - row;
+                        for (let col = 0; col < stepCount; col++) {
+                            let blockX = st.dir === 1 ? st.x + (row * 16) + (col * 16) : st.x - (row * 16) - (col * 16);
+                            let blockY = 352 - ((row + 1) * 16);
+                            this.blocks.push({ x: blockX, y: blockY, w: 16, h: 16, type: "STAIR" });
+                        }
+                    }
+                });
+
+                bp.enemies.forEach(e => this.enemies.push(new Enemy(e.x, 300, e.t)));
+                this.blocks.push({ x: bp.flagpole, y: 48, w: 4, h: 304, type: "FLAGPOLE" });
+
+                const titleEl = document.getElementById('g-title');
+                if(titleEl) titleEl.innerText = `${bp.name} // ENGINE SIMULATION`;
+                this.ui.updateMeta(this);
+            }
+
+            tick() {
+                this.update();
+                this.render();
+                this.globalLoopId = requestAnimationFrame(() => this.tick());
+            }
+
+            update() {
+                if (this.gameCleared) return;
+                let pPalette = PALETTES[this.currentLevelIndex];
+                let blueprint = LEVEL_BLUEPRINTS[this.currentLevelIndex];
+
+                this.player.updatePhysics(this.input);
+
+                if (this.player.state === "FIRE" && this.input.isFire()) {
+                    if (!this.fKeyDebounce) {
+                        this.fKeyDebounce = true;
+                        let activeFireballs = this.projectiles.filter(pr => pr.type === "FIREBALL");
+                        if (activeFireballs.length < 2) {
+                            this.projectiles.push({
+                                x: this.player.facingLeft ? this.player.x - 6 : this.player.x + this.player.w,
+                                y: this.player.y + 4, w: 8, h: 8,
+                                vx: this.player.facingLeft ? -4.5 : 4.5, vy: 2,
+                                type: "FIREBALL"
+                            });
+                        }
+                    }
+                } else {
+                    this.fKeyDebounce = false;
+                }
+
+                this.player.x += this.player.vx;
+                if (this.player.x < this.cameraX) { this.player.x = this.cameraX; this.player.vx = 0; }
+                this.resolveBlockCollisions('horizontal', pPalette);
+
+                this.player.y += this.player.vy;
+                this.player.isGrounded = false;
+                this.resolveBlockCollisions('vertical', pPalette);
+
+                if (this.player.x > this.cameraX + 180) this.cameraX = this.player.x - 180;
+                if (this.cameraX > blueprint.length - this.renderer.canvas.width) this.cameraX = blueprint.length - this.renderer.canvas.width;
+
+                if (this.player.y > this.renderer.canvas.height) {
+                    this.handlePlayerDeath();
+                    return;
+                }
+
+                this.updateProjectiles();
+                this.updateEnemies();
+                this.updateParticles();
+            }
+
+            resolveBlockCollisions(axis, palette) {
+                this.blocks.forEach(b => {
+                    if (axis === 'horizontal') {
+                        if (b.type === "FLAGPOLE") return;
+                        if (handleAABB(this.player, b)) {
+                            if (this.player.vx > 0) { this.player.x = b.x - this.player.w; this.player.vx = 0; }
+                            else if (this.player.vx < 0) { this.player.x = b.x + b.w; this.player.vx = 0; }
+                        }
+                    } else if (axis === 'vertical') {
+                        if (b.type === "FLAGPOLE") {
+                            if (handleAABB(this.player, b)) this.advanceLevel();
+                            return;
+                        }
+                        if (handleAABB(this.player, b)) {
+                            if (this.player.vy > 0) {
+                                this.player.y = b.y - this.player.h; this.player.vy = 0; this.player.isGrounded = true;
+                            } else if (this.player.vy < 0) {
+                                this.player.y = b.y + b.h; this.player.vy = 0;
+                                this.hitBlock(b, palette);
+                            }
+                        }
+                    }
+                });
+                this.blocks = this.blocks.filter(b => b.active !== false);
+            }
+
+            hitBlock(b, palette) {
+                if (b.spent || (!b.type.startsWith("Q_") && b.type !== "BRICK")) return;
+
+                if (b.type === "BRICK") {
+                    if (this.player.state !== "SMALL") {
+                        b.active = false; this.score += 50;
+                        for(let i=0; i<4; i++) {
+                            this.particles.push({x: b.x+8, y: b.y+8, vx: (Math.random()-0.5)*4, vy: -Math.random()*4-2, life: 25, color: palette.brick});
+                        }
+                    } else {
+                        b.hitYOffset = -4; setTimeout(() => b.hitYOffset = 0, 100);
+                    }
+                } else { 
+                    b.spent = true;
+                    b.hitYOffset = -4; setTimeout(() => b.hitYOffset = 0, 100);
+                    if (b.type === "Q_COIN") {
+                        this.levelCoins++; this.score += 200;
+                        this.particles.push({x: b.x + 4, y: b.y - 12, vx: 0, vy: -5, life: 15, color: '#fcc428', isCoin: true});
+                    } else {
+                        let itemSpawn = this.player.state === "SMALL" ? "MUSHROOM" : "FLOWER";
+                        this.projectiles.push({ x: b.x + 1, y: b.y, w: 14, h: 16, vx: 1.2, vy: -2, type: itemSpawn });
+                    }
+                    this.ui.updateMeta(this);
+                }
+            }
+
+            updateProjectiles() {
+                for (let i = this.projectiles.length - 1; i >= 0; i--) {
+                    let pr = this.projectiles[i];
+                    let remove = false;
+
+                    if (pr.type === "MUSHROOM") {
+                        pr.vy += 0.4; pr.x += pr.vx; pr.y += pr.vy;
+                        this.blocks.forEach(b => {
+                            if (handleAABB(pr, b)) {
+                                if (pr.vy > 0) { pr.y = b.y - pr.h; pr.vy = 0; }
+                                else if (pr.vx > 0) { pr.vx = -1.2; pr.x = b.x - pr.w; }
+                                else if (pr.vx < 0) { pr.vx = 1.2; pr.x = b.x + b.w; }
+                            }
+                        });
+                        if (handleAABB(this.player, pr)) {
+                            remove = true;
+                            if (this.player.state === "SMALL") { this.player.state = "SUPER"; this.player.y -= 16; this.player.h = 32; }
+                            this.score += 1000; this.ui.updateMeta(this);
+                        }
+                    } else if (pr.type === "FLOWER") {
+                        if (pr.vy < 0) pr.y += 0.5;
+                        if (handleAABB(this.player, pr)) {
+                            remove = true; this.player.state = "FIRE"; this.player.h = 32;
+                            this.score += 1000; this.ui.updateMeta(this);
+                        }
+                    } else if (pr.type === "FIREBALL") {
+                        pr.x += pr.vx;
+                        let hitWall = this.blocks.some(b => handleAABB(pr, b));
+                        pr.y += pr.vy; pr.vy += 0.4;
+
+                        this.blocks.forEach(b => {
+                            if (handleAABB(pr, b)) {
+                                if (pr.vy > 0) { pr.y = b.y - pr.h; pr.vy = -4.0; } 
+                                else { hitWall = true; }
+                            }
+                        });
+
+                        this.enemies.forEach(e => {
+                            if (e.alive && handleAABB(pr, e)) {
+                                hitWall = true; e.hp--;
+                                if(e.hp <= 0) {
+                                    e.alive = false; e.state = "FLIPPED"; e.vy = -4; e.vx = pr.vx * 0.3; this.score += 200;
+                                }
+                            }
+                        });
+
+                        if (hitWall || pr.x > this.cameraX + this.renderer.canvas.width || pr.x < this.cameraX || pr.y > this.renderer.canvas.height) {
+                            for(let k=0; k<3; k++) this.particles.push({x: pr.x+4, y: pr.y+4, vx: (Math.random()-0.5)*2, vy: (Math.random()-0.5)*2, life: 8, color: '#ffffff'});
+                            remove = true;
+                        }
+                    } else if (pr.type === "BOWSER_FIRE") {
+                        pr.x += pr.vx;
+                        if (handleAABB(this.player, pr) && this.player.invulnFrames === 0) this.player.damage(this);
+                        if (pr.x < this.cameraX - 32) remove = true;
+                    }
+
+                    if (remove) this.projectiles.splice(i, 1);
+                }
+            }
+
+            updateEnemies() {
+                let blueprint = LEVEL_BLUEPRINTS[this.currentLevelIndex];
+                this.enemies.forEach((e, idx) => {
+                    e.update(blueprint.length, this.projectiles);
+                    if (!e.alive || e.state === "FLIPPED") return;
+
+                    this.blocks.forEach(b => {
+                        if (b.type !== "FLAGPOLE" && handleAABB(e, b)) {
+                            if (e.vy > 0) { e.y = b.y - e.h; e.vy = 0; }
+                            else if (e.vx > 0) { e.vx = -Math.abs(e.vx); e.x = b.x - e.w; }
+                            else if (e.vx < 0) { e.vx = Math.abs(e.vx); e.x = b.x + b.w; }
+                        }
+                    });
+
+                    if (handleAABB(this.player, e)) {
+                        if (this.player.vy > 0 && (this.player.y + this.player.h - this.player.vy) <= e.y + 8) {
+                            this.player.vy = -4.5;
+                            if (e.type === "GOOMBA") {
+                                e.alive = false; e.squashTimer = 20; this.score += 100;
+                            } else if (e.type === "KOOPA") {
+                                if (e.state === "WALK") {
+                                    e.state = "SHELL"; e.vx = 0; e.h = 16; e.y += 8; this.score += 200;
+                                } else if (e.state === "SHELL") {
+                                    e.state = "KICKED"; e.vx = this.player.facingLeft ? -5.5 : 5.5; this.score += 400;
+                                } else {
+                                    e.state = "SHELL"; e.vx = 0;
+                                }
+                            }
+                            this.ui.updateMeta(this);
+                        } else if (this.player.invulnFrames === 0) {
+                            if (e.state === "SHELL") {
+                                e.state = "KICKED"; e.vx = this.player.facingLeft ? -5.5 : 5.5;
+                            } else {
+                                this.player.damage(this);
+                            }
+                        }
+                    }
+
+                    if (e.state === "KICKED") {
+                        this.enemies.forEach((o, oId) => {
+                            if (idx !== oId && o.alive && handleAABB(e, o)) {
+                                o.alive = false; o.state = "FLIPPED"; o.vy = -4; o.vx = e.vx * 0.4; this.score += 500;
+                            }
+                        });
+                    }
+                });
+
+                this.enemies = this.enemies.filter(e => e.state === "FLIPPED" ? e.y < this.renderer.canvas.height : (e.alive || e.squashTimer > 0));
+            }
+
+            updateParticles() {
+                for (let i = this.particles.length - 1; i >= 0; i--) {
+                    let pt = this.particles[i];
+                    pt.x += pt.vx; pt.y += pt.vy; pt.life--;
+                    if(pt.isCoin) {
+                        pt.vy += 0.4;
+                    }
+                    if (pt.life <= 0) this.particles.splice(i, 1);
+                }
+            }
+
+            handlePlayerDeath() {
+                this.lives--;
+                this.ui.updateMeta(this);
+                if (this.lives <= 0) {
+                    this.gameCleared = true;
+                    setTimeout(() => this.resetWholeSession(), 3000);
+                } else {
+                    this.initLevel(this.currentLevelIndex);
+                }
+            }
+
+            advanceLevel() {
+                this.currentLevelIndex++;
+                if (this.currentLevelIndex >= LEVEL_BLUEPRINTS.length) {
+                    this.gameCleared = true;
+                    this.score += 10000;
+                } else {
+                    this.initLevel(this.currentLevelIndex);
+                }
+            }
+
+            resetWholeSession() {
+                this.score = 0; this.lives = 3; this.levelCoins = 0; this.currentLevelIndex = 0;
+                this.gameCleared = false; this.player.state = "FIRE"; this.player.h = 32;
+                this.initLevel(this.currentLevelIndex);
+            }
+
+            render() {
+                let pPalette = PALETTES[this.currentLevelIndex];
+                this.renderer.clear(pPalette.sky);
+                
+                this.renderer.renderScene(this.cameraX, pPalette, this.blocks, this.projectiles, this.enemies, this.particles, this.player);
+
+                if (this.gameCleared) {
+                    if (this.lives <= 0) {
+                        this.renderer.renderOverlayText("GAME OVER", "SYSTEM REBOOT INCOMING...", "#ef4444");
+                    } else {
+                        this.renderer.renderOverlayText("VICTORY ACHIEVED", `FINAL SCORE: ${this.score} // MATRIX COMPLETE`, "#10b981");
+                    }
+                }
+            }
+        }
+
+        // --- INSTANTIATE AND RUN ---
+        const activeSession = new GameSession();
+        activeSession.start();
+    </script>
+</body>
+</html>

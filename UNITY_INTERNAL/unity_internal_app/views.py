@@ -1,0 +1,6972 @@
+from base64 import urlsafe_b64decode, urlsafe_b64encode
+import base64
+from collections import defaultdict
+import csv
+from functools import cache
+import io
+import json
+import mimetypes
+import os
+import pickle
+import time
+from tkinter.font import Font
+from django.forms import DecimalField, model_to_dict
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.db import connection, transaction
+from django.db.models import Sum, F
+from django.urls import reverse
+import datetime
+from dateutil.relativedelta import relativedelta
+from openpyxl import Workbook, load_workbook
+import openpyxl
+import pandas as pd
+import numpy as np
+from reportlab.lib.styles import ParagraphStyle
+from django.utils import timezone
+from decimal import Decimal
+from django.db import models
+from django.utils import timezone
+from django.http import HttpRequest, HttpResponse, JsonResponse
+from django.db.models import Q
+from django.conf import settings
+from django.core.mail import EmailMessage
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from openpyxl.styles import Font, Alignment, PatternFill
+from django.db.models import Q, Max
+import datetime as dt_mod
+from datetime import datetime, time
+from django.template.loader import render_to_string  # Add this at the top
+
+# Import the new Graph API service functions
+from .services.outlook_graph_service import OutlookGraphService, get_user_signature
+
+# Import Delegation Service functions
+from .services.delegation_service import (
+    get_or_create_delegation_status, 
+    delegate_email_task, 
+    add_delegation_note, 
+    get_delegated_emails_for_user,
+    log_delegation_transaction
+)
+
+import logging
+
+# Initialize the logger for this module
+logger = logging.getLogger(__name__)
+
+from dateutil import parser
+
+from django.utils.safestring import mark_safe # for the email body & signature
+
+from django.http import HttpResponse
+
+# Import all models and forms
+from .models import BankJournalEntry, BillSettlement, CreditNote, DelegationNote, DelegationTransactionLog, EmailDelegation, ImportBank, JournalEntry, OutlookInbox, ReconnedBank, ScheduleSurplus, UnityBill, UnityClaimNote, UnityMgListing, ClientNotes, InternalFunds, UnityNotes, UnityClaim
+from .forms import AddMemberForm, FiscalDateAssignmentForm, PreBillForm, UnityClaimForm
+
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter
+from reportlab.lib.units import inch
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import Paragraph
+from django.db.models import DateField, DateTimeField
+from datetime import datetime, date
+
+# --- Global Definitions ---
+REVIEW_NOTES_OPTIONS = [
+    "AWAIT 0101 REPORT",
+    "AWAIT COVID APPROVAL",
+    "BILLING FISCAL NOT AVAILABLE ON RFW",
+    "DEBIT ADJUSTMENT",
+    "GL0101 BALANCE NOT UTILISED",
+    "HISTORIC CONTRIBUTIONS",
+    "HISTORIC DEBIT - EMPLOYER TO PAY SHORTFALL",
+    "NO SCHEDULE RECEIVED",
+    "OVERS CREDIT LINE",
+    "PARTIALLY RECONCILED",
+    "RECONCILED",
+    "REQUESTED SUPPORTING DOCUMENTS",
+    "SALARY DOES NOT MATCH CONTRIBUTION RATE",
+    "SCHEDULE DOES NOT MATCH PAYMENT",
+]
+ZERO_DECIMAL = Decimal('0.00')
+# --------------------------
+
+# --- Authentication Views ---
+def login_view(request):
+    """Handles user login."""
+    if request.method == 'POST':
+        form = AuthenticationForm(request, data=request.POST)
+        if form.is_valid():
+            username = form.cleaned_data.get('username')
+            password = form.cleaned_data.get('password')
+            user = authenticate(username=username, password=password)
+            if user is not None:
+                login(request, user)
+                return redirect('dashboard')
+            else:
+                messages.error(request, "Invalid username or password.")
+    
+    form = AuthenticationForm()
+    return render(request, 'login.html', {'form': form})
+
+
+
+from django.shortcuts import get_object_or_404, redirect
+from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+# Make sure your other imports remain at the top
+
+@login_required
+def delete_global_claim(request, claim_id):
+    """
+    Deletes a claim and redirects back to the appropriate dashboard 
+    (Global Claims or Two Pot) based on the claim_type.
+    """
+    claim = get_object_or_404(UnityClaim, pk=claim_id)
+    
+    # Determine the correct dashboard to return to before we delete the object
+    redirect_url = 'global_two_pot' if claim.claim_type == 'Two Pot' else 'global_claims'
+    
+    if request.method == 'POST':
+        member_name = f"{claim.member_name} {claim.member_surname}"
+        claim.delete()
+        messages.success(request, f"Claim for {member_name} was successfully deleted.")
+    
+    return redirect(redirect_url)
+    
+
+@login_required
+def dashboard(request):
+    """Displays the user dashboard with notification badges."""
+    from .models import CreditNote, EmailDelegation, ReconnedBank
+    
+    username = request.user.username
+    
+    # Initialize counts
+    pending_approval_count = 0
+    new_emails_count = 0
+    recycled_count = 0
+    
+    # 1. Manager Logic (Omega only)
+    if username.lower() == 'omega' or request.user.is_superuser:
+        # Financial Approvals (Managerial level)
+        pending_approval_count = CreditNote.objects.filter(credit_link_status='Pending').count()
+        
+        # Inbox emails not yet assigned (Strictly NEW and work-related)
+        new_emails_count = EmailDelegation.objects.filter(
+            status='NEW', 
+            assigned_user__isnull=True, 
+            work_related=True
+        ).count()
+        
+        # Recycle Bin: FIXED to match outlook_recycle_bin_view
+        # Only count items explicitly marked with the 'DLT' status
+        recycled_count = EmailDelegation.objects.filter(status='DLT').count()
+    
+    # 2. User Logic: My Assigned Tasks (Items explicitly marked as Delegated to current user)
+    my_pending_delegations_count = EmailDelegation.objects.filter(
+        assigned_user=request.user,
+        status='DEL', # Standard status for delegated tasks in the agent's queue
+        work_related=True
+    ).count()
+
+    # 3. Bank & Credit Note Logic
+    # Count bank lines that require action (exclude Matched)
+    bank_lines_count = ReconnedBank.objects.exclude(recon_status='Matched').count() 
+    
+    # Count pending credit notes for the badge indicator
+    credit_notes_count = CreditNote.objects.filter(credit_link_status='Pending').count()
+    
+    context = {
+        'username': username,
+        'pending_approval_count': pending_approval_count,
+        'new_emails_count': new_emails_count,
+        'recycled_count': recycled_count,
+        'my_pending_delegations_count': my_pending_delegations_count,
+        'bank_lines_count': bank_lines_count,
+        'credit_notes_count': credit_notes_count,
+    }
+    return render(request, 'dashboard.html', context)
+
+def logout_view(request):
+    """Logs the user out."""
+    logout(request)
+    messages.info(request, "You have successfully logged out.")
+    return redirect('login')
+
+def index(request):
+    """Handles the root URL, redirecting to the login page."""
+    return redirect('login')
+
+# --- Unity Listing Views ---
+@login_required
+def unity_list(request):
+    """
+    Displays a list combining InternalFunds and UnityMgListing.
+    Calculates the 'Current Status' and 'Current Fiscal' based on the latest UnityBill.
+    Includes POST handling to create a new Member Group (Company) in both listing tables.
+    """
+    from django.contrib import messages
+    from django.shortcuts import redirect
+    from collections import defaultdict
+    from decimal import Decimal
+    from django.db.models import Sum
+    from datetime import datetime
+    
+    # --- 1. HANDLE POST REQUEST TO ADD NEW MEMBER GROUP ---
+    if request.method == 'POST' and request.POST.get('action') == 'add_new_member_group':
+        try:
+            # Force uppercase and strip spaces to ensure exact matching across the system
+            new_code = request.POST.get('new_company_code', '').strip().upper()
+            new_name = request.POST.get('new_company_name', '').strip()
+            new_agent = request.POST.get('new_agent', '')
+            new_status = request.POST.get('new_status', 'Active')
+            
+            if new_code and new_name:
+                # Use __iexact to safely check for existing records regardless of casing
+                if not UnityMgListing.objects.filter(a_company_code__iexact=new_code).exists():
+                    
+                    # 🚀 1. Create in internal_mg_list
+                    UnityMgListing.objects.create(
+                        a_company_code=new_code,
+                        b_company_name=new_name,
+                        c_agent=new_agent,
+                        d_company_status=new_status,
+                    )
+                    
+                    # 🚀 2. Create in internal_funds with Source="Internal"
+                    if not InternalFunds.objects.filter(A_Company_Code__iexact=new_code).exists():
+                        InternalFunds.objects.create(
+                            A_Company_Code=new_code,
+                            B_Company_Name=new_name,
+                            Source='Internal',
+                            D_Company_Status=new_status,
+                        )
+
+                    messages.success(request, f"Successfully added new Member Group: {new_code} - {new_name}")
+                else:
+                    messages.warning(request, f"Member Group with code '{new_code}' already exists.")
+            else:
+                messages.error(request, "Company Code and Name are required fields.")
+        except Exception as e:
+            messages.error(request, f"Error adding new member group: {e}")
+        
+        return redirect('unity_list')
+
+    # --- 2. Fetch Base Records ---
+    internal_funds_records = InternalFunds.objects.all()
+    unity_listing_map = {
+        record.a_company_code: record for record in UnityMgListing.objects.all()
+    }
+    
+    # --- 3. Manual Calculation Setup ---
+    bill_map = dict(UnityBill.objects.values_list('id', 'C_Company_Code'))
+    
+    # Aggregate Surplus & Allocation
+    surplus_map = defaultdict(Decimal)
+    for s in ScheduleSurplus.objects.values('unity_bill_source_id', 'surplus_amount'):
+        b_id = s['unity_bill_source_id']
+        if b_id in bill_map:
+            surplus_map[bill_map[b_id]] += (s['surplus_amount'] or Decimal('0.00'))
+
+    allocation_map = defaultdict(Decimal)
+    for a in JournalEntry.objects.values('target_bill_id', 'amount'):
+        b_id = a['target_bill_id']
+        if b_id in bill_map:
+            allocation_map[bill_map[b_id]] += (a['amount'] or Decimal('0.00'))
+
+    # Calculate "Current Billing Status", "Fiscal Date", and "Last Recon Date" Maps
+    billing_status_map = {}
+    fiscal_date_map = {} 
+    last_recon_date_map = {} # 🚀 NEW: Tracks last recon date where is_reconciled = 1
+    
+    all_bills = UnityBill.objects.all().order_by('A_CCDatesMonth')
+    
+    for b in all_bills:
+        code = b.C_Company_Code
+        total_covered = JournalEntry.objects.filter(target_bill=b).aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
+        
+        # 🚀 Track Last Recon Date (if is_reconciled is true/1)
+        if b.is_reconciled and b.A_CCDatesMonth:
+            if hasattr(b.A_CCDatesMonth, 'strftime'):
+                last_recon_date_map[code] = b.A_CCDatesMonth.strftime('%Y-%m-%d')
+            else:
+                last_recon_date_map[code] = str(b.A_CCDatesMonth)
+
+        # Priority Logic for Status
+        if b.is_reconciled:
+            status = "RECON COMPLETE"
+        elif b.G_Schedule_Date and (b.H_Schedule_Amount or 0) > 0 and total_covered == 0:
+            status = "SCHEDULED"
+        elif (total_covered or 0) > 0:
+            status = "OPEN"
+        elif b.F_Pre_Bill_Date:
+            status = "PRE-BILL"
+        elif (b.H_Schedule_Amount or 0) == 0 and total_covered == 0:
+            status = "AWAITING SCHEDULE"
+        else:
+            status = "OPEN"
+            
+        billing_status_map[code] = status
+        
+        if b.A_CCDatesMonth:
+            if hasattr(b.A_CCDatesMonth, 'replace'):
+                # 🚀 Normalize bill month date to the 1st of the month
+                fiscal_date_map[code] = b.A_CCDatesMonth.replace(day=1).strftime('%Y-%m-%d')
+            else:
+                try:
+                    dt = datetime.strptime(str(b.A_CCDatesMonth), '%Y-%m-%d')
+                    fiscal_date_map[code] = dt.replace(day=1).strftime('%Y-%m-%d')
+                except ValueError:
+                    fiscal_date_map[code] = str(b.A_CCDatesMonth)
+
+    # --- 4. Build Combined List ---
+    combined_records = []
+    
+    # Phase 1: InternalFunds
+    for fund_record in internal_funds_records:
+        company_code = fund_record.A_Company_Code
+        detail_record = unity_listing_map.pop(company_code, None)
+        
+        active_surplus_value = surplus_map.get(company_code, Decimal('0.00')) - allocation_map.get(company_code, Decimal('0.00'))
+        
+        final_fiscal = fiscal_date_map.get(company_code)
+        if not final_fiscal and detail_record:
+            final_fiscal = detail_record.g_current_fiscal
+
+        # 🚀 Fallback to '1900-01-00' if no reconciled bill exists for this company
+        last_recon_val = last_recon_date_map.get(company_code, '1900-01-00')
+
+        combined_records.append({
+            'A_Company_Code': fund_record.A_Company_Code,
+            'B_Company_Name': fund_record.B_Company_Name,
+            'Source': fund_record.Source,
+            'D_Company_Status': fund_record.D_Company_Status,
+            'c_agent': detail_record.c_agent if detail_record else None,
+            'e_payment_method': detail_record.e_payment_method if detail_record else None,
+            'f_billing_method': detail_record.f_billing_method if detail_record else None,
+            'g_current_fiscal': final_fiscal or "N/A",
+            'h_current_status': billing_status_map.get(company_code, "N/A"),
+            'j_arrears': last_recon_val, # 🚀 Replaced old arrears with Last Recon Date
+            'has_details': bool(detail_record),
+            'active_surplus': active_surplus_value,
+        })
+
+    # Phase 2: Remaining UnityMgListing
+    for company_code, detail_record in unity_listing_map.items():
+        active_surplus_value = surplus_map.get(company_code, Decimal('0.00')) - allocation_map.get(company_code, Decimal('0.00'))
+        
+        final_fiscal = fiscal_date_map.get(company_code) or detail_record.g_current_fiscal
+        last_recon_val = last_recon_date_map.get(company_code, '1900-01-00')
+
+        combined_records.append({
+            'A_Company_Code': detail_record.a_company_code,
+            'B_Company_Name': detail_record.b_company_name,
+            'Source': 'System Only (New)',
+            'D_Company_Status': detail_record.d_company_status,
+            'c_agent': detail_record.c_agent,
+            'e_payment_method': detail_record.e_payment_method,
+            'f_billing_method': detail_record.f_billing_method,
+            'g_current_fiscal': final_fiscal,
+            'h_current_status': billing_status_map.get(company_code, "NO BILLING"),
+            'j_arrears': last_recon_val, # 🚀 Replaced old arrears with Last Recon Date
+            'has_details': True,
+            'active_surplus': active_surplus_value,
+        })
+        
+    # --- 🚀 Compile All Available Fiscal Months (Normalized to Month Start) ---
+    fiscal_set = set()
+    for r in combined_records:
+        f = r.get('g_current_fiscal')
+        if f and f != "N/A":
+            try:
+                dt_obj = datetime.strptime(str(f), '%Y-%m-%d')
+                fiscal_set.add(dt_obj.replace(day=1).strftime('%Y-%m-%d'))
+            except ValueError:
+                fiscal_set.add(str(f))
+            
+    # Include any dates straight from UnityBill objects, normalized to the 1st of the month
+    for bill_date in UnityBill.objects.exclude(A_CCDatesMonth__isnull=True).values_list('A_CCDatesMonth', flat=True).distinct():
+        if bill_date:
+            if hasattr(bill_date, 'replace'):
+                fiscal_set.add(bill_date.replace(day=1).strftime('%Y-%m-%d'))
+            else:
+                try:
+                    dt_obj = datetime.strptime(str(bill_date), '%Y-%m-%d')
+                    fiscal_set.add(dt_obj.replace(day=1).strftime('%Y-%m-%d'))
+                except ValueError:
+                    fiscal_set.add(str(bill_date))
+
+    distinct_fiscal_sorted = sorted(list(fiscal_set), reverse=True)
+
+    # --- 5. Context for Rendering ---
+    context = {
+        'unity_records': combined_records,
+        'distinct_source': InternalFunds.objects.values_list('Source', flat=True).distinct().exclude(Source__isnull=True),
+        'distinct_company_status': InternalFunds.objects.values_list('D_Company_Status', flat=True).distinct(),
+        'distinct_agent': UnityMgListing.objects.values_list('c_agent', flat=True).distinct(),
+        'distinct_payment': UnityMgListing.objects.values_list('e_payment_method', flat=True).distinct(),
+        'distinct_billing': UnityMgListing.objects.values_list('f_billing_method', flat=True).distinct(),
+        'distinct_fiscal': distinct_fiscal_sorted, # 🚀 Clean, month-grouped fiscal options (e.g. 2026-09-01)
+        'distinct_current_status': ["RECON COMPLETE", "SCHEDULED", "OPEN", "PRE-BILL", "AWAITING SCHEDULE", "NO BILLING"]
+    }
+    return render(request, 'unity_internal_app/unity_list.html', context)
+
+
+@login_required
+def unity_information(request: HttpRequest, company_code):
+    """
+    Displays detailed information for a single record.
+    UPDATED: Strictly uses ReconnedBank.amount_settled without double-deducting journals.
+    """
+    from .models import (
+        EmailDelegation, DelegationTransactionLog, UnityNotes, 
+        OutlookInbox, CreditNote, BillSettlement, ReconnedBank,
+        UnityMgListing, InternalFunds, ClientNotes, UnityBill,
+        ScheduleSurplus, JournalEntry, UnityClaim, BankJournalEntry
+    )
+    from django.db.models import Q, Sum
+    from decimal import Decimal
+    from django.utils import timezone
+    from django.urls import reverse
+    from django.contrib import messages
+    from django.shortcuts import render, redirect
+    from django.conf import settings
+    
+    # =========================================================
+    # 0. DOWNLOAD HANDLER (Matches CRM_UNITY Logic)
+    # =========================================================
+    if request.method == 'GET' and 'download_email_id' in request.GET:
+        email_id = request.GET.get('download_email_id')
+        if not email_id or email_id == "MANUAL_SEND_SUCCESS":
+            messages.warning(request, "The physical .eml file for this older record is not available.")
+            return redirect('unity_information', company_code=company_code)
+        return redirect('download_email_file', email_id=email_id)
+
+    # --- 1. Fetch Main Unity Record ---
+    try:
+        unity_record = UnityMgListing.objects.filter(a_company_code=company_code).first()
+    except Exception:
+        unity_record = None
+
+    is_fallback = False
+    lookup_code = company_code 
+    
+    if not unity_record:
+        unity_record = InternalFunds.objects.filter(A_Company_Code=company_code).first()
+        if not unity_record:
+            messages.error(request, f"Error: Record {company_code} not found.")
+            return redirect('unity_list')
+        is_fallback = True
+        messages.warning(request, f"Full detail information is not available for {company_code}.")
+
+    # --- Dynamic Status & Fiscal Calculation ---
+    latest_bill = UnityBill.objects.filter(C_Company_Code=lookup_code).order_by('-A_CCDatesMonth').first()
+    calculated_status = "NO BILLING"
+    calculated_fiscal = None
+    
+    if latest_bill:
+        total_covered = JournalEntry.objects.filter(target_bill=latest_bill).aggregate(Sum('amount'))['amount__sum'] or Decimal('0.00')
+        
+        if latest_bill.is_reconciled:
+            calculated_status = "RECON COMPLETE"
+        elif latest_bill.G_Schedule_Date and (latest_bill.H_Schedule_Amount or 0) > 0 and total_covered == 0:
+            calculated_status = "SCHEDULED"
+        elif (total_covered or 0) > 0:
+            calculated_status = "OPEN"
+        elif latest_bill.F_Pre_Bill_Date:
+            calculated_status = "PRE-BILL"
+        elif (latest_bill.H_Schedule_Amount or 0) == 0 and total_covered == 0:
+            calculated_status = "AWAITING SCHEDULE"
+        else:
+            calculated_status = "OPEN"
+
+        if latest_bill.A_CCDatesMonth:
+            calculated_fiscal = latest_bill.A_CCDatesMonth.strftime('%Y-%m-%d')
+    
+    if unity_record:
+        unity_record.h_current_status = calculated_status
+        if calculated_fiscal:
+            unity_record.g_current_fiscal = calculated_fiscal
+
+    # --- 2. Fetch Related Data ---
+    notes = ClientNotes.objects.filter(a_company_code=company_code).order_by('-date')
+
+    company_bill_ids = UnityBill.objects.filter(C_Company_Code=lookup_code).values_list('id', flat=True)
+    if company_bill_ids:
+        total_created = ScheduleSurplus.objects.filter(
+            unity_bill_source_id__in=company_bill_ids
+        ).aggregate(total=Sum('surplus_amount'))['total'] or Decimal('0.00')
+
+        surplus_ids = ScheduleSurplus.objects.filter(
+            unity_bill_source_id__in=company_bill_ids
+        ).values_list('id', flat=True)
+        
+        total_allocated = JournalEntry.objects.filter(
+            surplus_source_id__in=surplus_ids
+        ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        available_surplus_value = total_created - total_allocated
+    else:
+        available_surplus_value = Decimal('0.00')
+    
+    # --- Bank Lines Processing ---
+    bank_lines_assigned = ReconnedBank.objects.filter(company_code=company_code).select_related('bank_line').order_by('-transaction_date')
+    active_bank_lines = []
+    for line in bank_lines_assigned:
+        line.actual_bill_usage = BillSettlement.objects.filter(reconned_bank_line_id=line.id).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
+        line.credit_amount = CreditNote.objects.filter(source_bank_line=line).aggregate(total=Sum('schedule_amount'))['total'] or Decimal('0.00')
+        
+        line.available_journals = BankJournalEntry.objects.filter(
+            source_bank_line_id=line.id,
+            status__iexact='Available'
+        )
+        line.journal_amount = line.available_journals.aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        
+        settled_val = line.amount_settled if line.amount_settled is not None else Decimal('0.00')
+        line.available_balance = line.transaction_amount - settled_val
+        
+        line.true_remaining_balance = line.transaction_amount - line.actual_bill_usage - line.credit_amount
+        line.is_fully_consumed = (line.available_balance <= Decimal('0.009'))
+        line.original_assigned_amount = line.transaction_amount 
+        
+        if str(line.recon_status).upper() != 'RECONCILED':
+            active_bank_lines.append(line)
+    
+    bank_lines = active_bank_lines
+    
+    # --- 3. Credit Notes Logic ---
+    raw_credit_notes = CreditNote.objects.filter(member_group_code=company_code).select_related('source_bank_line').order_by('-ccdates_month')
+    active_credit_notes = []
+    for note in raw_credit_notes:
+        note.is_manual_credit = (note.source_bank_line is None or note.note_selection == 'MANUAL')
+        
+        if note.source_bank_line:
+            note.original_deposit_date = note.source_bank_line.transaction_date
+            note.original_deposit_amount = note.source_bank_line.transaction_amount
+        else:
+            note.original_deposit_date = None
+            note.original_deposit_amount = None
+
+        has_remaining_balance = (note.schedule_amount or Decimal('0.00')) > Decimal('0.009')
+        is_not_reconciled = str(note.credit_link_status).upper() != 'RECONCILED'
+
+        if has_remaining_balance and is_not_reconciled:
+            active_credit_notes.append(note)
+
+    credit_notes = active_credit_notes
+
+    manual_credits_total = CreditNote.objects.filter(
+        member_group_code=company_code
+    ).filter(
+        Q(source_bank_line__isnull=True) | Q(note_selection='MANUAL')
+    ).aggregate(total=Sum('bank_deposit_amount'))['total'] or Decimal('0.00')
+
+    try:
+        company_claims = UnityClaim.objects.filter(company_code=company_code).prefetch_related('notes').order_by('-claim_created_date', 'member_surname')
+        
+        total_claims_value = company_claims.aggregate(total=Sum('claim_amount'))['total'] or Decimal('0.00')
+
+        delegation_pks = [c.linked_email_id for c in company_claims if c.linked_email_id]
+        if delegation_pks:
+            delegations_map = EmailDelegation.objects.in_bulk(delegation_pks)
+            outlook_string_ids = [d.email_id for d in delegations_map.values()]
+            inbox_map_objs = OutlookInbox.objects.in_bulk(outlook_string_ids)
+            for claim in company_claims:
+                if claim.linked_email_id:
+                    del_obj = delegations_map.get(int(claim.linked_email_id))
+                    if del_obj:
+                        inbox_item = inbox_map_objs.get(del_obj.email_id)
+                        if inbox_item:
+                            claim.email_preview_subject, claim.email_preview_sender, claim.email_preview_body, claim.email_preview_date = inbox_item.subject, inbox_item.sender_address, inbox_item.body_content, inbox_item.received_at
+    except Exception:
+        company_claims = []
+        total_claims_value = Decimal('0.00')
+    
+    try:
+        communication_logs = UnityNotes.objects.filter(member_group_code=lookup_code).filter(~Q(communication_type='Sent Email')).order_by('-date')
+    except Exception:
+        communication_logs = []
+    
+    # --- 4. Build Unified Email History ---
+    combined_email_log = []
+    clean_lookup = str(lookup_code).strip()
+    all_delegations = EmailDelegation.objects.filter(company_code__iexact=clean_lookup)
+    all_del_ids = [item.id for item in all_delegations]
+    related_string_ids = [item.email_id for item in all_delegations]
+    
+    thread_status_map = {item.id: item.status for item in all_delegations}
+    thread_email_id_map = {item.id: item.email_id for item in all_delegations}
+    
+    inbox_records = OutlookInbox.objects.filter(email_id__in=related_string_ids)
+    inbox_map = {email.email_id: email.received_at for email in inbox_records}
+    inbox_subject_map = {email.email_id: email.subject for email in inbox_records}
+    inbox_sender_map = {email.email_id: email.sender_address for email in inbox_records}
+
+    for item in all_delegations:
+        if item.status in ['DLT', 'DELETED', 'TRASH']: continue
+        is_completed = item.status in ['COMP', 'DONE', 'CLS']
+        
+        actual_subject = inbox_subject_map.get(item.email_id) or item.email_category or f"Task: {item.email_id[:12]}..."
+        email_sender = inbox_sender_map.get(item.email_id) or 'External Sender'
+        
+        assigned_to_name = 'UNASSIGNED'
+        if item.assigned_user_id:
+            try:
+                assigned_to_name = item.assigned_user.username
+            except Exception:
+                assigned_to_name = 'DELETED USER'
+
+        combined_email_log.append({
+            'timestamp': item.received_at, 
+            'arrival_timestamp': inbox_map.get(item.email_id, item.received_at), 
+            'delegation_timestamp': item.delegated_at, 
+            'type': 'Original', 
+            'display_type': 'Completed' if is_completed else 'Delegated', 
+            'subject': actual_subject, 
+            'sender': email_sender,
+            'assigned_to': assigned_to_name, 
+            'status': item.status, 
+            'email_id': item.email_id, 
+            'action_user': 'System', 
+            'badge_color': '#3f51b5', 
+            'icon': '📥'
+        })
+
+    threaded_replies = DelegationTransactionLog.objects.filter(delegation_id__in=all_del_ids, action_type='REPLIED').select_related('user')
+    for reply in threaded_replies:
+        action_user_name = 'System'
+        if reply.user_id:
+            try:
+                action_user_name = reply.user.username
+            except Exception:
+                action_user_name = 'DELETED USER'
+
+        combined_email_log.append({
+            'timestamp': reply.timestamp, 
+            'arrival_timestamp': None, 
+            'delegation_timestamp': None, 
+            'type': 'Reply', 
+            'display_type': 'Reply Sent', 
+            'subject': reply.subject or "Reply to Task", 
+            'sender': action_user_name,
+            'assigned_to': reply.recipient_email, 
+            'status': thread_status_map.get(reply.delegation_id, "SENT"), 
+            'email_id': thread_email_id_map.get(reply.delegation_id), 
+            'action_user': action_user_name, 
+            'badge_color': '#673ab7', 
+            'icon': '📤'
+        })
+
+    direct_emails = UnityNotes.objects.filter(member_group_code__iexact=clean_lookup, communication_type='Sent Email')
+    for email in direct_emails:
+        outlook_id = email.attached_email_id or (email.action_notes.replace("OUTLOOK_ID:", "").strip() if email.action_notes and "OUTLOOK_ID:" in email.action_notes else None)
+        
+        email_sent_subject = email.action_notes or 'Email Sent'
+        if email.notes and "Subject:" in email.notes:
+            try:
+                lines = email.notes.split('\n')
+                for line in lines:
+                    if line.startswith("Subject:"):
+                        email_sent_subject = line.replace("Subject:", "").strip()
+                        break
+            except:
+                pass
+
+        combined_email_log.append({
+            'timestamp': email.date, 
+            'arrival_timestamp': None, 
+            'delegation_timestamp': None, 
+            'type': 'Direct', 
+            'display_type': 'Email sent', 
+            'subject': email_sent_subject, 
+            'sender': email.user,
+            'assigned_to': email.notes.split('\n')[0][:50] if email.notes else 'Recipient', 
+            'status': 'Direct', 
+            'email_id': outlook_id, 
+            'action_user': email.user, 
+            'badge_color': '#4CAF50', 
+            'icon': '📤'
+        })
+
+    # Sort the log chronologically
+    combined_email_log.sort(key=lambda x: x['timestamp'], reverse=True)
+
+    # 🚀 NEW: Filter the Combined Email Log based on Search Query
+    email_search_query = request.GET.get('email_search', '').strip().lower()
+    if email_search_query:
+        filtered_email_log = []
+        for log in combined_email_log:
+            # Aggregate all searchable fields into a single lowercase string for easy matching
+            searchable_text = f"{log.get('subject', '')} {log.get('sender', '')} " \
+                              f"{log.get('assigned_to', '')} {log.get('status', '')} " \
+                              f"{log.get('type', '')} {log.get('display_type', '')} " \
+                              f"{log.get('action_user', '')}".lower()
+            
+            if email_search_query in searchable_text:
+                filtered_email_log.append(log)
+        
+        combined_email_log = filtered_email_log
+
+    # --- 5. Billing Logic ---
+    billing_queryset = UnityBill.objects.filter(C_Company_Code=lookup_code).order_by('-A_CCDatesMonth')
+    open_bills, settled_bills = [], []
+    for bill in list(billing_queryset):
+        bill.total_covered = BillSettlement.objects.filter(unity_bill_source_id=bill.id).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
+        if bill.is_reconciled:
+            bill.display_status = 'RECON COMPLETE'
+            bill.bankline_total = BillSettlement.objects.filter(unity_bill_source_id=bill.id, reconned_bank_line_id__isnull=False).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
+            bill.credit_allocated = BillSettlement.objects.filter(unity_bill_source_id=bill.id, source_credit_note_id__isnull=False).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
+            bill.surplus_allocated_from_journals = JournalEntry.objects.filter(target_bill_id=bill.id).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+            bill.applied_credit_total = bill.credit_allocated + bill.surplus_allocated_from_journals
+            used_line_ids = BillSettlement.objects.filter(unity_bill_source_id=bill.id, reconned_bank_line_id__isnull=False).values_list('reconned_bank_line_id', flat=True)
+            bill.bank_assigned_total = ReconnedBank.objects.filter(id__in=used_line_ids).aggregate(total=Sum('transaction_amount'))['total'] or Decimal('0.00')
+            overs_created = CreditNote.objects.filter(source_bank_line_id__in=used_line_ids, note_selection='OVERS', ccdates_month=bill.A_CCDatesMonth).aggregate(total=Sum('schedule_amount'))['total'] or Decimal('0.00')
+            legacy_surplus = ScheduleSurplus.objects.filter(unity_bill_source_id=bill.id).aggregate(total=Sum('surplus_amount'))['total'] or Decimal('0.00')
+            bill.surplus_created = overs_created + legacy_surplus
+            bill.I_Submitted_Date = bill.I_Submitted_Date
+            settled_bills.append(bill)
+        else:
+            bill.display_status = 'OPEN' if bill.total_covered > Decimal('0.00') else 'SCHEDULED'
+            bill.I_Submitted_Date = bill.I_Submitted_Date
+            open_bills.append(bill)
+
+    my_delegated_emails = EmailDelegation.objects.filter(assigned_user=request.user).exclude(status__in=['COMP', 'CLS', 'DONE']).order_by('-received_at')
+
+    # --- 6. HANDLE POST REQUESTS ---
+    if request.method == 'POST':
+        if request.POST.get('email_submission_action') == 'send_email_and_log' or request.POST.get('action') == 'send_outgoing_member_note':
+            subject = request.POST.get('member_email_subject_reply', 'Claim Update')
+            recipient = request.POST.get('member_recipient_email')
+            cc_recipients = request.POST.get('member_cc_email', '')
+            bcc_recipients = request.POST.get('member_bcc_email', '')
+            email_body_html = request.POST.get('email_body_html_content')
+            action_note_val = request.POST.get('action_notes', 'Email Composed')
+            attachments = request.FILES.getlist('attachments')
+
+            if recipient and email_body_html:
+                response = OutlookGraphService.send_outlook_email(
+                    target_email=settings.OUTLOOK_EMAIL_ADDRESS, 
+                    recipient_email=recipient, 
+                    subject=subject, 
+                    body_content=email_body_html, 
+                    content_type='HTML', 
+                    user=request.user, 
+                    attachments=attachments,
+                    cc_email=cc_recipients,    
+                    bcc_email=bcc_recipients   
+                )
+                if response.get('success'):
+                    attachment_count = len(attachments)
+                    attach_string = f" ({attachment_count} files)" if attachment_count > 0 else ""
+                    
+                    UnityNotes.objects.create(
+                        member_group_code=company_code, 
+                        user=request.user.username, 
+                        date=timezone.now(), 
+                        communication_type='Sent Email', 
+                        action_notes=action_note_val[:90], 
+                        attached_email_id=response.get('id', ''), 
+                        notes=f"To: {recipient}\nCC: {cc_recipients}\nBCC: {bcc_recipients}\nSubject: {subject}\nAttachments: {attach_string}\n{email_body_html}"
+                    )
+                    messages.success(request, f"Email sent with {attachment_count} attachment(s)!")
+                else: 
+                    messages.error(request, f"Graph API Error: {response.get('error')}")
+            return redirect(f"{reverse('unity_information', kwargs={'company_code': company_code})}#email-log")
+
+        elif request.POST.get('action') == 'create_manual_credit':
+            try:
+                amount = request.POST.get('amount', '0.00')
+                month = request.POST.get('ccdates_month')
+                desc = request.POST.get('description', 'Manual Adjustment')
+                
+                CreditNote.objects.create(
+                    member_group_code=company_code,
+                    ccdates_month=month,
+                    schedule_amount=Decimal(amount),
+                    note_selection='MANUAL',
+                    description=desc,
+                )
+                messages.success(request, f"Manual credit of R{amount} created for {month}.")
+            except Exception as e:
+                messages.error(request, f"Error creating manual credit: {e}")
+            return redirect(f"{reverse('unity_information', kwargs={'company_code': company_code})}#bank-lines")
+
+        if 'update_general_info' in request.POST and unity_record and not is_fallback:
+            try:
+                unity_record.recon_contact_1_name, unity_record.recon_contact_1_email, unity_record.recon_contact_2_name, unity_record.recon_contact_2_email = request.POST.get('recon_contact_1_name'), request.POST.get('recon_contact_1_email'), request.POST.get('recon_contact_2_name'), request.POST.get('recon_contact_2_email')
+                unity_record.commencement_date = request.POST.get('commencement_date') or None
+                unity_record.fund_status_date = request.POST.get('fund_status_date') or None
+                unity_record.fund_status, unity_record.i_last_recon, unity_record.c_agent, unity_record.d_company_status, unity_record.e_payment_method, unity_record.f_billing_method, unity_record.g_current_fiscal, unity_record.h_current_status, unity_record.j_arrears = request.POST.get('fund_status'), request.POST.get('last_recon_note'), request.POST.get('agent'), request.POST.get('company_status'), request.POST.get('payment_method'), request.POST.get('billing_method'), request.POST.get('current_fiscal'), request.POST.get('current_status'), request.POST.get('arrears')
+                unity_record.save()
+                messages.success(request, "General Information updated.")
+            except Exception as e: 
+                messages.error(request, f"Error saving: {e}")
+            return redirect('unity_information', company_code=company_code)
+        
+        elif request.POST.get('note_content') or request.POST.get('action_notes'):
+            try:
+                pdf_file = request.FILES.get('note_pdf_attachment')
+                UnityNotes.objects.create(
+                    member_group_code=company_code, 
+                    user=request.user.username, 
+                    date=timezone.now(), 
+                    communication_type=request.POST.get('communication_type') or 'Notes Log', 
+                    action_notes=request.POST.get('action_notes'), 
+                    notes=request.POST.get('note_content'),
+                    attached_file=pdf_file 
+                )
+                messages.success(request, "Note and attachment added.")
+            except Exception as e:
+                messages.error(request, f"Failed to save note: {e}")
+                
+            return redirect(f"{reverse('unity_information', kwargs={'company_code': company_code})}#notes-log")
+
+    context = {
+        'unity_record': unity_record, 
+        'latest_bill': latest_bill,
+        'notes': notes, 
+        'communication_logs': communication_logs, 
+        'combined_email_log': combined_email_log, 
+        'email_search_query': email_search_query, # Pass the query to keep the search bar populated
+        'is_fallback': is_fallback, 
+        'bank_lines': bank_lines, 
+        'credit_notes': credit_notes, 
+        'open_bills': open_bills, 
+        'settled_bills': settled_bills, 
+        'company_claims': company_claims, 
+        'available_surplus': available_surplus_value, 
+        'my_delegated_emails': my_delegated_emails,
+        'manual_credits_total': manual_credits_total,
+        'total_claims_value': total_claims_value,
+    }
+    return render(request, 'unity_internal_app/unity_information.html', context)
+
+@login_required
+def unity_billing_history(request, company_code):
+    """
+    Displays the billing history.
+    UPDATED: Status logic now relies on G_Pre_Bill_Date and G_Schedule_Date.
+    UPDATED: Bank Line balance now accounts for Credit Note allocations.
+    """
+    from django.db.models import Sum
+    from decimal import Decimal
+    from django.contrib import messages
+    from django.shortcuts import redirect, render
+    from .models import (
+        UnityMgListing, InternalFunds, UnityBill, BillSettlement, 
+        ReconnedBank, CreditNote
+    )
+
+    ZERO_DECIMAL = Decimal('0.00')
+    
+    unity_record = UnityMgListing.objects.filter(a_company_code=company_code).first()
+    is_fallback = False
+
+    if not unity_record:
+        unity_record = InternalFunds.objects.filter(A_Company_Code=company_code).first()
+        is_fallback = True
+    
+    if not unity_record:
+        messages.error(request, f"Company {company_code} not found.")
+        return redirect('unity_list')
+
+    # --- 2. FETCH BILLS ---
+    billing_queryset = UnityBill.objects.filter(C_Company_Code=company_code).order_by('-A_CCDatesMonth')
+    billing_records = list(billing_queryset)
+
+    # --- 3. MANUAL CALCULATION LOOP & LIST SPLIT ---
+    open_bills = []
+    settled_bills = []
+    
+    for bill in billing_records:
+        # A. Calculate Settlements
+        settled_sum_agg = BillSettlement.objects.filter(
+            unity_bill_source_id=bill.id
+        ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
+        
+        total_covered = settled_sum_agg
+        scheduled_amount = bill.H_Schedule_Amount or ZERO_DECIMAL
+        remaining_balance = scheduled_amount - total_covered
+        
+        # --- NEW & UPDATED STATUS LOGIC ---
+        pre_bill_date = getattr(bill, 'F_Pre_Bill_Date', None)
+        schedule_date = getattr(bill, 'G_Schedule_Date', None) 
+        
+        if bill.is_reconciled:
+            display_status = 'RECON COMPLETE'
+        elif schedule_date and scheduled_amount > ZERO_DECIMAL:
+            if total_covered > ZERO_DECIMAL:
+                display_status = 'OPEN' 
+            else:
+                display_status = 'SCHEDULED' 
+        elif pre_bill_date and not schedule_date:
+            display_status = 'PRE-BILL' 
+        else:
+            if scheduled_amount > ZERO_DECIMAL:
+                display_status = 'OPEN'
+            else:
+                display_status = 'Pre-Bill' 
+                
+        bill.temp_remaining = remaining_balance
+        bill.total_covered = total_covered
+        bill.display_status = display_status
+
+        if bill.display_status == 'RECON COMPLETE':
+            settled_bills.append(bill)
+        else:
+            open_bills.append(bill)
+
+    # --- 4. FETCH DATA FOR THE 'BANK LINES & CREDIT' TAB (ENHANCED LOGIC) ---
+    # UPDATED: Now matches unity_information logic to subtract Credit Notes from balance
+    bank_lines_assigned = ReconnedBank.objects.filter(
+        company_code=company_code
+    ).select_related('bank_line').order_by('-transaction_date')
+
+    for line in bank_lines_assigned:
+        # A. Sum of usage on Unity Bills
+        actual_bill_usage = BillSettlement.objects.filter(
+            reconned_bank_line_id=line.id
+        ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
+
+        # B. Sum of usage moved to Credit Notes (Overs)
+        credit_amount = CreditNote.objects.filter(
+            source_bank_line=line
+        ).aggregate(total=Sum('schedule_amount'))['total'] or ZERO_DECIMAL
+
+        # C. Calculate True Remaining Balance
+        line.true_remaining_balance = line.transaction_amount - actual_bill_usage - credit_amount
+        
+        # Safety epsilon for floating point math
+        line.is_fully_consumed = (line.true_remaining_balance <= Decimal('0.009'))
+        line.original_assigned_amount = line.transaction_amount 
+
+    bank_lines_data = bank_lines_assigned
+    credit_notes_data = CreditNote.objects.filter(member_group_code=company_code).order_by('-ccdates_month')
+
+    context = {
+        'company_code': company_code,
+        'unity_record': unity_record,
+        'is_fallback': is_fallback,
+        'bank_lines': bank_lines_data,
+        'credit_notes': credit_notes_data,
+        'open_bills': open_bills,
+        'settled_bills': settled_bills,
+        'billing_records': billing_records,
+        'default_tab_override': '#recon',
+    }
+    
+    return render(request, 'unity_internal_app/unity_information.html', context)
+
+# --- PRE-BILL CREATION VIEW ---
+@login_required
+@transaction.atomic
+def create_pre_bill(request, company_code):
+    """
+    Handles the creation of a new UnityBill record, setting the Pre-Bill Date.
+    """
+    # Requires: from django.db.models import Sum, F
+    
+    company_name = f"Company Code {company_code}"
+    
+    # 1. Fetch Company Info
+    try:
+        company_info = InternalFunds.objects.get(A_Company_Code=company_code)
+        company_name = company_info.B_Company_Name
+    except InternalFunds.DoesNotExist:
+        messages.error(request, f"Cannot find company details for code {company_code}.")
+        return redirect('unity_information', company_code=company_code)
+
+    calculated_debt_for_prefill = ZERO_DECIMAL
+    
+    # 2. Handle Form Submission (POST)
+    if request.method == 'POST':
+        form = PreBillForm(request.POST)
+        bill_date_str = request.POST.get('A_CCDatesMonth')
+        
+        # 🚀 ADDED: Capture salary_amount from the form submission
+        salary_amount_val = request.POST.get('salary_amount', ZERO_DECIMAL)
+        
+        bill_date = None
+        if bill_date_str:
+            try:
+                bill_date = datetime.strptime(bill_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                messages.error(request, "Invalid date format submitted.")
+
+        if form.is_valid() and bill_date:
+            
+            # --- NEW LOGIC: Calculate Debt (All available) ---
+            debt_queryset = ReconnedBank.objects.filter(
+                company_code=company_code,
+                # Only unsettled lines
+                amount_settled__lt=F('transaction_amount'),
+            ).annotate(
+                remaining_debt=F('transaction_amount') - F('amount_settled')
+            )
+            calculated_debt_for_prefill = debt_queryset.aggregate(
+                total_schedule_amount=Sum('remaining_debt')
+            )['total_schedule_amount'] or ZERO_DECIMAL
+            # --- END NEW LOGIC ---
+            
+            bill_record = form.save(commit=False)
+            bill_record.C_Company_Code = company_code
+            
+            # 🚀 ADDED: Map the salary amount to the model instance
+            bill_record.salary_amount = Decimal(salary_amount_val)
+            
+            # --- NEW LOGIC: Set Pre-Bill Date upon creation ---
+            # This triggers the 'PRE-BILL' status as G_Schedule_Date will be None
+            bill_record.F_Pre_Bill_Date = timezone.now().date()
+            
+            # Check the actual schedule amount being saved by the user
+            scheduled_amount = bill_record.H_Schedule_Amount or ZERO_DECIMAL
+            
+            # --- CRITICAL FIX: Prevent premature closure ---
+            if scheduled_amount <= ZERO_DECIMAL:
+                # If R0.00 is scheduled, force the bill to remain OPEN/PRE-BILL by clearing final dates.
+                bill_record.J_Final_Date = None
+                # I_Submitted_Date is cleared here, which is fine since G_Schedule_Date controls the status now.
+                bill_record.I_Submitted_Date = None
+                messages.warning(request, "Bill created with R0.00 scheduled amount. It will remain in Pre-Bill status until updated.")
+            # --- END CRITICAL FIX ---
+            
+            try:
+                bill_record.save()
+                
+                messages.success(request, f"New Pre-Bill record created for {company_code}. Salary: R{salary_amount_val}. Scheduled: R{bill_record.H_Schedule_Amount}")
+                
+                # 🛑 CRITICAL FIX: Add cache-busting timestamp to the redirect URL
+                timestamp = timezone.now().timestamp()
+                return redirect(f"{reverse('unity_billing_history', kwargs={'company_code': company_code})}?cache={timestamp}")
+                
+            except Exception as e:
+                messages.error(request, f"Error saving new bill: {e}")
+                
+        else:
+            messages.error(request, "Please correct the errors in the form and ensure the Bill Date is valid.")
+    
+    # 3. Handle GET Request (Initial Form Display)
+    else:
+        # 4. Final Context Construction for GET
+        initial_data = {
+            'C_Company_Code': company_code,
+            'D_Company_Name': company_name,
+            # Pre-fill with the calculated debt
+            'H_Schedule_Amount': calculated_debt_for_prefill
+        }
+        form = PreBillForm(initial=initial_data)
+
+    context = {
+        'form': form,
+        'company_code': company_code,
+        'company_name': company_name,
+        'is_editing': False,
+    }
+    return render(request, 'unity_internal_app/bill_form.html', context)
+
+@login_required
+def add_member_view(request):
+    """Handles adding a new UnityMgListing member."""
+    # NOTE: AddMemberForm must be imported or mocked above for runtime testing
+    if request.method == 'POST':
+        form = AddMemberForm(request.POST)
+        if form.is_valid():
+            try:
+                # This form saves to the UnityMgListing table (internal_mg_list)
+                form.save()
+                messages.success(request, f"New member '{form.cleaned_data['b_company_name']}' added successfully!")
+                return redirect('unity_list')
+            except Exception as e:
+                messages.error(request, f"Error saving member: {e}")
+        else:
+            messages.error(request, "Please correct the errors below.")
+    else:
+        form = AddMemberForm()
+
+    context = {
+        'form': form,
+    }
+    return render(request, 'unity_internal_app/add_member.html', context)
+
+# --- Bank Reconciliation Views ---
+@login_required
+def import_excel_view(request):
+    """Handles the upload and import of Excel data."""
+    from django.db import connection, transaction
+    from .models import ImportBank
+    import pandas as pd
+    import numpy as np
+    
+    # 💡 FIX: Opt-in to the future behavior to clear the FutureWarning in the logs
+    pd.set_option('future.no_silent_downcasting', True)
+    
+    if request.method == 'POST':
+        if 'excel_file' in request.FILES:
+            excel_file = request.FILES['excel_file']
+            
+            if not excel_file.name.endswith(('.xlsx', '.xls')):
+                messages.error(request, "Invalid file format. Please upload an Excel (.xlsx or .xls) file.")
+                return redirect('import_data')
+            
+            try:
+                df = pd.read_excel(excel_file, keep_default_na=False, header=None)
+                
+                db_columns = [
+                    'Bank_account_name', 'Account_number', 'Statement_reference',
+                    'DATE', 'Balance', 'Transaction_amount', 'Transaction_description',
+                    'INTERNAL_IDENTIFICATION', 'Specialist', 'Date_identified',
+                    'Fiscal', 'Comments', 'Interim_fiscal'
+                ]
+                df.columns = db_columns
+                
+                df = df.astype(str).replace({'nan': '', 'NaT': ''})
+                
+                # --- FILTER: Only process lines where Specialist is "FUTURASA" ---
+                initial_row_count = len(df)
+                df = df[df['Specialist'].str.strip().str.upper() == 'FUTURASA']
+                ignored_count = initial_row_count - len(df)
+                
+                if ignored_count > 0:
+                    messages.info(request, f"Ignored {ignored_count} row(s) because the Specialist was not 'FUTURASA'.")
+                # ---------------------------------------------------------------------
+                
+                # If dataframe is empty after filtering, stop processing to prevent errors
+                if df.empty:
+                    messages.warning(request, "No valid records with Specialist 'FUTURASA' found to import.")
+                    return redirect('import_data')
+                
+                df['DATE'] = pd.to_datetime(df['DATE'], errors='coerce')
+                df['Date_identified'] = pd.to_datetime(df['Date_identified'], errors='coerce').dt.date
+                df['Balance'] = pd.to_numeric(df['Balance'], errors='coerce')
+                df['Transaction_amount'] = pd.to_numeric(df['Transaction_amount'], errors='coerce')
+                
+                initial_count = len(df)
+                df.dropna(subset=['DATE'], inplace=True)
+                dropped_count = initial_count - len(df)
+                
+                if dropped_count > 0:
+                    messages.warning(request, f"Skipped {dropped_count} row(s) due to missing or invalid required data (Date).")
+
+                df['DATE'] = df['DATE'].dt.date
+                
+                # 💡 FIX: Chained .infer_objects(copy=False) to ensure compatibility
+                df = df.replace(r'^\s*$', np.nan, regex=True).infer_objects(copy=False)
+                df = df.where(pd.notna(df), None)
+
+                with transaction.atomic():
+                    # SQL for main importbank table
+                    columns_sql = ', '.join([f'`{col}`' for col in db_columns])
+                    placeholders = ', '.join(['%s'] * len(db_columns))
+                    sql = f"INSERT INTO {ImportBank._meta.db_table} ({columns_sql}) VALUES ({placeholders})"
+                    
+                    with connection.cursor() as cursor:
+                        for row in df[db_columns].values:
+                            # Clean the row for null values
+                            cleaned_row = [None if isinstance(item, float) and np.isnan(item) else item for item in row]
+                            
+                            # 1. Insert into importbank
+                            cursor.execute(sql, tuple(cleaned_row))
+                            
+                # Note: Also removed "(and related notes)" from the success message
+                messages.success(request, f"Successfully imported {len(df)} records into the database.")
+                
+            except Exception as e:
+                messages.error(request, f"An error occurred during import: {e}")
+            
+            return redirect('import_data')
+
+    return render(request, 'unity_internal_app/import_excel.html', {})
+
+@login_required
+def bank_list(request):
+    """
+    Displays a list of active bank transaction segments and Approved Credit Note "Overs".
+    
+    CRITICAL FIX: Injects 'Approved' credit notes into the bank list as virtual deposits.
+    This ensures that credits verified by the manager are not forgotten.
+    """
+    from django.db.models import F, Q
+    from django.urls import reverse
+
+    # --- Step 1: Automatic Segment Creation for New Imports ---
+    
+    assigned_import_ids = ReconnedBank.objects.values_list('bank_line_id', flat=True).distinct()
+    
+    new_imports_to_segment = ImportBank.objects.exclude(
+        id__in=assigned_import_ids
+    ).filter(
+        transaction_amount__gt=ZERO_DECIMAL 
+    )
+    
+    with transaction.atomic():
+        for import_line in new_imports_to_segment:
+            ReconnedBank.objects.create(
+                bank_line_id=import_line.id,
+                company_code=None, 
+                transaction_amount=import_line.transaction_amount,
+                transaction_date=import_line.date,
+                fiscal_date=None, 
+                recon_status='Unidentified - New Import',
+                amount_settled=ZERO_DECIMAL,
+            )
+            
+    # --- Step 2: Query ALL Active Segments (Physical Cash) ---
+    
+    active_segments_queryset = ReconnedBank.objects.annotate(
+        remaining_balance=F('transaction_amount') - F('amount_settled')
+    ).filter(
+        remaining_balance__gt=ZERO_DECIMAL 
+    ).select_related('bank_line').order_by('-transaction_date', 'id')
+
+    combined_records = []
+    
+    # Process physical bank lines
+    for recon_data in active_segments_queryset:
+        allocated_code = recon_data.company_code
+        is_unassigned = allocated_code is None 
+        
+        company_name = "-"
+        agent_name = "-"
+        if allocated_code and allocated_code != "N/A":
+            mg_entry = UnityMgListing.objects.filter(a_company_code=allocated_code).first()
+            if mg_entry:
+                company_name = mg_entry.b_company_name
+                agent_name = mg_entry.c_agent
+            else:
+                fund_entry = InternalFunds.objects.filter(A_Company_Code=allocated_code).first()
+                if fund_entry:
+                    company_name = fund_entry.B_Company_Name
+                    agent_name = "Internal"
+        
+        action_url = reverse('bankline_recon', args=[recon_data.id]) if is_unassigned else reverse('display_bankline_review', args=[recon_data.id])
+        action_text = "Assign" if is_unassigned else "View"
+        
+        combined_records.append({
+            'id': recon_data.id, 
+            'source_type': 'BANK', # Flag for UI
+            'deposit_amount': recon_data.transaction_amount, 
+            'transaction_date': recon_data.transaction_date,
+            'transaction_description': recon_data.bank_line.transaction_description,
+            'remaining_balance': recon_data.remaining_balance,
+            'recon_status': recon_data.recon_status or "Unidentified",
+            'allocated_code': allocated_code,
+            'company_name': company_name,
+            'agent': agent_name,
+            'review_note': recon_data.review_note, 
+            'action_url': action_url,
+            'action_text': action_text,
+        })
+
+    # --- Step 3: FAIL-SAFE - Injected Approved Credit Notes (Virtual Cash) ---
+    # Fetch credits that were approved by the manager but not yet linked/used
+    approved_overs = CreditNote.objects.filter(
+        credit_link_status='Approved',
+        note_selection='OVERS',
+        schedule_amount__gt=ZERO_DECIMAL
+    )
+
+    for credit in approved_overs:
+        # Action URL for credit sends a 'source=credit' parameter to the recon view
+        credit_action_url = f"{reverse('bankline_recon', args=[credit.id])}?source=credit"
+        
+        combined_records.append({
+            'id': credit.id,
+            'source_type': 'CREDIT', # Flag for UI to highlight as a Credit Note
+            'deposit_amount': credit.schedule_amount,
+            'transaction_date': credit.authorized_at.date() if credit.authorized_at else credit.processed_date,
+            'transaction_description': f"APPROVED OVERS: {credit.comment or 'Manager Verified'}",
+            'remaining_balance': credit.schedule_amount,
+            'recon_status': 'APPROVED OVERS LINE', # High-visibility label
+            'allocated_code': credit.member_group_code,
+            'company_name': credit.member_group_name or "Verified Credit",
+            'agent': credit.authorized_by or "Manager",
+            'review_note': f"Authorized at {credit.authorized_at}",
+            'action_url': credit_action_url,
+            'action_text': "Use Credit",
+        })
+
+    # Sort everything together by date (Cash and Virtual Credits mixed)
+    combined_records.sort(key=lambda x: x['transaction_date'], reverse=True)
+    
+    context = {
+        'bank_records': combined_records,
+    }
+    return render(request, 'unity_internal_app/bank_list.html', context)
+
+@login_required
+def bankline_recon(request, record_id):
+    """
+    Handles the reconciliation/assignment of bank lines OR Approved Credits.
+    UPDATED: Returns to bank_list.html after successful assignment.
+    UPDATED: Allows saving without a company code if 'is_bulk' is ticked.
+    UPDATED: Captures and saves Fiscal Period Date.
+    """
+    from django.urls import reverse
+    
+    # Check if we are dealing with a Credit Note instead of a Bank Line
+    is_credit = request.GET.get('source') == 'credit'
+    
+    if is_credit:
+        credit_note = get_object_or_404(CreditNote, id=record_id)
+        
+        open_bill = UnityBill.objects.filter(
+            C_Company_Code=credit_note.member_group_code,
+            is_reconciled=False
+        ).order_by('A_CCDatesMonth').first()
+        
+        if open_bill:
+            messages.info(request, f"Using Approved Credit of R{credit_note.schedule_amount} for {credit_note.member_group_code}.")
+            return redirect('pre_bill_reconciliation_summary', 
+                            company_code=credit_note.member_group_code, 
+                            bill_id=open_bill.id)
+        else:
+            messages.warning(request, f"Credit is ready, but no open bills were found for {credit_note.member_group_code}.")
+            return redirect('unity_information', company_code=credit_note.member_group_code)
+
+    # --- STANDARD BANK LINE LOGIC ---
+    try:
+        recon_segment = get_object_or_404(
+            ReconnedBank.objects.select_related('bank_line'), 
+            id=record_id
+        )
+    except Exception:
+        messages.error(request, f"Error retrieving Recon Segment ID: {record_id}")
+        return redirect('bank_list')
+
+    if recon_segment.company_code is not None:
+        messages.warning(request, f"Bank line {record_id} is already assigned to {recon_segment.company_code}.")
+        return redirect('display_bankline_review', recon_id=record_id)
+        
+    company_codes = InternalFunds.objects.values_list('A_Company_Code', flat=True).distinct().order_by('A_Company_Code')
+
+    if request.method == 'POST':
+        allocated_company_code_value = request.POST.get('company_code')
+        # Capture Fiscal Date
+        fiscal_date_value = request.POST.get('fiscal_date')
+        # Capture Bulk Tick Box
+        is_bulk_ticked = request.POST.get('is_bulk') == 'on'
+        
+        # --- FIX: Only require Company Code if NOT a bulk split ---
+        if not is_bulk_ticked:
+            if not allocated_company_code_value or allocated_company_code_value == 'None':
+                messages.error(request, "You must select a Company Code for reconciliation OR mark as Bulk Split.")
+                return redirect('bankline_recon', record_id=record_id)
+
+        try:
+            # Only validate the company code if one was provided
+            if allocated_company_code_value and allocated_company_code_value != 'None':
+                code_exists = InternalFunds.objects.filter(A_Company_Code=allocated_company_code_value).exists() or \
+                              UnityMgListing.objects.filter(a_company_code=allocated_company_code_value).exists()
+
+                if not code_exists:
+                    messages.error(request, f"Company code '{allocated_company_code_value}' is not recognized.")
+                    return redirect('bankline_recon', record_id=record_id)
+
+            # --- ASSIGNMENT ---
+            recon_segment.company_code = allocated_company_code_value if allocated_company_code_value != 'None' else None
+            
+            # --- SAVE FISCAL DATE ---
+            if fiscal_date_value:
+                recon_segment.fiscal_period_date = fiscal_date_value
+                
+            recon_segment.agent = request.user.get_full_name() or request.user.username
+            
+            # Apply Bulk Logic if ticked
+            if is_bulk_ticked:
+                recon_segment.recon_status = 'Unreconciled - Bulk Split'
+                recon_segment.review_note = 'BULK'
+            else:
+                recon_segment.recon_status = 'Unreconciled - Assigned'
+                
+            recon_segment.save()
+            
+            success_msg = f"Bank line segment {record_id} processed successfully."
+            if is_bulk_ticked:
+                success_msg += " (Marked for Bulk Processing)"
+            elif allocated_company_code_value:
+                success_msg += f" (Assigned to Code: {allocated_company_code_value})"
+                
+            messages.success(request, success_msg)
+            
+            # REDIRECT TO BANK LIST
+            return redirect('bank_list')
+
+        except Exception as e:
+            messages.error(request, f"Error saving assignment: {e}")
+            return redirect('bankline_recon', record_id=record_id)
+
+    # GET Request context for standard bank lines
+    context = {
+        'bank_record': recon_segment.bank_line, 
+        'company_codes': company_codes,
+        'current_recon': recon_segment,
+    }
+    return render(request, 'unity_internal_app/bankline_recon.html', context)
+
+@login_required
+def generate_recon_statement(request, recon_id):
+    """Generates a PDF statement for a single reconciled bank line."""
+    try:
+        recon_record = get_object_or_404(ReconnedBank, pk=recon_id)
+        company_listing = get_object_or_404(
+            InternalFunds,
+            A_Company_Code=recon_record.company_code
+        )
+    except Exception as e:
+        messages.error(request, f"Error fetching PDF data: {e}")
+        return redirect('bank_list')
+    
+    response = HttpResponse(content_type='application/pdf')
+    filename = f"Recon_Statement_{recon_record.company_code}_{recon_id}.pdf"
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+
+    try:
+        p = canvas.Canvas(response, pagesize=letter)
+        width, height = letter
+        styles = getSampleStyleSheet()
+
+        x_margin = inch
+        y_cursor = height - inch
+
+        p.setFont("Helvetica-Bold", 16)
+        p.drawString(x_margin, y_cursor, "Unity Management Reconciliation Statement")
+        y_cursor -= 0.3 * inch
+
+        p.setFont("Helvetica-Bold", 10)
+        p.drawString(x_margin, y_cursor, "Company Details:")
+        y_cursor -= 0.2 * inch
+
+        data_rows = [
+            ("Company Name:", company_listing.B_Company_Name),
+            ("Company Code:", recon_record.company_code),
+            ("Statement Date:", timezone.now().strftime("%B %d, %Y")),
+        ]
+
+        p.setFont("Helvetica", 10)
+        for label, value in data_rows:
+            p.drawString(x_margin, y_cursor, label)
+            p.drawString(x_margin + 2.5 * inch, y_cursor, str(value))
+            y_cursor -= 0.2 * inch
+        
+        y_cursor -= 0.3 * inch
+
+        p.setFont("Helvetica-Bold", 10)
+        p.drawString(x_margin, y_cursor, "Transaction Details:")
+        y_cursor -= 0.2 * inch
+        
+        transaction_data = [
+            ("Reconciliation ID:", recon_id),
+            ("Date Received:", recon_record.transaction_date.strftime("%Y-%m-%d")),
+            ("Amount:", f"R{recon_record.transaction_amount}"),
+            ("Status:", recon_record.recon_status),
+            ("Fiscal Review:", recon_record.fiscal_date.strftime("%Y-%m-%d") if recon_record.fiscal_date else "N/A"),
+            ("Note:", recon_record.review_note if recon_record.review_note else "None"),
+        ]
+        
+        p.setFont("Helvetica", 10)
+        for label, value in transaction_data:
+            p.drawString(x_margin, y_cursor, label)
+            p.drawString(x_margin + 2.5 * inch, y_cursor, str(value))
+            y_cursor -= 0.2 * inch
+
+        p.setFont("Helvetica-Bold", 10)
+        p.drawString(x_margin, y_cursor, "Source Description:")
+        y_cursor -= 0.2 * inch
+        
+        p.setFont("Helvetica", 10)
+        description_text = str(recon_record.bank_line.transaction_description)
+        if 'Normal' not in styles:
+            styles.add(ParagraphStyle(name='Normal'))
+        
+        description_paragraph = Paragraph(description_text, styles['Normal'])
+        
+        description_paragraph.wrapOn(p, width - 2 * x_margin, height)
+        
+        description_paragraph.drawOn(p, x_margin, y_cursor - description_paragraph.height)
+        y_cursor -= description_paragraph.height + 0.1 * inch
+
+        p.showPage()
+        p.save()
+        return response
+
+    except Exception as e:
+        messages.error(request, f"PDF Drawing/ReportLab Failure: {e}")
+        return redirect('bank_list')
+    
+# --- BANKLINE REVIEW VIEWS ---
+@login_required
+def display_bankline_review(request, recon_id):
+    """Displays a single reconciled bank line for review and includes bulk allocation breakdown."""
+    from .models import ReconnedBank, InternalFunds, BillSettlement, CreditNote, BankLineNote
+    
+    # --- CAPTURE NAVIGATION SOURCE ---
+    source_param = request.GET.get('from')
+    is_from_unity_info = request.GET.get('source') == 'unity' or source_param == 'unity'
+    
+    # Fetch the recon record with the original bank line details
+    recon_record = get_object_or_404(ReconnedBank.objects.select_related('bank_line'), pk=recon_id)
+    company_code = recon_record.company_code
+
+    # 🚀 FETCH SEPARATE NOTES FROM AUDIT TABLE 🚀
+    bank_notes = BankLineNote.objects.filter(recon_record=recon_record).order_by('-created_at')
+
+    # --- FINANCIAL SUMMARY CALCULATIONS FOR HEADER ---
+    total_bank_surplus = ReconnedBank.objects.filter(company_code=company_code).aggregate(
+        total=Sum(F('transaction_amount') - F('amount_settled'))
+    )['total'] or ZERO_DECIMAL
+
+    manual_credits_total = CreditNote.objects.filter(
+        member_group_code=company_code,
+        source_bank_line__isnull=True
+    ).aggregate(total=Sum('bank_deposit_amount'))['total'] or ZERO_DECIMAL
+    
+    # --- FETCH BULK SETTLEMENTS ---
+    settlements = BillSettlement.objects.filter(
+        reconned_bank_line=recon_record
+    ).select_related('unity_bill_source')
+
+    # Fetch unique company codes for the selection dropdown
+    company_codes = InternalFunds.objects.values_list('A_Company_Code', flat=True).distinct().order_by('A_Company_Code')
+
+    context = {
+        'recon_record': recon_record,
+        'bank_record': recon_record.bank_line,
+        'settlements': settlements,
+        'company_codes': company_codes,
+        'review_notes': REVIEW_NOTES_OPTIONS,
+        'current_category': recon_record.review_note,
+        'bank_notes': bank_notes, # Individual notes are passed here
+        'is_from_unity_info': is_from_unity_info,
+        'source': source_param,
+        'available_surplus': total_bank_surplus,
+        'manual_credits_total': manual_credits_total,
+    }
+    
+    return render(request, 'unity_internal_app/display_bankline_review.html', context)
+
+@login_required
+@transaction.atomic
+def update_bankline_details(request, recon_id):
+    """
+    Updates Bank Line details, saves individual comments to the separate bank_line_notes table,
+    sends a custom email, and logs the interaction to UnityNotes.
+    """
+    from .models import ReconnedBank, UnityNotes, BankLineNote
+    from .services import OutlookGraphService
+    from django.conf import settings
+    from django.utils import timezone 
+    
+    recon_record = get_object_or_404(ReconnedBank.objects.select_related('bank_line'), pk=recon_id)
+    
+    if request.method == 'POST':
+        # --- 1. DATA UPDATES ---
+        new_company_code = request.POST.get('company_code_select')
+        new_fiscal_date = request.POST.get('fiscal_date')
+        source_param = request.POST.get('source_param')
+        category = request.POST.get('review_note', '').strip()
+        
+        # Capture the new comment from the form
+        new_comment_text = request.POST.get('review_note_text', '').strip()
+
+        recon_record.company_code = new_company_code if new_company_code else None
+        
+        # FIX: Ensure it maps to fiscal_period_date to match your ReconnedBank model
+        recon_record.fiscal_period_date = new_fiscal_date if new_fiscal_date else None
+        recon_record.review_note = category
+        
+        # 🚀 LOGIC: SAVE NEW NOTE AS A SEPARATE ROW 🚀
+        if new_comment_text:
+            BankLineNote.objects.create(
+                recon_record=recon_record,
+                note_text=new_comment_text,
+                category=category,
+                created_by=request.user.username
+            )
+
+        # Update Status
+        if not new_company_code:
+            recon_record.recon_status = 'Unassigned'
+        else:
+            recon_record.recon_status = 'Review Pending' if "Query" in category else 'Unreconciled - Assigned'
+        
+        recon_record.save()
+
+        # --- 2. EMAIL & ATTACHMENT LOGIC ---
+        if request.POST.get('send_email_toggle') == 'on':
+            recipient = request.POST.get('recipient_email', '').strip()
+            cc_email = request.POST.get('cc_email', '').strip()
+            subject = request.POST.get('email_subject')
+            custom_body = request.POST.get('email_body_content', '')
+            attachments = request.FILES.getlist('email_attachments')
+
+            # 🚀 FIX: Convert plain text line breaks into HTML <br> tags 🚀
+            # This ensures the email preserves the "Dear Sir/Madam" breaks perfectly.
+            html_formatted_body = custom_body.replace('\n', '<br>')
+
+            # Build HTML wrapper with improved line-height and styling
+            full_html_body = f"""
+            <html>
+            <body style="font-family: 'Segoe UI', Arial, sans-serif; color: #333; line-height: 1.6;">
+                <div style="padding: 25px; border: 1px solid #aed581; border-radius: 8px; background-color: #fcfdfc; max-width: 650px;">
+                    <div style="font-size: 11.5pt;">
+                        {html_formatted_body}
+                    </div>
+                </div>
+            </body>
+            </html>
+            """
+
+            # Call Graph Service
+            try:
+                result = OutlookGraphService.send_outlook_email(
+                    target_email=settings.OUTLOOK_EMAIL_ADDRESS, 
+                    recipient_email=recipient,
+                    subject=subject,
+                    body_content=full_html_body,
+                    content_type='HTML',
+                    user=request.user,
+                    cc_email=cc_email if cc_email else None,
+                    attachments=attachments
+                )
+
+                if result.get('success'):
+                    # Log to UnityNotes for the Audit Trail
+                    UnityNotes.objects.create(
+                        member_group_code=recon_record.company_code or "BULK",
+                        user=request.user.username,
+                        date=timezone.now(),
+                        communication_type='Sent Email',
+                        action_notes=f"Bank Review: {category}",
+                        notes=f"To: {recipient}\nSubject: {subject}\n\n{custom_body}\n(Attachments: {len(attachments)})",
+                        attached_email_id=result.get('id', '')
+                    )
+                    messages.success(request, f"Review saved and email sent with {len(attachments)} attachment(s).")
+                else:
+                    messages.error(request, f"Details saved, but Email failed: {result.get('error')}")
+            
+            except TypeError as e:
+                messages.error(request, f"Code Error: The Email Service signature mismatch. {str(e)}")
+
+        else:
+            messages.success(request, "Details updated successfully.")
+
+        # Redirect Logic
+        if source_param == 'global': return redirect('global_bank')
+        if recon_record.company_code: return redirect('unity_information', company_code=recon_record.company_code)
+        return redirect('bank_list')
+
+    return redirect('display_bankline_review', recon_id=recon_id)
+
+# --- NEW HELPER FUNCTION FOR FLEXIBLE ALLOCATION (Replaces old calculate_bill_debt logic) ---
+def get_available_bank_lines(company_code):
+    """
+    Returns a queryset of ReconnedBank lines that have remaining unsettled amounts 
+    for the specific company code, regardless of fiscal date.
+    """
+    return ReconnedBank.objects.filter(
+        company_code=company_code,
+        # Check if the line has money remaining
+        amount_settled__lt=F('transaction_amount'),
+    ).select_related('bank_line').annotate(
+        remaining_debt=F('transaction_amount') - F('amount_settled')
+    ).order_by('transaction_date')
+
+# --- BILLING RECONCILIATION VIEWS (UPDATED FOR FLEXIBLE ALLOCATION) ---
+from decimal import Decimal
+# NOTE: Ensure necessary imports like Decimal, Sum, timezone, etc. are at the top of your views.py
+
+@login_required
+def pre_bill_reconciliation_summary(request, company_code, bill_id):
+    """
+    Summarizes the current state of a bill's debt reconciliation.
+    """
+    from django.db.models import F, Sum
+    from django.shortcuts import get_object_or_404
+    from decimal import Decimal
+    
+    # Define constants
+    ZERO_DECIMAL = Decimal('0.00')
+    MAX_SHORTFALL_TOLERANCE = Decimal('5.00') # Max shortfall allowed to close a bill
+    
+    bill_record = get_object_or_404(UnityBill, id=bill_id, C_Company_Code=company_code)
+    
+    # --- CALCULATE AVAILABLE DEBT (Cash) ---
+    available_debt_lines = get_available_bank_lines(company_code)
+    total_debt = available_debt_lines.aggregate(total=Sum('remaining_debt'))['total'] or ZERO_DECIMAL
+    
+    # --- AGGREGATIONS ---
+    total_applied = BillSettlement.objects.filter(
+        unity_bill_source_id=bill_record.pk
+    ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
+    
+    # Exclude journals from standard cash to prevent double-counting
+    total_cash_applied = BillSettlement.objects.filter(
+        unity_bill_source_id=bill_record.pk,
+        reconned_bank_line_id__isnull=False,
+        source_bank_journal_id__isnull=True  
+    ).aggregate(total_cash=Sum('settled_amount'))['total_cash'] or ZERO_DECIMAL
+
+    total_credit_notes_assigned = BillSettlement.objects.filter(
+        unity_bill_source_id=bill_record.pk,
+        source_credit_note_id__isnull=False
+    ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
+
+    # --- 🚀 FETCH AVAILABLE STAGED BANK JOURNALS (Targeted to this Bill) ---
+    available_bank_journals = list(BankJournalEntry.objects.filter(
+        company_code=company_code,
+        target_bill=bill_record,  # Only pulls journals explicitly staged for THIS bill
+        status='AVAILABLE'
+    ).select_related('source_bank_line'))
+    
+    total_available_bank_journals_value = sum(j.amount for j in available_bank_journals) or ZERO_DECIMAL
+
+    # --- FETCH APPLIED BANK JOURNALS (Assigned to this bill) ---
+    applied_bank_journals = BillSettlement.objects.filter(
+        unity_bill_source_id=bill_record.pk,
+        source_bank_journal_id__isnull=False
+    ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
+
+    total_surplus_applied_to_bill = JournalEntry.objects.filter(
+        target_bill=bill_record
+    ).aggregate(total=Sum('amount'))['total'] or ZERO_DECIMAL
+
+    # --- MATH UPDATES ---
+    scheduled_amount = bill_record.H_Schedule_Amount or ZERO_DECIMAL
+    remaining_scheduled_amount = scheduled_amount - total_credit_notes_assigned - total_surplus_applied_to_bill - total_cash_applied - applied_bank_journals
+    current_outstanding = max(ZERO_DECIMAL, remaining_scheduled_amount)
+
+    # --- AVAILABLE APPROVED CREDITS ---
+    available_credits = list(CreditNote.objects.filter(
+        member_group_code=company_code,
+        credit_link_status='Approved',
+        schedule_amount__gt=ZERO_DECIMAL
+    ).select_related('source_bank_line'))
+    
+    # Hydrate Available Credits with Original Bank Info
+    for credit in available_credits:
+        if credit.source_bank_line:
+            credit.original_deposit_date = getattr(credit.source_bank_line, 'transaction_date', None) or getattr(getattr(credit.source_bank_line, 'bank_line', None), 'transaction_date', None)
+            credit.original_deposit_amount = getattr(credit.source_bank_line, 'transaction_amount', None) or getattr(getattr(credit.source_bank_line, 'bank_line', None), 'transaction_amount', None)
+            credit.orig_bank_id = getattr(credit.source_bank_line, 'bank_line_id', None) or getattr(credit.source_bank_line, 'id', None)
+        else:
+            credit.original_deposit_date = None
+            credit.original_deposit_amount = None
+            credit.orig_bank_id = None
+
+    total_available_credit_value = sum(c.schedule_amount for c in available_credits) or ZERO_DECIMAL
+
+    # --- SURPLUS & JOURNALS ---
+    company_bill_ids = UnityBill.objects.filter(C_Company_Code=company_code).values_list('id', flat=True)
+    potential_surpluses = ScheduleSurplus.objects.filter(
+        unity_bill_source_id__in=company_bill_ids
+    ).exclude(status='FULLY_APPLIED')
+    
+    available_surpluses = []
+    total_available_surplus_value = ZERO_DECIMAL
+    for s in potential_surpluses:
+        used = JournalEntry.objects.filter(surplus_source=s).aggregate(t=Sum('amount'))['t'] or ZERO_DECIMAL
+        remaining = s.surplus_amount - used
+        if remaining > ZERO_DECIMAL:
+            s.temp_available = remaining
+            total_available_surplus_value += remaining
+            available_surpluses.append(s)
+
+    applied_journals = JournalEntry.objects.filter(target_bill=bill_record).select_related('surplus_source')
+
+    # --- FETCH ASSIGNED CREDIT NOTES ---
+    assigned_note_ids = BillSettlement.objects.filter(
+        unity_bill_source_id=bill_record.pk,
+        source_credit_note_id__isnull=False
+    ).values_list('source_credit_note_id', flat=True)
+    
+    credit_notes_history = list(CreditNote.objects.filter(id__in=assigned_note_ids).select_related('source_bank_line'))
+
+    # Hydrate Assigned Credits with Original Bank Info
+    for note in credit_notes_history:
+        if note.source_bank_line:
+            note.original_deposit_date = getattr(note.source_bank_line, 'transaction_date', None) or getattr(getattr(note.source_bank_line, 'bank_line', None), 'transaction_date', None)
+            note.original_deposit_amount = getattr(note.source_bank_line, 'transaction_amount', None) or getattr(getattr(note.source_bank_line, 'bank_line', None), 'transaction_amount', None)
+            note.orig_bank_id = getattr(note.source_bank_line, 'bank_line_id', None) or getattr(note.source_bank_line, 'id', None)
+        else:
+            note.original_deposit_date = None
+            note.original_deposit_amount = None
+            note.orig_bank_id = None
+
+    # --- FINANCIAL SUMMARY HEADER CALCULATIONS ---
+    total_bank_surplus = ReconnedBank.objects.filter(company_code=company_code).aggregate(
+        total=Sum(F('transaction_amount') - F('amount_settled'))
+    )['total'] or ZERO_DECIMAL
+
+    manual_credits_total = CreditNote.objects.filter(
+        member_group_code=company_code,
+        source_bank_line__isnull=True
+    ).aggregate(total=Sum('schedule_amount'))['total'] or ZERO_DECIMAL
+    
+    # --- ACTION MESSAGE LOGIC ---
+    total_coverage_available = total_debt + total_available_credit_value + total_available_surplus_value + total_available_bank_journals_value
+    
+    # Check if outstanding balance is within the R5 maximum shortfall tolerance
+    is_bill_fully_covered = current_outstanding <= MAX_SHORTFALL_TOLERANCE
+    
+    if is_bill_fully_covered:
+        is_proceed_enabled = True
+        if current_outstanding > ZERO_DECIMAL:
+            action_message = f"COVERED WITHIN TOLERANCE: R{current_outstanding:.2f} shortfall falls within R5 max limit. Ready to Finalize."
+        else:
+            action_message = "FULLY COVERED. Ready to Finalize."
+    elif total_coverage_available >= current_outstanding:
+        is_proceed_enabled = True
+        action_message = f"FULL COVERAGE AVAILABLE: R{total_coverage_available:.2f} available to clear R{current_outstanding:.2f} balance."
+    else:
+        is_proceed_enabled = False
+        action_message = f"Action REQUIRED: R{current_outstanding:.2f} liability remains (exceeds R5 tolerance)."
+
+    context = {
+        'bill_record': bill_record,
+        'company_code': company_code,
+        'total_debt': total_debt,
+        'total_available_credit': total_available_credit_value,
+        'scheduled_amount': scheduled_amount,
+        'total_credit_notes_assigned': total_credit_notes_assigned,
+        'total_available_surplus': total_available_surplus_value,
+        'total_cash_applied': total_cash_applied,
+        'remaining_schedule_amount': remaining_scheduled_amount,
+        'current_outstanding': current_outstanding, 
+        'all_lines': available_debt_lines.all().order_by('transaction_date'),
+        'available_credits': available_credits,
+        'credit_notes': credit_notes_history,
+        'available_surpluses': available_surpluses,
+        'applied_journals': applied_journals,
+        'available_bank_journals': available_bank_journals,  
+        'applied_bank_journals': applied_bank_journals,  # 🚀 Added to context so template script reads it
+        'action_message': action_message,
+        'is_proceed_enabled': is_proceed_enabled,
+        'available_surplus': total_bank_surplus,
+        'manual_credits_total': manual_credits_total,
+    }
+    
+    return render(request, 'unity_internal_app/pre_bill_summary.html', context)
+
+@login_required
+@transaction.atomic
+def process_bill_settlement(request, company_code, bill_id):
+    """***FUNCTION DISABLED***"""
+    messages.error(request, "Settlement processing is disabled due to the exclusion of Deposit Amount logic.")
+    return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
+
+def get_bank_lines_used_in_settlement(bill_record):
+    """
+    Retrieves the unique ReconnedBank lines that were applied to the given UnityBill 
+    for the final summary table.
+    """
+    # 1. Get the primary keys (IDs) of all ReconnedBank lines found in the BillSettlement audit trail for this bill.
+    used_line_ids = BillSettlement.objects.filter(
+        unity_bill_source_id=bill_record.id
+    ).values_list('reconned_bank_line_id', flat=True).distinct()
+    
+    # 2. Retrieve the ReconnedBank objects corresponding to those IDs.
+    # Assumes ReconnedBank has a ForeignKey 'bank_line' for descriptions.
+    used_lines = ReconnedBank.objects.filter(
+        id__in=used_line_ids
+    ).select_related('bank_line').order_by('transaction_date')
+    
+    return used_lines
+
+# Note: The other two helpers (calculate_total_settled_for_display and 
+# calculate_total_credit_assigned) are now calculated directly inside 
+# reconciliation_success_view, making explicit helper functions unnecessary.
+
+# --- CORE VIEW FUNCTIONS ---
+
+# --- HELPER FUNCTIONS DEFINITIONS (To resolve Pylance errors and ensure data integrity) ---
+
+def get_bank_lines_used_in_settlement(bill_record):
+    """
+    Retrieves the unique ReconnedBank lines that were applied to the given UnityBill 
+    for the final summary table.
+    """
+    # 1. Get the primary keys (IDs) of all ReconnedBank lines found in the BillSettlement audit trail for this bill.
+    used_line_ids = BillSettlement.objects.filter(
+        unity_bill_source_id=bill_record.id
+    ).values_list('reconned_bank_line_id', flat=True).distinct()
+    
+    # 2. Retrieve the ReconnedBank objects corresponding to those IDs.
+    # We use select_related to efficiently fetch the description from the related BankLine table.
+    used_lines = ReconnedBank.objects.filter(
+        id__in=used_line_ids
+    ).select_related('bank_line').order_by('transaction_date')
+    
+    return used_lines
+
+# --- CORE VIEW FUNCTIONS ---
+
+@login_required
+@transaction.atomic
+def process_cash_allocation(request, company_code, bill_id):
+    """
+    Handles cash allocation for a single selected bank line.
+    PRESERVES the original bank transaction amount (e.g., R2500) for audit.
+    Any remainder is moved to a CreditNote or New Segment, and the parent is marked as 'Exhausted'.
+    """
+    if request.method != 'POST':
+        messages.error(request, "Invalid request method.")
+        return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
+
+    aware_dt = timezone.now()
+    selected_recon_id = request.POST.get('selected_recon_id')
+    amount_to_apply_str = request.POST.get('amount_to_apply')
+    should_split_and_reallocate = request.POST.get('split_and_reallocate') == 'True' 
+
+    try:
+        amount_to_apply = Decimal(amount_to_apply_str) 
+        recon_line = ReconnedBank.objects.select_for_update().get(pk=selected_recon_id, company_code=company_code)
+        bill_record = UnityBill.objects.select_for_update().get(pk=bill_id, C_Company_Code=company_code)
+        
+        # 1. Audit Check: The 'Truth' is the original transaction amount.
+        original_bank_amount = recon_line.transaction_amount
+        line_unsettled = original_bank_amount - recon_line.amount_settled
+
+        if amount_to_apply > (line_unsettled + Decimal('0.0001')):
+            messages.error(request, f"Allocation failed: Only R{line_unsettled:.2f} remains.")
+            return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
+            
+        # 2. Bill Coverage Check
+        bill_settled_agg = BillSettlement.objects.filter(unity_bill_source_id=bill_record.pk).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
+        journal_total = JournalEntry.objects.filter(target_bill=bill_record).aggregate(total=Sum('amount'))['total'] or ZERO_DECIMAL
+        bill_remaining_liability = bill_record.H_Schedule_Amount - (bill_settled_agg + journal_total)
+        
+        # 3. Final Application Amount
+        final_amount_applied = min(amount_to_apply, bill_remaining_liability)
+        
+        # 4. Create Bill Settlement (The portion used for THIS bill)
+        BillSettlement.objects.create(
+            reconned_bank_line=recon_line,
+            unity_bill_source=bill_record,
+            settled_amount=final_amount_applied,
+            settlement_date=aware_dt,
+            confirmed_by=request.user,
+            original_import_bank_id=recon_line.bank_line_id,
+        )
+        
+        # 5. Handle the Remainder (The "Bank-Surplus")
+        amount_left_on_source = line_unsettled - final_amount_applied
+        
+        if amount_left_on_source > Decimal('0.009'):
+            if should_split_and_reallocate:
+                # Option A: Split to a new unassigned bank line segment
+                ReconnedBank.objects.create(
+                    bank_line_id=recon_line.bank_line_id,
+                    company_code=None,
+                    transaction_amount=amount_left_on_source,
+                    transaction_date=recon_line.transaction_date,
+                    recon_status='Unreconciled - Remainder',
+                    amount_settled=ZERO_DECIMAL,
+                )
+            else:
+                # Option B: Move to CreditNote as an Approved Bank-Surplus (Skipping Manager Approval)
+                CreditNote.objects.create(
+                    member_group_code=company_code,
+                    schedule_amount=amount_left_on_source,
+                    credit_link_status='Approved',
+                    link_request_reason="Bank-Surplus credit line",
+                    source_bank_line=recon_line,
+                    comment=f"Bank-Surplus generated from R{original_bank_amount} deposit. R{final_amount_applied} used for Bill {bill_id}",
+                    processed_by=request.user.username,
+                    processed_date=aware_dt,
+                    ccdates_month=bill_record.A_CCDatesMonth,
+                    bank_stmt_date=recon_line.transaction_date,
+                    note_selection="Bank-Surplus" 
+                )
+                messages.success(request, f"R{amount_left_on_source:.2f} automatically approved as Bank-Surplus.")
+
+        # 6. EXHAUST THE PARENT LINE
+        # By setting settled to the original amount, (transaction - settled) = 0.
+        # But we NEVER change the transaction_amount itself.
+        recon_line.amount_settled = original_bank_amount
+        recon_line.recon_status = 'Reconciled'
+        recon_line.save()
+        
+        messages.success(request, f"Applied R{final_amount_applied:.2f}. Source R{original_bank_amount} preserved.")
+        return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
+        
+    except Exception as e:
+        messages.error(request, f"Allocation Error: {str(e)}")
+        return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
+
+
+# Constants for precision math
+ZERO_DECIMAL = Decimal('0.00')
+SAFETY_TOLERANCE = Decimal('0.0001')
+
+    
+@login_required
+@transaction.atomic
+def finalize_reconciliation(request, company_code, bill_id):
+    """
+    Processes bulk allocations, then finalizes the bill and ensures the 
+    recon_note is applied to ALL settlement records tied to this bill.
+    """
+    from decimal import Decimal
+    from django.db.models import Sum
+    from django.utils import timezone
+    
+    ZERO_DECIMAL = Decimal('0.00')
+    MAX_SHORTFALL_TOLERANCE = Decimal('5.00')  # Max R5 shortfall allowed to close a bill
+    BANK_LINE_TOLERANCE = Decimal('0.01')      # Float tolerance for bank lines
+    
+    try:
+        bill_record = UnityBill.objects.select_for_update().get(pk=bill_id, C_Company_Code=company_code)
+        aware_dt = timezone.now()
+        
+        # 🚀 1. Capture the Recon Note from the Modal POST
+        recon_note = request.POST.get('recon_note', '').strip()
+
+        # 🚀 2. PROCESS BULK ALLOCATIONS (If any checkboxes were checked)
+        if request.method == 'POST':
+            selected_ids = request.POST.getlist('selected_recon_ids')
+            
+            for recon_id in selected_ids:
+                amount_str = request.POST.get(f'amount_to_apply_{recon_id}')
+                if not amount_str:
+                    continue
+                
+                amount_to_apply = Decimal(amount_str)
+                if amount_to_apply <= ZERO_DECIMAL:
+                    continue
+
+                recon_line = ReconnedBank.objects.select_for_update().get(pk=recon_id)
+                
+                line_unsettled = recon_line.transaction_amount - recon_line.amount_settled
+                applied_amount = min(amount_to_apply, line_unsettled)
+
+                # Create Audit Trail (New entries get the note immediately)
+                BillSettlement.objects.create(
+                    reconned_bank_line=recon_line,
+                    unity_bill_source=bill_record,
+                    settled_amount=applied_amount,
+                    settlement_date=aware_dt,
+                    confirmed_by=request.user,
+                    original_import_bank_id=recon_line.bank_line_id,
+                    settlement_note=recon_note, # ✨ Stamping note on new allocations
+                )
+
+                # Update Bank Line
+                recon_line.amount_settled += applied_amount
+                if recon_line.amount_settled >= (recon_line.transaction_amount - BANK_LINE_TOLERANCE):
+                    recon_line.recon_status = 'Reconciled'
+                else:
+                    recon_line.recon_status = 'Partially Reconciled'
+                recon_line.save()
+
+        # 🚀 3. THE FIX: SWEEP NOTE TO ALL EXISTING SETTLEMENTS
+        if recon_note:
+            BillSettlement.objects.filter(
+                unity_bill_source_id=bill_record.pk
+            ).update(settlement_note=recon_note)
+
+        # 🚀 4. FINALIZATION CHECK (Verify if bill is now balanced)
+        
+        # Total from standard settlements (Cash, Credits, Staged Journals)
+        bill_settled_agg = BillSettlement.objects.filter(
+            unity_bill_source_id=bill_record.pk
+        ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
+        
+        # Total from Surplus Journals explicitly assigned to this bill
+        journal_agg = JournalEntry.objects.filter(
+            target_bill=bill_record
+        ).aggregate(total=Sum('amount'))['total'] or ZERO_DECIMAL
+
+        # Calculate final outstanding amount
+        total_allocated = bill_settled_agg + journal_agg
+        scheduled_amount = bill_record.H_Schedule_Amount or ZERO_DECIMAL
+        remaining_liability = max(ZERO_DECIMAL, scheduled_amount - total_allocated)
+        
+        # Check if liability falls within the acceptable R5 shortfall
+        if remaining_liability <= MAX_SHORTFALL_TOLERANCE:
+            if not bill_record.is_reconciled:
+                bill_record.is_reconciled = True
+                
+                # --- PRESERVE EXISTING DATE IF PRESENT ---
+                # Only set J_Final_Date if it is currently NULL/None
+                if not bill_record.J_Final_Date:
+                    print(f"DEBUG: J_Final_Date was empty. Setting to: {aware_dt.date()}")
+                    bill_record.J_Final_Date = aware_dt.date()
+                else:
+                    print(f"DEBUG: J_Final_Date already exists ({bill_record.J_Final_Date}). Keeping it.")
+                
+                bill_record.save()
+                
+                # Verify immediately after save
+                bill_record.refresh_from_db()
+                print(f"DEBUG: Database confirmed J_Final_Date is: {bill_record.J_Final_Date}")
+                # ------------------------------------------
+
+                # Save the Closing Note to the General Audit Trail
+                UnityClaimNote.objects.create(
+                    company_code=company_code,
+                    note_description=f"RECON FINALIZED: {recon_note}" if recon_note else "Bill Reconciled and Closed.",
+                    note_selection="RECON CLOSURE",
+                    created_by=request.user
+                )
+
+                messages.success(request, f"Bill #{bill_id} successfully reconciled. Note applied to all ledger entries.")
+                
+                # Redirect to success view
+                return redirect('reconciliation_success_view', company_code=company_code, bill_id=bill_id)
+            else:
+                messages.info(request, "Bill is already reconciled.")
+        else:
+            messages.error(request, f"Liability of R{remaining_liability:.2f} remains (exceeds R5 tolerance). Bill cannot be closed yet.")
+
+        return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
+
+    except Exception as e:
+        messages.error(request, f"Error during finalization: {e}")
+        return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
+    
+@login_required
+def reconciliation_success_view(request, company_code, bill_id):
+    """
+    Renders the confirmation/final summary page after successful reconciliation.
+    Gathers all required context for finalize_reconciliation.html.
+    """
+    bill_record = get_object_or_404(UnityBill, id=bill_id, C_Company_Code=company_code)
+    
+    # --- Data Aggregation ---
+    
+    # 1. Settled Totals (Cash + Credit + Journal)
+    total_settled_against_bill = BillSettlement.objects.filter(
+        unity_bill_source_id=bill_record.pk
+    ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
+    
+    total_credit_assigned = BillSettlement.objects.filter(
+        unity_bill_source_id=bill_record.pk, 
+        source_credit_note_id__isnull=False
+    ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
+    
+    # 2. Bank Lines used for settlement display
+    lines_to_settle = get_bank_lines_used_in_settlement(bill_record) 
+    
+    # 3. Fiscal Dates calculation
+    bill_date = bill_record.A_CCDatesMonth
+    month_start_date = bill_date.replace(day=1)
+    fiscal_starting_date = month_start_date 
+    fiscal_closing_date = month_start_date + relativedelta(months=1) - relativedelta(days=1)
+    
+    # 4. Final Math for Template Display
+    total_scheduled_amount_initial = bill_record.H_Schedule_Amount
+    # Remaining liability should be 0, but we use max() to avoid negative display
+    scheduled_amount = max(ZERO_DECIMAL, total_scheduled_amount_initial - total_settled_against_bill)
+    
+    # total_debt represents the total funds applied (total_settled_against_bill)
+    total_debt = total_settled_against_bill
+    
+    # --- Context Setup (Matches finalize_reconciliation.html variables) ---
+    context = {
+        'company_code': company_code,
+        'bill_record': bill_record,
+        'lines_to_settle': lines_to_settle, 
+        'total_debt': total_debt,
+        'total_scheduled_amount_initial': total_scheduled_amount_initial,
+        'total_settled_against_bill': total_settled_against_bill,
+        'total_credit_assigned': total_credit_assigned,
+        'scheduled_amount': scheduled_amount,
+        
+        'fiscal_starting_date': fiscal_starting_date,
+        'fiscal_closing_date': fiscal_closing_date,
+
+        'warning_message': '✅ RECONCILIATION SUCCESSFUL: This bill is permanently closed.', 
+        'settle_button_text': 'Reconciliation Complete',
+    }
+    
+    return render(request, 'unity_internal_app/finalize_reconciliation.html', context)
+    
+@login_required
+@transaction.atomic
+def edit_bill(request, company_code, bill_id):
+    """
+    Loads an existing UnityBill record for editing and handles form submission.
+    CRITICAL FIX: Prevents R0.00 scheduled bills from being finalized when edited.
+    FIX: Corrected redirection logic to manually handle the URL anchor.
+    """
+    # 1. Fetch the existing bill record
+    # Assuming UnityBill is correctly imported
+    bill_record = get_object_or_404(
+        UnityBill,
+        id=bill_id,
+        C_Company_Code=company_code
+    )
+    
+    if request.method == 'POST':
+        # 2. Bind the form data to the instance
+        # Assuming PreBillForm is imported
+        form = PreBillForm(request.POST, instance=bill_record)
+        
+        if form.is_valid():
+            # 3. Save the updated instance, but commit=False first to apply custom logic
+            edited_bill = form.save(commit=False)
+            
+            # --- CRITICAL R0.00 CHECK ---
+            scheduled_amount = edited_bill.H_Schedule_Amount or ZERO_DECIMAL
+            
+            if scheduled_amount <= ZERO_DECIMAL:
+                # If the scheduled amount is zero, prevent database closure by clearing final dates.
+                edited_bill.J_Final_Date = None
+                edited_bill.I_Submitted_Date = None
+                messages.warning(request, f"Bill #{bill_id} saved, but R0.00 scheduled amount prevents closure. Status remains open.")
+            
+            # Now save the record with the potentially updated dates
+            edited_bill.save()
+            
+            messages.success(request, f"Bill for {company_code} (ID: {bill_id}) successfully updated.")
+            
+            # --- FIX: MANUALLY APPEND ANCHOR ---
+            # 1. Reverse the URL using only the accepted keyword arguments ('company_code').
+            url = reverse('unity_information', kwargs={'company_code': company_code})
+            
+            # 🛑 CRITICAL FIX: Add cache-busting timestamp to the redirect URL
+            timestamp = timezone.now().timestamp()
+            
+            # 2. Append the anchor string ('#recon') manually.
+            return redirect(f"{url}?cache={timestamp}#recon")
+
+        else:
+            messages.error(request, "Please correct the errors in the form.")
+            
+    else:
+        # 4. For GET requests, load the form with the existing instance data
+        form = PreBillForm(instance=bill_record)
+
+    context = {
+        'company_code': company_code,
+        'form': form,
+        'bill_id': bill_id,
+        'is_editing': True,
+    }
+    
+    # Use the generic template
+    return render(request, 'unity_internal_app/bill_form.html', context)
+
+# --- Define ALL required Excel headers (Remains the same) ---
+EXCEL_FIELD_MAPPING = {
+    'CCDates Month': 'ccdates_month',
+    'Fund Code': 'fund_code',
+    'Member Group Code': 'member_group_code',
+    'Member Group Name': 'member_group_name',
+    'Active Members - (Info from FuturaSA & NOT checked by Sanlam)': 'active_members',
+    'Schedule Date': 'schedule_date',
+    'Final Data Received Date': 'final_data_received_date',
+    'Schedule Amount': 'schedule_amount',
+    'Confirmation Date': 'confirmation_date',
+    'Bank Stmt Date': 'bank_stmt_date',
+    'Bank Deposit Amount': 'bank_deposit_amount',
+    'Allocated Amount (For Front Office use & not to be checked by Sanlam)': 'allocated_amount',
+    'Comment': 'comment',
+    'Receipt In Live': 'receipt_in_live',
+    'Receipting done by': 'receipting_done_by',
+    '0101 Balance Sufficnt: Yes/No': 'balance_sufficient_flag',
+    'Date & Letter checked:': 'date_letter_checked',
+    'Done by:': 'done_by',
+}
+# ----------------------------------------------------
+
+# --- HELPER FUNCTIONS (MUST BE DEFINED BEFORE import_credit) ---
+# ----------------------------------------------------
+def clean_value(value):
+    """Cleans and strips white space from a value."""
+    if value is None:
+        return ''
+    return str(value).strip()
+
+# CORRECTED parse_date function (Around line 1060)
+def parse_date(date_obj):
+    """
+    Handles parsing date strings or datetime/date objects.
+    Returns a Python datetime.date object or None.
+    """
+    if date_obj is None or date_obj == '':
+        return None
+    
+    # 1. Handle Python datetime/date objects
+    if isinstance(date_obj, datetime):
+        return date_obj.date()
+    if isinstance(date_obj, date): # <--- Checks against the imported 'date' class
+        return date_obj
+    
+    # 2. Convert value to clean string
+    date_str = str(date_obj).strip()
+    date_str = date_str.split(' ')[0] # Strip off any time component
+    
+    # 3. Try common formats
+    for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%m/%d/%Y', '%Y%m%d'):
+        try:
+            return datetime.strptime(date_str, fmt).date()
+        except ValueError:
+            continue
+            
+    return None
+
+def parse_decimal(amount_str):
+    """Cleans and converts string to Decimal."""
+    if amount_str is None or amount_str == '':
+        return None
+    cleaned = str(amount_str).replace('R', '').replace(',', '').strip()
+    try:
+        if not cleaned: return None
+        return Decimal(cleaned)
+    except Exception:
+        return None
+
+# ----------------------------------------------------
+# --- IMPORT_CREDIT FUNCTION (Calls the helpers above) ---
+# ----------------------------------------------------
+@login_required
+@transaction.atomic
+def import_credit(request):
+    if request.method != 'POST' or 'credit_file' not in request.FILES:
+        return render(request, 'unity_internal_app/import_credit.html', {'expected_headers': EXCEL_FIELD_MAPPING.keys()})
+        
+    credit_file = request.FILES['credit_file']
+    filename = credit_file.name
+    rows = []
+    
+    # 1. DETERMINE READER METHOD AND READ FILE DATA (Logic unchanged)
+    if filename.endswith(('.xlsx', '.xls')):
+        # XLSX/XLS: Use openpyxl to read
+        try:
+            from openpyxl import load_workbook
+            workbook = load_workbook(credit_file)
+            sheet = workbook.active
+            rows = [[clean_value(cell.value) for cell in row] for row in sheet.iter_rows()]
+            
+            if len(rows) > 4:
+                rows = rows[4:]
+            else:
+                messages.error(request, "Excel file too short. Cannot skip the first 4 rows.")
+                return redirect('import_credit')
+                
+        except Exception as e:
+            messages.error(request, f"Error reading Excel file: {e}")
+            return redirect('import_credit')
+    
+    elif filename.endswith('.csv'):
+        # CSV: Use standard CSV reader
+        try:
+            file_data = credit_file.read().decode('utf-8')
+            io_string = io.StringIO(file_data)
+            
+            try:
+                import csv
+                dialect = csv.Sniffer().sniff(io_string.readline())
+                io_string.seek(0)
+                reader = csv.reader(io_string, dialect)
+            except Exception:
+                io_string.seek(0)
+                reader = csv.reader(io_string, delimiter=',')
+                
+            all_csv_rows = list(reader)
+
+            if len(all_csv_rows) > 4:
+                rows = all_csv_rows[4:]
+            else:
+                messages.error(request, "CSV file too short. Cannot skip the first 4 rows.")
+                return redirect('import_credit')
+                
+        except UnicodeDecodeError:
+            messages.error(request, "Unicode Decode Error: The CSV file is not encoded in UTF-8. Try saving it as CSV (Comma delimited) with UTF-8 encoding.")
+            return redirect('import_credit')
+        except Exception as e:
+            messages.error(request, f"Error reading CSV file: {e}")
+            return redirect('import_credit')
+    
+    else:
+        messages.error(request, "Invalid file format. Please upload an Excel (.xlsx/.xls) or CSV file.")
+        return redirect('import_credit')
+    
+    if not rows:
+        messages.error(request, "No data rows found after skipping template headers.")
+        return redirect('import_credit')
+
+    # 2. READ HEADER (Logic unchanged)
+    try:
+        header = rows.pop(0)
+        column_indices = {}
+        
+        for excel_header, target_field in EXCEL_FIELD_MAPPING.items():
+            try:
+                index = header.index(excel_header)
+                column_indices[target_field] = index
+            except ValueError:
+                column_indices[target_field] = None
+        
+        if column_indices.get('member_group_code') is None:
+            messages.error(request, f"Import failed: Mandatory column 'Member Group Code' is missing from the effective header row (Row 5 in the file).")
+            return redirect('import_credit')
+    except Exception as e:
+        messages.error(request, f"Error during header processing: {e}")
+        return redirect('import_credit')
+
+
+    # 3. PROCESS ROWS (Using single saves and strict field type checking)
+    rows_processed = 0
+    
+    # Get the CreditNote model's field map once for efficiency
+    credit_note_fields = {f.name: f for f in CreditNote._meta.fields}
+
+    try:
+        with transaction.atomic():
+            for row in rows:
+                if not any(row) or len(row) < len(header):
+                    continue
+                
+                row_data = {}
+                has_error = False
+                
+                for target_field, index in column_indices.items():
+                    if index is not None and index < len(row):
+                        raw_value = row[index]
+                        
+                        # --- Type-specific parsing and ASSIGNMENT ---
+                        if target_field in credit_note_fields:
+                            field_instance = credit_note_fields[target_field]
+                            
+                            if isinstance(field_instance, DateField):
+                                parsed_date = parse_date(raw_value)
+                                
+                                # Explicitly format to YYYY-MM-DD string only if parsed
+                                if parsed_date:
+                                    row_data[target_field] = parsed_date.strftime('%Y-%m-%d')
+                                else:
+                                    row_data[target_field] = None
+                                    
+                            elif isinstance(field_instance, DateTimeField):
+                                # If you had DATETIME fields from Excel, parse them here
+                                row_data[target_field] = None
+                            
+                            elif 'amount' in target_field or target_field == 'schedule_amount':
+                                row_data[target_field] = parse_decimal(raw_value)
+                            
+                            elif target_field == 'active_members':
+                                try:
+                                    row_data[target_field] = int(clean_value(raw_value))
+                                except ValueError:
+                                    row_data[target_field] = None
+                                    
+                            else:
+                                row_data[target_field] = clean_value(raw_value)
+                        
+                    else:
+                        row_data[target_field] = None
+                    
+                    if target_field == 'member_group_code' and not row_data.get('member_group_code'):
+                        messages.warning(request, f"Skipping row {rows_processed + 1}: Missing mandatory 'Member Group Code'.")
+                        has_error = True
+                        break
+                
+                if has_error:
+                    continue
+
+                # Handle processed_date (The only DATETIME field in your target table)
+                # 🛠️ CRITICAL FIX APPLIED HERE: Using datetime.now() instead of datetime.datetime.now()
+                row_data['processed_date'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                row_data['processed_by'] = request.user.username
+                
+                # --- Create the object ---
+                CreditNote.objects.create(**row_data)
+                
+                rows_processed += 1
+            
+        if rows_processed > 0:
+            messages.success(request, f"Successfully imported {rows_processed} Bill Detail Records into Credit_note.")
+        else:
+            messages.warning(request, "No valid records found to import.")
+            
+    except Exception as e:
+        messages.error(request, f"A critical database error occurred during single insertion (Row {rows_processed + 1}): {e}")
+        
+    return redirect('import_credit')
+
+@login_required
+def credit_note_list(request):
+    """
+    Displays all imported and manually created CreditNote records.
+    Updated to include Pending and Approved items so they can be 
+    toggled in the UI.
+    """
+    # Use __in to fetch all three statuses
+    credit_notes = CreditNote.objects.filter(
+        credit_link_status__in=['Unlinked', 'Pending', 'Approved']
+    ).order_by('-processed_date')
+    
+    context = {
+        'page_title': 'Available Credit Imports',
+        'credit_notes': credit_notes,
+    }
+    
+    return render(request, 'unity_internal_app/credit_note_list.html', context)
+
+@login_required
+@transaction.atomic
+def assign_fiscal_date_view(request, note_id):
+    from django.contrib import messages
+    from django.shortcuts import redirect, get_object_or_404, render
+    from django.urls import reverse
+    from django.utils import timezone
+    from decimal import Decimal
+    from .models import CreditNote, UnityBill
+    from .forms import FiscalDateAssignmentForm
+
+    note_record = get_object_or_404(CreditNote, id=note_id)
+    current_company_code = note_record.member_group_code 
+
+    if request.method == 'POST':
+        form = FiscalDateAssignmentForm(request.POST, instance=note_record)
+        
+        # Ensure manually handled fields don't block validation
+        if 'fiscal_date' in form.fields: form.fields['fiscal_date'].required = False
+        if 'target_bill_id' in form.fields: form.fields['target_bill_id'].required = False
+
+        new_group_code = request.POST.get('member_group_code')
+        link_reason = request.POST.get('link_reason')
+        requested_amt = request.POST.get('requested_link_amount')
+        
+        # Capture the new inputs from the updated HTML
+        bank_fiscal_input = request.POST.get('fiscal_date')
+        date_identified_input = request.POST.get('date_identified')
+
+        if form.is_valid() and new_group_code:
+            note = form.save(commit=False)
+            
+            # Update Core Workflow Fields
+            note.member_group_code = new_group_code
+            note.link_request_reason = link_reason
+            
+            # Update the specific date fields
+            if bank_fiscal_input:
+                note.fiscal_date = bank_fiscal_input
+            if date_identified_input:
+                note.date_identified = date_identified_input
+            
+            # Handle the Allocation Amount
+            if requested_amt:
+                try:
+                    note.requested_amount = Decimal(requested_amt)
+                except (ValueError, TypeError):
+                    note.requested_amount = note.schedule_amount
+            
+            # Find an open bill for linking
+            open_bill = UnityBill.objects.filter(
+                C_Company_Code=new_group_code,
+                is_reconciled=False
+            ).order_by('A_CCDatesMonth').first()
+            
+            if open_bill:
+                note.pending_linked_bill = open_bill
+                note.credit_link_status = 'Pending'
+                note.save()
+                messages.success(request, f"Requested R{note.requested_amount} allocation for Bill #{open_bill.id}.")
+            else:
+                note.save()
+                messages.warning(request, "Request saved, but no open bill was found for this code.")
+
+            timestamp = timezone.now().timestamp()
+            return redirect(f"{reverse('unity_billing_history', kwargs={'company_code': new_group_code})}?cache={timestamp}#credit")
+    else:
+        form = FiscalDateAssignmentForm(instance=note_record)
+
+    context = {
+        'page_title': 'Request Link Approval', 
+        'note': note_record, 
+        'form': form, 
+        'company_code': current_company_code
+    }
+    return render(request, 'unity_internal_app/assign_fiscal_date.html', context)
+
+@login_required
+@transaction.atomic
+def allocate_surplus_to_bill(request, bill_id):
+    """
+    Process the allocation of a Surplus to a Bill via a Journal Entry.
+    UPDATED: Now triggers is_reconciled = True if the allocation completes the bill.
+    """
+    # Ensure local imports are available inside the function or globally
+    from django.db.models import Sum
+    from decimal import Decimal
+    from django.utils import timezone
+    from datetime import datetime
+
+    if request.method != 'POST':
+        return redirect('dashboard')
+
+    # 1. Get Data from POST
+    surplus_id = request.POST.get('surplus_id')
+    amount_str = request.POST.get('amount')
+    
+    target_bill = get_object_or_404(UnityBill, pk=bill_id)
+    company_code = target_bill.C_Company_Code
+    
+    try:
+        amount_to_allocate = Decimal(amount_str)
+        if amount_to_allocate <= ZERO_DECIMAL:
+            raise ValueError("Amount must be positive.")
+
+        # --- Fetch Surplus and Validate ---
+        surplus = ScheduleSurplus.objects.select_for_update().get(pk=surplus_id)
+        
+        # Check if enough remains (DB level check)
+        used_so_far = JournalEntry.objects.filter(surplus_source=surplus).aggregate(sum=Sum('amount'))['sum'] or ZERO_DECIMAL
+        remaining_surplus = surplus.surplus_amount - used_so_far
+
+        if amount_to_allocate > remaining_surplus:
+            messages.error(request, f"Cannot allocate R{amount_to_allocate}. Only R{remaining_surplus} remains in this surplus.")
+            return redirect(reverse('pre_bill_reconciliation_summary', kwargs={'company_code': company_code, 'bill_id': bill_id}))
+
+        current_date_obj = timezone.now().date()
+        naive_dt = datetime.combine(current_date_obj, datetime.min.time())
+        aware_dt = timezone.make_aware(naive_dt)
+
+        # 1. Create the Journal Entry
+        journal_entry = JournalEntry.objects.create(
+            surplus_source=surplus,
+            target_bill=target_bill,
+            amount=amount_to_allocate,
+            created_by=request.user.username,
+            allocation_date=current_date_obj
+        )
+        
+        # 2. Create the BillSettlement record
+        BillSettlement.objects.create(
+            reconned_bank_line=None,
+            unity_bill_source=target_bill,
+            settled_amount=amount_to_allocate,
+            settlement_date=aware_dt,
+            source_credit_note_id=None,
+            source_journal_entry_id=journal_entry.pk
+        )
+        
+        # 3. Update Surplus Status
+        new_used_amount = used_so_far + amount_to_allocate
+        
+        if new_used_amount >= surplus.surplus_amount:
+            surplus.status = 'FULLY_APPLIED'
+        else:
+            surplus.status = 'PARTIALLY_APPLIED'
+        surplus.save()
+
+        # ============================================================
+        # --- NEW LOGIC: CHECK FOR BILL COMPLETION (THE TRIGGER) ---
+        # ============================================================
+        
+        # Calculate total paid so far (Cash + Credits + Journals)
+        total_settled = BillSettlement.objects.filter(
+            unity_bill_source_id=target_bill.pk
+        ).aggregate(t=Sum('settled_amount'))['t'] or ZERO_DECIMAL
+        
+        # Check if bill is fully paid
+        if total_settled >= target_bill.H_Schedule_Amount:
+            target_bill.is_reconciled = True  # <--- FLIP THE SWITCH
+            target_bill.save()
+            messages.success(request, f"Allocation successful. Bill #{target_bill.id} is now FULLY RECONCILED.")
+        else:
+            messages.success(request, f"Journal Entry created! R{amount_to_allocate} allocated. Bill remains OPEN.")
+
+    except Exception as e:
+        messages.error(request, f"Allocation failed: {str(e)}")
+
+    # Redirect
+    timestamp = timezone.now().timestamp()
+    return redirect(f"{reverse('pre_bill_reconciliation_summary', kwargs={'company_code': company_code, 'bill_id': bill_id})}?cache={timestamp}")
+
+@login_required
+def settle_bill_report(request, company_code, bill_id):
+    """
+    Read-only Audit Report for a settled bill.
+    FIX: Added remaining_balance logic to prevent incorrect negative credit display.
+    """
+    from decimal import Decimal
+    from django.db.models import Sum
+    from django.shortcuts import get_object_or_404, render
+    # Ensure ZERO_DECIMAL is defined if not global
+    ZERO_DECIMAL = Decimal('0.00')
+    
+    from .models import UnityBill, BillSettlement, CreditNote, JournalEntry, ScheduleSurplus
+
+    bill_record = get_object_or_404(UnityBill, id=bill_id, C_Company_Code=company_code)
+    
+    # 1. Fetch CASH Settlements (where reconned_bank_line is NOT NULL)
+    settlements = BillSettlement.objects.filter(
+        unity_bill_source_id=bill_record.id,
+        reconned_bank_line_id__isnull=False,
+    ).select_related('reconned_bank_line', 'reconned_bank_line__bank_line').order_by('settlement_date')
+    
+    settled_total = sum(s.settled_amount for s in settlements)
+
+    # 2. Fetch CREDIT Settlements (where source_credit_note_id is NOT NULL)
+    credit_settlements = BillSettlement.objects.filter(
+        unity_bill_source_id=bill_record.id,
+        source_credit_note_id__isnull=False
+    ).order_by('settlement_date')
+    
+    credit_total = sum(c.settled_amount or ZERO_DECIMAL for c in credit_settlements)
+
+    # 3. ATTACH CREDIT NOTE DETAILS
+    credit_ids = [s.source_credit_note_id for s in credit_settlements if s.source_credit_note_id is not None]
+    credit_note_map = {
+        cn.id: cn for cn in CreditNote.objects.filter(id__in=credit_ids)
+    }
+    
+    for settlement in credit_settlements:
+        settlement.original_credit_note = credit_note_map.get(settlement.source_credit_note_id)
+
+    # 4. Fetch SURPLUS Settlements (where source_journal_entry_id is NOT NULL)
+    journal_settlements = BillSettlement.objects.filter(
+        unity_bill_source_id=bill_record.id,
+        source_journal_entry_id__isnull=False
+    ).order_by('settlement_date')
+
+    journal_total = sum(j.settled_amount or ZERO_DECIMAL for j in journal_settlements)
+
+    # 5. Calculation Logic Fix
+    total_paid = settled_total + credit_total + journal_total
+    scheduled_amount = bill_record.H_Schedule_Amount or ZERO_DECIMAL
+    
+    # This is the fix: Baseline is the Schedule, not the Cash Received
+    remaining_balance = scheduled_amount - total_paid
+    
+    # 6. Check for Surplus Generated
+    generated_surplus = ScheduleSurplus.objects.filter(unity_bill_source_id=bill_record.id).first()
+
+    context = {
+        'bill': bill_record,
+        'company_code': company_code,
+        
+        # Data Lists
+        'settlements': settlements,
+        'credit_settlements': credit_settlements,
+        'journal_settlements': journal_settlements,
+        'generated_surplus': generated_surplus,
+        
+        # Totals
+        'settled_total': settled_total,    # This is your "Net Cash"
+        'credit_total': credit_total,
+        'journal_total': journal_total,
+        'total_paid': total_paid,
+        'remaining_balance': remaining_balance, # Use this in your template for the balance row
+        'zero': ZERO_DECIMAL
+    }
+    
+    return render(request, 'unity_internal_app/settle_bill_report.html', context)
+
+from django.http import HttpResponse
+@login_required
+def export_settled_bill_csv(request, company_code, bill_id):
+    """
+    Exports the SINGLE settled bill details to a CSV file.
+    """
+    bill = get_object_or_404(UnityBill, id=bill_id, C_Company_Code=company_code)
+    
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = f'attachment; filename="Settled_Bill_{company_code}_{bill_id}.csv"'
+
+    writer = csv.writer(response)
+    
+    headers = [
+        'A_CCDatesMonth', 'B_Fund_Code', 'C_Company_Code', 'D_Company_Name',
+        'E_Active_Members', 'F_Pre-Bill_Date', 'G_Schedule_Date', 'H_Schedule_Amount',
+        'I_Submitted_Date', 'J_Final_Date', 'K_Bank_Stmt_Date', 'L_Bank_Deposit_Amount'
+    ]
+    writer.writerow(headers)
+
+    def write_row(date_val, amount_val):
+        writer.writerow([
+            bill.A_CCDatesMonth, bill.B_Fund_Code, bill.C_Company_Code, bill.D_Company_Name,
+            bill.E_Active_Members, bill.F_Pre_Bill_Date, bill.G_Schedule_Date, bill.H_Schedule_Amount,
+            bill.I_Submitted_Date, bill.J_Final_Date,
+            date_val, amount_val
+        ])
+
+    # 1. Bank Settlements
+    settlements = BillSettlement.objects.filter(unity_bill_source_id=bill.id).select_related('reconned_bank_line__bank_line')
+    for s in settlements:
+        # Need to check if reconned_bank_line is not None (credit/journal settlements won't have it)
+        if s.reconned_bank_line:
+            write_row(s.reconned_bank_line.bank_line.date if s.reconned_bank_line.bank_line else s.settlement_date.date(), s.settled_amount)
+
+    # 2. Credit Notes (redundant if using BillSettlement, but retained for old CreditNote model lookup)
+    credits = CreditNote.objects.filter(assigned_unity_bill=bill)
+    for c in credits:
+        write_row(c.fiscal_date or c.processed_date, c.schedule_amount)
+
+    # 3. Journal Entries
+    journals = JournalEntry.objects.filter(target_bill=bill)
+    for j in journals:
+        write_row(j.allocation_date, j.amount)
+
+    return response
+
+# --- DEFINE CONSTANTS ---
+# MAX_DEPOSITS constant
+MAX_DEPOSITS = 5
+TWO_PLACES = Decimal('0.00') # Assuming this is correctly defined globally
+ZERO_DECIMAL = Decimal('0.00')
+# Tolerance to handle floating point errors when comparing Decimal amounts to zero
+TOLERANCE = Decimal('0.00001')
+
+from django.contrib.auth.decorators import login_required
+
+@login_required
+def export_global_history_csv(request):
+    """
+    Export for the Section 13A / Global History Report.
+    Pulls all records matching the exact search and date criteria.
+    UPDATED: Correctly targets the 'importbank' table for Transaction_description.
+    """
+    from decimal import Decimal
+    from datetime import datetime, date
+    from collections import defaultdict
+    from django.db.models import Q
+    import openpyxl
+    from openpyxl.styles import PatternFill, Font, Border, Side, Alignment
+    from openpyxl.utils import get_column_letter
+    from django.http import HttpResponse
+
+    start_date_str = request.GET.get('start_date')
+    end_date_str = request.GET.get('end_date')
+    
+    def parse_date(date_string):
+        if not date_string:
+            return None
+        for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%Y/%m/%d'):
+            try:
+                return datetime.strptime(date_string, fmt).date()
+            except ValueError:
+                pass
+        return None
+
+    filter_start_date = parse_date(start_date_str)
+    filter_end_date = parse_date(end_date_str)
+
+    bills_queryset = UnityBill.objects.exclude(E_Active_Members=0).exclude(H_Schedule_Amount=0)
+
+    if filter_start_date and filter_end_date:
+        bills_queryset = bills_queryset.filter(
+            Q(I_Submitted_Date__range=(filter_start_date, filter_end_date)) |
+            Q(G_Schedule_Date__range=(filter_start_date, filter_end_date))
+        )
+    elif filter_start_date:
+        bills_queryset = bills_queryset.filter(
+            Q(I_Submitted_Date__gte=filter_start_date) |
+            Q(G_Schedule_Date__gte=filter_start_date)
+        )
+    elif filter_end_date:
+        bills_queryset = bills_queryset.filter(
+            Q(I_Submitted_Date__lte=filter_end_date) |
+            Q(G_Schedule_Date__lte=filter_end_date)
+        )
+
+    all_bills = list(bills_queryset.order_by('-G_Schedule_Date', 'C_Company_Code').distinct())
+    final_bill_ids = [bill.id for bill in all_bills]
+
+    source_details_map = defaultdict(list)
+    if final_bill_ids:
+        settlements = BillSettlement.objects.filter(unity_bill_source_id__in=final_bill_ids).order_by('settlement_date')
+
+        for settlement in settlements:
+            source = {'amount': settlement.settled_amount}
+
+            if settlement.reconned_bank_line:
+                recon_record = settlement.reconned_bank_line
+                import_record = recon_record.bank_line  # 🚀 THIS IS THE importbank TABLE
+
+                source['date'] = recon_record.transaction_date
+                source['type'] = 'Bank Line'
+                source['source'] = 'BANK'
+                source['bank_total'] = recon_record.transaction_amount
+                
+                # 🚀 PULL FROM importbank 🚀
+                if import_record:
+                    raw_desc = getattr(import_record, 'Transaction_description', '-')
+                    source['bank_ref'] = getattr(import_record, 'Statement_reference', raw_desc)
+                else:
+                    source['bank_ref'] = "-"
+
+            elif settlement.source_credit_note_id:
+                try:
+                    from .models import CreditNote
+                    credit_note = CreditNote.objects.get(id=settlement.source_credit_note_id)
+                    source['date'] = credit_note.bank_stmt_date or (settlement.settlement_date.date() if settlement.settlement_date else None)
+                    source['type'] = 'Credit Note'
+                    source['source'] = 'CREDIT'
+                    source['bank_total'] = credit_note.credit_amount
+                    source['bank_ref'] = getattr(credit_note, 'credit_note_number', '-')
+                except Exception:
+                    source['date'] = settlement.settlement_date.date() if settlement.settlement_date else None
+                    source['type'] = 'Credit Note (Source Missing)'
+                    source['source'] = 'CREDIT'
+                    source['bank_total'] = settlement.settled_amount
+                    source['bank_ref'] = "-"
+            else:
+                source['date'] = settlement.settlement_date.date() if settlement.settlement_date else None
+                source['type'] = 'Other Source'
+                source['source'] = 'OTHER'
+                source['bank_total'] = settlement.settled_amount
+                source['bank_ref'] = "-"
+
+            source['comment'] = getattr(settlement, 'settlement_note', '')
+            source_details_map[settlement.unity_bill_source_id].append(source)
+
+        for bill_id in source_details_map:
+            source_details_map[bill_id].sort(key=lambda x: x['date'] if x['date'] else date(1900, 1, 1))
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Global Bill History"
+
+    green_fill = PatternFill(start_color="C8E6C9", end_color="C8E6C9", fill_type="solid")
+    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+    header_font = Font(bold=True, size=11)
+
+    headers = [
+        'CCDates Month', 'Fund Code', 'Company Code', 'Company Name', 
+        'Active Members', 'Schedule Date', 'Final Date', 'Schedule Amount', 
+        'Confirmed Date', 'Bank Statement Date', 'Bank Deposit Amount', 
+        'Allocated Amount', 'Comment', 'Deposit Reference', 'Status', 'Source'
+    ]
+    ws.append(headers)
+    
+    for cell in ws[1]:
+        cell.fill = green_fill
+        cell.font = header_font
+        cell.border = thin_border
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+
+    for bill in all_bills:
+        schedule_date = bill.G_Schedule_Date.strftime('%Y-%m-%d') if bill.G_Schedule_Date else ''
+        final_date = bill.J_Final_Date.strftime('%Y-%m-%d') if bill.J_Final_Date else ''
+        submitted_date = bill.I_Submitted_Date.strftime('%Y-%m-%d') if bill.I_Submitted_Date else ''
+        status_name = 'RECON COMPLETE' if bill.is_reconciled else 'UNRECONCILED'
+
+        bill_common = [
+            bill.A_CCDatesMonth.strftime('%Y-%m-%d') if hasattr(bill, 'A_CCDatesMonth') and bill.A_CCDatesMonth else '', 
+            getattr(bill, 'B_Fund_Co', ''), bill.C_Company_Code, getattr(bill, 'D_Company_Name', ''), 
+            bill.E_Active_Members or 0, schedule_date, final_date, float(bill.H_Schedule_Amount or 0), submitted_date
+        ]
+
+        sources = source_details_map.get(bill.pk, [])
+        if not sources:
+            ws.append(bill_common + [''] * 5 + [status_name, ''])
+        else:
+            for index, s in enumerate(sources):
+                export_source_text = 'Overs Line' if s.get('source') == 'CREDIT' else 'Bank'
+                bank_stmt_date = s['date'].strftime('%Y-%m-%d') if s.get('date') else ''
+                bank_cols = [
+                    bank_stmt_date, float(s.get('bank_total', 0) or 0), float(s.get('amount', 0) or 0), 
+                    s.get('comment', ''), s.get('bank_ref', '-'), status_name, export_source_text
+                ]
+                if index == 0:
+                    ws.append(bill_common + bank_cols)
+                else:
+                    ws.append([''] * len(bill_common) + bank_cols)
+
+        for cell in ws[ws.max_row]:
+            cell.border = thin_border
+            cell.alignment = Alignment(vertical='center')
+
+    column_widths = [15, 12, 15, 30, 15, 15, 15, 18, 15, 18, 18, 18, 25, 20, 18, 15]
+    for i, width in enumerate(column_widths):
+        ws.column_dimensions[get_column_letter(i+1)].width = width
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename="Section_13A_Report_Export.xlsx"'
+    wb.save(response)
+    return response
+
+
+@login_required
+def global_history_overview(request):
+    """
+    Renders a high-level overview of ALL Bill History.
+    UPDATED: Now includes bank transaction descriptions via importbank.
+    """
+    from decimal import Decimal
+    from collections import defaultdict
+    from datetime import datetime, date
+    from django.db import connection
+    from django.contrib import messages
+    from django.shortcuts import render
+    from django.db.models import Sum, Q
+    from .models import UnityBill, BillSettlement, JournalEntry
+
+    ZERO_DECIMAL = Decimal('0.00')
+
+    start_date_str = request.GET.get('start_date')
+    end_date_str = request.GET.get('end_date')
+    
+    filter_start_date = None
+    filter_end_date = None
+    
+    try:
+        if start_date_str:
+            filter_start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+        if end_date_str:
+            filter_end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+    except ValueError:
+        messages.error(request, "Invalid date format provided for filtering.")
+        
+    T1_TABLE = 'bill_settlement'
+
+    all_bills_queryset = UnityBill.objects.exclude(
+        E_Active_Members=0
+    ).exclude(
+        H_Schedule_Amount=0
+    )
+
+    if filter_start_date and filter_end_date:
+        all_bills_queryset = all_bills_queryset.filter(
+            Q(I_Submitted_Date__range=(filter_start_date, filter_end_date)) |
+            Q(G_Schedule_Date__range=(filter_start_date, filter_end_date))
+        )
+    elif filter_start_date:
+        all_bills_queryset = all_bills_queryset.filter(
+            Q(I_Submitted_Date__gte=filter_start_date) |
+            Q(G_Schedule_Date__gte=filter_start_date)
+        )
+    elif filter_end_date:
+        all_bills_queryset = all_bills_queryset.filter(
+            Q(I_Submitted_Date__lte=filter_end_date) |
+            Q(G_Schedule_Date__lte=filter_end_date)
+        )
+
+    all_bills = list(all_bills_queryset.order_by('-G_Schedule_Date', 'C_Company_Code'))
+    final_bill_ids = [bill.id for bill in all_bills]
+    
+    final_records = []
+    if final_bill_ids:
+        id_placeholders = ', '.join(['%s'] * len(final_bill_ids))
+        T2_TABLE = 'reconned_bank'
+        T3_TABLE = 'importbank'
+
+        # 🚀 Updated SQL Query to pull Transaction_description from importbank (T3)
+        sql_query_cash = f"""
+        SELECT T1.unity_bill_source_id, T3.DATE, T1.settled_amount, T3.Transaction_description
+        FROM {T1_TABLE} T1
+        LEFT JOIN {T2_TABLE} T2 ON T1.reconned_bank_line_id = T2.bank_line_id
+        LEFT JOIN {T3_TABLE} T3 ON T2.bank_line_id = T3.id
+        WHERE T1.unity_bill_source_id IN ({id_placeholders})
+        """
+        deposits_by_bill = defaultdict(list)
+        
+        with connection.cursor() as cursor:
+            cursor.execute(sql_query_cash, final_bill_ids)
+            for row in cursor.fetchall():
+                if row[1]:
+                    deposits_by_bill[row[0]].append({
+                        'date': row[1], 
+                        'amount': row[2], 
+                        'type': 'Cash',
+                        'description': row[3] or '-'
+                    })
+        
+        journal_queryset = JournalEntry.objects.filter(target_bill__in=final_bill_ids)
+        for je in journal_queryset:
+            deposits_by_bill[je.target_bill_id].append({
+                'date': je.allocation_date,
+                'amount': je.amount,
+                'type': 'Journal',
+                'description': 'Journal Allocation'
+            })
+            
+        credit_notes_agg = BillSettlement.objects.filter(
+            unity_bill_source_id__in=final_bill_ids,
+            source_credit_note_id__isnull=False
+        ).values('unity_bill_source_id').annotate(total_credit=Sum('settled_amount'))
+        credits_map = {item['unity_bill_source_id']: item['total_credit'] for item in credit_notes_agg}
+    
+        for bill in all_bills:
+            deposits = deposits_by_bill.get(bill.id, [])
+            cash_journal_settled = sum((d['amount'] for d in deposits), start=ZERO_DECIMAL)
+            credit_settled = credits_map.get(bill.id, ZERO_DECIMAL)
+            
+            submit_dt = bill.I_Submitted_Date or date(1900, 1, 1)
+            sched_dt = bill.G_Schedule_Date or date(1900, 1, 1)
+            latest_date = max(submit_dt, sched_dt)
+            
+            status_name = 'RECON COMPLETE' if bill.is_reconciled else 'UNRECONCILED'
+            status_class = 'badge-success' if bill.is_reconciled else 'badge-warning'
+            
+            final_records.append({
+                'bill': bill,
+                'final_date': bill.J_Final_Date,
+                'schedule_date': bill.G_Schedule_Date,
+                'confirmed_date': bill.I_Submitted_Date,
+                'deposits': deposits,
+                'status_name': status_name,
+                'status_class': status_class,
+                'is_settled': bill.is_reconciled,
+                'total_settled': cash_journal_settled + credit_settled,
+                'latest_date': latest_date, 
+            })
+
+    final_records.sort(key=lambda x: x['latest_date'], reverse=True)
+
+    context = {
+        'bill_records': final_records,
+        'filter_start_date': start_date_str or '',
+        'filter_end_date': end_date_str or '',
+    }
+    return render(request, 'unity_internal_app/global_history_overview.html', context)
+
+@login_required
+def unallocate_surplus(request, bill_id):
+    if request.method == 'POST':
+        # Retrieve necessary data from the POST request
+        journal_id = request.POST.get('journal_entry_id')
+        company_code = request.POST.get('company_code') 
+        
+        # Default redirect in case of missing data
+        if not journal_id or not company_code:
+            messages.error(request, "Error: Journal Entry ID or Company Code is missing.")
+            return redirect('pre_bill_reconciliation_summary', company_code=company_code or 'DEFAULT', bill_id=bill_id)
+
+        try:
+            with transaction.atomic():
+                # 1. Fetch the Journal Entry (e.g., ID 16 or 17 in your example)
+                journal_entry = get_object_or_404(
+                    JournalEntry, 
+                    pk=journal_id, 
+                    target_bill_id=bill_id
+                )
+                amount = journal_entry.amount
+                
+                # 2. Find and delete the corresponding BillSettlement record.
+                # This record reduces the bill's schedule/total_applied metric.
+                settlement_record = get_object_or_404(
+                    BillSettlement,
+                    source_journal_entry_id=journal_entry.pk,
+                    unity_bill_source_id=bill_id
+                )
+                settlement_record.delete()
+                
+                # 3. Delete the Journal Entry.
+                # This releases the surplus funds back into the available pool.
+                journal_entry.delete()
+            
+            messages.success(request, f"Journal Entry successfully reversed. R{amount:.2f} unallocated from Bill #{bill_id}.")
+
+        except BillSettlement.DoesNotExist:
+            messages.error(request, f"Error: BillSettlement record for Journal #{journal_id} not found. Metrics may be inconsistent.")
+        except JournalEntry.DoesNotExist:
+            messages.error(request, f"Error: Journal Entry #{journal_id} not found or does not belong to this bill.")
+        except Exception as e:
+            messages.error(request, f"An unexpected error occurred during reversal: {e}")
+
+    # Redirect back to the summary page using the correct company code
+    return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
+
+@login_required
+def confirmations_view(request):
+    """
+    Displays bills ready for daily confirmation review.
+    UPDATED: Removed 'Deposit Reference' from Excel export headers and mapping.
+    """
+    from decimal import Decimal
+    from datetime import datetime, date, timedelta
+    from django.db.models import Q 
+    from django.contrib import messages
+    import traceback 
+
+    try:
+        from .models import UnityBill, BillSettlement
+
+        filter_start_date_str = request.GET.get('start_date')
+        filter_end_date_str = request.GET.get('end_date')
+
+        bills_queryset = UnityBill.objects.all().filter(
+            is_reconciled=True
+        ).exclude(E_Active_Members=0).exclude(H_Schedule_Amount=0)
+        
+        if filter_start_date_str or filter_end_date_str:
+            settlement_q = Q()
+            try:
+                if filter_start_date_str:
+                    start_dt = datetime.strptime(filter_start_date_str, '%Y-%m-%d').date()
+                    settlement_q &= Q(settlement_date__gte=start_dt)
+                if filter_end_date_str:
+                    end_dt = datetime.strptime(filter_end_date_str, '%Y-%m-%d').date()
+                    inclusive_end_dt = end_dt + timedelta(days=1)
+                    settlement_q &= Q(settlement_date__lt=inclusive_end_dt)
+                
+                matching_bill_ids = BillSettlement.objects.filter(
+                    settlement_q
+                ).values_list('unity_bill_source_id', flat=True)
+
+                bills_queryset = bills_queryset.filter(pk__in=list(set(matching_bill_ids)))
+            except ValueError:
+                pass
+                
+        bills_queryset = bills_queryset.order_by('J_Final_Date', 'C_Company_Code').distinct()
+        review_bills = bills_queryset[:50]
+
+        confirmation_data = []
+        
+        for bill in review_bills:
+            settlements = BillSettlement.objects.filter(
+                unity_bill_source_id=bill.pk
+            ).select_related(
+                'reconned_bank_line', 
+                'reconned_bank_line__bank_line'
+            ).order_by('settlement_date')
+            
+            source_details = []
+            
+            for settlement in settlements:
+                source = {'amount': settlement.settled_amount}
+
+                if settlement.reconned_bank_line:
+                    recon_record = settlement.reconned_bank_line
+                    
+                    try:
+                        import_record = recon_record.bank_line  # 🚀 THIS IS THE importbank TABLE
+                    except Exception:
+                        import_record = None
+
+                    source['date'] = recon_record.transaction_date
+                    source['type'] = 'Bank Line'
+                    source['source'] = 'BANK'  
+                    source['bank_total'] = recon_record.transaction_amount
+                    
+                    # 🚀 PULL transaction_description (lowercase 't') FROM importbank
+                    if import_record:
+                        raw_desc = getattr(import_record, 'transaction_description', '-') or '-'
+                        source['description'] = raw_desc 
+                        source['bank_ref'] = raw_desc  
+                    else:
+                        source['description'] = "-"
+                        source['bank_ref'] = "-"
+                
+                elif settlement.source_credit_note_id:
+                    try:
+                        from .models import CreditNote
+                        credit_note = CreditNote.objects.get(id=settlement.source_credit_note_id)
+                        source['date'] = credit_note.bank_stmt_date or (settlement.settlement_date.date() if settlement.settlement_date else None)
+                        source['type'] = 'Credit Note'
+                        source['source'] = 'CREDIT'  
+                        source['bank_total'] = credit_note.credit_amount
+                        source['description'] = f"Virtual Credit - {getattr(credit_note, 'note_selection', '')}"
+                        source['bank_ref'] = getattr(credit_note, 'credit_note_number', '-')
+                    except:
+                        source['date'] = settlement.settlement_date.date() if settlement.settlement_date else None
+                        source['type'] = 'Credit Note (Source Missing)'
+                        source['source'] = 'CREDIT'  
+                        source['bank_total'] = settlement.settled_amount
+                        source['description'] = "Virtual Credit (Missing Source)"
+                        source['bank_ref'] = "-"
+                else:
+                    source['date'] = settlement.settlement_date.date() if settlement.settlement_date else None
+                    source['type'] = 'Other Source'
+                    source['source'] = 'OTHER'  
+                    source['bank_total'] = settlement.settled_amount
+                    source['description'] = "Other Source"
+                    source['bank_ref'] = "-"
+
+                source['comment'] = getattr(settlement, 'settlement_note', '')
+                source_details.append(source)
+                
+            source_details.sort(key=lambda x: x['date'] if x['date'] else date(1900, 1, 1))
+
+            first_settlement = settlements.first()
+            confirmed_date = first_settlement.settlement_date.date() if (first_settlement and first_settlement.settlement_date) else None
+
+            confirmation_data.append({
+                'bill_id': bill.pk,
+                'cc_dates_month': bill.A_CCDatesMonth, 
+                'fund_code': getattr(bill, 'B_Fund_Co', ''), 
+                'company_code': bill.C_Company_Code, 
+                'company_name': getattr(bill, 'D_Company_Name', ''), 
+                'active_members': bill.E_Active_Members or 0, 
+                'schedule_date': getattr(bill, 'G_Schedule_Date', None), 
+                'final_date': bill.J_Final_Date or None, 
+                'schedule_amount': bill.H_Schedule_Amount or 0,
+                'confirmed_date': bill.I_Submitted_Date,
+                'source_details': source_details,
+            })
+
+        confirmation_data.sort(key=lambda x: x['confirmed_date'] if x['confirmed_date'] else date(1900, 1, 1), reverse=True)
+
+        if request.GET.get('export_excel'):
+            import openpyxl
+            from openpyxl.styles import Font, Alignment
+            from django.http import HttpResponse
+
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Confirmations"
+
+            # 🚀 Removed 'Deposit Reference' from headers
+            headers = [
+                'CCDates Month', 'Fund Code', 'Member Group Code', 'Member Group Name', 
+                'Active Member - (Info from FuturaSA & NOT checked by Sanlam)', 'Schedule Date', 'Final Data Received Date', 'Schedule Amount', 
+                'Confirmed Date', 'Bank Statement Date', 'Bank Deposit Amount', 
+                'Allocated Amount', 'Comment', 'Bank Description', 'Source'
+            ]
+            ws.append(headers)
+
+            for cell in ws[1]:
+                cell.font = Font(bold=True)
+                cell.alignment = Alignment(horizontal='center')
+
+            for item in confirmation_data:
+                bill_common = [
+                    item['cc_dates_month'], 'SS00151.1', item['company_code'],
+                    item['company_name'], item['active_members'], item['schedule_date'],
+                    item['final_date'], item['schedule_amount'], item['confirmed_date']
+                ]
+
+                sources = item['source_details']
+                if not sources:
+                    ws.append(bill_common + [''] * 6)
+                else:
+                    for index, s in enumerate(sources):
+                        export_source_text = 'Overs Line' if s.get('source') == 'CREDIT' else 'Bank'
+                        # 🚀 Removed bank_ref from export columns, mapping strictly to description and source text
+                        bank_cols = [s['date'], s['bank_total'], s['amount'], s['comment'], s.get('description', ''), export_source_text]
+                        
+                        if index == 0:
+                            ws.append(bill_common + bank_cols)
+                        else:
+                            ws.append([''] * 9 + bank_cols)
+
+            filename = f"Confirmations_{datetime.now().strftime('%Y%m%d')}.xlsx"
+            response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            response['Content-Disposition'] = f'attachment; filename="{filename}"'
+            wb.save(response)
+            return response
+
+        return render(request, 'unity_internal_app/confirmations.html', {
+            'confirmation_records': confirmation_data,
+            'filter_start_date': filter_start_date_str,
+            'filter_end_date': filter_end_date_str,
+        })
+
+    except Exception as e:
+        print("!!! CONFIRMATIONS VIEW ERROR !!!")
+        print(traceback.format_exc())
+        return HttpResponse(f"Internal Server Error: {str(e)}", status=500)
+
+
+# --- Admin Billing View (Line-by-Line Display) ---
+
+@login_required
+def admin_billing_view(request):
+    """
+    Displays raw line-by-line list, now using the robust ID-matching filter pattern.
+    """
+    from decimal import Decimal
+    from datetime import datetime, timedelta
+    from django.db.models import Q
+    from django.core.exceptions import ObjectDoesNotExist
+    from .models import UnityBill, BillSettlement
+
+    filter_start_date_str = request.GET.get('start_date')
+    filter_end_date_str = request.GET.get('end_date')
+
+    # Base Query
+    bills_queryset = UnityBill.objects.filter(
+        is_reconciled=True
+    ).exclude(
+        E_Active_Members=0
+    ).exclude(
+        H_Schedule_Amount=0
+    )
+
+    # 🚀 DYNAMIC ID MATCHING PATTERN
+    if filter_start_date_str or filter_end_date_str:
+        filter_q = Q()
+        try:
+            if filter_start_date_str:
+                start_dt = datetime.strptime(filter_start_date_str, '%Y-%m-%d').date()
+                filter_q &= Q(I_Submitted_Date__gte=start_dt)
+            if filter_end_date_str:
+                end_dt = datetime.strptime(filter_end_date_str, '%Y-%m-%d').date()
+                filter_q &= Q(I_Submitted_Date__lt=end_dt + timedelta(days=1))
+            
+            # Fetch matching IDs and apply to queryset
+            matching_ids = UnityBill.objects.filter(filter_q).values_list('pk', flat=True)
+            bills_queryset = bills_queryset.filter(pk__in=list(matching_ids))
+        except ValueError:
+            pass
+            
+    final_bill_data = []
+    
+    for bill in bills_queryset:
+        # Safely cast to Decimal to prevent float * Decimal type errors
+        schedule_amount = Decimal(str(bill.H_Schedule_Amount or '0.00'))
+        salary_amount = Decimal(str(bill.salary_amount or '0.00'))
+        
+        # 🚀 UPDATED LOGIC: Calculate 0.3% against the new salary_amount field
+        admin_fee = salary_amount * Decimal('0.003')
+        
+        first_settlement = BillSettlement.objects.filter(
+            unity_bill_source_id=bill.pk
+        ).order_by('settlement_date').first()
+        
+        # 🚀 FIX: Safely retrieve username, handling deleted users
+        posted_user = "N/A"
+        if first_settlement:
+            try:
+                posted_user = first_settlement.confirmed_by.username if first_settlement.confirmed_by else "N/A"
+            except ObjectDoesNotExist:
+                posted_user = "Deleted User"
+        
+        final_bill_data.append({
+            'fiscal_period': bill.A_CCDatesMonth.strftime("%Y-%m") if getattr(bill, 'A_CCDatesMonth', None) else "N/A",
+            'company_code': bill.C_Company_Code or "N/A",
+            'company_name': bill.D_Company_Name or "N/A",
+            'active_members': bill.E_Active_Members or 0, 
+            'total_schedule_amount': schedule_amount,
+            'total_salary_amount': salary_amount, 
+            'total_admin_fee': admin_fee,
+            'posted_date': bill.I_Submitted_Date,
+            'posted_user': posted_user, 
+        })
+
+    # Sort safely by converting to strings (handles Nones, dates, and datetimes without type crashing)
+    final_bill_data.sort(key=lambda x: str(x['posted_date'] or ''), reverse=True)
+
+    return render(request, 'unity_internal_app/admin_billing.html', {
+        'bill_records': final_bill_data,
+        'filter_start_date': filter_start_date_str,
+        'filter_end_date': filter_end_date_str,
+    })
+
+
+@login_required
+def export_admin_billing_excel(request):
+    from decimal import Decimal
+    from datetime import datetime, timedelta
+    from openpyxl import Workbook
+    from django.http import HttpResponse
+    from django.db.models import Q
+    from django.core.exceptions import ObjectDoesNotExist
+    from .models import UnityBill, BillSettlement
+
+    filter_start = request.GET.get('start_date')
+    filter_end = request.GET.get('end_date')
+
+    # 1. Base Query
+    bills = UnityBill.objects.filter(is_reconciled=True).exclude(E_Active_Members=0).exclude(H_Schedule_Amount=0)
+
+    # 2. Apply Date Filters
+    if filter_start or filter_end:
+        q_filter = Q()
+        if filter_start:
+            q_filter &= Q(I_Submitted_Date__gte=datetime.strptime(filter_start, '%Y-%m-%d').date())
+        if filter_end:
+            q_filter &= Q(I_Submitted_Date__lt=datetime.strptime(filter_end, '%Y-%m-%d').date() + timedelta(days=1))
+        bills = bills.filter(q_filter)
+    
+    bills = bills.order_by('-I_Submitted_Date', 'C_Company_Code')
+
+    # 3. Excel Setup
+    wb = Workbook()
+    ws = wb.active
+    # New Headers
+    ws.append(["Fiscal Period", "Company Code", "Company Name", "Active Members", "Monthly Salary", "Admin Fee", "Recon Agent", "Date Confirmed"])
+
+    # 4. Data Population
+    total_salary, total_fees = Decimal('0.00'), Decimal('0.00')
+
+    for bill in bills:
+        # Safely cast to prevent math crashes
+        salary = Decimal(str(bill.salary_amount or '0.00'))
+        fee = salary * Decimal('0.003')
+        
+        # Get Settlement Metadata
+        settlement = BillSettlement.objects.filter(unity_bill_source_id=bill.pk).order_by('settlement_date').first()
+        
+        # 🚀 FIX: Safely retrieve username, handling deleted users
+        posted_user = "N/A"
+        if settlement:
+            try:
+                posted_user = settlement.confirmed_by.username if settlement.confirmed_by else "N/A"
+            except ObjectDoesNotExist:
+                posted_user = "Deleted User"
+        
+        fiscal = bill.A_CCDatesMonth.strftime("%Y-%m") if getattr(bill, 'A_CCDatesMonth', None) else "N/A"
+        posted_date = bill.I_Submitted_Date.strftime('%Y-%m-%d') if bill.I_Submitted_Date else "N/A"
+
+        # Append row in exact order requested
+        ws.append([
+            fiscal, 
+            bill.C_Company_Code, 
+            bill.D_Company_Name, 
+            bill.E_Active_Members, 
+            float(salary), 
+            float(fee), 
+            posted_user, 
+            posted_date
+        ])
+
+        total_salary += salary
+        total_fees += fee
+
+    # Grand Totals Row
+    ws.append(["", "", "GRAND TOTALS", "", float(total_salary), float(total_fees), "", ""])
+    
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename="Admin_Billing_{datetime.now().strftime("%Y%m%d")}.xlsx"'
+    wb.save(response)
+    return response
+
+# ==============================================================================
+# [UPDATED VIEWS] ADD THESE BELOW YOUR unity_information FUNCTION
+# ==============================================================================
+
+# In views.py
+
+@login_required
+def save_claim(request, company_code):
+    if request.method == 'POST':
+        claim_id = request.POST.get('claim_id')
+        
+        if claim_id:
+            claim_instance = get_object_or_404(UnityClaim, pk=claim_id)
+            form = UnityClaimForm(request.POST, instance=claim_instance)
+        else:
+            form = UnityClaimForm(request.POST)
+
+        if form.is_valid():
+            saved_claim = form.save(commit=False)
+
+            # --- 1. CAPTURE NEW FIELDS (POTS & PRESERVATION) ---
+            saved_claim.vested_pot_available = request.POST.get('vested_pot_available') == 'on'
+            saved_claim.savings_pot_available = request.POST.get('savings_pot_available') == 'on'
+            
+            v_date = request.POST.get('vested_pot_paid_date')
+            saved_claim.vested_pot_paid_date = v_date if v_date else None
+            
+            s_date = request.POST.get('savings_pot_paid_date')
+            saved_claim.savings_pot_paid_date = s_date if s_date else None
+            
+            p_date = request.POST.get('infund_cert_date')
+            saved_claim.infund_preservation_cert_received_date = p_date if p_date else None
+
+            # --- 2. CAPTURE MIP & AMOUNT ---
+            saved_claim.mip_number = request.POST.get('mip_number')
+            
+            amount_val = request.POST.get('claim_amount')
+            if amount_val and amount_val.strip():
+                try:
+                    saved_claim.claim_amount = float(amount_val)
+                except ValueError:
+                    saved_claim.claim_amount = None
+            else:
+                saved_claim.claim_amount = None
+
+            # --- 3. LINKED EMAIL LOGIC ---
+            outlook_string_id = request.POST.get('linked_email_id')
+            if outlook_string_id and outlook_string_id.strip():
+                try:
+                    email_obj = EmailDelegation.objects.get(email_id=outlook_string_id)
+                    saved_claim.linked_email_id = email_obj.id
+                    
+                    UnityClaimNote.objects.create(
+                        claim=saved_claim,
+                        note_selection="SUBMITTED VIA E-MAIL",
+                        note_description=f"System: Linked to Delegated Email Received at {email_obj.received_at}",
+                        created_by=request.user
+                    )
+                except EmailDelegation.DoesNotExist:
+                    saved_claim.linked_email_id = None
+
+            saved_claim.save()
+
+            # --- 4. Handle Manual Notes ---
+            note_selection = request.POST.get('note_selection')
+            note_description = request.POST.get('note_description')
+
+            if note_selection or (note_description and note_description.strip()):
+                UnityClaimNote.objects.create(
+                    claim=saved_claim,
+                    note_selection=note_selection,
+                    note_description=note_description,
+                    created_by=request.user
+                )
+                messages.success(request, "Claim saved and Notes updated.")
+            else:
+                messages.success(request, "Claim saved successfully.")
+        else:
+            messages.error(request, f"Error saving claim: {form.errors}")
+            
+    return redirect(f"{reverse('unity_information', kwargs={'company_code': company_code})}#company-claims")
+
+
+@login_required
+def global_claims_view(request):
+    """
+    Dashboard for all claims EXCEPT Two Pot.
+    Integrated: Email Pre-loading for instant preview (No AJAX required).
+    """
+    query = request.GET.get('q')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    
+    # Start with the base queryset and annotate the Last Action Date (LAD)
+    # Note: Assuming the related field on your model is 'created_at' based on your HTML template.
+    base_claims = UnityClaim.objects.exclude(claim_type='Two Pot').annotate(
+        lad_date=Max('notes__created_at')
+    )
+
+    # 1. Apply Text Search Filter
+    if query:
+        base_claims = base_claims.filter(
+            Q(id_number__icontains=query) | 
+            Q(member_surname__icontains=query) | 
+            Q(company_code__icontains=query)
+        )
+
+    # 2. Apply Date Filters (Filtering on claim_created_date)
+    if date_from:
+        base_claims = base_claims.filter(claim_created_date__gte=date_from)
+        
+    if date_to:
+        base_claims = base_claims.filter(claim_created_date__lte=date_to)
+
+    # 🚀 CALCULATE THE TRUE TOTAL HERE (Before slicing or pagination)
+    total_claims_count = base_claims.count()
+
+    # 3. Apply Ordering and Default Limits
+    # If any filter is active, return all matching results (to allow pagination to handle the rest)
+    if query or date_from or date_to:
+        claims = base_claims.order_by('-claim_created_date')
+    else:
+        # If no filters are applied, just show the top 50 recent claims to save load time
+        claims = base_claims.order_by('-claim_created_date')[:50] 
+
+    # --- 1. PRE-FETCH EMAIL CONTENT FOR TABLE ICONS ---
+    delegation_pks = [c.linked_email_id for c in claims if c.linked_email_id]
+    
+    if delegation_pks:
+        delegations_map = EmailDelegation.objects.in_bulk(list(set(delegation_pks)))
+        outlook_string_ids = [d.email_id for d in delegations_map.values()]
+        inbox_map = OutlookInbox.objects.in_bulk(outlook_string_ids)
+
+        for claim in claims:
+            if claim.linked_email_id:
+                try:
+                    del_obj = delegations_map.get(int(claim.linked_email_id))
+                    if del_obj:
+                        inbox_item = inbox_map.get(del_obj.email_id)
+                        if inbox_item:
+                            claim.email_preview_subject = inbox_item.subject
+                            claim.email_preview_sender = inbox_item.sender_address
+                            claim.email_preview_body = inbox_item.body_content
+                            claim.email_preview_date = inbox_item.received_at
+                except (ValueError, TypeError):
+                    continue
+
+    all_companies = UnityMgListing.objects.values('a_company_code', 'b_company_name', 'c_agent')
+    
+    # --- 🚀 Fetch users for the Agent Dropdown ---
+    available_users = User.objects.filter(is_active=True).order_by('username')
+
+    # --- 2. FETCH DELEGATIONS FOR MODAL DROPDOWN ---
+    my_delegated_emails = EmailDelegation.objects.filter(
+        assigned_user=request.user, 
+        status='DEL'
+    ).order_by('-received_at')
+
+    dropdown_email_ids = [d.email_id for d in my_delegated_emails]
+    dropdown_inbox_items = OutlookInbox.objects.in_bulk(dropdown_email_ids)
+
+    for delegation in my_delegated_emails:
+        item = dropdown_inbox_items.get(delegation.email_id)
+        if item:
+            delegation.subject = item.subject
+            delegation.sender = item.sender_address
+        else:
+            delegation.subject = "(Subject Unavailable)"
+            delegation.sender = "Unknown"
+
+    context = {
+        'claims': claims,
+        'total_claims_count': total_claims_count,
+        'all_companies': all_companies,
+        'my_delegated_emails': my_delegated_emails,
+        'available_users': available_users, 
+        'is_two_pot_view': False
+    }
+    
+    return render(request, 'unity_internal_app/global_claims.html', context)
+
+
+@login_required
+def global_two_pot_view(request):
+    """
+    Dedicated Dashboard for ONLY Two Pot claims with Date Range & Pagination.
+    Integrated: Email Pre-loading for instant preview (No AJAX required).
+    """
+    query = request.GET.get('q')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+
+    base_claims = UnityClaim.objects.filter(claim_type='Two Pot').order_by('-claim_created_date')
+
+    if query:
+        base_claims = base_claims.filter(
+            Q(id_number__icontains=query) | 
+            Q(member_surname__icontains=query) | 
+            Q(company_code__icontains=query) |
+            Q(mip_number__icontains=query)
+        )
+
+    if start_date and end_date:
+        try:
+            s_date = parse_date(start_date)
+            e_date = parse_date(end_date)
+            if s_date and e_date:
+                base_claims = base_claims.filter(claim_created_date__range=[s_date, e_date])
+        except ValueError:
+            pass
+
+    # 🚀 NEW: Get the total count after filters are applied
+    total_claims_count = base_claims.count()
+
+    paginator = Paginator(base_claims, 12) 
+    page_number = request.GET.get('page')
+    try:
+        page_obj = paginator.get_page(page_number)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+
+    delegation_pks = [c.linked_email_id for c in page_obj if c.linked_email_id]
+    
+    if delegation_pks:
+        delegations_map = EmailDelegation.objects.in_bulk(delegation_pks)
+        outlook_string_ids = [d.email_id for d in delegations_map.values()]
+        inbox_map = OutlookInbox.objects.in_bulk(outlook_string_ids)
+
+        for claim in page_obj:
+            if claim.linked_email_id:
+                del_obj = delegations_map.get(int(claim.linked_email_id))
+                if del_obj:
+                    inbox_item = inbox_map.get(del_obj.email_id)
+                    if inbox_item:
+                        claim.email_preview_subject = inbox_item.subject
+                        claim.email_preview_sender = inbox_item.sender_address
+                        claim.email_preview_body = inbox_item.body_content
+                        claim.email_preview_date = inbox_item.received_at
+
+    all_companies = UnityMgListing.objects.values('a_company_code', 'b_company_name', 'c_agent')
+    
+    # Fetch users for the Agent Dropdown
+    available_users = User.objects.filter(is_active=True).order_by('username')
+
+    my_delegated_emails = EmailDelegation.objects.filter(
+        assigned_user=request.user, 
+        status='DEL'
+    ).order_by('-received_at')
+
+    dropdown_email_ids = [d.email_id for d in my_delegated_emails]
+    dropdown_inbox_items = OutlookInbox.objects.in_bulk(dropdown_email_ids)
+
+    for delegation in my_delegated_emails:
+        item = dropdown_inbox_items.get(delegation.email_id)
+        if item:
+            delegation.subject = item.subject
+            delegation.sender = item.sender_address
+        else:
+            delegation.subject = "(Subject Unavailable)"
+            delegation.sender = "Unknown"
+
+    context = {
+        'page_obj': page_obj, 
+        'all_companies': all_companies,
+        'my_delegated_emails': my_delegated_emails,
+        'available_users': available_users, 
+        'is_two_pot_view': True,
+        'search_query': query, 
+        'start_date': start_date,
+        'end_date': end_date,
+        'total_claims_count': total_claims_count, # 🚀 NEW: Passed to template
+    }
+    return render(request, 'unity_internal_app/global_two_pot.html', context)
+
+
+@transaction.atomic
+@login_required
+def save_global_claim(request):
+    if request.method == 'POST':
+        post_data = request.POST.copy()
+        
+        # 🚀 DEBUGGING: Check if the file is actually reaching Django 🚀
+        print("RECEIVED FILES:", request.FILES) 
+        
+        # 1. EXTRACT OFFENDING FIELDS BEFORE THE FORM SEES THEM
+        manual_claim_status = post_data.get('claim_status')
+        if 'claim_status' in post_data:
+            del post_data['claim_status']
+            
+        manual_claim_allocation = post_data.get('claim_allocation')
+        if 'claim_allocation' in post_data:
+            del post_data['claim_allocation']
+        
+        # --- SAFE DATE CLEANER ---
+        def clean_date(val):
+            return val if val and val.strip() and val.strip() != 'None' else None
+            
+        date_fields = [
+            'vested_pot_paid_date', 'savings_pot_paid_date', 'infund_preservation_cert_received_date', 
+            'claim_created_date', 'last_contribution_date', 'date_submitted', 'date_paid', 'date_app_extracted'
+        ]
+        
+        for field in date_fields:
+            if field in post_data:
+                post_data[field] = clean_date(post_data[field])
+
+        claim_type_input = post_data.get('claim_type', 'Standard')
+        redirect_url = 'global_two_pot' if claim_type_input == 'Two Pot' else 'global_claims'
+        
+        claim_id = post_data.get('claim_id')
+        if claim_id:
+            claim_instance = get_object_or_404(UnityClaim, pk=claim_id)
+            form = UnityClaimForm(post_data, request.FILES, instance=claim_instance)
+        else:
+            form = UnityClaimForm(post_data, request.FILES)
+
+        # Ensure the form knows these fields are not required
+        if 'claim_allocation' in form.fields:
+            form.fields['claim_allocation'].required = False
+        if 'claim_status' in form.fields:
+            form.fields['claim_status'].required = False
+
+        if form.is_valid():
+            saved_claim = form.save(commit=False)
+            
+            # --- Handle Standard Fields ---
+            if not saved_claim.company_code:
+                saved_claim.company_code = post_data.get('company_code')
+
+            saved_claim.agent = post_data.get('agent')
+            
+            # 2. INJECT THE STATUS BACK IN 
+            if manual_claim_status:
+                saved_claim.claim_status = manual_claim_status
+            if manual_claim_allocation:
+                saved_claim.claim_allocation = manual_claim_allocation
+            
+            if post_data.get('date_app_extracted'):
+                saved_claim.date_app_extracted = post_data.get('date_app_extracted')
+
+            if claim_type_input == 'Two Pot':
+                saved_claim.claim_type = 'Two Pot'
+                saved_claim.mip_number = post_data.get('mip_number')
+                
+                if not saved_claim.claim_allocation:
+                    saved_claim.claim_allocation = "Two Pot"
+                
+                saved_claim.vested_pot_available = (post_data.get('vested_pot_available') == 'on')
+                saved_claim.savings_pot_available = (post_data.get('savings_pot_available') == 'on')
+                
+                saved_claim.vested_pot_paid_date = post_data.get('vested_pot_paid_date')
+                saved_claim.savings_pot_paid_date = post_data.get('savings_pot_paid_date')
+                
+                cert_date = post_data.get('infund_preservation_cert_received_date') or post_data.get('infund_cert_date')
+                if cert_date:
+                    saved_claim.infund_preservation_cert_received_date = cert_date
+
+                amount = post_data.get('claim_amount')
+                try:
+                    saved_claim.claim_amount = float(amount) if amount and amount.strip() else 0.00
+                except ValueError:
+                    saved_claim.claim_amount = 0.00
+
+            new_linked_email_id = post_data.get('linked_email_id')
+            if new_linked_email_id and new_linked_email_id.strip():
+                saved_claim.linked_email_id = new_linked_email_id
+
+            if 'claim_attachment' in request.FILES:
+                saved_claim.claim_attachment = request.FILES['claim_attachment']
+
+            saved_claim.save()
+
+            if post_data.get('email_submission_action') == 'send_email_and_log':
+                recipient = post_data.get('member_recipient_email', '').strip()
+                subject = post_data.get('member_email_subject_reply', '').strip()
+                raw_body = post_data.get('member_email_body_editor', '')
+
+                if recipient and subject:
+                    formatted_body = raw_body.replace('\n', '<br>')
+                    # 🚀 FIX: Removed signature rendering here as well.
+                    
+                    try:
+                        result = OutlookGraphService.send_outlook_email(
+                            target_email=settings.OUTLOOK_EMAIL_ADDRESS,
+                            recipient_email=recipient,
+                            subject=subject,
+                            body_content=formatted_body, # 🚀 Pass formatted body only
+                            content_type='HTML',
+                            user=request.user # 🚀 Pass user for service-level signature generation
+                        )
+                        if result.get('success'):
+                            UnityClaimNote.objects.create(
+                                claim=saved_claim,
+                                note_selection="SENT EMAIL",
+                                note_description=f"To: {recipient}\nSubject: {subject}\n\n{raw_body}",
+                                created_by=request.user
+                            )
+                            messages.success(request, f"Claim saved and email sent!")
+                        else:
+                            messages.error(request, f"Email failed: {result.get('error')}")
+                    except Exception as e:
+                        messages.error(request, f"Email system error: {str(e)}")
+
+            # --- Handle Manual Notes & Attachments ---
+            note_desc = post_data.get('note_description')
+            note_type = post_data.get('note_selection', 'General Note')
+            
+            # Grabbing the file from request.FILES
+            note_file = request.FILES.get('note_attachment')
+
+            if (note_desc and note_desc.strip()) or note_file:
+                new_note = UnityClaimNote(
+                    claim=saved_claim,
+                    note_selection=note_type,
+                    note_description=note_desc.strip() if note_desc else "Document Attached",
+                    created_by=request.user
+                )
+                
+                # 🚀 If the file exists, link it to the model before saving
+                if note_file:
+                    new_note.note_attachment = note_file
+                    
+                new_note.save()
+
+            messages.success(request, f"Claim for {saved_claim.member_surname} saved successfully.")
+            return redirect(redirect_url)
+            
+        else:
+            print("FORM ERRORS:", form.errors)
+            messages.error(request, f"Could not save claim: {form.errors}")
+            return redirect(redirect_url)
+            
+    return redirect('global_claims')
+
+from django.shortcuts import render, redirect, get_object_or_404
+from django.conf import settings
+from django.contrib.auth.decorators import login_required
+from django.contrib import messages
+from django.urls import reverse
+from django.http import HttpResponse # Import HttpResponse for the content view
+from dateutil import parser # Ensure parser is imported
+from django.contrib.auth import get_user_model # Use get_user_model for clarity
+
+# Services and Models (Assuming these imports are correct based on our prior conversation)
+from .models import EmailDelegation
+from .services.delegation_service import (
+    get_or_create_delegation_status, delegate_email_task, 
+    add_delegation_note, get_delegated_emails_for_user, 
+    log_delegation_transaction
+)
+# Correct import: only import the class, and use the class name to call methods
+from .services.outlook_graph_service import OutlookGraphService 
+
+User = get_user_model() # Alias for the User model
+
+# Assuming there are other required imports here (e.g., from unity_internal_app.models import ...)
+
+from django.utils.dateparse import parse_datetime
+@login_required
+def outlook_dashboard_view(request):
+    if request.user.username.lower() != 'omega' and not request.user.is_superuser:
+        messages.error(request, "Access restricted.")
+        return redirect('outlook_delegated_box')
+
+    target_email = request.GET.get('email', settings.OUTLOOK_EMAIL_ADDRESS)
+    
+    # --- Capture Search and Sort Params ---
+    search_query = request.GET.get('q', '').strip().lower()
+    sort_order = request.GET.get('sort', 'newest')
+    
+    context = {
+        'target_email': target_email, 
+        'messages': [],
+        'search_query': search_query,
+        'sort_order': sort_order
+    }
+    
+    inbox_data = OutlookGraphService.fetch_inbox_messages(target_email, top_count=100) 
+    
+    if 'error' not in inbox_data:
+        all_emails = inbox_data.get('value', [])
+        email_ids = [e['id'] for e in all_emails]
+        
+        local_inbox_map = OutlookInbox.objects.filter(email_id__in=email_ids).in_bulk(field_name='email_id')
+        delegated_or_recycled_ids = EmailDelegation.objects.filter(
+            email_id__in=email_ids
+        ).exclude(status='NEW').values_list('email_id', flat=True)
+        
+        filtered_emails = []
+        for email in all_emails:
+            email_id = email['id']
+            if email_id in delegated_or_recycled_ids:
+                continue
+                
+            received_date_str = email.get('receivedDateTime') 
+            delegation, created = EmailDelegation.objects.get_or_create(
+                email_id=email_id,
+                defaults={'received_at': parse_datetime(received_date_str) if received_date_str else None, 'status': 'NEW'}
+            )
+            
+            local_record = local_inbox_map.get(email_id)
+            
+            # 🚀 NORMALIZATION: Ensure sort value is always a datetime object
+            sort_val = local_record.received_at if local_record and local_record.received_at else parse_datetime(received_date_str)
+            
+            # Fallback to datetime.min if parsing failed so sorting doesn't crash
+            email['internal_received_at'] = sort_val if isinstance(sort_val, datetime) else datetime.min
+            
+            email['delegation_status'] = delegation.get_status_display()
+            email['delegation_id'] = delegation.pk 
+
+            # --- SEARCH LOGIC ---
+            if search_query:
+                subject = email.get('subject', '').lower()
+                sender = email.get('from', {}).get('emailAddress', {}).get('address', '').lower()
+                sender_name = email.get('from', {}).get('emailAddress', {}).get('name', '').lower()
+                
+                if search_query not in subject and search_query not in sender and search_query not in sender_name:
+                    continue
+
+            filtered_emails.append(email)
+            
+        # --- 3. DATE SORTER LOGIC ---
+        # Now filtering strictly by datetime objects
+        reverse_sort = (sort_order == 'newest')
+        filtered_emails.sort(key=lambda x: x['internal_received_at'], reverse=reverse_sort)
+            
+        context['messages'] = filtered_emails
+    else:
+        context['error'] = inbox_data['error']
+
+    return render(request, 'unity_internal_app/outlook_dashboard.html', context)
+
+
+@login_required
+def send_email_view(request):
+    """
+    Handles displaying the email form and processing the email submission 
+    to the Microsoft Graph API. The email is sent FROM the mailbox specified by target_email.
+    """
+    target_email = request.GET.get('email', settings.OUTLOOK_EMAIL_ADDRESS)
+    
+    if request.method == 'POST':
+        recipient = request.POST.get('recipient')
+        subject = request.POST.get('subject')
+        body_html = request.POST.get('body') 
+        sender = target_email 
+
+        if not all([recipient, subject, body_html]):
+            messages.error(request, "All fields are required.")
+            return render(request, 'unity_internal_app/send_email_form.html', {'target_email': target_email})
+        
+        # Call the service function with the raw user body
+        response = OutlookGraphService.send_outlook_email(
+            target_email=sender, 
+            recipient_email=recipient, 
+            subject=subject, 
+            body_content=body_html, # 🚀 Pass body directly; services.py appends the correct signature
+            content_type='HTML',
+            user=request.user
+        )
+        
+        if response.get('success'): 
+            messages.success(request, f"Email sent successfully from {target_email} to {recipient}.")
+            return redirect(f"{reverse('outlook_dashboard')}?email={target_email}")
+        
+        else:
+            error_msg = response.get('error', 'Unknown Error')
+            details = response.get('details', {})
+            if isinstance(details, dict) and 'error' in details and 'message' in details['error']:
+                error_msg = details['error']['message']
+            
+            messages.error(request, f"Email failed to send: {error_msg}")
+            
+            return render(request, 'unity_internal_app/send_email_form.html', {
+                'recipient': recipient,
+                'subject': subject,
+                'body': body_html, 
+                'target_email': target_email
+            })
+
+    return render(request, 'unity_internal_app/send_email_form.html', {'target_email': target_email})
+
+
+# --------------------------------------------------------------------- #
+# OUTLOOK DELEGATED VIEWS (Assigned User Workflow)
+# --------------------------------------------------------------------- #
+
+@login_required
+def outlook_delegated_box(request):
+    """
+    Displays the list of tasks specifically assigned to the current user.
+    Includes additional DB fields and handles Search/Sort.
+    """
+    # --- Capture Search and Sort Params ---
+    search_query = request.GET.get('q', '').strip().lower()
+    sort_order = request.GET.get('sort', 'oldest') # Default to oldest if desired
+
+    # 1. Fetch delegations for this user (including 'DEL' and 'PEN' statuses)
+    delegations = EmailDelegation.objects.filter(
+        assigned_user=request.user, 
+        status__in=['DEL', 'PEN']
+    )
+
+    # 2. Map local Inbox details for received_at (using in_bulk for efficiency)
+    email_ids = delegations.values_list('email_id', flat=True)
+    local_inbox_map = OutlookInbox.objects.filter(email_id__in=email_ids).in_bulk(field_name='email_id')
+
+    tasks = []
+    target_email = settings.OUTLOOK_EMAIL_ADDRESS 
+
+    for delegation in delegations:
+        # Get received_at from local_inbox_map (Table: unity_internal_inbox)
+        local_inbox = local_inbox_map.get(delegation.email_id)
+        db_received_at = local_inbox.received_at if local_inbox else delegation.received_at
+        
+        # --- WILDCARD SEARCH LOGIC ---
+        # Search against Subject, Category, Company Code, or From
+        # (Note: For subject/from we still use Graph API data, for codes we use DB)
+        
+        # We fetch Graph details first to allow searching against Subject/From
+        endpoint = f"messages/{delegation.email_id}?$select=subject,from"
+        try:
+            response = OutlookGraphService._make_graph_request(endpoint, target_email, method='GET')
+            graph_subject = response.get('subject', '(No Subject)') if 'error' not in response else "N/A"
+            graph_from = response.get('from', {}).get('emailAddress', {}).get('name', 'Unknown') if 'error' not in response else "N/A"
+            
+            if search_query:
+                match = any([
+                    search_query in graph_subject.lower(),
+                    search_query in graph_from.lower(),
+                    search_query in (delegation.email_category or '').lower(),
+                    search_query in (delegation.company_code or '').lower()
+                ])
+                if not match:
+                    continue
+
+            tasks.append({
+                'delegation_id': delegation.pk,
+                'status': delegation.get_status_display(),
+                'subject': graph_subject,
+                'from': graph_from,
+                'received': db_received_at, # From local inbox table
+                'company_code': delegation.company_code, # From delegation table
+                'email_type': delegation.email_category, # From delegation table
+            })
+        except Exception:
+            continue
+
+    # --- DATE SORTER LOGIC (Oldest to Newest) ---
+    reverse_sort = (sort_order == 'newest') # Will be False if sort is not 'newest'
+    tasks.sort(key=lambda x: x['received'] if x['received'] else timezone.now(), reverse=reverse_sort)
+
+    context = {
+        'tasks': tasks,
+        'task_count': len(tasks),
+        'search_query': search_query,
+        'sort_order': sort_order
+    }
+    return render(request, 'unity_internal_app/outlook_delegated_box.html', context)
+
+
+@login_required
+def outlook_delegated_action(request, delegation_id):
+    """
+    Handles Notes, Replies, Metadata Updates, RESTORATION, and COMPLETION.
+    Updated to support newline-to-HTML conversion for email bodies, TO/CC/BCC tracking,
+    and injecting original email history into the reply.
+    """
+    delegation = get_object_or_404(EmailDelegation, pk=delegation_id)
+    
+    # We leave is_manager here solely for the template context
+    is_manager = request.user.username.lower() == 'omega' or request.user.is_superuser
+
+    target_email = settings.OUTLOOK_EMAIL_ADDRESS 
+
+    if request.method == 'POST':
+        action_type = request.POST.get('action_type')
+
+        # --- 1. HANDLE RESTORE ---
+        if action_type == 'restore_to_inbox':
+            delegation.work_related = True
+            delegation.status = 'NEW'
+            delegation.assigned_user = None 
+            delegation.save()
+
+            add_delegation_note(
+                delegation_id, 
+                request.user, 
+                "ACTION: Restored task from Recycle Bin to Main Inbox queue."
+            )
+            messages.success(request, "Email successfully restored to the Live Inbox.")
+            return redirect('outlook_recycle_bin')
+
+        # --- 2. HANDLE COMPLETE ---
+        elif action_type == 'mark_complete':
+            delegation.status = 'COM'
+            delegation.save()
+
+            add_delegation_note(
+                delegation_id, 
+                request.user, 
+                "ACTION: Task marked as COMPLETED. Removed from active queue."
+            )
+            messages.success(request, "Task successfully marked as Completed.")
+            return redirect('outlook_delegated_box')
+
+        # --- 3. HANDLE METADATA UPDATES ---
+        elif action_type == 'update_metadata':
+            delegation.company_code = request.POST.get('company_code')
+            delegation.email_category = request.POST.get('email_category')
+            
+            posted_status = request.POST.get('status')
+            if posted_status == 'NEW':
+                # 🚀 FIX: Use 'PEN' (Pending) or 'INP' instead of 'IN_PROGRESS' to avoid the DataError
+                delegation.status = 'PEN' 
+            else:
+                delegation.status = posted_status
+                
+            delegation.save()
+
+            add_delegation_note(
+                delegation_id, 
+                request.user, 
+                f"SYSTEM: Metadata Updated. Status: [{delegation.status}], Category: [{delegation.email_category}]"
+            )
+            messages.success(request, "Task metadata updated successfully.")
+            return redirect('outlook_delegated_action', delegation_id=delegation_id)
+
+        # --- 4. HANDLE NOTE SUBMISSION ---
+        elif action_type == 'add_note':
+            note_content = request.POST.get('internal_note')
+            success, message = add_delegation_note(delegation_id, request.user, note_content)
+            if success: 
+                messages.success(request, "Internal note saved.")
+            else:
+                messages.error(request, message)
+            return redirect('outlook_delegated_action', delegation_id=delegation_id)
+        
+        # --- 5. HANDLE REPLY/SEND EMAIL ---
+        elif 'reply_recipient' in request.POST:
+            recipient = request.POST.get('reply_recipient')
+            
+            # Capture CC and BCC from the form 
+            member_cc_email = request.POST.get('member_cc_email', '')
+            member_bcc_email = request.POST.get('member_bcc_email', '')
+            
+            raw_subject = request.POST.get('reply_subject')
+            subject = raw_subject if raw_subject else f"Reply: {delegation.email_category or 'Task Action'}"
+            
+            # Convert textarea newlines to HTML <br> tags
+            raw_body = request.POST.get('reply_body', '')
+            formatted_body = raw_body.replace('\r\n', '<br>').replace('\n', '<br>')
+            
+            action_destination = request.POST.get('action_notes', 'EMAIL_REPLY')
+            log_type = request.POST.get('email_log_type', 'REPLY') 
+            reply_files = request.FILES.getlist('reply_files')
+
+            # 🚀 1. GET THE SIGNATURE FIRST
+            user_signature = get_user_signature(request.user)
+
+            # 🚀 2. CONSTRUCT THE FULL EMAIL THREAD
+            try:
+                original_email = OutlookInbox.objects.get(email_id=delegation.email_id)
+                sent_date = original_email.received_at.strftime('%d %B %Y %H:%M') if original_email.received_at else 'Unknown'
+                
+                thread_history = f"""
+                <br>
+                <div style="border:none; border-top:solid #B5C4DF 1.0pt; padding:3.0pt 0cm 0cm 0cm">
+                    <p style="margin:0cm; margin-bottom:.0001pt; font-size:11.0pt; font-family:'Calibri',sans-serif">
+                        <b>From:</b> {original_email.sender_name} &lt;{original_email.sender_address}&gt;<br>
+                        <b>Sent:</b> {sent_date}<br>
+                        <b>To:</b> {original_email.to_addresses}<br>
+                        <b>Subject:</b> {original_email.subject}
+                    </p>
+                </div>
+                <br>
+                {original_email.body_content}
+                """
+                
+                # 🚀 3. STITCH IN THE CORRECT ORDER: Reply -> Signature -> Thread History
+                final_email_body = formatted_body + user_signature + thread_history
+                
+            except OutlookInbox.DoesNotExist:
+                final_email_body = formatted_body + user_signature
+
+            # Call the service to send the email with CC and BCC included
+            response = OutlookGraphService.send_outlook_email(
+                target_email=target_email, 
+                recipient_email=recipient, 
+                subject=subject, 
+                body_content=final_email_body, 
+                content_type='HTML',
+                user=None,  # 🚀 4. SET TO NONE SO SERVICES.PY DOESN'T ADD THE SIGNATURE AGAIN AT THE BOTTOM
+                attachments=reply_files,
+                cc_email=member_cc_email,   
+                bcc_email=member_bcc_email  
+            )
+            
+            if response.get('success'):
+                final_action_type = 'REPLIED' if log_type == 'REPLY' else action_destination
+                tracking_metadata = f"{subject} | CC: {member_cc_email or 'None'} | BCC: {member_bcc_email or 'None'}"
+                
+                log_delegation_transaction(
+                    delegation_id, 
+                    request.user, 
+                    tracking_metadata, 
+                    recipient, 
+                    action_type=final_action_type,
+                    body=formatted_body  
+                )
+                
+                file_count = len(reply_files)
+                messages.success(request, f"Reply sent successfully with {file_count} attachment(s).")
+            else:
+                messages.error(request, f"Failed to send email: {response.get('error')}")
+                
+            return redirect('outlook_delegated_action', delegation_id=delegation_id)
+
+    # --- GET DATA WITH 404 SAFETY HANDLING AND CONTENT_TYPE FIX ---
+    endpoint = f"messages/{delegation.email_id}"
+    email_data = OutlookGraphService._make_graph_request(endpoint, target_email, method='GET')
+    
+    if isinstance(email_data, dict) and email_data.get('details', {}).get('code') == 'ErrorItemNotFound':
+        email_display = {
+            'subject': delegation.email_category or 'Email Thread', 
+            'body': {'content': '<div class="alert alert-warning">This email has been moved or archived. Live content is temporarily unavailable.</div>'}
+        }
+        attachments = []
+    else:
+        attachments = OutlookGraphService.fetch_attachments(target_email, delegation.email_id)
+        for att in attachments:
+            # 🚀 Prevent AttributeError if contentType is null (None)
+            content_type = (att.get('contentType') or '').lower()
+            if 'image' in content_type:
+                raw_att = OutlookGraphService.get_attachment_raw(target_email, delegation.email_id, att['id'])
+                if isinstance(raw_att, dict) and 'contentBytes' in raw_att:
+                    att['contentBytes'] = raw_att['contentBytes']
+        
+        if isinstance(email_data, dict) and 'error' in email_data:
+            messages.warning(request, "Could not fetch live email content.")
+            email_display = {'subject': delegation.email_id, 'body': {'content': 'Live content unavailable.'}}
+        else:
+            email_display = email_data
+
+    # 🚀 Fetch the local inbox record using the delegation's email_id 
+    local_inbox = OutlookInbox.objects.filter(email_id=delegation.email_id).first()
+
+    context = {
+        'delegation': delegation,
+        'email': email_display,
+        'local_inbox': local_inbox,  
+        'attachments': attachments,
+        'notes': delegation.notes.all().order_by('-created_at'),
+        'target_email': target_email,
+        'is_manager': is_manager,
+    }
+    return render(request, 'unity_internal_app/outlook_delegated_action.html', context)
+
+@login_required
+def outlook_delegate_to(request, email_id):
+    """
+    Handles delegation and re-delegation of Outlook tasks.
+    UPDATED: All successful POST actions now redirect back to 'outlook_dashboard'.
+    FIX: Removed user exclusion so superuser 'Omega' is visible when logged in.
+    """
+    from .models import EmailDelegation, DelegationTransactionLog
+    
+    target_email = settings.OUTLOOK_EMAIL_ADDRESS
+    
+    # 🚀 UPDATED: Removed .exclude(pk=request.user.pk) so the current user (Omega) is an option
+    available_users = User.objects.filter(is_active=True)
+    
+    # 1. Fetch current delegation status if it exists
+    current_delegation = EmailDelegation.objects.filter(email_id=email_id).first()
+
+    if request.method == 'POST':
+        work_related_input = request.POST.get('work_related')
+        assignee_pk = request.POST.get('agent_name')
+        
+        data_for_delegation = {
+            'company_code': request.POST.get('company_code'),
+            'email_category': request.POST.get('email_category'),
+            'work_related': True if work_related_input == 'Yes' else False,
+            'comm_type': request.POST.get('comm_type') or 'Email',
+        }
+
+        # --- HANDLE ARCHIVE/RECYCLE ---
+        if work_related_input == 'No':
+            EmailDelegation.objects.update_or_create(
+                email_id=email_id,
+                defaults={
+                    'work_related': False,
+                    'status': 'DLT',  
+                    'assigned_user': None,
+                    'company_code': data_for_delegation['company_code'],
+                    'email_category': data_for_delegation['email_category'],
+                    'communication_type': data_for_delegation['comm_type'],
+                }
+            )
+            messages.error(request, "Email moved to Recycle Bin (Status: DLT).")
+            # REDIRECT: Back to Dashboard
+            return redirect('outlook_dashboard')
+
+        # --- HANDLE DELEGATION / RE-DELEGATION ---
+        else:
+            if not assignee_pk or assignee_pk in ['', '__Select Agent__']:
+                messages.error(request, "Please select an agent for delegation.")
+            else:
+                # Fetch new assignee object
+                assignee = User.objects.get(pk=assignee_pk)
+
+                # Check if this is a re-assignment of an existing record
+                if current_delegation:
+                    old_agent_name = current_delegation.assigned_user.username if current_delegation.assigned_user else "Unassigned"
+                    
+                    # Update existing record fields
+                    current_delegation.assigned_user = assignee
+                    current_delegation.company_code = data_for_delegation['company_code']
+                    current_delegation.email_category = data_for_delegation['email_category']
+                    current_delegation.status = 'DEL'
+                    current_delegation.delegated_at = timezone.now()
+                    current_delegation.save()
+
+                    # Audit Log for the Re-delegation
+                    DelegationTransactionLog.objects.create(
+                        delegation=current_delegation,
+                        user=request.user,
+                        action_type='RE_DELEGATED',
+                        subject=f"Task moved from {old_agent_name} to {assignee.username}",
+                        recipient_email=assignee.email or "N/A"
+                    )
+                    messages.success(request, f"Task successfully re-assigned to {assignee.username}.")
+                    # REDIRECT: Back to Dashboard
+                    return redirect('outlook_dashboard')
+
+                else:
+                    # Logic for NEW DELEGATION
+                    success, message = delegate_email_task(
+                        email_id, 
+                        assignee_pk, 
+                        request.user, 
+                        classification_data=data_for_delegation
+                    )
+                    
+                    if success:
+                        # Auto-Reply Logic
+                        reply_endpoint = f"messages/{email_id}/createReply"
+                        reply_payload = {
+                            "comment": f"Dear Sender,\n\nThis request has been successfully received and delegated to our agent: {assignee.username}.\n\nPlease use Reference: {data_for_delegation['company_code'] or 'N/A'} for future queries.\n\nRegards,\nMIP Support Team"
+                        }
+                        try:
+                            draft_res = OutlookGraphService._make_graph_request(reply_endpoint, target_email, method='POST', data=reply_payload)
+                            if 'id' in draft_res:
+                                send_endpoint = f"messages/{draft_res['id']}/send"
+                                OutlookGraphService._make_graph_request(send_endpoint, target_email, method='POST')
+                                messages.success(request, f"Task assigned and confirmation email sent!")
+                        except Exception as e:
+                            messages.warning(request, f"Task assigned, but auto-reply failed: {str(e)}")
+                        
+                        # REDIRECT: Back to Dashboard
+                        return redirect('outlook_dashboard')
+                    else:
+                        messages.error(request, message)
+
+    # --- Fetch Data for GET Request ---
+    endpoint = f"messages/{email_id}" 
+    email_data = OutlookGraphService._make_graph_request(endpoint, target_email, method='GET') 
+
+    if 'error' in email_data:
+        messages.error(request, f"Error fetching email content: {email_data.get('error')}")
+        # REDIRECT: Back to Dashboard on error
+        return redirect('outlook_dashboard')
+
+    # Fetch Attachments Metadata
+    attachments_data = OutlookGraphService.fetch_attachments(target_email, email_id)
+    
+    for att in attachments_data:
+        content_type = (att.get('contentType') or '').lower()
+        if 'image' in content_type:
+            raw_att = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
+            if 'contentBytes' in raw_att:
+                att['contentBytes'] = raw_att['contentBytes']
+    
+    raw_content = email_data.get('body', {}).get('content', '')
+    received_date_str = email_data.get('receivedDateTime')
+    
+    if not current_delegation:
+        current_delegation = get_or_create_delegation_status(email_id, received_date_str=received_date_str)
+    
+    context = {
+        'email_id': email_id,
+        'email_subject': email_data.get('subject', '(No Subject)'),
+        'email_content': raw_content, 
+        'attachments': attachments_data, 
+        'available_users': available_users,
+        'current_delegation': current_delegation,
+    }
+    return render(request, 'unity_internal_app/outlook_delegate_to.html', context)
+
+@login_required
+def outlook_recycle_bin_view(request):
+    """
+    Displays all emails marked as DLT (Recycle Bin).
+    Maps email_id to the actual subject stored in OutlookInbox for better readability.
+    """
+    # 1. Fetch delegations marked as DLT or not work-related
+    recycled_tasks = EmailDelegation.objects.filter(status='DLT').order_by('-received_at')
+    
+    # 2. Extract email IDs to fetch subjects in bulk
+    email_ids = [task.email_id for task in recycled_tasks]
+    
+    # 3. Create a map of {email_id: subject} from the OutlookInbox model
+    inbox_details = OutlookInbox.objects.filter(email_id__in=email_ids).values('email_id', 'subject')
+    subject_map = {item['email_id']: item['subject'] for item in inbox_details}
+    
+    # 4. Attach the subject to each task object
+    for task in recycled_tasks:
+        # Fallback to truncated ID if subject isn't found in local cache
+        task.subject_display = subject_map.get(task.email_id, f"ID: {task.email_id[:15]}...")
+
+    return render(request, 'unity_internal_app/recycle_bin.html', {
+        'recycled_tasks': recycled_tasks
+    })
+
+@login_required
+def outlook_restore_email(request, email_id):
+    """Restores a task by setting work_related back to True."""
+    task = get_object_or_404(EmailDelegation, email_id=email_id)
+    task.work_related = True
+    task.status = 'NEW'  
+    task.save()
+    
+    DelegationNote.objects.create(
+        delegation=task,
+        user=request.user,
+        content="Task restored from Recycle Bin."
+    )
+    
+    messages.success(request, "Email restored to Live Inbox.")
+    # FIX: Match the name in urls.py
+    return redirect('outlook_recycle_bin')
+
+@login_required
+def outlook_delete_permanent(request):
+    """
+    Hides items from the Recycle Bin by moving them to ARC status.
+    This avoids IntegrityErrors with foreign key notes while removing them from the UI.
+    """
+    if request.method == 'POST':
+        email_ids = request.POST.getlist('email_ids')
+        
+        if email_ids:
+            # Move from 'DLT' (Recycle Bin) to 'ARC' (Hidden/Archived)
+            # This satisfies the DB constraint because the row still exists, 
+            # but it will no longer show up in the filter(status='DLT') query.
+            EmailDelegation.objects.filter(email_id__in=email_ids).update(status='ARC')
+            
+            messages.success(request, f"Successfully removed {len(email_ids)} items from the Recycle Bin.")
+        else:
+            messages.warning(request, "No items were selected for removal.")
+            
+        return redirect('outlook_recycle_bin')
+    
+import urllib.parse
+
+@login_required
+def view_email_thread(request, email_id):
+    """
+    Displays email content, attachments, and combined timeline of 
+    automated transactions, delegation notes, and manual unity notes.
+    """
+    from .models import EmailDelegation, DelegationTransactionLog, UnityNotes, DelegationNote, OutlookInbox
+    from django.http import Http404
+
+    # 🟢 Decode URL-encoded characters (e.g. %3D to =) to match the exact database record
+    email_id = urllib.parse.unquote(email_id)
+
+    target_email = settings.OUTLOOK_EMAIL_ADDRESS
+
+    # 1. Fetch Local Data safely without crashing if missing
+    task = EmailDelegation.objects.filter(email_id=email_id).first()
+    inbox_item = OutlookInbox.objects.filter(email_id=email_id).first()
+    
+    # 2. Fetch Live Content from Graph API with safety fallback
+    email_body = "Could not retrieve content from Outlook (Email may have been moved or archived)."
+    attachments = []
+    email_data = {}
+
+    try:
+        endpoint = f"messages/{email_id}"
+        email_data = OutlookGraphService._make_graph_request(endpoint, target_email, method='GET')
+        
+        if isinstance(email_data, dict) and email_data.get('details', {}).get('code') == 'ErrorItemNotFound':
+            if inbox_item:
+                email_body = inbox_item.body_content
+        elif isinstance(email_data, dict) and 'error' not in email_data:
+            email_body = email_data.get('body', {}).get('content', "")
+            
+            # 3. Handle Attachments (Only if email exists in Outlook)
+            attachments = OutlookGraphService.fetch_attachments(target_email, email_id)
+            for att in attachments:
+                content_type = att.get('contentType', '').lower()
+                if 'image' in content_type:
+                    raw_att = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
+                    if isinstance(raw_att, dict) and 'contentBytes' in raw_att:
+                        att['contentBytes'] = raw_att.get('contentBytes')
+        elif inbox_item:
+            email_body = inbox_item.body_content
+            
+    except Exception as e:
+        logger.error(f"Error in view_email_thread: {e}")
+        if inbox_item:
+            email_body = inbox_item.body_content
+
+    # 4. Fetch Audit Trail Data
+    actions = []
+    delegation_notes = []
+    if task:
+        actions = list(DelegationTransactionLog.objects.filter(delegation=task).select_related('user'))
+        delegation_notes = list(DelegationNote.objects.filter(delegation=task).select_related('user'))
+
+    # 5. Fetch Manual Unity Notes associated with this Email ID
+    manual_unity_notes = list(UnityNotes.objects.filter(attached_email_id=email_id))
+
+    # 6. Build Combined Timeline
+    combined_timeline = []
+    for act in actions:
+        combined_timeline.append({'type': 'action', 'date': act.timestamp, 'obj': act})
+    for d_note in delegation_notes:
+        combined_timeline.append({'type': 'del_note', 'date': d_note.created_at, 'obj': d_note})
+    for u_note in manual_unity_notes:
+        combined_timeline.append({'type': 'unity_note', 'date': u_note.date, 'obj': u_note})
+
+    combined_timeline.sort(key=lambda x: x['date'], reverse=True)
+
+    # 7. Final Context Preparation
+    fallback_subject = inbox_item.subject if inbox_item else (task.subject if task else 'Unknown Thread')
+    context = {
+        'task': task,
+        'email': email_data if 'error' not in email_data else {'subject': fallback_subject},
+        'email_body': email_body,
+        'attachments': attachments,
+        'combined_timeline': combined_timeline,
+        'inbox_item': inbox_item if inbox_item else task,  
+    }
+    
+    return render(request, 'unity_internal_app/view_email_thread.html', context)
+
+@login_required
+def email_list_view(request):
+    """
+    MASTER ARCHIVE: Displays 'NEW', 'DEL' (Delegated), and 'COM' (Completed) tasks.
+    Supports filtering by Status, Agent, Type, Date, and Search Text.
+    """
+    # 1. Capture Filter Parameters
+    filter_type = request.GET.get('type', 'all')
+    search_query = request.GET.get('search', '').strip().lower()
+    start_date = request.GET.get('start')
+    end_date = request.GET.get('end')
+    
+    # New Filter Parameters from HTML dropdowns
+    status_filter = request.GET.get('status')
+    agent_filter = request.GET.get('agent')
+    type_filter = request.GET.get('email_type')
+    
+    # 2. Base Query: Start by excluding deleted/archived items
+    delegations_qs = EmailDelegation.objects.exclude(
+        status__in=['DLT', 'ARC']
+    ).select_related('assigned_user').order_by('-received_at')
+
+    # Apply Database-Level Filters
+    if status_filter:
+        delegations_qs = delegations_qs.filter(status=status_filter)
+    else:
+        # UPDATED: Default view now shows NEW and DEL (Delegated) 
+        # to show active workload, or COM if explicitly requested via filter_type
+        if filter_type == 'com':
+            delegations_qs = delegations_qs.filter(status='COM')
+        elif filter_type == 'new':
+            delegations_qs = delegations_qs.filter(status='NEW')
+        else:
+            # Default: Show New and currently Delegated (Active Work)
+            delegations_qs = delegations_qs.filter(status__in=['NEW', 'DEL'])
+
+    if agent_filter:
+        delegations_qs = delegations_qs.filter(assigned_user_id=agent_filter)
+        
+    if type_filter:
+        delegations_qs = delegations_qs.filter(email_category=type_filter)
+
+    # 3. Link to OutlookInbox for Subject and Sender Address
+    email_ids = delegations_qs.values_list('email_id', flat=True)
+    inbox_map = {obj.email_id: obj for obj in OutlookInbox.objects.filter(email_id__in=email_ids)}
+    
+    final_items = []
+    for d in delegations_qs:
+        inbox_detail = inbox_map.get(d.email_id)
+        if inbox_detail:
+            d.subject = inbox_detail.subject
+            d.sender_address = inbox_detail.sender_address
+        else:
+            d.subject = f"[Details Missing: {d.email_id[:10]}]"
+            d.sender_address = "Unknown"
+
+        # 4. Apply Python-Side Filters (Search and Date)
+        if search_query:
+            if search_query not in d.subject.lower() and \
+               search_query not in (d.company_code or '').lower() and \
+               search_query not in (d.email_category or '').lower():
+                continue
+
+        if start_date and d.received_at:
+            try:
+                if d.received_at.date() < datetime.strptime(start_date, '%Y-%m-%d').date():
+                    continue
+            except ValueError: pass
+            
+        if end_date and d.received_at:
+            try:
+                if d.received_at.date() > datetime.strptime(end_date, '%Y-%m-%d').date():
+                    continue
+            except ValueError: pass
+
+        final_items.append(d)
+
+    # 5. Handle "Filter Category" backwards compatibility
+    # (Already handled in Step 2 for query optimization, but keeping list logic safe)
+    if filter_type == 'new':
+        final_items = [item for item in final_items if item.status == 'NEW']
+    elif filter_type == 'com':
+        final_items = [item for item in final_items if item.status == 'COM']
+    elif filter_type == 'delegated':
+        final_items = [item for item in final_items if item.status == 'DEL']
+
+    # 6. Pagination
+    paginator = Paginator(final_items, 24)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    
+    # 7. Provide context
+    return render(request, 'unity_internal_app/email_list.html', {
+        'page_obj': page_obj,
+        'current_filter': filter_type,
+        'search_query': search_query,
+        'all_agents': User.objects.filter(is_active=True).order_by('username'),
+        'status_filter': status_filter,
+    })
+
+
+from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+from openpyxl.utils import get_column_letter
+    
+# ==============================================================================
+# CORRECTED EXPORT FUNCTIONS
+# ==============================================================================
+
+# --- HULPFUNKSIE VIR TAK-NAME ---
+def get_branch_map(claims_queryset):
+    company_codes = claims_queryset.values_list('company_code', flat=True).distinct()
+    return {
+        item['a_company_code']: item['b_company_name'] 
+        for item in UnityMgListing.objects.filter(
+            a_company_code__in=company_codes
+        ).values('a_company_code', 'b_company_name')
+    }
+
+# --- VERSLAG 1: TWO-POT CLAIMS INVOICE (Vir Cecile) ---
+@login_required
+def export_two_pot_invoice(request):
+    """
+    Report 1: Spesifieke faktuur-formaat vir Cecile (Only exports qualified 'YES' claims).
+    """
+    query = request.GET.get('q')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+
+    # 🚀 Filter only 'Two Pot' claims where qualified is 'YES'
+    claims = UnityClaim.objects.filter(claim_type='Two Pot', qualified__iexact='YES').order_by('claim_created_date')
+    
+    if query:
+        claims = claims.filter(Q(id_number__icontains=query) | Q(member_surname__icontains=query))
+    if start_date and end_date:
+        claims = claims.filter(claim_created_date__range=[start_date, end_date])
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Two-Pot Invoice"
+
+    # Header Styl
+    header_fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
+    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+    # Kolomtitels (R1)
+    headers = [
+        "Date", "Initials", "Surname", "Member nr", "ID NUMBER", "Fund", 
+        "Branch", "Admin From", "Qualified", "Date submitted online", 
+        "Successful Loaded confirmation", "Admin Fee R33 + 15% Vat", "SUBMIT ONLINE"
+    ]
+    ws.append(headers)
+    
+    for cell in ws[1]:
+        cell.fill = header_fill
+        cell.font = Font(bold=True, size=10)
+        cell.border = thin_border
+        cell.alignment = Alignment(horizontal='center')
+
+    branch_map = get_branch_map(claims)
+
+    for claim in claims:
+        initials = "".join([n[0] for n in claim.member_name.split() if n]) if claim.member_name else ""
+        is_paid = str(claim.claim_status).upper().strip() == "PAID"
+        
+        ws.append([
+            claim.claim_created_date.strftime('%d/%m/%Y') if claim.claim_created_date else '',
+            initials,
+            claim.member_surname,
+            claim.mip_number,
+            claim.id_number,
+            claim.company_code,
+            branch_map.get(claim.company_code, ""),
+            claim.agent or "",
+            "YES",  # Since it's filtered to only qualified rows, this will always be YES
+            claim.date_submitted.strftime('%d/%m/%Y') if claim.date_submitted else '',
+            "YES" if is_paid else "NO",
+            "R37.95",
+            "SUBMIT ONLINE"
+        ])
+
+        # Apply borders to the appended row
+        for cell in ws[ws.max_row]:
+            cell.border = thin_border
+            cell.alignment = Alignment(vertical='center', horizontal='left')
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename="Two_Pot_Invoice_{timezone.now().strftime("%Y%m%d")}.xlsx"'
+    wb.save(response)
+    return response
+
+
+# --- VERSLAG 2: TWO-POT FULL TRACKING (Geel Formaat) ---
+@login_required
+def export_two_pot_tracking(request):
+    """
+    Report 2: Volledige Tracking lys met Geel opskrifte en rooi teks vir 'NO'.
+    """
+    query = request.GET.get('q')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+
+    claims_queryset = UnityClaim.objects.filter(claim_type='Two Pot').order_by('claim_created_date')
+
+    if query:
+        claims_queryset = claims_queryset.filter(
+            Q(id_number__icontains=query) | Q(member_surname__icontains=query) | 
+            Q(company_code__icontains=query) | Q(mip_number__icontains=query)
+        )
+
+    if start_date and end_date:
+        claims_queryset = claims_queryset.filter(claim_created_date__range=[start_date, end_date])
+
+    branch_map = get_branch_map(claims_queryset)
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Two-Pot Tracking"
+
+    yellow_fill = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
+    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+    
+    now = timezone.now()
+    display_start = start_date if start_date else now.replace(day=1).strftime('%d.%m.%Y')
+    display_end = end_date if end_date else now.strftime('%d.%m.%Y')
+    
+    # Row 1 Title (Changed from A1:O1 to A1:N1 since one column was removed)
+    ws.merge_cells('A1:N1')
+    header_cell = ws['A1']
+    header_cell.value = f"Billing - Member Emergency Savings Pot Withdrawal Requested - {display_start} to {display_end}"
+    header_cell.font = Font(bold=True, size=11, underline="single")
+    header_cell.fill = yellow_fill
+    header_cell.border = thin_border
+
+    # Row 2 Headers (Removed "Admin Fee R33+15%")
+    headers = [
+        "Date application extracted from Web: Savings Form Request", "Initials", "Surname", 
+        "Member number", "ID NUMBER", "Fund Code", "Company Name", "Query", "Claim", 
+        "Qualified Y/N", "Date submitted online", "Inform Employer that the claim is succesfully loaded", 
+        "Admin Front Office Application Submitted", "Note"
+    ]
+    
+    ws.append(headers)
+    
+    # Format Row 2 (Headers)
+    for cell in ws[2]:
+        cell.font = Font(bold=True, size=9)
+        cell.fill = yellow_fill
+        cell.border = thin_border
+        cell.alignment = Alignment(wrap_text=True, horizontal='center', vertical='center')
+    ws.row_dimensions[2].height = 50
+
+    for claim in claims_queryset:
+        initials = "".join([n[0] for n in claim.member_name.split() if n]) if claim.member_name else ""
+        
+        # Pull the actual qualified value from the database column (fallback to 'NO' if empty)
+        qualified_val = str(claim.qualified or "NO").upper().strip()
+        
+        # Pull claim status directly from the dropdown field
+        claim_status_val = claim.claim_status if claim.claim_status else ""
+        
+        # Fix: Use date_submitted_online instead of date_submitted
+        submit_date_label = claim.date_submitted_online.strftime('%d.%m.%Y') if claim.date_submitted_online else ""
+
+        row = [
+            claim.claim_created_date.strftime('%d/%m/%Y') if claim.claim_created_date else '',
+            initials,
+            claim.member_surname,
+            claim.mip_number,
+            claim.id_number,
+            claim.company_code,
+            branch_map.get(claim.company_code, "Unknown"),
+            "Savings Form Request",
+            claim_status_val,  # From Claim Status Dropdown selection
+            qualified_val,     # Qualified Status (YES / NO)
+            submit_date_label, # Uses the correct date_submitted_online field
+            "YES" if qualified_val == "YES" else "",  # Linked to Qualified Y/N check
+            float(claim.claim_amount or 0),
+            claim.notes.last().note_description if claim.notes.exists() else ""
+        ]
+        ws.append(row)
+
+        # Rooi teks vir "NO" status
+        for cell in ws[ws.max_row]:
+            cell.border = thin_border
+            cell.alignment = Alignment(vertical='center', horizontal='left')
+            cell.font = Font(size=9, color="FF0000") if qualified_val == "NO" else Font(size=9)
+
+    # Removed one width item to match the missing column
+    widths = [22, 8, 18, 14, 18, 10, 25, 20, 35, 10, 22, 18, 14, 40]
+    for i, width in enumerate(widths):
+        ws.column_dimensions[get_column_letter(i+1)].width = width
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename="Two_Pot_Full_Tracking_{now.strftime("%Y_%m_%d")}.xlsx"'
+    wb.save(response)
+    return response
+
+@login_required
+def export_global_claims_excel(request):
+    """
+    Exports the Global Claims register to an Excel spreadsheet, 
+    respecting active search and date filters, but EXCLUDING 'Two Pot' claims.
+    """
+    from datetime import datetime, date
+    from django.db.models import Q, Max
+    import openpyxl
+    from openpyxl.styles import PatternFill, Font, Border, Side, Alignment
+    from openpyxl.utils import get_column_letter
+    from django.http import HttpResponse
+
+    # --- 1. Search & Date Filtering (Matches global_claims view) ---
+    search_query = request.GET.get('q', '').strip()
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    
+    # Start with base queryset and annotate LAD
+    claims_queryset = UnityClaim.objects.exclude(claim_type='Two Pot').annotate(
+        lad_date=Max('notes__created_at')
+    )
+
+    if search_query:
+        claims_queryset = claims_queryset.filter(
+            Q(id_number__icontains=search_query) |
+            Q(member_surname__icontains=search_query) |
+            Q(company_code__icontains=search_query) |
+            Q(member_name__icontains=search_query)
+        )
+
+    if date_from:
+        claims_queryset = claims_queryset.filter(claim_created_date__gte=date_from)
+        
+    if date_to:
+        claims_queryset = claims_queryset.filter(claim_created_date__lte=date_to)
+
+    claims = list(claims_queryset.order_by('-claim_created_date', 'member_surname'))
+
+    # --- 2. Build Excel Workbook ---
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Global Claims Register"
+
+    # --- Styles Definition ---
+    green_fill = PatternFill(start_color="C8E6C9", end_color="C8E6C9", fill_type="solid")
+    thin_border = Border(
+        left=Side(style='thin'), 
+        right=Side(style='thin'), 
+        top=Side(style='thin'), 
+        bottom=Side(style='thin')
+    )
+    header_font = Font(bold=True, size=11)
+
+    # --- 3. Headers (Row 1) ---
+    headers = [
+        'Company Code', 'Agent', 'Member Name', 'Member Surname', 
+        'ID Number', 'MIP Number', 'Claim Type', 'Exit Reason', 
+        'Claim Allocation', 'Claim Status', 'Payment Option', 
+        'Claim Amount', 'Created Date', 'Last Contrib. Date', 
+        'Date Submitted', 'Date Paid', 'LAD', 'Vested Pot Paid Date', 
+        'Savings Pot Paid Date', 'In-Fund Cert Date'
+    ]
+    ws.append(headers)
+    
+    for cell in ws[1]:
+        cell.fill = green_fill
+        cell.font = header_font
+        cell.border = thin_border
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+
+    # --- 4. Add Data Rows ---
+    for claim in claims:
+        row_data = [
+            getattr(claim, 'company_code', ''),
+            getattr(claim, 'agent', ''),
+            getattr(claim, 'member_name', ''),
+            getattr(claim, 'member_surname', ''),
+            getattr(claim, 'id_number', ''),
+            getattr(claim, 'mip_number', '') or '',
+            getattr(claim, 'claim_type', ''),
+            getattr(claim, 'exit_reason', '') or '',
+            getattr(claim, 'claim_allocation', '') or '',
+            getattr(claim, 'claim_status', ''),
+            getattr(claim, 'payment_option', '') or '',
+            float(claim.claim_amount or 0),
+            claim.claim_created_date.strftime('%Y-%m-%d') if claim.claim_created_date else '',
+            claim.last_contribution_date.strftime('%Y-%m-%d') if claim.last_contribution_date else '',
+            claim.date_submitted.strftime('%Y-%m-%d') if claim.date_submitted else '',
+            claim.date_paid.strftime('%Y-%m-%d') if claim.date_paid else '',
+            claim.lad_date.strftime('%Y-%m-%d') if getattr(claim, 'lad_date', None) else '',
+            claim.vested_pot_paid_date.strftime('%Y-%m-%d') if getattr(claim, 'vested_pot_paid_date', None) else '',
+            claim.savings_pot_paid_date.strftime('%Y-%m-%d') if getattr(claim, 'savings_pot_paid_date', None) else '',
+            claim.infund_preservation_cert_received_date.strftime('%Y-%m-%d') if getattr(claim, 'infund_preservation_cert_received_date', None) else '',
+        ]
+        ws.append(row_data)
+
+        # Apply borders & vertical centering to the row
+        for cell in ws[ws.max_row]:
+            cell.border = thin_border
+            cell.alignment = Alignment(vertical='center')
+
+    # --- 5. Column Formatting / Widths (Expanded to 20 columns to fit LAD) ---
+    column_widths = [15, 15, 20, 20, 18, 15, 15, 18, 20, 18, 25, 15, 15, 15, 15, 15, 15, 18, 18, 18]
+    for i, width in enumerate(column_widths):
+        ws.column_dimensions[get_column_letter(i+1)].width = width
+
+    # --- 6. Generate Response ---
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename="Global_Claims_Register_Export.xlsx"'
+    wb.save(response)
+    return response
+
+@login_required
+def manager_approval_dashboard(request):
+    """
+    Lists all Credit Notes waiting for Linking Approval.
+    """
+    pending_credits = CreditNote.objects.filter(credit_link_status='Pending').order_by('-processed_date')
+    
+    context = {
+        'pending_credits': pending_credits
+    }
+    return render(request, 'unity_internal_app/manager_approval_dashboard.html', context)
+
+@login_required
+@transaction.atomic
+def approve_credit_link(request, note_id):
+    """
+    Manager Approval Logic.
+    UPDATED: Handles "Overs credit line" as a fail-safe by marking as 'Approved'.
+    This ensures the credit appears in the Bank List for the Clerk.
+    """
+    from decimal import Decimal
+    from django.db.models import Sum
+    from django.utils import timezone
+    from django.contrib import messages
+    from django.shortcuts import redirect, get_object_or_404
+    from .models import CreditNote, BillSettlement
+
+    note = get_object_or_404(CreditNote, id=note_id)
+    ZERO_DECIMAL = Decimal('0.00')
+    
+    if note.credit_link_status != 'Pending':
+        messages.error(request, "This credit is not pending approval.")
+        return redirect('manager_approval_dashboard')
+
+    # --- FAIL-SAFE LOGIC: HANDLE "OVERS CREDIT LINE" VERIFICATION ---
+    # If the reason is 'Overs credit line', we change status to 'Approved'.
+    # This acts as the trigger for bank_list.html to display this as a virtual deposit.
+    if note.link_request_reason == "Overs credit line":
+        note.credit_link_status = 'Approved' # <--- Changed from Unlinked
+        note.pending_linked_bill = None
+        note.authorized_by = request.user.username
+        note.authorized_at = timezone.now()
+        note.save()
+        
+        messages.success(request, f"Overs credit line of R{note.schedule_amount} for {note.member_group_code} approved. It is now visible in the Bank List for the Clerk.")
+        return redirect('manager_approval_dashboard')
+
+    # --- STANDARD LOGIC: HANDLE SPECIFIC BILL ALLOCATION REQUESTS ---
+    target_bill = note.pending_linked_bill
+    if not target_bill:
+        note.credit_link_status = 'Unlinked'
+        note.save()
+        messages.warning(request, "Request reset: No target bill was attached to this link request.")
+        return redirect('manager_approval_dashboard')
+
+    # 1. Calculate Cap to prevent over-settling the bill
+    total_already_settled = BillSettlement.objects.filter(
+        unity_bill_source_id=target_bill.pk
+    ).aggregate(total=Sum('settled_amount'))['total'] or ZERO_DECIMAL
+    
+    bill_remaining_debt = target_bill.H_Schedule_Amount - total_already_settled
+    
+    # Use the amount the agent requested
+    current_temp_request = note.requested_amount or ZERO_DECIMAL
+    final_allocation = min(current_temp_request, bill_remaining_debt)
+
+    if final_allocation <= ZERO_DECIMAL:
+        messages.warning(request, f"Bill #{target_bill.id} is already fully paid. Credit reset to Unlinked.")
+        note.credit_link_status = 'Unlinked'
+        note.pending_linked_bill = None
+        note.requested_amount = ZERO_DECIMAL 
+        note.save()
+        return redirect('manager_approval_dashboard')
+
+    # 2. Update Balances
+    note.schedule_amount -= final_allocation 
+    note.requested_amount = final_allocation 
+
+    # If money remains on the credit note, it goes back to 'Unlinked' (Fail-safe for remainders)
+    if note.schedule_amount <= Decimal('0.009'):
+        note.assigned_unity_bill = target_bill
+        note.credit_link_status = 'Approved' 
+    else:
+        note.assigned_unity_bill = None
+        note.credit_link_status = 'Unlinked' 
+
+    note.pending_linked_bill = None
+    note.authorized_by = request.user.username
+    note.authorized_at = timezone.now()
+    note.save()
+
+    # 3. Create Audit Trail (Allocates the money to the bill)
+    BillSettlement.objects.create(
+        unity_bill_source=target_bill,
+        settled_amount=final_allocation,
+        settlement_date=timezone.now(),
+        source_credit_note_id=note.id,
+        reconned_bank_line=None
+    )
+
+    # NOTE: We specifically DO NOT set target_bill.is_reconciled = True here.
+    # The Clerk must still go to the summary page and click "Finalize".
+
+    messages.success(request, f"Approved R{final_allocation} for Bill #{target_bill.id}. Clerk can now finalize this bill.")
+    return redirect('manager_approval_dashboard')
+
+@login_required
+@transaction.atomic
+def reject_credit_link(request, note_id):
+    from django.contrib import messages
+    from django.shortcuts import redirect, get_object_or_404
+    from .models import CreditNote
+
+    note = get_object_or_404(CreditNote, id=note_id)
+    
+    if note.credit_link_status != 'Pending':
+        messages.error(request, "This credit is not in a pending state.")
+        return redirect('manager_approval_dashboard')
+
+    # --- UPDATED LOGIC ---
+    # If the manager rejects it, we move it back to 'Unlinked'
+    # This allows the clerk to try the request again or fix a mistake.
+    note.credit_link_status = 'Unlinked'
+    note.pending_linked_bill = None
+    note.requested_amount = 0  
+    
+    # Track who rejected it for the audit trail
+    note.review_note = f"Rejected by {request.user.username} on {timezone.now().date()}"
+    note.save()
+
+    messages.warning(request, f"Credit ID {note_id} was rejected and returned to the unlinked pool.")
+    return redirect('manager_approval_dashboard')
+
+@login_required
+def global_bank_view(request):
+    from django.db.models import F, Q, Sum
+    from decimal import Decimal
+    from django.core.paginator import Paginator
+    from .models import ReconnedBank, CreditNote, BillSettlement, UnityMgListing
+
+    query = request.GET.get('q')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    bank_qs = ReconnedBank.objects.select_related('bank_line').order_by('-transaction_date', '-id')
+    
+    if start_date and end_date:
+        bank_qs = bank_qs.filter(transaction_date__range=[start_date, end_date])
+    
+    if query:
+        bank_qs = bank_qs.filter(
+            Q(company_code__icontains=query) |
+            Q(bank_line__transaction_description__icontains=query) | 
+            Q(bank_line__statement_reference__icontains=query)
+        )
+
+    credit_qs = CreditNote.objects.filter(
+        Q(note_selection='OVERS') | Q(note_selection='MANUAL'), # 🚀 Added MANUAL check
+        credit_link_status='Approved',
+        schedule_amount__gt=Decimal('0.00')
+    )
+    if start_date and end_date:
+        credit_qs = credit_qs.filter(authorized_at__date__range=[start_date, end_date])
+    if query:
+        credit_qs = credit_qs.filter(Q(member_group_code__icontains=query))
+
+    bank_line_ids = list(bank_qs.values_list('id', flat=True))
+    
+    bill_usage_map = {
+        item['reconned_bank_line_id']: item['total']
+        for item in BillSettlement.objects.filter(reconned_bank_line_id__in=bank_line_ids)
+        .values('reconned_bank_line_id')
+        .annotate(total=Sum('settled_amount'))
+    }
+
+    overs_usage_map = {
+        item['source_bank_line_id']: item['total']
+        for item in CreditNote.objects.filter(source_bank_line_id__in=bank_line_ids, note_selection='OVERS')
+        .values('source_bank_line_id')
+        .annotate(total=Sum('schedule_amount'))
+    }
+
+    all_codes = list(bank_qs.values_list('company_code', flat=True).distinct()) + \
+                list(credit_qs.values_list('member_group_code', flat=True).distinct())
+    
+    mg_map = {
+        item['a_company_code']: {'name': item['b_company_name'], 'agent': item['c_agent']}
+        for item in UnityMgListing.objects.filter(a_company_code__in=all_codes).values('a_company_code', 'b_company_name', 'c_agent')
+    }
+
+    combined_list = []
+
+    for r in bank_qs:
+        mg_info = mg_map.get(r.company_code, {})
+        bill_usage = bill_usage_map.get(r.id, Decimal('0.00'))
+        credit_overs = overs_usage_map.get(r.id, Decimal('0.00'))
+
+        raw_description = "No description found"
+        if r.bank_line:
+            raw_description = getattr(r.bank_line, 'transaction_description', 
+                                     getattr(r.bank_line, 'Transaction_description', "No description found"))
+
+        combined_list.append({
+            'id': r.id,
+            'source': 'BANK',
+            'transaction_date': r.transaction_date,
+            'amount': r.transaction_amount,
+            'settled_amount': bill_usage, 
+            'credit_amount': credit_overs,
+            'remaining': r.transaction_amount - bill_usage,
+            'status': r.recon_status or "Unidentified",
+            'company_code': r.company_code or "—",
+            'company_name': mg_info.get('name', "Unassigned") if r.company_code else "—",
+            'review_note': r.review_note if r.review_note else "Bank Statement",
+            'agent': mg_info.get('agent', "System") if r.company_code else "—",
+            'transaction_description': raw_description,
+        })
+
+    for c in credit_qs:
+        combined_list.append({
+            'id': c.id,
+            'source': 'CREDIT',
+            'transaction_date': c.authorized_at.date() if c.authorized_at else c.processed_date,
+            'amount': c.bank_deposit_amount or c.schedule_amount, # 🚀 Uses Original ref
+            'settled_amount': c.requested_amount or Decimal('0.00'), # 🚀 Shows Used portion
+            'credit_amount': Decimal('0.00'),
+            'remaining': c.schedule_amount,
+            'status': "APPROVED VIRTUAL",
+            'company_code': c.member_group_code,
+            'company_name': c.member_group_name or mg_map.get(c.member_group_code, {}).get('name', "Verified Credit"),
+            'review_note': c.note_selection or "APPROVED OVERS",
+            'agent': c.authorized_by or "Manager",
+            'transaction_description': f"Virtual Credit - {c.note_selection}",
+        })
+
+    combined_list.sort(key=lambda x: x['transaction_date'], reverse=True)
+
+    paginator = Paginator(combined_list, 50)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    context = {
+        'page_obj': page_obj,
+        'global_records': page_obj, 
+        'search_query': query,
+        'start_date': start_date,
+        'end_date': end_date,
+    }
+    return render(request, 'unity_internal_app/global_bank.html', context)
+
+@login_required
+def export_global_bank_excel(request):
+    """
+    Exports the Global Bank history to Excel.
+    UPDATED: Includes 'Source' column to match dashboard view.
+    UPDATED: Matches dashboard logic for Correct Settled vs Remaining math.
+    UPDATED: Splits review_note into 'Note Category' and 'Internal Note'.
+    """
+    import openpyxl
+    from django.http import HttpResponse
+    from django.db.models import Q, Sum
+    from decimal import Decimal
+    from .models import ReconnedBank, CreditNote, BillSettlement, UnityMgListing
+    
+    query = request.GET.get('q')
+    
+    # --- 1. Fetch Physical Bank Lines ---
+    bank_records = ReconnedBank.objects.select_related('bank_line').order_by('-transaction_date', '-id')
+
+    if query:
+        bank_records = bank_records.filter(
+            Q(company_code__icontains=query) |
+            Q(bank_line__Transaction_description__icontains=query) |
+            Q(bank_line__Statement_reference__icontains=query) |
+            Q(recon_status__icontains=query) |
+            Q(review_note__icontains=query)
+        )
+
+    # --- 2. Fetch Approved Virtual Credits (Overs) ---
+    credit_records = CreditNote.objects.filter(
+        Q(note_selection='OVERS') | Q(link_request_reason='Overs credit line'),
+        credit_link_status='Approved',
+        schedule_amount__gt=Decimal('0.00')
+    )
+
+    if query:
+        credit_records = credit_records.filter(
+            Q(member_group_code__icontains=query) |
+            Q(member_group_name__icontains=query)
+        )
+
+    # --- 3. Pre-Calculate Bill Settlements for Bank Lines ---
+    bank_line_ids = list(bank_records.values_list('id', flat=True))
+    bill_usage_map = {
+        item['reconned_bank_line_id']: item['total']
+        for item in BillSettlement.objects.filter(reconned_bank_line_id__in=bank_line_ids)
+        .values('reconned_bank_line_id')
+        .annotate(total=Sum('settled_amount'))
+    }
+
+    # --- 4. Build Company Lookup Map ---
+    bank_codes = list(bank_records.values_list('company_code', flat=True).distinct())
+    credit_codes = list(credit_records.values_list('member_group_code', flat=True).distinct())
+    all_codes = set(bank_codes + credit_codes)
+
+    mg_map = {
+        item['a_company_code']: {
+            'name': item['b_company_name'], 
+            'agent': item['c_agent']
+        }
+        for item in UnityMgListing.objects.filter(a_company_code__in=all_codes).values('a_company_code', 'b_company_name', 'c_agent')
+    }
+
+    # --- 5. Normalize and Merge Data ---
+    export_rows = []
+
+    # Process Bank Lines
+    for r in bank_records:
+        mg_info = mg_map.get(r.company_code, {})
+        
+        # Calculate actual bill usage vs remaining (Overs)
+        bill_usage = bill_usage_map.get(r.id, Decimal('0.00'))
+        
+        # Robust Description handling
+        raw_description = "No description found"
+        if r.bank_line:
+            raw_description = getattr(r.bank_line, 'Transaction_description', 
+                                     getattr(r.bank_line, 'transaction_description', "No description found"))
+
+        # Unpack notes
+        note_category = ""
+        internal_note_text = ""
+        if r.review_note:
+            if " | " in r.review_note:
+                parts = r.review_note.split(" | ", 1)
+                note_category = parts[0]
+                internal_note_text = parts[1]
+            else:
+                note_category = r.review_note
+
+        export_rows.append({
+            'source': 'BANK', # 🚀 Added Source
+            'date': r.transaction_date,
+            'description': raw_description,
+            'code': r.company_code or "Unassigned",
+            'name': mg_info.get('name', "—"),
+            'deposit': r.transaction_amount,
+            'settled': bill_usage, 
+            'remaining': r.transaction_amount - bill_usage, 
+            'status': r.recon_status,
+            'agent': mg_info.get('agent', "System"),
+            'note_category': note_category,
+            'internal_note': internal_note_text
+        })
+
+    # Process Credit Notes (Overs)
+    for c in credit_records:
+        c_name = c.member_group_name or mg_map.get(c.member_group_code, {}).get('name', "Verified Credit")
+        c_date = c.authorized_at.date() if c.authorized_at else c.processed_date
+
+        export_rows.append({
+            'source': 'CREDIT', # 🚀 Added Source
+            'date': c_date,
+            'description': f"APPROVED OVERS (Virtual Credit: {c.note_selection})",
+            'code': c.member_group_code,
+            'name': c_name,
+            'deposit': c.schedule_amount,
+            'settled': Decimal('0.00'),
+            'remaining': c.schedule_amount,
+            'status': "APPROVED VIRTUAL",
+            'agent': c.authorized_by or "Manager",
+            'note_category': "OVERS",
+            'internal_note': "Virtual Credit Line created from surplus"
+        })
+
+    # Sort Combined List by Date
+    export_rows.sort(key=lambda x: x['date'], reverse=True)
+
+    # --- 6. Write to Excel ---
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Global Bank Export"
+
+    # HEADERS 🚀 (Added "Source" as the second column)
+    headers = [
+        "Date", "Source", "Bank Description", "Company Code", "Company Name", 
+        "Deposit Amount", "Settled (Bill Usage)", "Remaining (Surplus/Overs)", 
+        "Status", "Agent", "Note Category", "Internal Note"
+    ]
+    ws.append(headers)
+
+    # Bold headers
+    for cell in ws[1]:
+        cell.font = openpyxl.styles.Font(bold=True)
+        cell.alignment = openpyxl.styles.Alignment(horizontal="center")
+
+    # Append rows 🚀 (Added row['source'])
+    for row in export_rows:
+        ws.append([
+            row['date'], row['source'], row['description'], row['code'], row['name'],
+            row['deposit'], row['settled'], row['remaining'],
+            row['status'], row['agent'], 
+            row['note_category'], row['internal_note']
+        ])
+
+    # Auto-adjust column widths for better look 🚀 (Shifted letters to accommodate the new column B)
+    col_widths = {
+        'A': 15, 'B': 15, 'C': 45, 'D': 15, 'E': 30, 'F': 18, 
+        'G': 18, 'H': 18, 'I': 15, 'J': 15, 'K': 25, 'L': 60
+    }
+    for col, width in col_widths.items():
+        ws.column_dimensions[col].width = width
+    
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename="Global_Bank_Export.xlsx"'
+    wb.save(response)
+    return response
+
+@login_required
+def download_attachment_view(request, message_id, attachment_id):
+    """
+    Acts as a proxy to download files from Microsoft Graph.
+    Handles both FileAttachments (PDF, Excel, etc.) and ItemAttachments (nested emails).
+    """
+    target_email = settings.OUTLOOK_EMAIL_ADDRESS
+    
+    # 1. Fetch the metadata first to determine the attachment type
+    attachment_data = OutlookGraphService.get_attachment_raw(target_email, message_id, attachment_id)
+    
+    if isinstance(attachment_data, dict) and 'error' in attachment_data:
+        logger.error(f"Metadata retrieval failed for {attachment_id}: {attachment_data}")
+        return HttpResponse("Error retrieving attachment info from Microsoft.", status=400)
+
+    odata_type = attachment_data.get('@odata.type', '')
+    file_name = attachment_data.get('name', 'attachment')
+
+    # 2. Extract content based on type
+    if odata_type == '#microsoft.graph.fileAttachment':
+        # Standard file: content is already in the metadata as a base64 string
+        if 'contentBytes' in attachment_data:
+            file_content = base64.b64decode(attachment_data['contentBytes'])
+            content_type = attachment_data.get('contentType', 'application/octet-stream')
+        else:
+            return HttpResponse("Attachment content is missing from metadata.", status=404)
+
+    elif odata_type == '#microsoft.graph.itemAttachment':
+        # Nested Email: must be fetched as raw MIME via the /$value endpoint
+        file_content = OutlookGraphService.get_attachment_mime(target_email, message_id, attachment_id)
+        
+        # Check if binary content was returned or an error dict
+        if not file_content or (isinstance(file_content, dict) and 'error' in file_content):
+            return HttpResponse("Could not retrieve nested email content from Microsoft.", status=400)
+            
+        content_type = 'message/rfc822'
+        # Force .eml extension so Windows/Outlook handles the file correctly
+        if not file_name.lower().endswith('.eml'):
+            file_name += ".eml"
+    else:
+        # Fallback for reference attachments or other types
+        return HttpResponse(f"Unsupported attachment type: {odata_type}", status=400)
+
+    # 3. Build and return the final response
+    response = HttpResponse(file_content, content_type=content_type)
+    response['Content-Disposition'] = f'attachment; filename="{file_name}"'
+    return response
+
+@login_required
+def export_email_list(request):
+    """
+    Exports the Email Archive to Excel.
+    UPDATED: Now includes 'NEW' and 'DEL' (Delegated) by default.
+    COLUMNS: Status, Subject, From, Received, Delegated, Agent, Company, Type.
+    """
+    import openpyxl
+    from openpyxl.styles import Font, PatternFill, Alignment
+    from django.http import HttpResponse
+
+    # 1. Capture Filter Parameters
+    filter_type = request.GET.get('type', 'all')
+    search_query = request.GET.get('search', '').strip().lower()
+    start_date = request.GET.get('start')
+    end_date = request.GET.get('end')
+    
+    status_filter = request.GET.get('status')
+    agent_filter = request.GET.get('agent')
+    type_filter = request.GET.get('email_type')
+
+    # 2. Fetch Data with Database-Level Filtering
+    # Exclude Recycle Bin/Archived items
+    delegations_qs = EmailDelegation.objects.exclude(status__in=['DLT', 'ARC']).select_related('assigned_user')
+
+    # Apply Dropdown Filters at DB Level
+    if status_filter:
+        delegations_qs = delegations_qs.filter(status=status_filter)
+    else:
+        # UPDATED: Default restricted to NEW and DEL (Delegated) as requested
+        delegations_qs = delegations_qs.filter(status__in=['NEW', 'DEL'])
+
+    if agent_filter:
+        delegations_qs = delegations_qs.filter(assigned_user_id=agent_filter)
+        
+    if type_filter:
+        delegations_qs = delegations_qs.filter(email_category=type_filter)
+
+    # 3. Map Inbox details (Subject and From)
+    email_ids = delegations_qs.values_list('email_id', flat=True)
+    inbox_map = {obj.email_id: obj for obj in OutlookInbox.objects.filter(email_id__in=email_ids)}
+
+    final_items = []
+    for d in delegations_qs:
+        inbox_detail = inbox_map.get(d.email_id)
+        d.subject = inbox_detail.subject if inbox_detail else "Unknown Subject"
+        # ADDED: Sender Address field
+        d.sender_address = inbox_detail.sender_address if inbox_detail else "Unknown"
+
+        # Apply Python-Side Search Filter
+        if search_query:
+            if search_query not in d.subject.lower() and \
+               search_query not in (d.company_code or '').lower() and \
+               search_query not in (d.email_category or '').lower():
+                continue
+
+        # Apply Date Filters
+        if start_date and d.received_at:
+            try:
+                if d.received_at.date() < datetime.strptime(start_date, '%Y-%m-%d').date():
+                    continue
+            except ValueError: pass
+        if end_date and d.received_at:
+            try:
+                if d.received_at.date() > datetime.strptime(end_date, '%Y-%m-%d').date():
+                    continue
+            except ValueError: pass
+        
+        # Backward compatibility check (ensures we don't accidentally export COM if filter_type is 'new')
+        if filter_type == 'new' and d.status != 'NEW':
+            continue
+
+        final_items.append(d)
+
+    # Sort final list
+    final_items.sort(key=lambda x: x.received_at if x.received_at else timezone.now(), reverse=True)
+
+    # 4. Create Excel
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Active Emails"
+
+    # Styling
+    header_font = Font(bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="2E5077", end_color="2E5077", fill_type="solid") # Changed to a professional blue
+    
+    # UPDATED: Columns as requested
+    headers = [
+        'Email Status', 'Subject', 'From', 'Date Received', 
+        'Date Delegation', 'Agent', 'Company Code', 'Email Type'
+    ]
+    ws.append(headers)
+
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = Alignment(horizontal="center")
+
+    # 5. Populate Rows
+    for item in final_items:
+        status_display = item.get_status_display()
+        subject = item.subject
+        sender = item.sender_address
+        received_dt = item.received_at.strftime('%Y-%m-%d %H:%M') if item.received_at else ""
+        delegated_dt = item.delegated_at.strftime('%Y-%m-%d %H:%M') if item.delegated_at else "---"
+        user = item.assigned_user.username if item.assigned_user else "Unassigned"
+        comp_code = item.company_code or "N/A"
+        category = item.email_category or "General"
+
+        ws.append([
+            status_display, subject, sender, received_dt, 
+            delegated_dt, user, comp_code, category
+        ])
+
+    # Adjust column widths for better readability
+    # Status, Subject, From, RecDate, DelDate, Agent, CompCode, Type
+    column_widths = [18, 55, 30, 20, 20, 15, 15, 15]
+    for i, width in enumerate(column_widths, 1):
+        ws.column_dimensions[openpyxl.utils.get_column_letter(i)].width = width
+
+    # 6. Return File
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = f'attachment; filename=Active_Emails_{timezone.now().strftime("%Y%m%d")}.xlsx'
+    wb.save(response)
+    return response
+
+@login_required
+def download_email_file(request, email_id):
+    """
+    Fetches the raw MIME (.eml) content from Microsoft Graph for a specific message.
+    """
+    try:
+        # Use your existing OutlookGraphService to fetch raw content via /$value
+        endpoint = f"messages/{email_id}/$value"
+        
+        raw_content = OutlookGraphService._make_graph_request(
+            endpoint, 
+            settings.OUTLOOK_EMAIL_ADDRESS, 
+            method='GET', 
+            is_raw=True 
+        )
+
+        if not raw_content:
+            messages.error(request, "Could not retrieve email content from Outlook.")
+            return redirect(request.META.get('HTTP_REFERER', 'unity_list'))
+
+        # Prepare the response as a file download
+        response = HttpResponse(raw_content, content_type='message/rfc822')
+        response['Content-Disposition'] = f'attachment; filename="Outlook_Email_{email_id[:10]}.eml"'
+        return response
+
+    except Exception as e:
+        messages.error(request, f"Error downloading email: {str(e)}")
+        return redirect(request.META.get('HTTP_REFERER', 'unity_list'))
+        
+@login_required
+@transaction.atomic
+def create_manual_credit(request):
+    """
+    Handles manual 'Overs' credit creation and notifies the approval team.
+    """
+    if request.method == 'POST':
+        company_code = request.POST.get('company_code')
+        amount_input = request.POST.get('deposit_amount', '0')
+        deposit_date = request.POST.get('deposit_date')
+        bank_fiscal = request.POST.get('bank_fiscal')
+        date_identified = request.POST.get('date_identified')
+        agent_input = request.POST.get('agent_name')
+        
+        # 🚀 Capture attachments from the form 🚀
+        attachments = request.FILES.getlist('email_attachments')
+
+        try:
+            amount = Decimal(amount_input)
+        except (ValueError, TypeError):
+            amount = Decimal('0.00')
+
+        if amount <= 0 or not company_code:
+            messages.error(request, "Please provide Company Code and a valid Amount.")
+            return redirect('credit_note_list')
+
+        # Create the record
+        new_credit = CreditNote.objects.create(
+            member_group_code=company_code,
+            schedule_amount=amount,
+            bank_deposit_amount=amount,
+            requested_amount=Decimal('0.00'),
+            bank_stmt_date=parse_date(deposit_date),
+            fiscal_date=parse_date(bank_fiscal),
+            date_identified=parse_date(date_identified),
+            processed_by=agent_input or request.user.username,
+            processed_date=timezone.now(),
+            note_selection='MANUAL',
+            link_request_reason='Overs credit line',
+            credit_link_status='Pending'
+        )
+
+        # Send notifications
+        try:
+            subject = f"APPROVAL REQUIRED: Manual Overs Credit - {company_code}"
+            body = (
+                f"A new manual overs credit has been created and requires approval.\n\n"
+                f"DETAILS:\n"
+                f"---------------------------\n"
+                f"Company Code: {company_code}\n"
+                f"Amount: R {amount:,.2f}\n"
+                f"Deposit Date: {deposit_date}\n"
+                f"Bank Fiscal Date: {bank_fiscal}\n"
+                f"Date Identified: {date_identified}\n"
+                f"Captured By: {agent_input or request.user.username}\n"
+                f"---------------------------\n\n"
+                f"Please log in to the system to approve this credit."
+            )
+            
+            approvers = ["lorraine@futurasa.co.za", "samantha@futurasa.co.za", "luanoveck@gmail.com"]
+            
+            for email in approvers:
+                OutlookGraphService.send_outlook_email(
+                    target_email=settings.OUTLOOK_EMAIL_ADDRESS, 
+                    recipient_email=email, 
+                    subject=subject, 
+                    body_content=body, 
+                    content_type='TEXT',
+                    attachments=attachments # 🚀 Passed the attachments here 🚀
+                )
+        except Exception as e:
+            logger.error(f"Approval notification failed: {e}")
+
+        messages.success(request, f"Manual credit for {company_code} created. Awaiting approval.")
+        return redirect('credit_note_list')
+
+    return redirect('credit_note_list')
+
+@login_required
+def export_unity_list_excel(request):
+    """
+    Exports the combined Unity List (InternalFunds + UnityMgListing) to Excel.
+    Includes the calculated 'Active Surplus' and the correct Last Recon Date.
+    """
+    from collections import defaultdict
+    from decimal import Decimal
+    from datetime import datetime
+    import openpyxl
+    from django.http import HttpResponse
+    
+    # --- REPLICATE DATA GATHERING LOGIC FROM unity_list ---
+    
+    # 1. Fetch Base Records
+    internal_funds_records = InternalFunds.objects.all()
+    
+    # Create a mutable copy of the Unity listing map
+    unity_listing_map = {
+        record.a_company_code: record for record in UnityMgListing.objects.all()
+    }
+    
+    # 2. Calculate Surplus/Allocation & Last Recon Date
+    bill_map = dict(UnityBill.objects.values_list('id', 'C_Company_Code'))
+    ZERO_DECIMAL = Decimal('0.00')
+
+    # Aggregate Total Surplus
+    surplus_map = defaultdict(Decimal)
+    surpluses = ScheduleSurplus.objects.values('unity_bill_source_id', 'surplus_amount')
+    for s in surpluses:
+        b_id = s['unity_bill_source_id']
+        amount = s['surplus_amount'] or ZERO_DECIMAL
+        if b_id in bill_map:
+            surplus_map[bill_map[b_id]] += amount
+
+    # Aggregate Total Allocation
+    allocation_map = defaultdict(Decimal)
+    allocations = JournalEntry.objects.values('target_bill_id', 'amount')
+    for a in allocations:
+        b_id = a['target_bill_id']
+        amount = a['amount'] or ZERO_DECIMAL
+        if b_id in bill_map:
+            allocation_map[bill_map[b_id]] += amount
+
+    # 🚀 Track Last Recon Date from UnityBill where is_reconciled = 1
+    last_recon_date_map = {}
+    all_bills = UnityBill.objects.all().order_by('A_CCDatesMonth')
+    for b in all_bills:
+        code = b.C_Company_Code
+        if b.is_reconciled and b.A_CCDatesMonth:
+            if hasattr(b.A_CCDatesMonth, 'strftime'):
+                last_recon_date_map[code] = b.A_CCDatesMonth.strftime('%Y-%m-%d')
+            else:
+                last_recon_date_map[code] = str(b.A_CCDatesMonth)
+
+    # 3. Build Combined List
+    combined_records = []
+
+    # Phase 1: InternalFunds
+    for fund_record in internal_funds_records:
+        company_code = fund_record.A_Company_Code
+        detail_record = unity_listing_map.pop(company_code, None)
+        
+        total_gained = surplus_map.get(company_code, ZERO_DECIMAL)
+        total_used = allocation_map.get(company_code, ZERO_DECIMAL)
+        active_surplus_value = total_gained - total_used
+        
+        last_recon_val = last_recon_date_map.get(company_code, '1900-01-00')
+        
+        combined_records.append({
+            'code': fund_record.A_Company_Code,
+            'name': fund_record.B_Company_Name,
+            'source': fund_record.Source,
+            'status': fund_record.D_Company_Status,
+            'agent': detail_record.c_agent if detail_record else None,
+            'payment': detail_record.e_payment_method if detail_record else None,
+            'billing': detail_record.f_billing_method if detail_record else None,
+            'fiscal': detail_record.g_current_fiscal if detail_record else None,
+            'current_status': detail_record.h_current_status if detail_record else None,
+            'last_recon': last_recon_val,
+            'email': detail_record.contact_email if detail_record else None,
+            'surplus': active_surplus_value,
+        })
+
+    # Phase 2: Remaining UnityMgListing
+    for company_code, detail_record in unity_listing_map.items():
+        total_gained = surplus_map.get(company_code, ZERO_DECIMAL)
+        total_used = allocation_map.get(company_code, ZERO_DECIMAL)
+        active_surplus_value = total_gained - total_used
+        
+        last_recon_val = last_recon_date_map.get(company_code, '1900-01-00')
+        
+        combined_records.append({
+            'code': detail_record.a_company_code,
+            'name': detail_record.b_company_name,
+            'source': 'System Only (New)',
+            'status': detail_record.d_company_status,
+            'agent': detail_record.c_agent,
+            'payment': detail_record.e_payment_method,
+            'billing': detail_record.f_billing_method,
+            'fiscal': detail_record.g_current_fiscal,
+            'current_status': detail_record.h_current_status,
+            'last_recon': last_recon_val,
+            'email': detail_record.contact_email,
+            'surplus': active_surplus_value,
+        })
+
+    # --- GENERATE EXCEL ---
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Unity List Export"
+
+    # Define Headers (Replaced Arrears with Last Recon Date)
+    headers = [
+        "Company Code", "Company Name", "Source", "Company Status", 
+        "Agent", "Payment Method", "Billing Method", "Fiscal Year", 
+        "Current Status", "Last Recon", "Contact Email", "Active Surplus"
+    ]
+    ws.append(headers)
+
+    # Write Data
+    for r in combined_records:
+        ws.append([
+            r['code'],
+            r['name'],
+            r['source'],
+            r['status'],
+            r['agent'],
+            r['payment'],
+            r['billing'],
+            r['fiscal'],
+            r['current_status'],
+            r['last_recon'],
+            r['email'],
+            r['surplus']
+        ])
+
+    # Response
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    response['Content-Disposition'] = 'attachment; filename="Unity_List_Export.xlsx"'
+    wb.save(response)
+    return response
+
+@login_required
+def apply_available_credit(request, bill_id):
+    if request.method == 'POST':
+        # 1. Get the Bill
+        bill = get_object_or_404(UnityBill, pk=bill_id)
+        
+        # 2. Get Data from Form
+        # 'credit_id' is the primary key of the CreditNote record
+        credit_id = request.POST.get('credit_id') 
+        amount_to_apply_str = request.POST.get('amount_to_apply')
+        
+        try:
+            amount_to_apply = Decimal(amount_to_apply_str)
+            
+            # --- CRITICAL FIX: Use CreditNote, not ScheduleSurplus ---
+            credit_item = get_object_or_404(CreditNote, pk=credit_id)
+            
+            # 3. Validation
+            if amount_to_apply <= 0:
+                messages.error(request, "Amount must be greater than 0.")
+                return redirect('pre_bill_reconciliation_summary', company_code=bill.C_Company_Code, bill_id=bill.id)
+
+            # Check available balance (using schedule_amount from CreditNote model)
+            if amount_to_apply > credit_item.schedule_amount: 
+                messages.error(request, "Cannot apply more than the available credit amount.")
+                return redirect('pre_bill_reconciliation_summary', company_code=bill.C_Company_Code, bill_id=bill.id)
+
+            # 4. Create the Allocation
+            with transaction.atomic():
+                # Note: We use 'source_credit_note_id' to match your BillSettlement audit trail
+                BillSettlement.objects.create(
+                    unity_bill_source=bill,
+                    settled_amount=amount_to_apply,
+                    settlement_date=timezone.now(),
+                    source_credit_note_id=credit_item.id, # Link to the credit note
+                    reconned_bank_line=None
+                )
+                
+                # Deduct the amount from the Credit Note so it isn't used twice
+                credit_item.schedule_amount -= amount_to_apply
+                
+                # If fully used, you might want to update status
+                if credit_item.schedule_amount <= Decimal('0.009'):
+                    credit_item.credit_link_status = 'Approved' # or 'Fully Used'
+                
+                credit_item.save()
+                
+                messages.success(request, f"Successfully applied R{amount_to_apply} from Credit Note.")
+
+        except Exception as e:
+            messages.error(request, f"Error applying credit: {str(e)}")
+            
+        return redirect('pre_bill_reconciliation_summary', company_code=bill.C_Company_Code, bill_id=bill.id)
+    
+    return redirect('dashboard')
+
+@login_required
+@transaction.atomic
+def move_bank_line_to_credit(request, recon_id):
+    """
+    Manually moves a Bank Line's remaining balance into the CreditNote (Overs) pool.
+    This sets the bank line to 'Reconciled' so it stops showing a balance.
+    """
+    recon_line = get_object_or_404(ReconnedBank, pk=recon_id)
+    company_code = recon_line.company_code
+    
+    # Calculate what is left on this specific line
+    remaining_balance = recon_line.transaction_amount - recon_line.amount_settled
+    
+    if remaining_balance <= Decimal('0.009'):
+        messages.warning(request, "This line is already fully consumed.")
+        return redirect('unity_information', company_code=company_code)
+
+    # 1. Create the 'Overs' record in the CreditNote table
+    CreditNote.objects.create(
+        member_group_code=company_code,
+        schedule_amount=remaining_balance,
+        credit_link_status='Pending', # Sent to Manager Approval
+        link_request_reason="Overs credit line",
+        source_bank_line=recon_line, 
+        comment=f"Manually moved to Credit Pool by {request.user.username}",
+        processed_by=request.user.username,
+        processed_date=timezone.now(),
+        note_selection="OVERS"
+    )
+
+    # 2. Exhaust the bank line so it shows R0.00 remaining
+    recon_line.amount_settled = recon_line.transaction_amount
+    recon_line.recon_status = 'Reconciled'
+    recon_line.save()
+
+    messages.success(request, f"R{remaining_balance} moved to Credit Pool. Awaiting Manager Approval.")
+    return redirect('unity_information', company_code=company_code)
+
+@login_required
+def bulk_billing_dashboard(request):
+    from .models import ReconnedBank, UnityBill
+    from django.db.models import Q, Sum, Min
+    from django.shortcuts import render
+
+    # 1. Fetch bank lines marked for bulk
+    bulk_bank_lines = ReconnedBank.objects.filter(
+        review_note__icontains="BULK", 
+        recon_status__icontains="Unreconciled"
+    ).select_related('bank_line').order_by('-transaction_date')
+
+    # 2. FIXED: Added A_CCDatesMonth to .values() so bills for different dates don't consolidate
+    bill_aggregates = UnityBill.objects.filter(
+        is_reconciled=False
+    ).values('C_Company_Code', 'A_CCDatesMonth').annotate(
+        total_outstanding=Sum('H_Schedule_Amount')
+    ).order_by('C_Company_Code', 'A_CCDatesMonth')
+
+    # 3. Build the tuple (Code, Date, Amount)
+    eligible_members = [
+        (item['C_Company_Code'], item['A_CCDatesMonth'], item['total_outstanding']) 
+        for item in bill_aggregates
+    ]
+
+    context = {
+        'bulk_bank_lines': bulk_bank_lines,
+        'eligible_members': eligible_members,
+    }
+    return render(request, 'unity_internal_app/bulk_billing.html', context)
+
+from django.db import transaction
+
+@login_required
+def process_bulk_allocation(request):
+    if request.method == 'POST':
+        from .models import ReconnedBank, UnityBill, BillSettlement, JournalEntry
+        from django.db.models import Sum
+        from decimal import Decimal
+        from django.contrib import messages
+        from django.utils import timezone
+        from django.db import transaction
+
+        bank_line_id = request.POST.get('bank_line_id')
+        member_codes = request.POST.getlist('member_codes[]')
+        bill_dates = request.POST.getlist('bill_dates[]') # NEW: Capture dates from popup
+        amounts = request.POST.getlist('amounts[]')
+
+        try:
+            with transaction.atomic():
+                bank_line = ReconnedBank.objects.select_for_update().get(id=bank_line_id)
+                bank_available = bank_line.transaction_amount - bank_line.amount_settled
+                total_successfully_allocated = Decimal('0.00')
+
+                # Updated zip to include bill_dates
+                for code, bill_date, amount_str in zip(member_codes, bill_dates, amounts):
+                    if not code or not amount_str: continue
+                    
+                    requested_amount = Decimal(amount_str)
+                    if requested_amount <= 0: continue
+
+                    if total_successfully_allocated + requested_amount > bank_available:
+                        requested_amount = bank_available - total_successfully_allocated
+                        if requested_amount <= 0: break 
+
+                    # 2. UPDATED: Find the SPECIFIC bill for that code and date
+                    target_bill = UnityBill.objects.filter(
+                        C_Company_Code=code, 
+                        A_CCDatesMonth=bill_date, # Filter by specific date
+                        is_reconciled=False
+                    ).first()
+
+                    if not target_bill:
+                        messages.warning(request, f"Skipped {code} for {bill_date}: Bill not found or already reconciled.")
+                        continue
+
+                    # 3. Calculate exactly what is still owed
+                    already_paid = BillSettlement.objects.filter(
+                        unity_bill_source=target_bill
+                    ).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
+                    
+                    journals_paid = JournalEntry.objects.filter(
+                        target_bill=target_bill
+                    ).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+
+                    remaining_on_bill = target_bill.H_Schedule_Amount - already_paid - journals_paid
+
+                    actual_settle_amount = min(requested_amount, remaining_on_bill)
+
+                    if actual_settle_amount <= 0:
+                        continue
+
+                    # 5. Create the Settlement
+                    BillSettlement.objects.create(
+                        unity_bill_source=target_bill,
+                        reconned_bank_line=bank_line,
+                        settled_amount=actual_settle_amount,
+                        settlement_date=timezone.now(),
+                        confirmed_by=request.user
+                    )
+
+                    bank_line.amount_settled += actual_settle_amount
+                    total_successfully_allocated += actual_settle_amount
+
+                    if (already_paid + journals_paid + actual_settle_amount) >= (target_bill.H_Schedule_Amount - Decimal('0.01')):
+                        target_bill.is_reconciled = True
+                        target_bill.save()
+
+                if bank_line.amount_settled >= (bank_line.transaction_amount - Decimal('0.01')):
+                    bank_line.recon_status = "Reconciled"
+                else:
+                    bank_line.recon_status = "Partially Reconciled"
+                
+                bank_line.save()
+                messages.success(request, f"Bulk processing complete. Total Allocated: R {total_successfully_allocated}")
+
+        except Exception as e:
+            messages.error(request, f"Error during bulk processing: {str(e)}")
+
+    return redirect('bulk_billing_dashboard')
+
+from django.shortcuts import render, HttpResponse, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
+from django.db import transaction
+from django.utils import timezone
+from django.db.models import Q, Sum
+from datetime import timedelta
+from collections import defaultdict
+from django.contrib import messages
+from django.conf import settings
+
+# Ensure these models are imported correctly based on your app structure
+# from .models import EmailDelegation, ReconnedBank, InternalFunds, BillSettlement
+
+import json
+import openpyxl
+from datetime import timedelta
+from decimal import Decimal
+from collections import defaultdict
+from openpyxl.styles import PatternFill, Font, Alignment
+from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
+from django.db.models import Sum, Q, Count
+from django.http import HttpResponse
+from django.utils import timezone
+
+@login_required
+def sla_report_view(request):
+    """
+    SLA & Front Office Report: Tracks Email Delegation, Bank Review Notes, and Billing Reconciliation.
+    MAPPED TO RECON HISTORY LOGIC FROM UNITY_INFORMATION & FRONT OFFICE PDF REPORT.
+    """
+    from .models import (
+        EmailDelegation, DelegationTransactionLog, UnityNotes, 
+        OutlookInbox, CreditNote, BillSettlement, ReconnedBank,
+        UnityMgListing, InternalFunds, ClientNotes, UnityBill,
+        ScheduleSurplus, JournalEntry, UnityClaim, BankJournalEntry,
+        UnityClaimNote  # 🛑 ADDED: UnityClaimNote imported here
+    )
+    from django.db.models import Q, Sum, Count, F
+    from decimal import Decimal
+    from datetime import timedelta
+    from django.utils import timezone
+    from collections import defaultdict
+    from django.shortcuts import render
+
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+
+    # ==========================================
+    # 1. EMAIL DELEGATION & ACTION LOGIC (MAPPED TO PDF 5.1 & 5.3)
+    # ==========================================
+    delegations = EmailDelegation.objects.all().select_related('assigned_user').prefetch_related('transactions')
+    if start_date and end_date and start_date not in ["None", ""] and end_date not in ["None", ""]:
+        delegations = delegations.filter(received_at__range=[start_date, end_date])
+
+    report_data = []
+    agent_stats = defaultdict(lambda: {'count': 0, 'total_res_time': timedelta(), 'resolved_count': 0})
+    
+    # PDF Section 5 Aggregators
+    action_counts = defaultdict(int)
+    email_status_counts = defaultdict(int)
+
+    for d in delegations:
+        # Aggregating 5.3 E-mail Status
+        status_label = d.get_status_display() if hasattr(d, 'get_status_display') else d.status
+        email_status_counts[status_label] += 1
+
+        history_logs = d.transactions.all().order_by('timestamp')
+        
+        # Aggregating 5.1 Action Statistics
+        for t in history_logs:
+            action_label = getattr(t, 'action_type', 'Unknown Action')
+            action_counts[action_label] += 1
+
+        response_time = d.delegated_at - d.received_at if d.delegated_at and d.received_at else None
+        resolution_time = None
+        
+        if d.status in ['COM', 'CLS', 'DONE']:
+            last_act = history_logs.last()
+            finish_date = last_act.timestamp if last_act else timezone.now()
+            resolution_time = finish_date - d.received_at
+            
+            if d.assigned_user:
+                agent_stats[d.assigned_user.username]['resolved_count'] += 1
+                agent_stats[d.assigned_user.username]['total_res_time'] += resolution_time
+
+        if d.assigned_user:
+            agent_stats[d.assigned_user.username]['count'] += 1
+
+        is_overdue = resolution_time > timedelta(hours=24) if resolution_time else False
+
+        report_data.append({
+            'delegation': d,
+            'response_time': response_time,
+            'resolution_time': resolution_time,
+            'history_logs': history_logs,
+            'is_overdue': is_overdue
+        })
+
+    final_agent_stats = []
+    for agent, stats in agent_stats.items():
+        avg_res = stats['total_res_time'] / stats['resolved_count'] if stats['resolved_count'] > 0 else None
+        final_agent_stats.append({
+            'agent': agent,
+            'total_assigned': stats['count'],
+            'total_resolved': stats['resolved_count'],
+            'avg_resolution': str(avg_res).split('.')[0] if avg_res else "N/A"
+        })
+
+    # Prepare Action Stats for Template
+    action_statistics_summary = [{'label': k, 'count': v} for k, v in sorted(action_counts.items(), key=lambda item: item[1], reverse=True)]
+    email_status_summary = [{'label': k, 'count': v} for k, v in sorted(email_status_counts.items())]
+
+    # ==========================================
+    # 2. BANK LINE NOTES & STATISTICS LOGIC (MAPPED TO PDF 2.4)
+    # ==========================================
+    base_bank_qs = ReconnedBank.objects.all().select_related('bank_line')
+    if start_date and end_date and start_date not in ["None", ""] and end_date not in ["None", ""]:
+        base_bank_qs = base_bank_qs.filter(transaction_date__range=[start_date, end_date])
+
+    # Raw notes for SLA detail table
+    bank_notes_qs = base_bank_qs.filter(
+        Q(review_note__isnull=False) & ~Q(review_note='') | 
+        Q(review_note_text__isnull=False) & ~Q(review_note_text='')
+    )
+
+    # Aggregation for PDF 2.4 Bank Statistics
+    unreconciled_breakdown = base_bank_qs.exclude(recon_status='Reconciled').values('review_note').annotate(
+        total_amount=Sum('transaction_amount'),
+        bankline_count=Count('id')
+    ).order_by('review_note')
+
+    total_unreconciled_amt = sum((item['total_amount'] or Decimal('0.00')) for item in unreconciled_breakdown)
+    total_unreconciled_ct = sum(item['bankline_count'] for item in unreconciled_breakdown)
+
+    reconciled_agg = base_bank_qs.filter(recon_status='Reconciled').aggregate(
+        total_amount=Sum('transaction_amount'),
+        bankline_count=Count('id')
+    )
+    total_reconciled_amt = reconciled_agg['total_amount'] or Decimal('0.00')
+    total_reconciled_ct = reconciled_agg['bankline_count'] or 0
+
+    bank_statistics = {
+        'unreconciled': unreconciled_breakdown,
+        'total_unreconciled_amt': total_unreconciled_amt,
+        'total_unreconciled_ct': total_unreconciled_ct,
+        'total_reconciled_amt': total_reconciled_amt,
+        'total_reconciled_ct': total_reconciled_ct,
+        'grand_total_amt': total_unreconciled_amt + total_reconciled_amt,
+        'grand_total_ct': total_unreconciled_ct + total_reconciled_ct,
+    }
+
+    # ==========================================
+    # 2.2 RECONCILIATIONS PER FISCAL (MAPPED TO PDF 2.2)
+    # ==========================================
+    daily_qs = UnityBill.objects.filter(
+        is_reconciled=True
+    ).exclude(E_Active_Members=0).exclude(H_Schedule_Amount=0)
+
+    fiscal_reconciliations = daily_qs.values(
+        month_by_year=F('A_CCDatesMonth')
+    ).annotate(
+        companies_reconciled=Count('C_Company_Code', distinct=True),
+        active_members=Sum('E_Active_Members')
+    ).order_by('month_by_year')
+
+    total_fiscal_companies = sum(item['companies_reconciled'] for item in fiscal_reconciliations)
+    total_fiscal_members = sum((item['active_members'] or 0) for item in fiscal_reconciliations)
+
+    # ==========================================
+    # 3. BILLING RECONCILIATION SLA (MATCHED TO RECON HISTORY)
+    # ==========================================
+    bills_qs = UnityBill.objects.all().order_by('-A_CCDatesMonth')
+    if start_date and end_date and start_date not in ["None", ""] and end_date not in ["None", ""]:
+        bills_qs = bills_qs.filter(
+            Q(F_Pre_Bill_Date__range=[start_date, end_date]) | 
+            Q(J_Final_Date__range=[start_date, end_date])
+        )
+
+    billing_sla_data = []
+    total_contributions_reconciled = Decimal('0.00') # Mapped to PDF 2.3
+
+    for bill in bills_qs:
+        settlements = BillSettlement.objects.filter(unity_bill_source_id=bill.id)
+        
+        schedule_amt = getattr(bill, 'H_Schedule_Amount', Decimal('0.00')) or Decimal('0.00')
+        bank_settled_consumed = settlements.filter(reconned_bank_line_id__isnull=False).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
+        
+        if getattr(bill, 'is_reconciled', False):
+            total_contributions_reconciled += bank_settled_consumed
+
+        credit_allocated = settlements.filter(source_credit_note_id__isnull=False).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
+        journal_allocated = JournalEntry.objects.filter(target_bill_id=bill.id).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        applied_credit_total = credit_allocated + journal_allocated
+
+        used_line_ids = settlements.filter(reconned_bank_line_id__isnull=False).values_list('reconned_bank_line_id', flat=True)
+        bank_assigned_total = ReconnedBank.objects.filter(id__in=used_line_ids).aggregate(total=Sum('transaction_amount'))['total'] or Decimal('0.00')
+
+        overs_created = CreditNote.objects.filter(source_bank_line_id__in=used_line_ids, note_selection='OVERS', ccdates_month=bill.A_CCDatesMonth).aggregate(total=Sum('schedule_amount'))['total'] or Decimal('0.00')
+        legacy_surplus = ScheduleSurplus.objects.filter(unity_bill_source_id=bill.id).aggregate(total=Sum('surplus_amount'))['total'] or Decimal('0.00')
+        surplus_created = overs_created + legacy_surplus
+
+        final_settlement = settlements.select_related('confirmed_by').order_by('-settlement_date').first()
+        reconciled_by = final_settlement.confirmed_by.username if final_settlement and final_settlement.confirmed_by else "System"
+        
+        billing_sla_data.append({
+            'bill': bill,
+            'member_group_code': getattr(bill, 'C_Company_Code', 'N/A'),
+            'schedule_amt': schedule_amt,
+            'bank_assigned_original': bank_assigned_total,
+            'bank_settled_consumed': bank_settled_consumed,
+            'applied_credit': applied_credit_total,
+            'surplus_created': surplus_created,
+            'created_at': getattr(bill, 'F_Pre_Bill_Date', None),
+            'reconciled_at': getattr(bill, 'J_Final_Date', "Pending") if getattr(bill, 'is_reconciled', False) else "Pending",
+            'status': "RECON COMPLETE" if getattr(bill, 'is_reconciled', False) else "OPEN",
+            'reconciled_by': reconciled_by if getattr(bill, 'is_reconciled', False) else "N/A",
+            'created_by': getattr(bill, 'created_by', 'System') 
+        })
+
+    # ==========================================
+    # 4. COMPANY STATUS OVERVIEW (MAPPED TO PDF 2.1)
+    # ==========================================
+    status_counts = defaultdict(int)
+    internal_codes = set()
+    
+    for code, status in InternalFunds.objects.values_list('A_Company_Code', 'D_Company_Status'):
+        internal_codes.add(code)
+        label = status if status else "N/A"
+        status_counts[label] += 1
+        
+    system_only_qs = UnityMgListing.objects.exclude(a_company_code__in=internal_codes).values_list('d_company_status', flat=True)
+    for status in system_only_qs:
+        label = status if status else "System Only"
+        status_counts[label] += 1
+        
+    company_status_summary = []
+    total_companies = 0
+    for label, count in sorted(status_counts.items()):
+        company_status_summary.append({'label': label, 'count': count})
+        total_companies += count
+
+    # ==========================================
+    # 4.1 CURRENT FISCAL CLAIM STATUS (MAPPED TO DROPDOWN VALUES)
+    # ==========================================
+    claims_qs = UnityClaim.objects.all()
+    if start_date and end_date and start_date not in ["None", ""] and end_date not in ["None", ""]:
+        claims_qs = claims_qs.filter(claim_created_date__range=[start_date, end_date])
+
+    current_fiscal_claim_status = claims_qs.aggregate(
+        incomplete=Count('id', filter=Q(claim_status__iexact='Incomplete')),
+        docs_requested=Count('id', filter=Q(claim_status__iexact='Claim documents requested')),
+        submitted=Count('id', filter=Q(claim_status__iexact='Submitted')),
+        paid=Count('id', filter=Q(claim_status__iexact='Paid')),
+        payment_due=Count('id', filter=Q(claim_status__iexact='Payment/Shedule Due')),
+        mg_in_arrears=Count('id', filter=Q(claim_status__iexact='Company in Arrears')),
+    )
+
+    # ==========================================
+    # 4.3 TWO-POT EMERGENCY SAVINGS (MAPPED TO EXACT HEADERS)
+    # ==========================================
+    two_pot_banking_details = []
+    two_pot_qs = claims_qs.filter(claim_type__iexact='Two Pot')
+    
+    agent_groupings = two_pot_qs.values('agent').annotate(
+        mespw_submitted=Count('id', filter=Q(claim_status__iexact='MESPW Submitted')),
+        mespw_requested=Count('id', filter=Q(claim_status__iexact='MESPW Requested')),
+        withdraw_not_allowed=Count('id', filter=Q(claim_status__iexact='Withdraw - Not Allowed')),
+        paid=Count('id', filter=Q(claim_status__iexact='Paid')),
+        incomplete=Count('id', filter=Q(claim_status__iexact='Incomplete')),
+        error=Count('id', filter=Q(claim_status__iexact='Error'))
+    )
+
+    for group in agent_groupings:
+        two_pot_banking_details.append({
+            'admin': group['agent'] or 'Timothy',
+            'mespw_submitted': group['mespw_submitted'] or 0,
+            'mespw_requested': group['mespw_requested'] or 0,
+            'withdraw_not_allowed': group['withdraw_not_allowed'] or 0,
+            'paid': group['paid'] or 0,
+            'incomplete': group['incomplete'] or 0,
+            'error': group['error'] or 0,
+        })
+
+# ==========================================
+    # 🛑 5. SEPARATED NOTE REPORTS (5.2 and 5.2 B)
+    # ==========================================
+    total_notes_made = 0
+
+    # ------------------------------------------
+    # 5.2 Claim Notes (from UnityClaimNote)
+    # ------------------------------------------
+    claim_note_summary = defaultdict(int)
+    claim_notes_qs = UnityClaimNote.objects.all()
+    if start_date and end_date and start_date not in ["None", ""] and end_date not in ["None", ""]:
+        claim_notes_qs = claim_notes_qs.filter(created_at__range=[start_date, end_date])
+
+    claim_notes_counts = claim_notes_qs.values('note_selection').annotate(count=Count('pk'))
+    for item in claim_notes_counts:
+        header = item.get('note_selection') or "Uncategorized Claim Note"
+        claim_note_summary[header] += item['count']
+        total_notes_made += item['count']
+
+    # Sort descending
+    claim_notes_report = [
+        {'label': k, 'count': v} for k, v in sorted(claim_note_summary.items(), key=lambda item: item[1], reverse=True)
+    ]
+
+    # ------------------------------------------
+    # 5.2 B System Notes (from UnityNotes)
+    # ------------------------------------------
+    system_note_summary = defaultdict(int)
+    unity_notes_qs = UnityNotes.objects.all()
+    if start_date and end_date and start_date not in ["None", ""] and end_date not in ["None", ""]:
+        unity_notes_qs = unity_notes_qs.filter(date__range=[start_date, end_date])
+
+    unity_notes_counts = unity_notes_qs.values('action_notes').annotate(count=Count('pk'))
+    for item in unity_notes_counts:
+        header = item.get('action_notes') or "Uncategorized System Note"
+        system_note_summary[header] += item['count']
+        total_notes_made += item['count']
+
+    # Sort descending
+    system_notes_report = [
+        {'label': k, 'count': v} for k, v in sorted(system_note_summary.items(), key=lambda item: item[1], reverse=True)
+    ]
+
+    return render(request, 'unity_internal_app/sla_report.html', {
+        'report_data': report_data,
+        'agent_stats': final_agent_stats,
+        'bank_notes': bank_notes_qs, 
+        'billing_sla': billing_sla_data,
+        
+        'company_status_summary': company_status_summary, 
+        'total_companies': total_companies,
+        'bank_statistics': bank_statistics,
+        'action_statistics_summary': action_statistics_summary,
+        'email_status_summary': email_status_summary,
+        'total_contributions_reconciled': total_contributions_reconciled,
+
+        'fiscal_reconciliations': fiscal_reconciliations,
+        'total_fiscal_companies': total_fiscal_companies,
+        'total_fiscal_members': total_fiscal_members,
+
+        'current_fiscal_claim_status': current_fiscal_claim_status,
+        'two_pot_banking_details': two_pot_banking_details,
+
+        # 🛑 SEPARATED NOTE REPORTS CONTEXT
+        'claim_notes_report': claim_notes_report,       # 5.2
+        'system_notes_report': system_notes_report,     # 5.2 B
+        'total_notes_made': total_notes_made,           # Keeps the unified total accurate
+
+        'start_date': start_date if start_date != "None" else "",
+        'end_date': end_date if end_date != "None" else "",
+    })
+
+@login_required
+def export_sla_report_excel(request):
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+    
+    wb = openpyxl.Workbook()
+    
+    # Brand Colors
+    header_fill_summary = PatternFill(start_color="065F46", end_color="065F46", fill_type="solid") # PDF Summaries
+    header_fill_email = PatternFill(start_color="047857", end_color="047857", fill_type="solid")
+    header_fill_bank = PatternFill(start_color="1B5E20", end_color="1B5E20", fill_type="solid")
+    header_fill_bill = PatternFill(start_color="1E3A8A", end_color="1E3A8A", fill_type="solid") 
+    
+    white_font = Font(color="FFFFFF", bold=True)
+    center_alignment = Alignment(horizontal="center")
+
+    # ==========================================
+    # SHEET 1: FRONT OFFICE REPORT - OVERVIEW (PDF 2.1 & 5.1/5.3)
+    # ==========================================
+    ws1 = wb.active
+    ws1.title = "FO Report - Overview"
+    
+    # 2.1 Company Status
+    ws1.append(["2.1 STATUS OF MEMBER GROUPS"])
+    ws1.append(["Row Labels", "Company Status"])
+    for cell in ws1[2]: cell.fill, cell.font, cell.alignment = header_fill_summary, white_font, center_alignment
+        
+    status_counts = defaultdict(int)
+    internal_codes = set()
+    for code, status in InternalFunds.objects.values_list('A_Company_Code', 'D_Company_Status'):
+        internal_codes.add(code)
+        status_counts[status if status else "N/A"] += 1
+    
+    system_only = UnityMgListing.objects.exclude(a_company_code__in=internal_codes).values_list('d_company_status', flat=True)
+    for status in system_only:
+        status_counts[status if status else "System Only"] += 1
+        
+    grand_total = 0
+    for label in sorted(status_counts.keys()):
+        count = status_counts[label]
+        ws1.append([label, count])
+        grand_total += count
+        
+    ws1.append(["Grand Total", grand_total])
+    ws1[ws1.max_row][0].font = Font(bold=True)
+    ws1[ws1.max_row][1].font = Font(bold=True)
+    
+    ws1.append([]) # Spacer
+    ws1.append([]) # Spacer
+
+    # 5.1 Administrative Actions & 5.3 Emails
+    ws1.append(["5.1 ADMINISTRATIVE ACTION STATISTICS"])
+    ws1.append(["Note Type / Action", "Notes Count"])
+    header_row_actions = ws1.max_row
+    for cell in ws1[header_row_actions]: cell.fill, cell.font, cell.alignment = header_fill_summary, white_font, center_alignment
+
+    qs_emails = EmailDelegation.objects.all().prefetch_related('transactions')
+    if start_date and end_date and start_date not in ["None", ""]:
+        qs_emails = qs_emails.filter(received_at__range=[start_date, end_date])
+
+    action_counts = defaultdict(int)
+    email_status_counts = defaultdict(int)
+
+    for d in qs_emails:
+        status_label = d.get_status_display() if hasattr(d, 'get_status_display') else d.status
+        email_status_counts[status_label] += 1
+        for t in d.transactions.all():
+            action_counts[getattr(t, 'action_type', 'Unknown')] += 1
+
+    total_actions = 0
+    for action, count in sorted(action_counts.items(), key=lambda x: x[1], reverse=True):
+        ws1.append([action, count])
+        total_actions += count
+    
+    ws1.append(["Grand Total", total_actions])
+    ws1[ws1.max_row][0].font = Font(bold=True)
+    ws1[ws1.max_row][1].font = Font(bold=True)
+
+    ws1.append([])
+    
+    ws1.append(["5.3 E-MAIL STATUS"])
+    ws1.append(["E-mail Status", "Total E-mails"])
+    header_row_emails = ws1.max_row
+    for cell in ws1[header_row_emails]: cell.fill, cell.font, cell.alignment = header_fill_summary, white_font, center_alignment
+    
+    total_emails = 0
+    for status, count in sorted(email_status_counts.items()):
+        ws1.append([status, count])
+        total_emails += count
+    
+    ws1.append(["Grand Total", total_emails])
+    ws1[ws1.max_row][0].font = Font(bold=True)
+    ws1[ws1.max_row][1].font = Font(bold=True)
+
+    # ==========================================
+    # SHEET 2: FRONT OFFICE REPORT - BANK STATS (PDF 2.4)
+    # ==========================================
+    ws2 = wb.create_sheet(title="FO Report - Bank Stats")
+    ws2.append(["2.4 BANK STATISTICS (DEPOSITS)"])
+    ws2.append(["UNRECONCILED DESCRIPTION", "UNRECONCILED AMOUNT", "BANKLINE COUNT"])
+    for cell in ws2[2]: cell.fill, cell.font, cell.alignment = header_fill_summary, white_font, center_alignment
+
+    base_bank_qs = ReconnedBank.objects.all()
+    if start_date and end_date and start_date not in ["None", ""]:
+        base_bank_qs = base_bank_qs.filter(transaction_date__range=[start_date, end_date])
+
+    unreconciled_breakdown = base_bank_qs.exclude(recon_status='Reconciled').values('review_note').annotate(
+        total_amount=Sum('transaction_amount'),
+        bankline_count=Count('id')
+    ).order_by('review_note')
+
+    total_unrec_amt = Decimal('0.00')
+    total_unrec_ct = 0
+    for item in unreconciled_breakdown:
+        amt = item['total_amount'] or Decimal('0.00')
+        ct = item['bankline_count'] or 0
+        desc = item['review_note'] or "NO DESCRIPTION PROVIDED"
+        ws2.append([desc, amt, ct])
+        total_unrec_amt += amt
+        total_unrec_ct += ct
+
+    reconciled_agg = base_bank_qs.filter(recon_status='Reconciled').aggregate(
+        total_amount=Sum('transaction_amount'),
+        bankline_count=Count('id')
+    )
+    total_rec_amt = reconciled_agg['total_amount'] or Decimal('0.00')
+    total_rec_ct = reconciled_agg['bankline_count'] or 0
+
+    ws2.append([])
+    ws2.append(["TOTAL UNRECONCILED", total_unrec_amt, total_unrec_ct])
+    ws2.append(["TOTAL RECONCILED", total_rec_amt, total_rec_ct])
+    ws2.append(["TOTAL BANKLINES RECEIVED", total_unrec_amt + total_rec_amt, total_unrec_ct + total_rec_ct])
+    
+    for r in range(ws2.max_row - 2, ws2.max_row + 1):
+        for c in [1, 2, 3]:
+            ws2.cell(row=r, column=c).font = Font(bold=True)
+
+    # ==========================================
+    # SHEET 3: EMAIL SLA RAW DATA
+    # ==========================================
+    ws3 = wb.create_sheet(title="Email SLA Raw Data")
+    headers_email = ["Work Related", "Company Code", "Category", "Agent", "Status", "Received At", "Delegated At", "Response Time", "Resolution Time", "Action History"]
+    ws3.append(headers_email)
+    for cell in ws3[1]: cell.fill, cell.font, cell.alignment = header_fill_email, white_font, center_alignment
+
+    for d in qs_emails:
+        all_transactions = list(d.transactions.all())
+        notes_list = [f"[{t.timestamp.strftime('%H:%M')}] {getattr(t, 'action_type', 'Update')}" for t in all_transactions]
+        resp_str = str(d.delegated_at - d.received_at).split('.')[0] if d.delegated_at and d.received_at else "Pending"
+        res_str = "Open"
+        if d.status in ['COM', 'CLS', 'DONE'] and all_transactions and d.received_at:
+            res_str = str(all_transactions[-1].timestamp - d.received_at).split('.')[0]
+            
+        ws3.append([
+            "YES" if getattr(d, 'work_related', True) else "NO", 
+            getattr(d, 'company_code', 'N/A'), 
+            getattr(d, 'email_category', 'General'), 
+            d.assigned_user.username if d.assigned_user else "Unassigned", 
+            d.get_status_display() if hasattr(d, 'get_status_display') else d.status, 
+            d.received_at.strftime('%Y-%m-%d %H:%M') if d.received_at else "", 
+            d.delegated_at.strftime('%Y-%m-%d %H:%M') if d.delegated_at else "", 
+            resp_str, 
+            res_str, 
+            " | ".join(notes_list)
+        ])
+
+    # ==========================================
+    # SHEET 4: BANK LINE REVIEW RAW DATA
+    # ==========================================
+    ws4 = wb.create_sheet(title="Bank Notes Raw Data")
+    headers_bank = ["Date", "Company", "Amount", "Status", "Category", "Detailed Note", "Bank Reference"]
+    ws4.append(headers_bank)
+    for cell in ws4[1]: cell.fill, cell.font, cell.alignment = header_fill_bank, white_font, center_alignment
+
+    bank_notes_qs = base_bank_qs.filter(Q(review_note__isnull=False) & ~Q(review_note='') | Q(review_note_text__isnull=False) & ~Q(review_note_text=''))
+    
+    for b in bank_notes_qs:
+        ws4.append([
+            b.transaction_date.strftime('%Y-%m-%d') if b.transaction_date else "", 
+            getattr(b, 'company_code', 'N/A'), 
+            b.transaction_amount, 
+            b.recon_status, 
+            getattr(b, 'review_note', ""), 
+            getattr(b, 'review_note_text', ""), 
+            b.bank_line.statement_reference if getattr(b, 'bank_line', None) else "N/A"
+        ])
+
+    # ==========================================
+    # SHEET 5: BILLING RECONCILIATION RAW DATA
+    # ==========================================
+    ws5 = wb.create_sheet(title="Billing SLA Raw Data")
+    headers_bill = [
+        "Status", "Member Group Code", "Created At", "Reconciled At", 
+        "Created By", "Reconciled By", "Vendor/Reference", 
+        "Schedule Amount", "Bank Assigned (Original)", "Bank Settled (Consumed)", 
+        "Applied Credit", "Surplus Created (Overs)"
+    ]
+    ws5.append(headers_bill)
+    for cell in ws5[1]: cell.fill, cell.font, cell.alignment = header_fill_bill, white_font, center_alignment
+
+    bills_qs = UnityBill.objects.all().order_by('-A_CCDatesMonth')
+    if start_date and end_date and start_date not in ["None", ""]:
+        bills_qs = bills_qs.filter(Q(F_Pre_Bill_Date__range=[start_date, end_date]) | Q(J_Final_Date__range=[start_date, end_date]))
+
+    for bill in bills_qs:
+        settlements = BillSettlement.objects.filter(unity_bill_source_id=bill.id)
+        
+        bank_settled = settlements.filter(reconned_bank_line_id__isnull=False).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
+        cred_allocated = settlements.filter(source_credit_note_id__isnull=False).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
+        journ_allocated = JournalEntry.objects.filter(target_bill_id=bill.id).aggregate(total=Sum('amount'))['total'] or Decimal('0.00')
+        applied_cred = cred_allocated + journ_allocated
+
+        used_ids = settlements.filter(reconned_bank_line_id__isnull=False).values_list('reconned_bank_line_id', flat=True)
+        bank_original = ReconnedBank.objects.filter(id__in=used_ids).aggregate(total=Sum('transaction_amount'))['total'] or Decimal('0.00')
+        
+        overs = CreditNote.objects.filter(source_bank_line_id__in=used_ids, note_selection='OVERS', ccdates_month=bill.A_CCDatesMonth).aggregate(total=Sum('schedule_amount'))['total'] or Decimal('0.00')
+        legacy_surp = ScheduleSurplus.objects.filter(unity_bill_source_id=bill.id).aggregate(total=Sum('surplus_amount'))['total'] or Decimal('0.00')
+        surplus_total = overs + legacy_surp
+        
+        final_settlement = settlements.select_related('confirmed_by').order_by('-settlement_date').first()
+        recon_by = final_settlement.confirmed_by.username if final_settlement and final_settlement.confirmed_by else "System"
+
+        is_reconned = getattr(bill, 'is_reconciled', False)
+
+        ws5.append([
+            "RECON COMPLETE" if is_reconned else "OPEN",
+            getattr(bill, 'C_Company_Code', 'N/A'),
+            getattr(bill, 'F_Pre_Bill_Date').strftime('%Y-%m-%d') if getattr(bill, 'F_Pre_Bill_Date', None) else "N/A",
+            getattr(bill, 'J_Final_Date').strftime('%Y-%m-%d') if (is_reconned and getattr(bill, 'J_Final_Date', None)) else "Pending",
+            getattr(bill, 'created_by', 'System'),
+            recon_by if is_reconned else "N/A",
+            str(bill),
+            getattr(bill, 'H_Schedule_Amount', 0),
+            bank_original,
+            bank_settled,
+            applied_cred,
+            surplus_total
+        ])
+
+    # ==========================================
+    # FINAL EXCEL FORMATTING
+    # ==========================================
+    for sheet in wb.worksheets:
+        for col in sheet.columns:
+            max_length = 0
+            column = col[0].column_letter
+            for cell in col:
+                try:
+                    if cell.value and len(str(cell.value)) > max_length:
+                        max_length = len(str(cell.value))
+                except: pass
+            sheet.column_dimensions[column].width = min(max_length + 2, 60)
+
+    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    filename = f"Front_Office_SLA_Report_{timezone.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    wb.save(response)
+    return response
+
+@login_required
+@transaction.atomic
+def stage_bank_journal(request, recon_id):
+    """
+    Extracts a portion of an available bank line and stages it as a BankJournalEntry 
+    for the specific member group to use later.
+    """
+    if request.method != 'POST':
+        return redirect('dashboard')
+
+    amount_str = request.POST.get('journal_amount')
+    recon_line = get_object_or_404(ReconnedBank.objects.select_for_update(), pk=recon_id)
+    company_code = recon_line.company_code
+
+    try:
+        journal_amount = Decimal(amount_str)
+        if journal_amount <= Decimal('0.00'):
+            raise ValueError("Amount must be greater than zero.")
+
+        # Check if the bank line actually has enough money left
+        line_unsettled = recon_line.transaction_amount - recon_line.amount_settled
+        if journal_amount > (line_unsettled + Decimal('0.0001')):
+            messages.error(request, f"Cannot journal R{journal_amount}. Only R{line_unsettled:.2f} remains.")
+            return redirect('unity_information', company_code=company_code)
+
+        # 1. Deduct the amount from the bank line's available balance
+        recon_line.amount_settled += journal_amount
+        
+        # If the line is fully consumed by this journal, mark it reconciled
+        if recon_line.amount_settled >= (recon_line.transaction_amount - Decimal('0.0001')):
+            recon_line.recon_status = 'Reconciled'
+        recon_line.save()
+
+        # 2. Create the Staged Journal Entry (Target Bill is NULL)
+        BankJournalEntry.objects.create(
+            source_bank_line=recon_line,
+            company_code=company_code,
+            amount=journal_amount,
+            created_by=request.user.username,
+            status='AVAILABLE'
+        )
+
+        messages.success(request, f"Successfully journaled R{journal_amount} to {company_code}'s staging pool.")
+        
+    except Exception as e:
+        messages.error(request, f"Journaling failed: {str(e)}")
+
+    return redirect('unity_information', company_code=company_code)
+
+@login_required
+@transaction.atomic
+def apply_bank_journal_to_bill(request, bill_id):
+    """
+    Applies an available (staged) BankJournalEntry to an open UnityBill 
+    without double-consuming the parent bank line's amount_settled.
+    """
+    if request.method != 'POST':
+        return redirect('dashboard')
+
+    journal_id = request.POST.get('journal_id')
+    target_bill = get_object_or_404(UnityBill.objects.select_for_update(), pk=bill_id)
+    company_code = target_bill.C_Company_Code
+
+    try:
+        # 1. Fetch the staged journal
+        journal = get_object_or_404(BankJournalEntry.objects.select_for_update(), pk=journal_id, status='AVAILABLE')
+        recon_line = journal.source_bank_line
+
+        # 2. Mark the Staged Journal as APPLIED
+        journal.target_bill = target_bill
+        journal.status = 'APPLIED'
+        journal.save()
+
+        # 3. Create the audit trail entry in BillSettlement
+        settlement_kwargs = {
+            'reconned_bank_line': recon_line,
+            'unity_bill_source': target_bill,
+            'settled_amount': journal.amount,
+            'settlement_date': timezone.now(),
+            'confirmed_by': request.user
+        }
+        
+        if hasattr(BillSettlement, 'source_bank_journal'):
+            settlement_kwargs['source_bank_journal'] = journal
+        elif hasattr(BillSettlement, 'source_bank_journal_id'):
+            settlement_kwargs['source_bank_journal_id'] = journal.id
+
+        BillSettlement.objects.create(**settlement_kwargs)
+
+        # NOTE: We DO NOT modify recon_line.amount_settled here 
+        # because the bank line was already debited/consumed when the journal was initially staged!
+
+        # 4. Check if bill is fully settled
+        total_applied = BillSettlement.objects.filter(
+            unity_bill_source_id=target_bill.pk
+        ).aggregate(t=Sum('settled_amount'))['t'] or Decimal('0.00')
+
+        if total_applied >= ((target_bill.H_Schedule_Amount or Decimal('0.00')) - Decimal('0.01')):
+            target_bill.is_reconciled = True
+            target_bill.J_Final_Date = timezone.now().date()
+            target_bill.save()
+            messages.success(request, f"Successfully applied R{journal.amount} journal. Bill #{target_bill.id} is now fully reconciled and closed.")
+        else:
+            messages.success(request, f"Successfully applied R{journal.amount} journal to Bill #{target_bill.id}.")
+
+    except Exception as e:
+        messages.error(request, f"Error applying bank journal: {str(e)}")
+
+    return redirect('pre_bill_reconciliation_summary', company_code=company_code, bill_id=bill_id)
+
+@login_required
+@transaction.atomic
+def journal_bankline_view(request, recon_id):
+    """
+    Renders journal.html to allow users to extract a specific amount 
+    from a bank line and stage it for a specific open bill.
+    """
+    from decimal import Decimal
+    from django.db.models import Sum
+    
+    recon_line = get_object_or_404(ReconnedBank.objects.select_for_update(), pk=recon_id)
+    company_code = recon_line.company_code
+    available_balance = recon_line.transaction_amount - recon_line.amount_settled
+    
+    # Fetch open bills for the dropdown
+    open_bills = []
+    billing_queryset = UnityBill.objects.filter(C_Company_Code=company_code).order_by('-A_CCDatesMonth')
+    for bill in billing_queryset:
+        total_covered = BillSettlement.objects.filter(
+            unity_bill_source_id=bill.id
+        ).aggregate(total=Sum('settled_amount'))['total'] or Decimal('0.00')
+        
+        if not bill.is_reconciled and total_covered < (bill.H_Schedule_Amount or Decimal('0.00')):
+            open_bills.append(bill)
+
+    if request.method == 'POST':
+        amount_str = request.POST.get('journal_amount')
+        target_bill_id = request.POST.get('target_bill_id')
+        
+        try:
+            journal_amount = Decimal(amount_str)
+            if journal_amount <= Decimal('0.00'):
+                raise ValueError("Amount must be greater than zero.")
+                
+            if journal_amount > (available_balance + Decimal('0.0001')):
+                messages.error(request, f"Insufficient funds. Only R{available_balance:.2f} is available.")
+                return redirect('journal_bankline', recon_id=recon_id)
+                
+            if not target_bill_id:
+                raise ValueError("You must select a target bill.")
+                
+            target_bill = get_object_or_404(UnityBill, id=target_bill_id, C_Company_Code=company_code)
+                
+            # --- STAGING EXECUTION ---
+            
+            # A. Deduct from the parent Bank Line's available balance
+            recon_line.amount_settled += journal_amount
+            if recon_line.amount_settled >= (recon_line.transaction_amount - Decimal('0.0001')):
+                recon_line.recon_status = 'Reconciled'
+            recon_line.save()
+            
+            # B. Create the Staged Journal Entry (Target Bill is assigned, Status = AVAILABLE)
+            BankJournalEntry.objects.create(
+                source_bank_line=recon_line,
+                company_code=company_code,
+                target_bill=target_bill,  # 🚀 Linked to the specific bill here!
+                amount=journal_amount,
+                created_by=request.user.username,
+                status='AVAILABLE'
+            )
+            
+            messages.success(request, f"Successfully staged R{journal_amount} for Bill #{target_bill.id}. It is ready to be applied in the Pre-Bill Summary.")
+            return redirect('unity_information', company_code=company_code)
+            
+        except Exception as e:
+            messages.error(request, f"Error processing journal: {str(e)}")
+            return redirect('journal_bankline', recon_id=recon_id)
+
+    context = {
+        'recon_line': recon_line,
+        'company_code': company_code,
+        'available_balance': available_balance,
+        'open_bills': open_bills  # 🚀 Passed to the template
+    }
+    return render(request, 'unity_internal_app/journal.html', context)
+
+@login_required
+def edit_bank_journal(request, journal_id):
+    journal = get_object_or_404(BankJournalEntry, id=journal_id)
+    if request.method == 'POST':
+        try:
+            new_amount = Decimal(request.POST.get('amount', journal.amount))
+            new_status = request.POST.get('status', journal.status)
+            
+            # Update the journal values
+            journal.amount = new_amount
+            journal.status = new_status
+            journal.save()
+            
+            messages.success(request, f"Journal #{journal.id} updated successfully.")
+        except Exception as e:
+            messages.error(request, f"Error updating journal: {e}")
+            
+        return redirect('unity_information', company_code=journal.company_code)
+        
+    return render(request, 'unity_internal_app/edit_journal.html', {'journal': journal})
+
+@login_required
+def delete_bank_journal(request, journal_id):
+    journal = get_object_or_404(BankJournalEntry, id=journal_id)
+    company_code = journal.company_code
+    journal.delete()
+    messages.success(request, f"Journal #{journal_id} has been deleted.")
+    return redirect('unity_information', company_code=company_code)

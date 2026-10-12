@@ -1,0 +1,348 @@
+{% load static %}
+{% block title %}Delegate Task{% endblock %}
+{% block content %}
+<style>
+/* -------------------------------------- */
+/* BASE STYLES & DELEGATE FORM STYLES */
+/* -------------------------------------- */
+body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; background-color: #d1e2c4; }
+.delegate-container { max-width: 900px; margin: 40px auto; padding: 30px; background-color: #fff; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,.15); border: 1px solid #c3e6cb; }
+.delegate-container h1 { margin-bottom: 20px; color: #43a047; font-size: 28px; border-bottom: 2px solid #e0f2f1; padding-bottom: 15px; }
+
+/* --- PROFESSIONAL EMAIL CARD STYLES --- */
+.email-thread-card {
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+    border: 1px solid #eee;
+    border-left: 5px solid #1976d2; /* Blue accent */
+}
+.card-header-main {
+    padding: 15px 20px;
+    background-color: #fafafa;
+    border-bottom: 1px solid #eee;
+}
+.card-header-main h3 { margin: 0 0 5px 0; color: #1976d2; font-size: 1.1em; }
+.card-body-content {
+    padding: 20px;
+    line-height: 1.7;
+    max-height: 450px; 
+    overflow-y: auto;
+    background: #fff;
+    font-size: 14px;
+}
+
+/* --- FORM STYLES --- */
+.form-group { margin-bottom: 20px; }
+.form-group label { display: block; margin-bottom: 5px; font-weight: 700; color: #333; font-size: 14px; }
+.form-group input[type=text], .form-group select, .form-group textarea { width: 100%; padding: 8px 10px; border: 1px solid #aed581; border-radius: 4px; box-sizing: border-box; font-size: 14px; }
+
+.button-container { display: flex; justify-content: space-between; align-items: center; margin-top: 25px; }
+.btn-cancel { padding: 12px 20px; background-color: #757575; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 18px; transition: background-color .3s ease; text-decoration: none; display: inline-block; }
+.btn-cancel:hover { background-color: #616161; }
+
+.btn-delegate { 
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 12px 25px; 
+    background-color: #81c784; 
+    color: white; 
+    border: none; 
+    border-radius: 4px; 
+    cursor: pointer; 
+    font-size: 18px; 
+    transition: all 0.3s ease; 
+    font-weight: bold; 
+}
+.btn-delegate:hover { background-color: #66bb6a; }
+
+/* --- ATTACHMENT STYLES --- */
+.attachment-list { margin-top: 10px; padding: 15px; background-color: #f0fff0; border-top: 1px solid #c3e6cb; }
+.attachment-badge { 
+    display: inline-flex; 
+    align-items: center; 
+    background: white; 
+    border: 1px solid #aed581; 
+    padding: 0; 
+    border-radius: 20px; 
+    margin-right: 10px; 
+    margin-bottom: 8px;
+    font-size: 13px;
+    overflow: hidden;
+}
+
+.attachment-preview-trigger {
+    padding: 6px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    transition: background-color 0.2s ease;
+}
+.attachment-preview-trigger:hover { 
+    background-color: #e8f5e9;
+}
+
+.attachment-download-btn {
+    background-color: #43a047;
+    color: white;
+    padding: 6px 12px;
+    cursor: pointer;
+    border-left: 1px solid #aed581;
+    transition: background-color 0.2s ease;
+}
+.attachment-download-btn:hover {
+    background-color: #2e7d32;
+}
+
+/* --- PREVIEW MODAL STYLES --- */
+#previewModal { 
+    display: none; 
+    position: fixed; 
+    z-index: 10000; 
+    left: 0; 
+    top: 0; 
+    width: 100%; 
+    height: 100%; 
+    background-color: rgba(0,0,0,0.85); 
+}
+.modal-wrapper { 
+    position: relative; 
+    margin: 2% auto; 
+    padding: 20px; 
+    width: 90%; 
+    height: 90%; 
+    background: #fff; 
+    border-radius: 8px; 
+    display: flex;
+    flex-direction: column;
+}
+.close-preview { 
+    position: absolute; 
+    top: 10px; 
+    right: 20px; 
+    font-size: 30px; 
+    font-weight: bold; 
+    cursor: pointer; 
+    color: #333; 
+    z-index: 10001;
+}
+#previewTitle { margin: 0 0 10px 0; font-size: 18px; color: #1976d2; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+#previewContent { flex: 1; width: 100%; height: 100%; border: none; overflow: auto; }
+
+.form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+.help-text { font-size: 11px; color: #666; font-weight: normal; margin-top: 2px; display: block; }
+</style>
+
+<div class="delegate-container">
+    <h1>Delegate Outlook Task</h1>
+
+    <form method="post" action="{% url 'outlook_delegate_to' email_id=email_id %}">
+        {% csrf_token %}
+        
+        <div class="form-group">
+            <label for="email_subject_display">Email Subject:</label>
+            <input type="text" id="email_subject_display" name="email_subject_display" value="{{ email_subject }}" readonly>
+        </div>
+        
+        <div class="email-thread-card">
+            <div class="card-header-main">
+                <h3>Original Communication Content</h3>
+                <div style="font-size: 13px; color: #666;">
+                    <strong>Subject:</strong> {{ email_subject }}
+                </div>
+            </div>
+            <div class="card-body-content">
+                <div style="white-space: pre-wrap;">{{ email_content|safe }}</div>
+            </div>
+            
+            {% if attachments %}
+            <div class="attachment-list">
+                <div style="margin-bottom: 8px; color: #2e7d32; font-weight: bold; font-size: 14px;">
+                    📎 Attachments ({{ attachments|length }}):
+                </div>
+                {% for att in attachments %}
+                <div class="attachment-badge">
+                    <div class="attachment-preview-trigger" onclick="openPreview('{{ att.contentBytes }}', '{{ att.contentType }}', '{{ att.name|escapejs }}')" title="Preview File">
+                        <span style="margin-right: 8px;">📄</span>
+                        <span style="font-weight: 500;">{{ att.name }}</span>
+                        <span style="margin-left: 8px; font-size: 11px; color: #666; background: #f0f0f0; padding: 2px 6px; border-radius: 10px;">
+                            {{ att.size|filesizeformat }}
+                        </span>
+                    </div>
+                    <div class="attachment-download-btn" onclick="downloadAttachment('{{ att.contentBytes }}', '{{ att.contentType }}', '{{ att.name|escapejs }}')" title="Download File">
+                        <i class="fas fa-download"></i>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="form-group">
+            <label for="work_related">Is this task Work Related?*</label>
+            <select id="work_related" name="work_related" required>
+                <option value="Yes" selected>Yes (Assign to Agent)</option>
+                <option value="No">No (Archive/Recycle)</option>
+            </select>
+        </div>
+
+        <div id="classification_fields_wrapper">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="mip_names">Member Group Code</label>
+                    <input type="text" id="mip_names" name="mip_names" list="acvv_list" placeholder="Enter Member Group Code" required>
+                    <datalist id="acvv_list">
+                        {% for record in acvv_records %}
+                            <option value="{{ record.mip_names }}">Code: {{ record.branch_code }}</option>
+                        {% endfor %}
+                    </datalist>
+                    <span class="help-text">Select full name from the list to link to branch log.</span>
+                </div>
+                
+                <div class="form-group">
+                    <label for="email_category">Classification:</label>
+                    <select id="email_category" name="email_category">
+                        <option value="">-- Select --</option>
+                        <option value="Normal Withdrawal Claim">Normal Withdrawal Claim</option>
+                        <option value="Two-Pot withdrawal Request">Two-Pot withdrawal Request</option>
+                        <option value="Schedule - Current Month">Schedule - Current Month</option>
+                        <option value="Schedule - Following Month">Schedule - Following Month</option>
+                        <option value="New Member Doc.">New Member Doc.</option>
+                        <option value="Enquiry from Sanlam">Enquiry from Sanlam</option>
+                        <option value="Enquiry from Broker">Enquiry from Broker</option>
+                        <option value="Enquiry from MG">Enquiry from MG</option>
+                        <option value="Succesfull submission">Succesfull submission</option>
+                        <option value="Two-Pot Application Received">Two-Pot Application Received</option>
+                        <option value="Benefit Letter from Sanlam">Benefit Letter from Sanlam</option>
+                        <option value="Vested Pot Letter from Sanlam">Vested Pot Letter from Sanlam</option>
+                        <option value="Savings Pot Letter from Sanlam">Savings Pot Letter from Sanlam</option>
+                        <option value="Paid Up Certificate from Sanlam">Paid Up Certificate from Sanlam</option>
+                        <option value="Member Info Update Request">Member Info Update Request</option>
+                        <option value="Info Only">Info Only</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label for="email_method">Communication Type:</label>
+                    <select id="email_method" name="email_method">
+                        <option value="Email" selected>Outlook Inbox</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-group" id="delegation_fields" style="margin-top: 15px;">
+                <label for="agent_name">Delegate To Agent:*</label>
+                <select id="agent_name" name="agent_name">
+                    <option value="">-- Select Agent --</option>
+                    {% for user in available_users %}
+                        <option value="{{ user.pk }}">{{ user.username }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <input type="hidden" name="email_id" value="{{ email_id }}">
+        <input type="hidden" name="New" value="New">
+
+        <div class="button-container">
+            <a href="{% url 'outlook_dashboard' %}" class="btn-cancel">Cancel</a>
+            <button type="submit" id="submit_button" class="btn-delegate">
+                <span id="btn-icon">👤</span> 
+                <span id="btn-text">Assign Task</span>
+            </button>
+        </div>
+    </form>
+</div>
+
+<div id="previewModal">
+    <div class="modal-wrapper">
+        <span class="close-preview" onclick="closePreview()">&times;</span>
+        <h3 id="previewTitle">File Preview</h3>
+        <div id="previewContent"></div>
+    </div>
+</div>
+
+<script>
+// --- ATTACHMENT DOWNLOAD LOGIC ---
+function downloadAttachment(base64, contentType, fileName) {
+    const linkSource = `data:${contentType};base64,${base64}`;
+    const downloadLink = document.createElement("a");
+    downloadLink.href = linkSource;
+    downloadLink.download = fileName;
+    downloadLink.click();
+}
+
+// --- ATTACHMENT PREVIEW LOGIC ---
+function openPreview(base64, contentType, fileName) {
+    const modal = document.getElementById('previewModal');
+    const content = document.getElementById('previewContent');
+    const title = document.getElementById('previewTitle');
+    
+    title.innerText = "Previewing: " + fileName;
+    content.innerHTML = ""; 
+    
+    const dataUrl = `data:${contentType};base64,${base64}`;
+    
+    if (contentType.includes('pdf')) {
+        content.innerHTML = `<embed src="${dataUrl}" type="application/pdf" width="100%" height="100%" />`;
+    } else if (contentType.includes('image')) {
+        content.innerHTML = `<div style="text-align:center;"><img src="${dataUrl}" style="max-width:100%; max-height:100%; border:1px solid #ccc;" /></div>`;
+    } else {
+        content.innerHTML = `<div style="padding:40px; text-align:center; color:#666;">
+            <p>Preview not available for this file type (<b>${contentType}</b>).</p>
+            <p><button onclick="downloadAttachment('${base64}', '${contentType}', '${fileName}')" class="btn-delegate" style="font-size:14px; display:inline-flex;">Download File</button></p>
+        </div>`;
+    }
+    
+    modal.style.display = 'block';
+}
+
+function closePreview() {
+    document.getElementById('previewModal').style.display = 'none';
+    document.getElementById('previewContent').innerHTML = "";
+}
+
+// --- FORM TOGGLE LOGIC ---
+document.addEventListener('DOMContentLoaded', function(){
+    const workRelatedSelect = document.getElementById('work_related');
+    const classificationWrapper = document.getElementById('classification_fields_wrapper');
+    const submitButton = document.getElementById('submit_button');
+    const btnIcon = document.getElementById('btn-icon');
+    const btnText = document.getElementById('btn-text');
+    const agentSelect = document.getElementById('agent_name');
+    const mipInput = document.getElementById('mip_names');
+
+    function toggleFormSections(){
+        if(workRelatedSelect.value === 'No'){
+            classificationWrapper.style.display = 'none';
+            submitButton.style.backgroundColor = '#d32f2f'; 
+            btnIcon.textContent = '🗑️'; 
+            btnText.textContent = 'Archive to Recycle Bin';
+            agentSelect.removeAttribute('required');
+            mipInput.removeAttribute('required');
+        } else {
+            classificationWrapper.style.display = 'block';
+            submitButton.style.backgroundColor = '#81c784'; 
+            btnIcon.textContent = '👤'; 
+            btnText.textContent = 'Assign Task';
+            agentSelect.setAttribute('required', 'required');
+            mipInput.setAttribute('required', 'required');
+        }
+    }
+
+    workRelatedSelect.addEventListener('change', toggleFormSections);
+    toggleFormSections();
+});
+
+window.onclick = function(event) {
+    const modal = document.getElementById('previewModal');
+    if (event.target == modal) closePreview();
+}
+document.onkeydown = function(evt) {
+    if (evt.key === "Escape") closePreview();
+};
+</script>
+{% endblock %}

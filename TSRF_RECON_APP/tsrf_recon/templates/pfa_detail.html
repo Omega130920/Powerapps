@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>PFA Master List</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Shared CSS */
+        body { font-family: sans-serif; background: #d1e2c4; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; background: #f0fff0; padding: 25px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h1 { color: #1b5e20; border-bottom: 2px solid #81c784; padding-bottom: 15px; font-weight: normal; font-size: 2.5em; text-align: center;}
+        
+        /* Filter Form Styling */
+        .filter-form { 
+            background: #e8f5e9; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin-bottom: 15px; 
+            display: flex; 
+            gap: 12px; 
+            flex-wrap: wrap; 
+            align-items: flex-end;
+            border: 1px solid #c8e6c9;
+        }
+        .filter-group { display: flex; flex-direction: column; gap: 4px; }
+        .filter-group label { font-size: 11px; font-weight: bold; color: #2e7d32; text-transform: uppercase; }
+        .filter-group input, .filter-group select { 
+            padding: 8px; 
+            border: 1px solid #aaa; 
+            border-radius: 4px; 
+            font-size: 13px;
+        }
+        .search-input { border: 2px solid #43a047 !important; background: #fffde7; }
+
+        /* Buttons */
+        .btn { padding: 9px 18px; border-radius: 4px; border: none; cursor: pointer; color: white; font-size: 13px; text-decoration: none; transition: 0.2s; }
+        .btn-filter { background: #43a047; }
+        .btn-filter:hover { background: #2e7d32; }
+        .btn-export { background: #1b5e20; }
+        .btn-reset { background: #757575; }
+
+        .result-count { font-size: 13px; color: #555; margin-bottom: 10px; font-style: italic; }
+
+        /* Master Table */
+        .main-table { width: 100%; border-collapse: collapse; background: white; border-radius: 4px; overflow: hidden; margin-top: 10px;}
+        .main-table th, .main-table td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; font-size: 13px; }
+        .main-table th { background-color: #43a047; color: white; font-weight: bold; }
+        .main-table tr { cursor: pointer; transition: background 0.2s; }
+        .main-table tr:hover { background-color: #e8f5e9; }
+        
+        /* Pagination */
+        .pagination { margin-top: 25px; display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .pagination a, .pagination span { padding: 8px 14px; border: 1px solid #ccc; border-radius: 4px; text-decoration: none; color: #333; background: white; }
+        .pagination .active { background: #43a047; color: white; border-color: #43a047; }
+
+        .back-btn { padding: 8px 16px; background: #555; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block; margin-bottom: 10px;}
+
+        /* Modal Overlay Styling */
+        .modal-overlay { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); justify-content: center; align-items: center; }
+        .dashboard-container { background-color: #e0e0e0; padding: 25px; border-radius: 8px; width: 95%; max-width: 1300px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .header-row h2 { margin: 0; font-weight: normal; font-size: 1.8em; color: #333; }
+        
+        /* Modal Action Buttons */
+        .modal-btn-row { display: flex; gap: 10px; }
+        .modal-btn { padding: 10px 25px; border-radius: 4px; border: none; font-weight: bold; cursor: pointer; font-size: 14px; transition: 0.2s; }
+        .mbtn-save { background-color: #2e7d32; color: white; }
+        .mbtn-back { background-color: #555; color: white; }
+        .mbtn-save:hover { background-color: #1b5e20; }
+        .mbtn-back:hover { background-color: #333; }
+
+        .form-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 15px; }
+        .field-label { font-size: 11px; font-weight: bold; color: #555; margin-bottom: 2px; text-transform: uppercase; }
+        .field-box { background: white; padding: 8px; border: 1px solid #ccc; font-size: 13px; min-height: 18px; display: flex; align-items: center; border-radius: 2px; }
+        
+        .note-table { width: 100%; border-collapse: collapse; background: white; margin-top: 10px; border-radius: 4px; overflow: hidden; }
+        .note-table th { background-color: #43a047; color: white; font-size: 12px; padding: 8px; text-align: left; }
+        .note-table td { padding: 8px; border-bottom: 1px solid #eee; font-size: 12px; }
+
+        .attach-box { background: white; border: 1px solid #999; padding: 10px; margin-bottom: 15px; border-radius: 4px; position: relative; }
+        .attach-link { color: #1b5e20; text-decoration: none; font-size: 12px; font-weight: bold; display: flex; align-items: center; gap: 8px; }
+        .attach-link:hover { text-decoration: underline; }
+
+        /* Logic Additions Styling */
+        .upload-trigger { color: #1b5e20; cursor: pointer; font-size: 0.9em; border: 1px solid #1b5e20; padding: 2px 8px; border-radius: 4px; transition: 0.2s; }
+        .upload-trigger:hover { background: #1b5e20; color: white; }
+        .note-input { width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; box-sizing: border-box; }
+        .add-inline-btn { background: #43a047; color: white; border: none; padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <a href="{% url 'dashboard' %}" class="back-btn">← Back to Dashboard</a>
+        <h1>PFA Master List</h1>
+
+        <form method="GET" action="{% url 'pfa_list' %}" class="filter-form">
+            <div class="filter-group">
+                <label>PFA No.</label>
+                <input type="text" name="pfa_no" class="search-input" value="{{ request.GET.pfa_no }}" placeholder="Search No...">
+            </div>
+            <div class="filter-group">
+                <label>PFA Status</label>
+                <select name="status">
+                    <option value="">-- All --</option>
+                    {% for s in pfa_statuses %}
+                    <option value="{{ s }}" {% if request.GET.status == s %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>PFA Type</label>
+                <input type="text" name="type" value="{{ request.GET.type }}" placeholder="Search Type...">
+            </div>
+            <div class="filter-group">
+                <label>Sched Status</label>
+                <select name="sched_status">
+                    <option value="">-- All --</option>
+                    {% for s in sched_statuses %}
+                    <option value="{{ s }}" {% if request.GET.sched_status == s %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="filter-group">
+                <label>Sched Due</label>
+                <input type="date" name="sched_due" value="{{ request.GET.sched_due }}">
+            </div>
+            <div class="filter-group">
+                <label>PFA Due</label>
+                <input type="date" name="pfa_due" value="{{ request.GET.pfa_due }}">
+            </div>
+            
+            <div style="display: flex; gap: 8px;">
+                <button type="submit" class="btn btn-filter">Filter</button>
+                <button type="submit" name="export" value="1" class="btn btn-export"><i class="fas fa-file-excel"></i> Export</button>
+                <a href="{% url 'pfa_list' %}" class="btn btn-reset">Reset</a>
+            </div>
+        </form>
+
+        <div class="result-count">
+            Showing <strong>{{ page_obj.start_index }} - {{ page_obj.end_index }}</strong> of <strong>{{ page_obj.paginator.count }}</strong> PFA Matters.
+        </div>
+
+        <table class="main-table">
+            <thead>
+                <tr>
+                    <th>Levy</th>
+                    <th>Levy Name</th>
+                    <th>PFA No.</th>
+                    <th>PFA Status</th>
+                    <th>PFA Type</th>
+                    <th>Schedule Status</th>
+                    <th>Schedule Due</th>
+                    <th>PFA Due</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pfa in page_obj %}
+                <tr onclick="openPfaDetail('{{ pfa.pfa_number }}', '{{ pfa.levy_number }}')">
+                    <td>{{ pfa.levy_number }}</td>
+                    <td>{{ pfa.levy_name|default:"-" }}</td>
+                    <td>{{ pfa.pfa_number }}</td>
+                    <td>{{ pfa.pfa_status }}</td>
+                    <td>{{ pfa.pfa_type }}</td>
+                    <td>{{ pfa.schedule_status }}</td>
+                    <td>{{ pfa.schedule_due|date:"d/m/Y"|default:"" }}</td>
+                    <td>{{ pfa.determination_due_date|date:"d/m/Y"|default:"" }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="8" style="text-align:center; padding: 40px; color: #888;">No PFA matters found matching filters.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% if page_obj.has_other_pages %}
+        <div class="pagination">
+            {% if page_obj.has_previous %}
+                <a href="?page=1{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">&laquo; First</a>
+                <a href="?page={{ page_obj.previous_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Prev</a>
+            {% endif %}
+
+            <span class="active">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
+
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Next</a>
+                <a href="?page={{ page_obj.paginator.num_pages }}{% for key, value in request.GET.items %}{% if key != 'page' %}&{{ key }}={{ value }}{% endif %}{% endfor %}">Last &raquo;</a>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+
+    <div id="pfaModal" class="modal-overlay">
+        <div class="dashboard-container">
+            <div class="header-row">
+                <h2 id="pop_title">PFA Detail</h2>
+                <div class="modal-btn-row">
+                    <button class="modal-btn mbtn-save" id="btn_save_pfa">Save</button>
+                    <button class="modal-btn mbtn-back" onclick="closePfaDetail()">Back</button>
+                </div>
+            </div>
+
+            <div class="form-grid">
+                <div style="grid-column: span 2;">
+                    <div class="field-label">Determination Period</div>
+                    <div class="field-box" id="pop_period"></div>
+                </div>
+                <div style="grid-column: span 2;">
+                    <div class="field-label">Additional Info</div>
+                    <div class="field-box" id="pop_info"></div>
+                </div>
+            </div>
+
+            <div class="form-grid">
+                <div><div class="field-label">Determination Signed Date</div><div class="field-box" id="pop_signed"></div></div>
+                <div><div class="field-label">Determination Due Date</div><div class="field-box" id="pop_due"></div></div>
+                <div><div class="field-label">Determination Status</div><div class="field-box" id="pop_status"></div></div>
+                <div><div class="field-label">Current Billing Period</div><div class="field-box">31/01/2026</div></div>
+            </div>
+
+            <div class="form-grid">
+                <div><div class="field-label">Determination Type</div><div class="field-box" id="pop_type"></div></div>
+                <div><div class="field-label">Determination Amount</div><div class="field-box" id="pop_amount"></div></div>
+                <div><div class="field-label">Determination LPI Amount</div><div class="field-box" id="pop_lpi"></div></div>
+                <div></div>
+            </div>
+
+            <div class="form-grid">
+                <div><div class="field-label">Schedule Status</div><div class="field-box" id="pop_sched_status"></div></div>
+                <div><div class="field-label">Schedule Due Date</div><div class="field-box" id="pop_sched_due"></div></div>
+                <div><div class="field-label">Sent to Employer Date</div><div class="field-box">20/01/2026</div></div>
+                <div></div>
+            </div>
+
+            <div class="attach-box">
+                <div class="field-label" style="display: flex; justify-content: space-between; align-items: center;">
+                    <span>Attachments</span>
+                    <label class="upload-trigger">
+                        <i class="fas fa-file-upload"></i> Upload File
+                        <input type="file" id="pfa_file_input" style="display: none;" onchange="handlePfaFileUpload()">
+                    </label>
+                </div>
+                <div id="pop_attachment_area" style="margin-top: 5px;">
+                    <span style="font-size: 12px; color: #888;">No files attached.</span>
+                </div>
+            </div>
+
+            <div style="max-height: 250px; overflow-y: auto;">
+                <table class="note-table">
+                    <thead>
+                        <tr>
+                            <th>PFA Note Body</th>
+                            <th>Category</th>
+                            <th>Date Created</th>
+                            <th style="text-align: center;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="background: #f9f9f9;">
+                            <td><input type="text" id="inline_note_text" class="note-input" placeholder="Enter new note..."></td>
+                            <td><div class="field-box" style="padding: 2px 8px; font-size: 11px;">General PFA</div></td>
+                            <td>Today</td>
+                            <td style="text-align: center;"><button class="add-inline-btn" onclick="addPfaNoteInline()">Add</button></td>
+                        </tr>
+                    </tbody>
+                    <tbody id="note_body">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let activePfaNumber = null;
+
+        async function openPfaDetail(pfaNumber, levyNumber) {
+            activePfaNumber = pfaNumber;
+            const modal = document.getElementById('pfaModal');
+            modal.style.display = 'flex';
+            
+            try {
+                const response = await fetch(`/get-pfa-detail-ajax/${pfaNumber}/`);
+                const data = await response.json();
+
+                if(data.error) {
+                    alert(data.error);
+                    closePfaDetail();
+                    return;
+                }
+
+                // Title and Fields
+                document.getElementById('pop_title').innerText = `${data.pfa_number} - ${data.levy_name}`;
+                document.getElementById('pop_period').innerText = data.determination_period || '-';
+                document.getElementById('pop_info').innerText = data.additional_info || '-';
+                document.getElementById('pop_signed').innerText = data.signed_date;
+                document.getElementById('pop_due').innerText = data.due_date;
+                document.getElementById('pop_status').innerText = data.pfa_status;
+                document.getElementById('pop_type').innerText = data.pfa_type;
+                
+                // Financials
+                const amt = parseFloat(data.amount) || 0;
+                const lpi = parseFloat(data.lpi_amount) || 0;
+                document.getElementById('pop_amount').innerText = "R " + amt.toLocaleString(undefined, {minimumFractionDigits: 2});
+                document.getElementById('pop_lpi').innerText = "R " + lpi.toLocaleString(undefined, {minimumFractionDigits: 2});
+                
+                // Schedules
+                document.getElementById('pop_sched_status').innerText = data.schedule_status;
+                document.getElementById('pop_sched_due').innerText = data.schedule_due;
+
+                // Attachment (Handling the media file link)
+                const attachArea = document.getElementById('pop_attachment_area');
+                if (data.attachment) {
+                    attachArea.innerHTML = `
+                        <a href="/media/${data.attachment}" target="_blank" class="attach-link">
+                            <i class="fas fa-file-pdf"></i> View Determination Document
+                        </a>`;
+                } else {
+                    attachArea.innerHTML = '<span style="font-size: 12px; color: #888;">No files attached.</span>';
+                }
+
+                // Notes
+                const body = document.getElementById('note_body');
+                body.innerHTML = data.notes.map(n => `
+                    <tr>
+                        <td>${n.notes_text}</td>
+                        <td>General PFA</td>
+                        <td>${new Date(n.date).toLocaleDateString('en-GB')}</td>
+                        <td></td>
+                    </tr>
+                `).join('') || '<tr><td colspan="4" style="text-align:center; padding: 20px;">No notes found for this matter.</td></tr>';
+
+            } catch (e) {
+                console.error("Error loading PFA detail:", e);
+                alert("Could not load PFA details.");
+            }
+        }
+
+        // Logic for adding a note directly
+        async function addPfaNoteInline() {
+            const noteText = document.getElementById('inline_note_text').value;
+            if(!noteText) return alert("Please enter a note.");
+
+            try {
+                // Adjust this URL to your actual note-saving endpoint
+                const response = await fetch(`/save-pfa-note-ajax/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+                    body: JSON.stringify({ pfa_number: activePfaNumber, note: noteText })
+                });
+                const result = await response.json();
+                if(result.success) {
+                    document.getElementById('inline_note_text').value = '';
+                    openPfaDetail(activePfaNumber); // Refresh
+                }
+            } catch (e) { alert("Error saving note."); }
+        }
+
+        // Logic for uploading a file directly
+        async function handlePfaFileUpload() {
+            const fileInput = document.getElementById('pfa_file_input');
+            if(!fileInput.files[0]) return;
+
+            const formData = new FormData();
+            formData.append('pfa_number', activePfaNumber);
+            formData.append('attachment', fileInput.files[0]);
+
+            try {
+                // Adjust this URL to your actual file-upload endpoint
+                const response = await fetch(`/upload-pfa-attachment-ajax/`, {
+                    method: 'POST',
+                    headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+                    body: formData
+                });
+                const result = await response.json();
+                if(result.success) {
+                    alert("File uploaded successfully.");
+                    openPfaDetail(activePfaNumber); // Refresh
+                }
+            } catch (e) { alert("Error uploading file."); }
+        }
+
+        function closePfaDetail() {
+            document.getElementById('pfaModal').style.display = 'none';
+            activePfaNumber = null;
+        }
+
+        window.onclick = function(event) {
+            let modal = document.getElementById('pfaModal');
+            if (event.target == modal) closePfaDetail();
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === "Escape") closePfaDetail();
+        });
+    </script>
+</body>
+</html>

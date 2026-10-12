@@ -1,0 +1,40 @@
+# --- Python & Django Core ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+/htmlcov/
+.tox/
+.coverage
+*.pickle
+
+# --- IDE & OS Files ---
+.vscode/
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.DS_Store
+*.log
+
+# --- Build & Media ---
+dist/
+build/
+*.egg-info/
+/media/
+
+# --- Databases ---
+# We only ignore the local SQLite file. 
+# Your .sql backups will now be tracked and uploaded.
+*.sqlite3
+**/db.sqlite3
+
+# --- OAuth & Tokens ---
+# Keeping these ignored for security
+**/oauth_tokens/
+**/client_secrets.json
+
+# --- ALL .ENV AND .SQL RESTRICTIONS REMOVED ---

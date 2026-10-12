@@ -1,0 +1,210 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Confirmations | Unity Internal</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* --- SHARED GLOBAL STYLES --- */
+        html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+        body { 
+            font-family: sans-serif; 
+            font-size: 14px; 
+            background: linear-gradient(to bottom, #d1e2c4, #d1e2c4); 
+            color: #333; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+        }
+        
+        .container { 
+            width: 95%; max-width: 98%; height: 90vh; display: flex; flex-direction: column; 
+            background-color: #f0fff0; padding: 1.5em; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,.1); 
+        }
+
+        /* HEADER & BUTTONS */
+        .dashboard-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+        .dashboard-button { 
+            padding: 8px 16px; background-color: #81c784; border: 1px solid #81c784; border-radius: 5px; 
+            text-decoration: none; color: white; font-weight: 700; transition: background-color .3s ease; font-size: 13px; cursor: pointer; 
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .dashboard-button:hover { background-color: #66bb6a; color: white; }
+        h1 { color: #1b5e20; text-align: center; flex-grow: 1; font-size: 22px; margin: 0; }
+
+        /* SEARCH/FILTER CONTAINER */
+        .search-container { 
+            display: flex; gap: 10px; margin-bottom: 15px; background: #e8f5e9; padding: 15px; 
+            border-radius: 8px; border: 1px solid #c8e6c9; align-items: flex-end; 
+        }
+        .filter-group { display: flex; flex-direction: column; gap: 5px; }
+        .filter-label { font-size: 11px; font-weight: bold; color: #1b5e20; margin-bottom: 2px; }
+        
+        .date-input-group {
+            display: flex;
+            align-items: center;
+            border: 1px solid #aed581;
+            padding: 6px 10px;
+            background: white;
+            border-radius: 4px;
+        }
+        .date-input { border: none; outline: none; font-size: 13px; color: #333; width: 120px; }
+
+        /* SOURCE BADGES */
+        .source-badge { font-size: 10px; font-weight: bold; padding: 3px 6px; border-radius: 4px; text-transform: uppercase; display: inline-block; }
+        .badge-credit { background-color: #ef6c00; color: white; }
+        .badge-bank { background-color: #2196F3; color: white; }
+
+        /* TABLE STYLES */
+        .table-wrapper { overflow-y: auto; flex: 1; border: 1px solid #aed581; border-radius: 4px; background: white; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+        th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #aed581; font-size: 12px; word-wrap: break-word; }
+        
+        /* Fixed Header */
+        th { background-color: #e6ffe6; color: #1b5e20; font-weight: 700; position: sticky; top: 0; z-index: 10; border-bottom: 2px solid #aed581; }
+        
+        tr:hover td { background-color: #f1f8e9; }
+
+        /* Specific Column Alignments */
+        .text-center { text-align: center; }
+        .amount-col { text-align: right; font-weight: 600; color: #2e7d32; }
+        .bank-col { background-color: #f9fff9; } 
+
+        /* Row Separator Logic */
+        .bill-group-end td { border-bottom: 2px solid #81c784 !important; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="dashboard-header">
+            <a href="{% url 'dashboard' %}" class="dashboard-button">
+                <i class="fa-solid fa-arrow-left"></i> Back to Home Screen
+            </a>
+            <h1>Daily Confirmations</h1>
+        </div>
+
+        <form method="get" class="search-container">
+            <div class="filter-group">
+                <label class="filter-label">FROM DATE</label>
+                <div class="date-input-group">
+                    <i class="fa-regular fa-calendar me-2 text-muted"></i>
+                    <input type="date" name="start_date" class="date-input" value="{{ filter_start_date }}">
+                </div>
+            </div>
+
+            <div class="filter-group">
+                <label class="filter-label">TO DATE</label>
+                <div class="date-input-group">
+                    <i class="fa-regular fa-calendar me-2 text-muted"></i>
+                    <input type="date" name="end_date" class="date-input" value="{{ filter_end_date }}">
+                </div>
+            </div>
+
+            <button type="submit" class="dashboard-button">
+                <i class="fa-solid fa-magnifying-glass"></i> Search
+            </button>
+
+            <a href="{{ request.path }}" class="dashboard-button" style="background-color: #757575; border-color: #757575;">
+                <i class="fa-solid fa-xmark"></i> Clear
+            </a>
+
+            <button type="submit" name="export_excel" value="true" class="dashboard-button" style="background-color: #217346; border-color: #217346; margin-left: auto;">
+                <i class="fa-solid fa-file-excel"></i> Export to Excel
+            </button>
+        </form>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th style="width: 80px;" class="text-center">Source</th>
+                        <th style="width: 70px;">Month</th>
+                        <th style="width: 50px;">Fund</th>
+                        <th style="width: 70px;">Co. Code</th>
+                        <th style="width: 150px;">Company Name</th>
+                        <th style="width: 60px;" class="text-center">Members</th>
+                        <th style="width: 80px;">Sched. Date</th>
+                        <th style="width: 80px;">Final Date</th>
+                        <th style="width: 100px;" class="amount-col">Sched. Amount</th>
+                        <th style="width: 85px;">Confirm Date</th>
+                        <th style="width: 85px;" class="bank-col">Bank Date</th>
+                        <th style="width: 100px;" class="amount-col bank-col">Bank Deposit</th>
+                        <th style="width: 100px;" class="amount-col bank-col">Allocated</th>
+                        <th style="width: 150px;" class="bank-col">Bank Desc</th>
+                        <th style="width: 120px;" class="bank-col">Recon Note</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for record in confirmation_records %}
+                        {% with source_count=record.source_details|length %}
+                            {% with row_span=source_count|default:1 %}
+
+                                {% if source_count == 0 %}
+                                    <tr class="bill-group-end">
+                                        <td class="bank-col text-center">-</td>
+                                        <td>{{ record.cc_dates_month|date:"Y-m-d" }}</td>
+                                        <td>{{ record.fund_code }}</td>
+                                        <td>{{ record.company_code }}</td>
+                                        <td>{{ record.company_name }}</td>
+                                        <td class="text-center">{{ record.active_members }}</td>
+                                        <td>{{ record.schedule_date|date:"Y-m-d"|default:"-" }}</td>
+                                        <td>{{ record.final_date|date:"Y-m-d"|default:"-" }}</td>
+                                        <td class="amount-col">R {{ record.schedule_amount }}</td>
+                                        <td>{{ record.confirmed_date|date:"Y-m-d"|default:"-" }}</td>
+                                        <td class="bank-col">-</td> 
+                                        <td class="amount-col bank-col">-</td> 
+                                        <td class="amount-col bank-col">-</td> 
+                                        <td class="bank-col">-</td> 
+                                        <td class="bank-col">-</td> 
+                                        <td class="bank-col">-</td> 
+                                    </tr>
+                                {% else %}
+                                    {% for source in record.source_details %}
+                                        <tr class="{% if forloop.last %}bill-group-end{% endif %}">
+                                            <td class="bank-col text-center">
+                                                {% if source.source == 'CREDIT' %}
+                                                    <span class="source-badge badge-credit">Overs Line</span>
+                                                {% else %}
+                                                    <span class="source-badge badge-bank">Bank</span>
+                                                {% endif %}
+                                            </td>
+
+                                            {% if forloop.first %}
+                                                <td rowspan="{{ row_span }}">{{ record.cc_dates_month|date:"Y-m-d" }}</td>
+                                                <td rowspan="{{ row_span }}">{{ record.fund_code }}</td>
+                                                <td rowspan="{{ row_span }}">{{ record.company_code }}</td>
+                                                <td rowspan="{{ row_span }}">{{ record.company_name }}</td>
+                                                <td rowspan="{{ row_span }}" class="text-center">{{ record.active_members }}</td>
+                                                <td rowspan="{{ row_span }}">{{ record.schedule_date|date:"Y-m-d"|default:"-" }}</td>
+                                                <td rowspan="{{ row_span }}">{{ record.final_date|date:"Y-m-d"|default:"-" }}</td>
+                                                <td rowspan="{{ row_span }}" class="amount-col">R {{ record.schedule_amount }}</td>
+                                                <td rowspan="{{ row_span }}">{{ record.confirmed_date|date:"Y-m-d"|default:"-" }}</td>
+                                            {% endif %}
+
+                                            <td class="bank-col">{{ source.date|date:"Y-m-d" }}</td>
+                                            <td class="amount-col bank-col">R {{ source.bank_total }}</td>
+                                            <td class="amount-col bank-col">R {{ source.amount }}</td>
+                                            <td class="bank-col">{{ source.description|default:"-" }}</td>
+                                            <td class="bank-col" style="font-style: italic; color: #555;">{{ source.comment|default:"-" }}</td>
+                                        </tr>
+                                    {% endfor %}
+                                {% endif %}
+
+                            {% endwith %}
+                        {% endwith %}
+                    {% empty %}
+                        <tr>
+                            <td colspan="16" class="text-center" style="padding: 40px; color: #757575;">No records found matching the criteria.</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+</body>
+</html>

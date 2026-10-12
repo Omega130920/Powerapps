@@ -1,0 +1,508 @@
+{% load static %}
+
+{% block title %}Task #{{ delegation.pk }}: {{ email.subject|default:"(No Subject)" }}{% endblock %}
+
+{% block content %}
+<style>
+    /* --- BASE STYLES --- */
+    body {
+        font-family: sans-serif;
+        background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        min-height: 100vh;
+        padding: 10px 10px;
+        box-sizing: border-box;
+    }
+
+    .task-container {
+        width: 98%; 
+        max-width: 1600px; 
+        background: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+    }
+
+    .main-grid {
+        display: flex;
+        flex-wrap: wrap; 
+        gap: 20px;
+    }
+
+    .left-column { flex: 1.5; min-width: 350px; }
+    .right-column { flex: 1; min-width: 300px; }
+
+    /* --- Metadata Bar --- */
+    .metadata-card {
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        background: #fff;
+        overflow: hidden;
+    }
+    .metadata-header {
+        background-color: #1e88e5; 
+        color: white;
+        padding: 10px 15px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+    }
+
+    /* --- Card Styling --- */
+    .custom-card {
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+    }
+
+    .card-header-primary {
+        background-color: #007bff;
+        color: white;
+        padding: 12px 15px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+    }
+
+    .card-header-dark {
+        background-color: #343a40;
+        color: white;
+        padding: 12px 15px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+    }
+
+    .card-body-content { padding: 15px; }
+    
+    .task-header h1 { font-size: 24px; margin-bottom: 5px; color: #333; }
+    .task-header .status-badge {
+        display: inline-block;
+        background-color: #ffc107;
+        color: #212529;
+        padding: 5px 12px;
+        border-radius: 50px;
+        font-weight: bold;
+        font-size: 13px;
+        margin-left: 10px;
+    }
+
+    /* --- Form Styling --- */
+    .form-label { font-weight: bold; display: block; margin-bottom: 5px; margin-top: 10px; font-size: 13px; }
+    .form-control {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+        margin-bottom: 10px;
+    }
+    textarea.form-control { min-height: 100px; resize: vertical; }
+
+    /* --- Email Body Adjustments --- */
+    .email-body-html {
+        padding: 15px; 
+        border: 1px solid #ddd; 
+        background: #f8f9fa; 
+        max-height: 50vh; 
+        overflow-y: auto;
+        white-space: pre-line;
+    }
+    
+    .email-body-pre {
+        padding: 15px; 
+        border: 1px solid #ddd; 
+        background: #f8f9fa; 
+        max-height: 50vh; 
+        overflow-y: auto;
+    }
+
+    /* --- ATTACHMENT BADGE STYLES --- */
+    .attachment-list { margin-top: 15px; padding: 15px; background-color: #f0fff0; border-top: 1px solid #c3e6cb; }
+    .attachment-badge { 
+        display: inline-flex; align-items: center; background: white; border: 1px solid #aed581; 
+        padding: 0; border-radius: 20px; margin-right: 10px; margin-bottom: 8px;
+        font-size: 13px; overflow: hidden;
+    }
+    .attachment-preview-trigger {
+        padding: 6px 15px;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+        display: flex;
+        align-items: center;
+    }
+    .attachment-preview-trigger:hover { 
+        background-color: #e8f5e9;
+    }
+    .attachment-download-btn {
+        background-color: #43a047;
+        color: white;
+        padding: 6px 12px;
+        cursor: pointer;
+        border-left: 1px solid #aed581;
+        transition: background-color 0.2s ease;
+    }
+    .attachment-download-btn:hover {
+        background-color: #2e7d32;
+    }
+
+    /* --- PREVIEW MODAL STYLES --- */
+    #previewModal { 
+        display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; 
+        background-color: rgba(0,0,0,0.85); 
+    }
+    .modal-wrapper { 
+        position: relative; margin: 2% auto; padding: 20px; width: 90%; height: 90%; 
+        background: #fff; border-radius: 8px; display: flex; flex-direction: column; 
+    }
+    .modal-wrapper p { white-space: pre-line; }
+    .close-preview { 
+        position: absolute; top: 10px; right: 20px; font-size: 30px; font-weight: bold; 
+        cursor: pointer; color: #333; z-index: 10001; 
+    }
+    #previewTitle { margin: 0 0 10px 0; font-size: 18px; color: #1976d2; border-bottom: 1px solid #eee; padding-bottom: 5px; }
+    #previewContent { flex: 1; width: 100%; height: 100%; border: none; overflow: auto; }
+
+    /* --- Collapsible Functionality --- */
+    .collapse-toggle {
+        display: flex; justify-content: space-between; align-items: center;
+        width: 100%; padding: 12px 15px; background: #f8f9fa; border: none;
+        text-align: left; font-size: 15px; font-weight: bold; cursor: pointer;
+        transition: background 0.2s; border-bottom: 3px solid #007bff; color: #333;
+    }
+    .collapse-toggle:hover { background: #e9ecef; }
+    .collapse-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out, padding 0.3s ease-out; }
+    .collapse-content.show { max-height: 900px; padding: 15px; }
+    .toggle-icon { transition: transform 0.3s ease; }
+    .collapse-toggle[aria-expanded="true"] .toggle-icon { transform: rotate(180deg); }
+    
+    /* --- Button Styling --- */
+    .custom-btn { padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: background-color 0.2s; text-decoration: none; display: inline-block; text-align: center; }
+    .btn-primary { background-color: #007bff; color: white; }
+    .btn-success { background-color: #28a745; color: white; width: 100%; padding: 12px; }
+    .btn-update { background-color: #1e88e5; color: white; width: 100%; padding: 10px; }
+    .btn-complete { background-color: #28a745; color: white; width: 100%; padding: 12px; margin-bottom: 10px; }
+    .btn-redelegate { background-color: #f7931e; color: white; width: 100%; padding: 12px; margin-bottom: 10px; }
+    .btn-back { background-color: white; color: #343a40; border: 1px solid #343a40; width: 100%; margin-top: 10px; padding: 12px; }
+
+    /* --- Note Item Typography Spacing --- */
+    .note-item p { white-space: pre-line; margin-top: 4px; margin-bottom: 12px; }
+
+    @media (max-width: 992px) { .main-grid { flex-direction: column; } }
+</style>
+
+<div class="task-container">
+    {# --- HEADER --- #}
+    <div class="task-header">
+        <h1><i class="fas fa-tasks"></i> Task Action: #{{ delegation.pk }}</h1>
+        <p>Assigned to: <strong>{{ delegation.assigned_user.username }}</strong> | Status: <span class="status-badge">{{ delegation.get_status_display }}</span></p>
+        <hr style="border-top: 1px solid #eee; margin-bottom: 20px;">
+    </div>
+
+    {# --- EDITABLE METADATA BAR --- #}
+    <div class="metadata-card">
+        <div class="metadata-header">
+            <i class="fas fa-database"></i> Task Metadata & Enquiry Details
+        </div>
+        <div class="card-body-content">
+            <form method="POST">
+                {% csrf_token %}
+                <input type="hidden" name="action_type" value="update_metadata">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; align-items: end;">
+                    <div>
+                        <label class="form-label">Member Group Code:</label>
+                        <input type="text" name="mip_names" value="{{ delegation.mip_names|default:'' }}" class="form-control" list="acvv_list" placeholder="Enter Code">
+                        <datalist id="acvv_list">
+                            {% for record in acvv_records %}
+                                <option value="{{ record.mip_names }}">Code: {{ record.branch_code }}</option>
+                            {% endfor %}
+                        </datalist>
+                    </div>
+                    <div>
+                        <label class="form-label">Classification:</label>
+                        <select name="email_category" class="form-control">
+                            <option value="">-- Select --</option>
+                            <option value="Normal Withdrawal Claim" {% if delegation.email_category == "Normal Withdrawal Claim" %}selected{% endif %}>Normal Withdrawal Claim</option>
+                            <option value="Two-Pot withdrawal Request" {% if delegation.email_category == "Two-Pot withdrawal Request" %}selected{% endif %}>Two-Pot withdrawal Request</option>
+                            <option value="Schedule - Current Month" {% if delegation.email_category == "Schedule - Current Month" %}selected{% endif %}>Schedule - Current Month</option>
+                            <option value="Schedule - Following Month" {% if delegation.email_category == "Schedule - Following Month" %}selected{% endif %}>Schedule - Following Month</option>
+                            <option value="New Member Doc." {% if delegation.email_category == "New Member Doc." %}selected{% endif %}>New Member Doc.</option>
+                            <option value="Enquiry from Sanlam" {% if delegation.email_category == "Enquiry from Sanlam" %}selected{% endif %}>Enquiry from Sanlam</option>
+                            <option value="Enquiry from Broker" {% if delegation.email_category == "Enquiry from Broker" %}selected{% endif %}>Enquiry from Broker</option>
+                            <option value="Enquiry from MG" {% if delegation.email_category == "Enquiry from MG" %}selected{% endif %}>Enquiry from MG</option>
+                            <option value="Succesfull submission" {% if delegation.email_category == "Succesfull submission" %}selected{% endif %}>Succesfull submission</option>
+                            <option value="Two-Pot Application Received" {% if delegation.email_category == "Two-Pot Application Received" %}selected{% endif %}>Two-Pot Application Received</option>
+                            <option value="Benefit Letter from Sanlam" {% if delegation.email_category == "Benefit Letter from Sanlam" %}selected{% endif %}>Benefit Letter from Sanlam</option>
+                            <option value="Vested Pot Letter from Sanlam" {% if delegation.email_category == "Vested Pot Letter from Sanlam" %}selected{% endif %}>Vester Pot Letter from Sanlam</option>
+                            <option value="Savings Pot Letter from Sanlam" {% if delegation.email_category == "Savings Pot Letter from Sanlam" %}selected{% endif %}>Savings Pot Letter from Sanlam</option>
+                            <option value="Paid Up Certificate from Sanlam" {% if delegation.email_category == "Paid Up Certificate from Sanlam" %}selected{% endif %}>Paid Up Certificate from Sanlam</option>
+                            <option value="Member Info Update Request" {% if delegation.email_category == "Member Info Update Request" %}selected{% endif %}>Member Info Update Request</option>
+                            <option value="Info Only" {% if delegation.email_category == "Info Only" %}selected{% endif %}>Info Only</option>
+                        </select>
+                    </div>
+                    <div>
+                        <button type="submit" class="custom-btn btn-update"><i class="fas fa-save"></i> Update Metadata</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="main-grid">
+        {# LEFT COLUMN: EMAIL CONTENT #}
+        <div class="left-column">
+            <div class="custom-card">
+                <div class="card-header-primary">
+                    <i class="fas fa-inbox" style="margin-right: 10px;"></i> 
+                    <h5 style="margin: 0; font-size: 15px;">Subject: {{ email.subject|default:"(No Subject)" }}</h5>
+                </div>
+                <div class="card-body-content">
+                    <div style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #ddd;">
+                        <small style="display: block; font-size: 12px;">
+                            From: <strong>{{ email.from.emailAddress.name }}</strong> &lt;{{ email.from.emailAddress.address }}&gt;
+                        </small>
+                        <small style="display: block; color: #6c757d; font-size: 12px;">
+                            Received: {{ delegation.received_at|date:"Y-m-d H:i:s" }}
+                        </small>
+                    </div>
+                    
+                    {% if email.body.contentType == 'html' %}
+                        <div class="email-body-html">{{ email.body.content|safe }}</div>
+                    {% else %}
+                        <pre class="email-body-pre" style="white-space: pre-wrap; word-wrap: break-word; font-family: inherit;">{{ email.body.content }}</pre>
+                    {% endif %}
+
+                    {# INCOMING ATTACHMENTS SECTION #}
+                    {% if attachments %}
+                    <div class="attachment-list">
+                        <div style="margin-bottom: 8px; color: #2e7d32; font-weight: bold; font-size: 13px;">
+                            📎 Attachments ({{ attachments|length }}):
+                        </div>
+                        {% for att in attachments %}
+                        <div class="attachment-badge">
+                            <div class="attachment-preview-trigger" onclick="openPreview('{{ att.contentBytes }}', '{{ att.contentType }}', '{{ att.name|escapejs }}')" title="Preview File">
+                                <span>📄 {{ att.name }}</span>
+                                <span style="margin-left: 8px; font-size: 10px; color: #666;">({{ att.size|filesizeformat }})</span>
+                            </div>
+                            <div class="attachment-download-btn" onclick="downloadAttachment('{{ att.contentBytes }}', '{{ att.contentType }}', '{{ att.name|escapejs }}')" title="Download File">
+                                <i class="fas fa-download"></i>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {# COLLAPSABLE REPLY FORM #}
+            {% if delegation.status != 'COM' %}
+            <div class="custom-card">
+                <button class="collapse-toggle" type="button" data-toggle="collapse" data-target="#collapseReplyForm">
+                    <span><i class="fas fa-reply" style="margin-right: 8px;"></i> Send Reply / New Email</span>
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </button>
+                <div class="collapse-content" id="collapseReplyForm">
+                    <form method="POST" enctype="multipart/form-data" onsubmit="prepareEmailHtmlPayload(this)">
+                        {% csrf_token %}
+                        <input type="hidden" name="action_type" value="send_reply">
+                        <div style="margin-bottom: 10px;">
+                            <label class="form-label">Recipient (To):</label>
+                            <input type="text" class="form-control" name="reply_recipient" value="{{ email.from.emailAddress.address }}" placeholder="recipient@example.com" required>
+                        </div>
+                        <div style="margin-bottom: 10px;">
+                            <label class="form-label">CC:</label>
+                            <input type="text" class="form-control" name="reply_cc" placeholder="cc1@example.com; cc2@example.com">
+                        </div>
+                        <div style="margin-bottom: 10px;">
+                            <label class="form-label">BCC:</label>
+                            <input type="text" class="form-control" name="reply_bcc" placeholder="bcc1@example.com; bcc2@example.com">
+                        </div>
+                        <div style="margin-bottom: 10px;">
+                            <label class="form-label">Subject:</label>
+                            <input type="text" class="form-control" name="reply_subject" value="Re: {{ email.subject|default:'(No Subject)' }}" required>
+                        </div>
+                        
+                        {# --- ACTION LOG TYPE DROPDOWN --- #}
+                        <div style="margin-bottom: 10px;">
+                            <label class="form-label">Action Log Type:</label>
+                            <select name="action_log_type" class="form-control">
+                                <option value="">-- Select Log Type --</option>
+                                <option value="Feedback to Sanlam">Feedback to Sanlam</option>
+                                <option value="Feedback to Employer">Feedback to Employer</option>
+                                <option value="Feedback to Member">Feedback to Member</option>
+                                <option value="Feedback to CBC">Feedback to CBC</option>
+                                <option value="Feedback to FO">Feedback to FO</option>
+                                <option value="D/O failed – insufficient funds">D/O failed – insufficient funds</option>
+                                <option value="Requested exit claim documents from ER">Requested exit claim documents from ER</option>
+                                <option value="Followed up on outstanding exit claim docs">Followed up on outstanding exit claim docs</option>
+                                <option value="Follow up on risk claim (SEB request)">Follow up on risk claim (SEB request)</option>
+                                <option value="Schedule discrepancy">Schedule discrepancy</option>
+                                <option value="Two Pot Claim Form sent to ER">Two Pot Claim Form sent to ER</option>
+                                <option value="Two Pot submission confirmation to ER">Two Pot submission confirmation to ER</option>
+                                <option value="Exit form sent to ER">Exit form sent to ER</option>
+                                <option value="Follow up on incomplete Exit Form">Follow up on incomplete Exit Form</option>
+                                <option value="Informed ER of claim submission">Informed ER of claim submission</option>
+                                <option value="Informed ER of claim paid">Informed ER of claim paid</option>
+                                <option value="SEB Employer Declaration sent to ER">SEB Employer Declaration sent to ER</option>
+                                <option value="SEB Employer Declaration sent SEB">SEB Employer Declaration sent SEB</option>
+                                <option value="General Fund Rules Enquiry">General Fund Rules Enquiry</option>
+                                <option value="Info Only">Info Only</option>
+                            </select>
+                        </div>
+
+                        <div style="margin-bottom: 15px; padding: 12px; border: 1px dashed #1e88e5; background-color: #f1f8ff; border-radius: 4px;">
+                            <label class="form-label" style="margin-top: 0; color: #1e88e5;"><i class="fas fa-paperclip"></i> Attach Files (Hold Ctrl to select multiple):</label>
+                            <input type="file" class="form-control" name="email_attachments" multiple style="background: white;">
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label class="form-label">Body:</label>
+                            <textarea class="form-control" id="raw_reply_body" name="reply_body" rows="6" required></textarea>
+                        </div>
+                        <button type="submit" class="custom-btn btn-primary" style="width: 100%; padding: 12px;">Send Reply</button>
+                    </form>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        {# RIGHT COLUMN: ACTIONS & NOTES #}
+        <div class="right-column">
+            {% if delegation.status != 'COM' %}
+            <div class="custom-card" style="border: 2px solid #28a745; background-color: #f0fff4;">
+                <div class="card-body-content">
+                    <h5 style="margin-top:0; color: #28a745;"><i class="fas fa-check-circle"></i> Workflow Finalization</h5>
+                    <form method="POST" onsubmit="return confirm('Complete task?');" style="margin-bottom: 10px;">
+                        {% csrf_token %}
+                        <input type="hidden" name="action_type" value="complete_task">
+                        <button type="submit" class="custom-btn btn-complete">Complete & Close Task</button>
+                    </form>
+                    <a href="{% url 'outlook_delegate_to' email_id=delegation.email_id %}" class="custom-btn btn-redelegate">Re-Delegate Task</a>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="custom-card">
+                <div class="card-header-dark"><i class="fas fa-clipboard-list" style="margin-right: 10px;"></i> Notes & History</div>
+                <div class="card-body-content">
+                    <div class="notes-history-container">
+                        {% for note in notes %}
+                        <div class="note-item">
+                            <small><strong>{{ note.user.username }}</strong> on {{ note.created_at|date:"Y-m-d H:i" }}</small>
+                            <p>{{ note.content }}</p>
+                        </div>
+                        {% empty %}
+                        <p style="text-align: center; font-size: 13px;">No notes yet.</p>
+                        {% endfor %}
+                    </div>
+                    {% if delegation.status != 'COM' %}
+                    <button class="collapse-toggle" style="border-bottom: 3px solid #28a745; background: none; padding: 10px 0; font-size: 14px;" type="button" data-toggle="collapse" data-target="#collapseAddNote">
+                        <span><i class="fas fa-plus-circle" style="color:#28a745;"></i> Add New Note</span>
+                        <i class="fas fa-chevron-down toggle-icon"></i>
+                    </button>
+                    <div class="collapse-content" id="collapseAddNote">
+                        <form method="POST">
+                            {% csrf_token %}
+                            <input type="hidden" name="action_type" value="add_note">
+                            <textarea class="form-control" name="note_content" rows="4" required></textarea>
+                            <button type="submit" class="custom-btn btn-success">Save Note</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            <a href="{% url 'outlook_email_list' %}" class="custom-btn btn-back">Back to Email List</a>
+        </div>
+    </div>
+</div>
+
+{# --- PREVIEW MODAL HTML --- #}
+<div id="previewModal">
+    <div class="modal-wrapper">
+        <span class="close-preview" onclick="closePreview()">&times;</span>
+        <h3 id="previewTitle">File Preview</h3>
+        <div id="previewContent"></div>
+    </div>
+</div>
+
+<script>
+    // Auto-translates textual breaks to HTML paragraphs before posting to Microsoft Graph API channels
+    function prepareEmailHtmlPayload(formInstance) {
+        const textarea = document.getElementById('raw_reply_body');
+        if (!textarea || !textarea.value) return;
+        
+        const rawText = textarea.value.trim();
+        const paragraphs = rawText.split('\n').map(p => p.trim());
+        let htmlPayload = "";
+        
+        paragraphs.forEach(para => {
+            if (para.length > 0) {
+                htmlPayload += `<p style="margin-top:0; margin-bottom:12px; font-family:sans-serif; font-size:14px; color:#222;">${para}</p>`;
+            } else {
+                htmlPayload += `<br />`;
+            }
+        });
+        
+        textarea.value = htmlPayload;
+    }
+
+    // --- DOWNLOAD LOGIC ---
+    function downloadAttachment(base64, contentType, fileName) {
+        const linkSource = `data:${contentType};base64,${base64}`;
+        const downloadLink = document.createElement("a");
+        downloadLink.href = linkSource;
+        downloadLink.download = fileName;
+        downloadLink.click();
+    }
+
+    // --- PREVIEW LOGIC ---
+    function openPreview(base64, contentType, fileName) {
+        const modal = document.getElementById('previewModal');
+        const content = document.getElementById('previewContent');
+        const title = document.getElementById('previewTitle');
+        title.innerText = "Previewing: " + fileName;
+        content.innerHTML = "";
+        const dataUrl = `data:${contentType};base64,${base64}`;
+        
+        if (contentType.includes('pdf')) {
+            content.innerHTML = `<embed src="${dataUrl}" type="application/pdf" width="100%" height="100%" />`;
+        } else if (contentType.includes('image')) {
+            content.innerHTML = `<div style="text-align:center; height:100%; overflow:auto;"><img src="${dataUrl}" style="max-width:100%; border:1px solid #ccc;" /></div>`;
+        } else {
+            content.innerHTML = `<div style="padding:40px; text-align:center; color:#666;">
+                <p>Preview not available for this file type (<b>${contentType}</b>).</p>
+                <p><button onclick="downloadAttachment('${base64}', '${contentType}', '${fileName}')" class="custom-btn btn-primary" style="font-size:14px; display:inline-flex;">Download File</button></p>
+            </div>`;
+        }
+        modal.style.display = 'block';
+    }
+
+    function closePreview() {
+        document.getElementById('previewModal').style.display = 'none';
+        document.getElementById('previewContent').innerHTML = "";
+    }
+
+    // --- COLLAPSE LOGIC ---
+    document.addEventListener('DOMContentLoaded', function () {
+        document.querySelectorAll('.collapse-toggle').forEach(button => {
+            button.addEventListener('click', function() {
+                const target = document.querySelector(this.getAttribute('data-target'));
+                const isExpanded = this.getAttribute('aria-expanded') === 'true';
+                target.classList.toggle('show');
+                this.setAttribute('aria-expanded', !isExpanded);
+            });
+        });
+    });
+
+    window.onclick = (e) => { if (e.target.id == 'previewModal') closePreview(); }
+    document.onkeydown = (e) => { if (e.key === "Escape") closePreview(); };
+</script>
+{% endblock %}

@@ -1,0 +1,190 @@
+{% load static %}
+
+{% block title %}Recycle Bin: {{ email.subject|default:"(No Subject)" }}{% endblock %}
+
+{% block content %}
+<style>
+    body {
+        font-family: sans-serif;
+        background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        min-height: 100vh;
+        padding: 40px 20px;
+        box-sizing: border-box;
+    }
+
+    .task-container {
+        width: 100%;
+        max-width: 1200px;
+        background: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        padding: 30px;
+    }
+
+    .main-grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 20px;
+    }
+
+    .left-column { flex: 2; min-width: 300px; }
+    .right-column { flex: 1; min-width: 300px; }
+
+    .custom-card {
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+    }
+
+    .card-header-dark {
+        background-color: #455a64; /* Blue Grey for Recycle Bin */
+        color: white;
+        padding: 15px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+    }
+
+    .card-body-content { padding: 20px; }
+    
+    .task-header h1 { font-size: 28px; margin-bottom: 5px; color: #333; }
+    
+    .status-badge-bin {
+        display: inline-block;
+        background-color: #607d8b;
+        color: white;
+        padding: 5px 12px;
+        border-radius: 50px;
+        font-weight: bold;
+        font-size: 14px;
+        margin-left: 10px;
+    }
+
+    .email-body-html {
+        padding: 15px;
+        border: 1px solid #ddd;
+        background: #f8f9fa;
+        max-height: 600px;
+        overflow-y: auto;
+    }
+
+    /* Action Buttons */
+    .btn-restore-large {
+        background-color: #f7931e;
+        color: white;
+        width: 100%;
+        padding: 15px;
+        font-size: 18px;
+        font-weight: bold;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        display: block;
+        text-align: center;
+        text-decoration: none;
+        transition: background 0.2s;
+        margin-bottom: 15px;
+    }
+    .btn-restore-large:hover { background-color: #d87d16; }
+
+    .btn-purge-sidebar {
+        background-color: #d32f2f;
+        color: white;
+        width: 100%;
+        padding: 12px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        text-decoration: none;
+        display: block;
+        text-align: center;
+        margin-bottom: 10px;
+    }
+
+    .btn-back-bin {
+        background-color: white;
+        color: #455a64;
+        border: 1px solid #455a64;
+        width: 100%;
+        padding: 12px;
+        display: block;
+        text-align: center;
+        text-decoration: none;
+        border-radius: 4px;
+    }
+
+    @media (max-width: 992px) { .main-grid { flex-direction: column; } }
+</style>
+
+<div class="task-container">
+    <div class="task-header">
+        <h1><i class="fas fa-recycle"></i> Recycled Item: #{{ delegation.pk }}</h1>
+        <p>Classification: <strong>{{ delegation.email_category|default:"None" }}</strong> | Status: <span class="status-badge-bin">RECYCLED</span></p>
+        <hr style="border-top: 1px solid #eee; margin-bottom: 25px;">
+    </div>
+
+    <div class="main-grid">
+        <div class="left-column">
+            <div class="custom-card">
+                <div class="card-header-dark">
+                    <i class="fas fa-envelope-open" style="margin-right: 10px;"></i> 
+                    <h5 style="margin: 0;">{{ email.subject|default:"(No Subject)" }}</h5>
+                </div>
+                <div class="card-body-content">
+                    <div style="margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1px solid #ddd;">
+                        <small style="display: block;">From: <strong>{{ email.from.emailAddress.name }}</strong></small>
+                        <small style="display: block; color: #6c757d;">Received: {{ email.receivedDateTime|date:"Y-m-d H:i:s" }}</small>
+                    </div>
+                    
+                    <div class="email-body-html">
+                        {% if email.body.contentType == 'html' %}
+                            {{ email.body.content|safe }}
+                        {% else %}
+                            <pre style="white-space: pre-wrap;">{{ email.body.content }}</pre>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="right-column">
+            <div class="custom-card">
+                <div class="card-header-dark" style="background-color: #37474f;">
+                    <i class="fas fa-tools" style="margin-right: 10px;"></i>
+                    <h5 style="margin: 0;">Management Actions</h5>
+                </div>
+                <div class="card-body-content">
+                    <p style="font-size: 13px; color: #666; margin-bottom: 20px;">
+                        If this email was moved here by mistake, use the button below to send it back to the Live Inbox for delegation.
+                    </p>
+                    
+                    <a href="{% url 'restore_recycled_item' delegation.id %}" class="btn-restore-large">
+                        <i class="fas fa-undo-alt"></i> RESTORE TO INBOX
+                    </a>
+
+                    <a href="{% url 'recycle_bin' %}" class="btn-back-bin">
+                        <i class="fas fa-arrow-left"></i> Back to Recycle Bin
+                    </a>
+                </div>
+            </div>
+
+            <div class="custom-card">
+                <div class="card-header-dark" style="background-color: #263238;">
+                    <i class="fas fa-history" style="margin-right: 10px;"></i>
+                    <h5 style="margin: 0;">Audit Info</h5>
+                </div>
+                <div class="card-body-content">
+                    <small>Classification: {{ delegation.email_category }}</small><br>
+                    <small>MIP Names: {{ delegation.mip_names }}</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

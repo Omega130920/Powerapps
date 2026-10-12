@@ -1,0 +1,2083 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcade Deck Matrix // SYSTEM_FIX</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    
+    <style>
+        .font-cyber { font-family: 'Orbitron', sans-serif; }
+        .font-mono-tech { font-family: 'Share Tech Mono', monospace; }
+        .clip-cyber { clip-path: polygon(0 0, 100% 0, 100% calc(100% - 15px), calc(100% - 15px) 100%, 0 100%); }
+        .clip-cyber-sm { clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px)); }
+        .glow-pink { filter: drop-shadow(0 0 8px rgba(236, 72, 153, 0.6)); }
+        .bg-grid-lines {
+            background-size: 30px 30px;
+            background-image: linear-gradient(to right, rgba(236, 72, 153, 0.04) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(236, 72, 153, 0.04) 1px, transparent 1px);
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen bg-grid-lines relative selection:bg-pink-500 selection:text-white">
+
+    <div class="w-full bg-pink-500 h-1 flex justify-between overflow-hidden">
+        <div class="w-1/4 bg-cyan-500 h-full"></div>
+        <div class="w-1/12 bg-yellow-400 h-full animate-pulse"></div>
+    </div>
+
+    <div class="min-h-screen flex flex-col justify-between">
+        <nav class="border-b-2 border-pink-500 bg-slate-900/90 backdrop-blur-md p-4 shadow-sm relative">
+            <div class="absolute top-0 right-0 px-4 py-0.5 text-[9px] font-mono-tech text-pink-400 tracking-widest uppercase">
+                ARCADE_STATUS: REFACTORED // ENGINE: STABLE
+            </div>
+            <div class="container mx-auto flex justify-between items-center">
+                <a href="/source/" class="font-cyber font-black text-xs uppercase tracking-wider text-slate-400 hover:text-pink-400 transition-colors flex items-center gap-2">
+                    <span>⚡</span> &lt;-- Back to Main Pipeline
+                </a>
+                <span class="text-xs font-cyber bg-slate-950 text-pink-400 px-3 py-1 font-bold clip-cyber-sm glow-pink border-l-2 border-cyan-400">
+                    PATCH_v2.0_LOADED
+                </span>
+            </div>
+        </nav>
+
+        <main class="flex-grow container mx-auto px-4 py-8 max-w-6xl z-10 flex flex-col md:flex-row gap-6">
+            
+            <div class="w-full md:w-1/4 flex flex-col gap-2.5 max-h-[550px] overflow-y-auto pr-1">
+                <div class="text-xs font-cyber font-black text-cyan-400 uppercase tracking-widest mb-1">// SYSTEM_LOAD_BOOT</div>
+
+                <button onclick="bootGame('snake')" id="btn-snake" class="w-full text-left bg-slate-900 border-2 border-slate-800 p-3 rounded clip-cyber-sm transition-all group">
+                    <span class="block text-sm font-cyber font-bold text-slate-200 group-hover:text-pink-400">01 // SNAKE</span>
+                    <span class="text-[10px] font-mono-tech text-slate-500 uppercase">Smooth frame loops & self-collisions.</span>
+                </button>
+
+                <button onclick="bootGame('stick')" id="btn-stick" class="w-full text-left bg-slate-900 border-2 border-slate-800 p-3 rounded clip-cyber-sm transition-all group">
+                    <span class="block text-sm font-cyber font-bold text-slate-200 group-hover:text-pink-400">02 // STICKMAN MATRIX</span>
+                    <span class="text-[10px] font-mono-tech text-slate-500 uppercase">Tracking AI, physics engine, and hitboxes.</span>
+                </button>
+
+                <button onclick="bootGame('solitaire')" id="btn-solitaire" class="w-full text-left bg-slate-900 border-2 border-slate-800 p-3 rounded clip-cyber-sm transition-all group">
+                    <span class="block text-sm font-cyber font-bold text-slate-200 group-hover:text-pink-400">03 // KLONDIKE SOLITAIRE</span>
+                    <span class="text-[10px] font-mono-tech text-slate-500 uppercase">Drag-and-drop mechanics & rules.</span>
+                </button>
+
+                <button onclick="bootGame('brickbreaker')" id="btn-brickbreaker" class="w-full text-left bg-slate-900 border-2 border-slate-800 p-3 rounded clip-cyber-sm transition-all group">
+                    <span class="block text-sm font-cyber font-bold text-slate-200 group-hover:text-pink-400">04 // BRICK BREAKER</span>
+                    <span class="text-[10px] font-mono-tech text-slate-500 uppercase">Deflect energy spheres to break grids.</span>
+                </button>
+
+                <button onclick="bootGame('tetris')" id="btn-tetris" class="w-full text-left bg-slate-900 border-2 border-slate-800 p-3 rounded clip-cyber-sm transition-all group">
+                    <span class="block text-sm font-cyber font-bold text-slate-200 group-hover:text-pink-400">05 // TETRIS MATRIX</span>
+                    <span class="text-[10px] font-mono-tech text-slate-500 uppercase">Stack code clusters and parse full lines.</span>
+                </button>
+
+                <button onclick="bootGame('racing')" id="btn-racing" class="w-full text-left bg-slate-900 border-2 border-slate-800 p-3 rounded clip-cyber-sm transition-all group">
+                    <span class="block text-sm font-cyber font-bold text-slate-200 group-hover:text-pink-400">06 // SPEED HYPERDRIVE</span>
+                    <span class="text-[10px] font-mono-tech text-slate-500 uppercase">Pseudo-3D vector rendering & collision arrays.</span>
+                </button>
+            </div>
+
+            <div class="w-full md:w-3/4 bg-slate-900 p-4 border-2 border-slate-800 clip-cyber shadow-[6px_6px_0px_0px_rgba(236,72,153,1)] relative flex flex-col justify-between min-h-[520px]">
+                <div>
+                    <h2 class="text-xl font-black text-slate-100 font-cyber uppercase tracking-tight" id="g-title">TERMINAL ACTIVE</h2>
+                    <p class="text-xs text-slate-400 font-mono-tech uppercase mb-2" id="g-desc">Choose a firmware module to verify engine patches.</p>
+                </div>
+
+                <div class="bg-black border-2 border-slate-950 rounded relative flex items-center justify-center min-h-[420px] overflow-hidden">
+                    <canvas id="arcadeCanvas" width="600" height="400" class="block bg-black"></canvas>
+                    
+                    <div id="bootOverlay" class="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center font-mono-tech text-center p-6">
+                        <div class="text-pink-500 text-xl font-cyber font-black mb-2 animate-pulse">&lt; STANDBY_ // SYSTEM_READY &gt;</div>
+                        <p class="text-xs text-slate-500 max-w-xs uppercase">Select a clean module from the left deck stack to stream real-time operational physics blocks.</p>
+                    </div>
+                </div>
+
+                <div class="mt-3 pt-2 border-t border-dashed border-slate-800 flex justify-between items-center text-xs font-mono-tech">
+                    <div class="text-slate-500 uppercase">Control Interface: <span class="text-cyan-400 font-bold" id="g-ctrl">N/A</span></div>
+                    <div class="text-pink-400 font-bold uppercase tracking-wider" id="g-meta">CORE_METRIC // SCORE: 0000</div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('arcadeCanvas');
+        const ctx = canvas.getContext('2d');
+        const bootOverlay = document.getElementById('bootOverlay');
+        
+        let globalLoopId = null;
+        let score = 0;
+        let currentKeys = {};
+
+        window.addEventListener('keydown', e => {
+            if(['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyW', 'KeyS', 'KeyA', 'KeyD'].includes(e.code)) e.preventDefault();
+            currentKeys[e.code] = true;
+        });
+        window.addEventListener('keyup', e => {
+            currentKeys[e.code] = false;
+        });
+
+        function killActiveLoops() {
+            if (globalLoopId) { cancelAnimationFrame(globalLoopId); globalLoopId = null; }
+            // Critical layout guard: Reset dimensions to avoid layout bugs when switching games
+            canvas.width = 600;
+            canvas.height = 400;
+            canvas.onmousedown = null; canvas.onmousemove = null; canvas.onmouseup = null;
+            ctx.clearRect(0,0, canvas.width, canvas.height);
+            bootOverlay.classList.add('hidden');
+        }
+
+        function setUIData(title, desc, controls, meta) {
+            document.getElementById('g-title').innerText = title;
+            document.getElementById('g-desc').innerText = desc;
+            document.getElementById('g-ctrl').innerText = controls;
+            document.getElementById('g-meta').innerText = meta;
+        }
+
+        function bootGame(gameKey) {
+            ['dbfight', 'snake', 'space', 'stick', 'solitaire', 'brickbreaker', 'tetris', 'racing'].forEach(k => {
+                const b = document.getElementById(`btn-${k}`);
+                if (!b) return;
+                if (k === gameKey) {
+                    b.className = b.className.replace('border-slate-800', 'border-pink-500 bg-slate-900/60');
+                } else {
+                    b.className = b.className.replace('border-pink-500 bg-slate-900/60', 'border-slate-800');
+                }
+            });
+
+            killActiveLoops();
+            if (gameKey === 'snake') runSnakeGame();
+            if (gameKey === 'stick') runStickmanGame();
+            if (gameKey === 'solitaire') runSolitaireGame();
+            if (gameKey === 'brickbreaker') runBrickBreakerGame();
+            if (gameKey === 'tetris') runTetrisGame();
+            if (gameKey === 'racing') runRacingGame();
+        }
+
+        // ==========================================
+        // MODULE 01: SNAKE CORE ENGINE
+        // ==========================================
+        function runSnakeGame() {
+            setUIData("CYBER_SNAKE_v2", "Intercept vector code sequences. Self-impact checks active.", "ARROW KEYS", "NODES ENGAGED // SCORE: 0");
+            score = 0;
+            let grid = 20;
+            let count = 0;
+            let snake = { x: 160, y: 160, dx: grid, dy: 0, cells: [{x: 160, y: 160}, {x: 140, y: 160}], maxCells: 4 };
+            let apple = { x: 320, y: 320 };
+
+            function generateApple() {
+                apple.x = Math.floor(Math.random() * (canvas.width / grid)) * grid;
+                apple.y = Math.floor(Math.random() * (canvas.height / grid)) * grid;
+            }
+
+            function frame() {
+                globalLoopId = requestAnimationFrame(frame);
+                if (++count < 5) return;
+                count = 0;
+
+                if (currentKeys['ArrowUp'] && snake.dy === 0) { snake.dx = 0; snake.dy = -grid; }
+                else if (currentKeys['ArrowDown'] && snake.dy === 0) { snake.dx = 0; snake.dy = grid; }
+                else if (currentKeys['ArrowLeft'] && snake.dx === 0) { snake.dx = -grid; snake.dy = 0; }
+                else if (currentKeys['ArrowRight'] && snake.dx === 0) { snake.dx = grid; snake.dy = 0; }
+
+                snake.x += snake.dx; snake.y += snake.dy;
+
+                if (snake.x < 0) snake.x = canvas.width - grid;
+                else if (snake.x >= canvas.width) snake.x = 0;
+                if (snake.y < 0) snake.y = canvas.height - grid;
+                else if (snake.y >= canvas.height) snake.y = 0;
+
+                snake.cells.unshift({x: snake.x, y: snake.y});
+                if (snake.cells.length > snake.maxCells) snake.cells.pop();
+
+                ctx.fillStyle = '#020617'; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+                ctx.fillStyle = '#ec4899'; ctx.fillRect(apple.x+1, apple.y+1, grid-2, grid-2);
+
+                ctx.fillStyle = '#22d3ee';
+                snake.cells.forEach((c, i) => {
+                    if(i === 0) ctx.fillStyle = '#eab308';
+                    else ctx.fillStyle = '#22d3ee';
+                    ctx.fillRect(c.x+1, c.y+1, grid-2, grid-2);
+
+                    if (c.x === apple.x && c.y === apple.y) {
+                        snake.maxCells++; score += 100;
+                        document.getElementById('g-meta').innerText = `NODES ENGAGED // SCORE: ${score}`;
+                        generateApple();
+                    }
+                    for (let j = i + 1; j < snake.cells.length; j++) {
+                        if (c.x === snake.cells[j].x && c.y === snake.cells[j].y) {
+                            killActiveLoops();
+                            ctx.fillStyle = '#ef4444'; ctx.font = "24px 'Orbitron'";
+                            ctx.fillText("CRITICAL RUNTIME IMPACT // SYSTEM CRASH", 20, 200);
+                        }
+                    }
+                });
+            }
+            generateApple();
+            frame();
+        }
+
+        // Ready for the Game Module script blocks next... Provide the next game block whenever you are ready!
+        function runStickmanGame() { setUIData("STICKMAN MATRIX", "Offline module trace.", "N/A", "ERROR // 404"); }
+        function runSolitaireGame() { setUIData("KLONDIKE SOLITAIRE", "Offline module trace.", "N/A", "ERROR // 404"); }
+        function runBrickBreakerGame() { setUIData("BRICK BREAKER", "Offline module trace.", "N/A", "ERROR // 404"); }
+        function runTetrisGame() { setUIData("TETRIS MATRIX", "Offline module trace.", "N/A", "ERROR // 404"); }
+        function runRacingGame() { setUIData("SPEED HYPERDRIVE", "Offline module trace.", "N/A", "ERROR // 404"); }
+
+// =========================================================================
+// MODULE 03: STICKMAN FIGHT MATRIX ENGINE (AI DAMAGE HITBOX FIX)
+// =========================================================================
+function runStickmanGame() {
+    let combatLevel = 1;
+    let maxLevels = 5;
+    let score = 0;
+
+    let groundY = 320;
+    let gravity = 0.5; // Smooth cinematic floating gravity physics
+    let screenShake = 0;
+
+    let isSelectingUpgrade = false;
+
+    let playerUpgrades = {
+        maxHpBonus: 0,
+        strikeDamageBonus: 0,
+        fireballCooldownReduction: 0,
+        fireballDamageBonus: 0
+    };
+
+    // Complete physical entities state declarations with rotational physics
+    let player = { 
+        x: 150, y: groundY, vx: 0, vy: 0, 
+        isGrounded: true, hp: 300, maxHp: 300,
+        isPunching: false, punchTime: 0, 
+        isKicking: false, kickTime: 0,
+        faceLeft: false,
+        cooldowns: { fireball: 0 },
+        // Animation variables
+        angle: 0, rotationalSpeed: 0, isFlipping: false,
+        isStunned: false, stunTime: 0, scale: 1.0,
+        // Kamehameha properties
+        kamehamehaCharges: 0,
+        isChargingKamehameha: false,
+        kamehamehaChargeTime: 0,
+        isFiringKamehameha: false,
+        kamehamehaFireTime: 0
+    };
+    
+    let enemy = { 
+        x: 550, y: groundY, vx: 0, vy: 0, 
+        isGrounded: true, hp: 250, maxHp: 250,
+        isPunching: false, punchTime: 0, 
+        isKicking: false, kickTime: 0,
+        faceLeft: true, aiStateTimer: 0,
+        isBoss: false, scale: 1.1,
+        isBlocking: false,
+        cooldowns: { fireball: 0 },
+        // Animation variables
+        angle: 0, rotationalSpeed: 0, isFlipping: false,
+        isStunned: false, stunTime: 0,
+        // AI Super Inventory & States
+        superCharges: 0,
+        isChargingSuper: false,
+        superChargeTime: 0,
+        isFiringSuper: false,
+        superFireTime: 0
+    };
+
+    let projectiles = [];
+    let particles = [];
+    let powerUp = { x: 0, y: 0, w: 20, h: 20, active: false, spawnTimer: 300 };
+    // DBZ Capsule Drop tracking
+    let dbzDrop = { x: 0, y: 0, w: 16, h: 24, active: false, spawnTimer: 180 };
+    let floatingTexts = [];
+
+    function spawnParticles(x, y, color, count = 8, customVx = 0, customVy = 0) {
+        for(let i=0; i<count; i++) {
+            particles.push({
+                x: x, y: y,
+                vx: customVx !== 0 ? customVx + (Math.random() - 0.5) * 4 : (Math.random() - 0.5) * 12,
+                vy: customVy !== 0 ? customVy + (Math.random() - 0.5) * 4 : (Math.random() - 0.6) * 12,
+                life: 25 + Math.random() * 15,
+                color: color,
+                size: 2 + Math.random() * 5
+            });
+        }
+    }
+
+    function triggerText(x, y, text, color) {
+        floatingTexts.push({ x: x, y: y - 30, text: text, color: color, life: 35 });
+    }
+
+    function initCombatLevel() {
+        isSelectingUpgrade = false;
+
+        player.maxHp = 300 + playerUpgrades.maxHpBonus;
+        player.hp = player.maxHp; 
+        player.x = 150; player.y = groundY; player.vx = 0; player.vy = 0; player.isGrounded = true;
+        player.angle = 0; player.rotationalSpeed = 0; player.isFlipping = false; player.isStunned = false;
+        player.cooldowns.fireball = 0;
+        player.isChargingKamehameha = false;
+        player.isFiringKamehameha = false;
+
+        enemy.isBoss = (combatLevel === 3 || combatLevel === 5);
+        enemy.scale = enemy.isBoss ? 1.6 : 1.1;
+
+        if (enemy.isBoss) {
+            enemy.hp = 500 + (combatLevel * 150);
+            setUIData(`STICKMAN COMBAT // BOSS STAGE 0${combatLevel}`, "WARNING: Ragdoll physics engine active.", "A/D = Move, SPACE = Punch, S = Kick, Q = KAMEHAMEHA (Needs Charge)", "CRITICAL THREAT FORCE");
+        } else {
+            enemy.hp = 250 + (combatLevel - 1) * 120;
+            setUIData(`STICKMAN COMBAT // STAGE 0${combatLevel}`, "Dynamic kinetic structures initialized.", "A/D = Move, SPACE = Punch, S = Kick, Q = KAMEHAMEHA (Needs Charge)", "SYSTEM ENGINE READY");
+        }
+        
+        enemy.maxHp = enemy.hp;
+        enemy.x = 600; enemy.y = groundY; enemy.vx = 0; enemy.vy = 0; enemy.isGrounded = true;
+        enemy.angle = 0; enemy.rotationalSpeed = 0; enemy.isFlipping = false; enemy.isStunned = false;
+        enemy.isBlocking = false;
+        enemy.superCharges = enemy.isBoss ? 1 : 0; 
+        enemy.isChargingSuper = false;
+        enemy.isFiringSuper = false;
+        
+        projectiles = [];
+        particles = [];
+        floatingTexts = [];
+        
+        powerUp.active = false;
+        powerUp.spawnTimer = 200 + Math.random() * 200;
+
+        dbzDrop.active = false;
+        dbzDrop.spawnTimer = 100 + Math.random() * 150;
+    }
+
+    function drawStickFigure(char, color) {
+        ctx.save();
+        
+        ctx.translate(char.x, char.y - (30 * char.scale));
+        ctx.rotate(char.angle);
+
+        ctx.strokeStyle = color; ctx.lineWidth = 4.5 * char.scale; ctx.lineCap = 'round';
+        ctx.beginPath();
+        
+        let localCoreY = 5 * char.scale;
+        let localNeckY = -25 * char.scale;
+        let localHeadY = -33 * char.scale;
+        let headRadius = 7.5 * char.scale;
+
+        ctx.moveTo(0, localCoreY); ctx.lineTo(0, localNeckY);
+        ctx.moveTo(0, localNeckY); 
+        ctx.arc(0, localHeadY, headRadius, 0, Math.PI * 2);
+        
+        if (char.isKicking) {
+            let kickX = char.faceLeft ? -32 * char.scale : 32 * char.scale;
+            ctx.moveTo(0, localCoreY); ctx.lineTo(kickX, -2 * char.scale); 
+            ctx.moveTo(0, localCoreY); ctx.lineTo(char.faceLeft ? 8 * char.scale : -8 * char.scale, 30 * char.scale); 
+        } else if (char.isFlipping || char.isStunned) {
+            ctx.moveTo(0, localCoreY); ctx.lineTo(-10 * char.scale, 18 * char.scale);
+            ctx.moveTo(0, localCoreY); ctx.lineTo(10 * char.scale, 18 * char.scale);
+        } else if ((char === player && (player.isChargingKamehameha || player.isFiringKamehameha)) || (char === enemy && (enemy.isChargingSuper || enemy.isFiringSuper))) {
+            ctx.moveTo(0, localCoreY); ctx.lineTo(-16 * char.scale, 15 * char.scale); ctx.lineTo(-12 * char.scale, 30 * char.scale);
+            ctx.moveTo(0, localCoreY); ctx.lineTo(16 * char.scale, 15 * char.scale); ctx.lineTo(12 * char.scale, 30 * char.scale);
+        } else {
+            ctx.moveTo(0, localCoreY); ctx.lineTo(-12 * char.scale, 30 * char.scale);
+            ctx.moveTo(0, localCoreY); ctx.lineTo(12 * char.scale, 30 * char.scale);
+        }
+
+        if (char.isBlocking) {
+            let guardX = char.faceLeft ? -14 * char.scale : 14 * char.scale;
+            ctx.moveTo(0, localNeckY + 4); ctx.lineTo(guardX, localNeckY - 6);
+            ctx.moveTo(0, localNeckY + 8); ctx.lineTo(guardX, localNeckY + 2);
+        } else if ((char === player && player.isChargingKamehameha) || (char === enemy && enemy.isChargingSuper)) {
+            let chargeX = char.faceLeft ? 12 * char.scale : -12 * char.scale;
+            ctx.moveTo(0, localNeckY + 4); ctx.lineTo(chargeX, localCoreY - 2);
+            ctx.moveTo(0, localNeckY + 8); ctx.lineTo(chargeX, localCoreY + 2);
+        } else if ((char === player && player.isFiringKamehameha) || (char === enemy && enemy.isFiringSuper)) {
+            let fireX = char.faceLeft ? -38 * char.scale : 38 * char.scale;
+            ctx.moveTo(0, localNeckY + 4); ctx.lineTo(fireX, localNeckY + 4);
+            ctx.moveTo(0, localNeckY + 10); ctx.lineTo(fireX, localNeckY + 4);
+        } else if (char.isPunching) {
+            let reach = char.faceLeft ? -36 * char.scale : 36 * char.scale;
+            ctx.moveTo(0, localNeckY + 4); ctx.lineTo(reach, localNeckY + 4);
+            ctx.moveTo(0, localNeckY + 4); ctx.lineTo(char.faceLeft ? 8 * char.scale : -8 * char.scale, localNeckY + 12);
+        } else {
+            ctx.moveTo(0, localNeckY + 4); ctx.lineTo(-14 * char.scale, 0);
+            ctx.moveTo(0, localNeckY + 4); ctx.lineTo(14 * char.scale, 0);
+        }
+        
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    function frame() {
+        globalLoopId = requestAnimationFrame(frame);
+        
+        if (isSelectingUpgrade) {
+            ctx.fillStyle = 'rgba(11, 15, 25, 0.25)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#1e293b'; ctx.strokeStyle = '#a855f7'; ctx.lineWidth = 3;
+            ctx.fillRect(100, 70, canvas.width - 200, 220); ctx.strokeRect(100, 70, canvas.width - 200, 220);
+            ctx.fillStyle = '#ffffff'; ctx.font = "bold 18px 'Orbitron', sans-serif";
+            ctx.fillText("STAGE COMPLETED // SYSTEM UPGRADE CHOSEN", 140, 110);
+            ctx.font = "13px 'Orbitron', sans-serif"; ctx.fillStyle = '#22d3ee';
+            ctx.fillText("PRESS [1] : UPGRADE INTEGRATED HEALTH CORES (+100 MAX HP)", 130, 160); ctx.fillStyle = '#fbbf24';
+            ctx.fillText("PRESS [2] : CALIBRATE STRIKE SERVO DRIVES (+PUNCH/KICK DMG)", 130, 200); ctx.fillStyle = '#ec4899';
+            ctx.fillText("PRESS [3] : OVERCHARGE FIREBALL CAPACITOR (-COOLDOWN / +DMG)", 130, 240);
+            ctx.fillStyle = '#94a3b8'; ctx.font = "10px sans-serif"; ctx.fillText("Awaiting manual terminal key register input...", 250, 275);
+
+            if (currentKeys['Digit1'] || currentKeys['Numpad1']) { playerUpgrades.maxHpBonus += 100; combatLevel++; score += 2500; initCombatLevel(); }
+            else if (currentKeys['Digit2'] || currentKeys['Numpad2']) { playerUpgrades.strikeDamageBonus += 6; combatLevel++; score += 2500; initCombatLevel(); }
+            else if (currentKeys['Digit3'] || currentKeys['Numpad3']) { playerUpgrades.fireballCooldownReduction = Math.min(30, playerUpgrades.fireballCooldownReduction + 12); playerUpgrades.fireballDamageBonus += 8; combatLevel++; score += 2500; initCombatLevel(); }
+            return;
+        }
+
+        ctx.save();
+        if (screenShake > 0) {
+            ctx.translate((Math.random() - 0.5) * screenShake, (Math.random() - 0.5) * screenShake);
+            screenShake *= 0.88; if (screenShake < 0.5) screenShake = 0;
+        }
+
+        ctx.fillStyle = '#0b0f19'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Grid Lines mapping
+        ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 1;
+        for (let i = 0; i < canvas.width; i += 40) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, groundY); ctx.stroke(); }
+        ctx.strokeStyle = '#334155'; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.moveTo(0, groundY); ctx.lineTo(canvas.width, groundY); ctx.stroke();
+
+        if (player.cooldowns.fireball > 0) player.cooldowns.fireball--;
+        if (enemy.cooldowns.fireball > 0) enemy.cooldowns.fireball--;
+
+        // ------------------------------------------
+        // SPAWNER ENGINE RUNTIME
+        // ------------------------------------------
+        if (!powerUp.active) {
+            powerUp.spawnTimer--;
+            if (powerUp.spawnTimer <= 0) {
+                powerUp.active = true;
+                powerUp.x = 80 + Math.random() * (canvas.width - 160);
+                powerUp.y = -30;
+            }
+        }
+
+        if (!dbzDrop.active) {
+            dbzDrop.spawnTimer--;
+            if (dbzDrop.spawnTimer <= 0) {
+                dbzDrop.active = true;
+                dbzDrop.x = 80 + Math.random() * (canvas.width - 160);
+                dbzDrop.y = -30;
+            }
+        }
+
+        // ------------------------------------------
+        // PLAYER INPUT & CONTROLS
+        // ------------------------------------------
+        if (!player.isStunned && !player.isChargingKamehameha && !player.isFiringKamehameha) {
+            if (currentKeys['KeyA'] || currentKeys['ArrowLeft']) { player.vx = -5.5; player.faceLeft = true; }
+            else if (currentKeys['KeyD'] || currentKeys['ArrowRight']) { player.vx = 5.5; player.faceLeft = false; }
+            else { player.vx = 0; }
+
+            if ((currentKeys['KeyW'] || currentKeys['ArrowUp']) && player.isGrounded) {
+                player.vy = -12.5; player.isGrounded = false;
+                if (Math.abs(player.vx) > 1) {
+                    player.isFlipping = true;
+                    player.rotationalSpeed = player.faceLeft ? -0.22 : 0.22;
+                }
+            }
+
+            if (currentKeys['Space'] && !player.isPunching && !player.isKicking) { player.isPunching = true; player.punchTime = 10; }
+            if ((currentKeys['KeyS'] || currentKeys['ArrowDown']) && !player.isKicking && !player.isPunching) { player.isKicking = true; player.kickTime = 12; }
+            if ((currentKeys['KeyF'] || currentKeys['KeyE']) && player.cooldowns.fireball === 0) {
+                projectiles.push({ x: player.x + (player.faceLeft ? -30 : 30), y: player.y - 45, vx: player.faceLeft ? -11 : 11, isPlayerOwned: true, color: '#06b6d4' });
+                player.cooldowns.fireball = Math.max(15, 50 - playerUpgrades.fireballCooldownReduction);
+                spawnParticles(player.x, player.y - 45, '#06b6d4', 4);
+            }
+
+            if (currentKeys['KeyQ'] && player.kamehamehaCharges > 0) {
+                player.kamehamehaCharges--;
+                player.isChargingKamehameha = true;
+                player.kamehamehaChargeTime = 45;
+                player.vx = 0; player.vy = 0;
+                triggerText(player.x, player.y - 70, "KA-ME-HA-ME...", '#22d3ee');
+            }
+        } else {
+            if (player.isStunned && --player.stunTime <= 0) player.isStunned = false;
+        }
+
+        // PLAYER KAMEHAMEHA CHARGE PHASE
+        if (player.isChargingKamehameha) {
+            player.vx = 0;
+            if (player.y < groundY) player.vy += 0.1;
+            screenShake = Math.max(screenShake, 3);
+            
+            let handX = player.x + (player.faceLeft ? 10 : -10);
+            let handY = player.y - 40;
+            if (Math.random() < 0.6) {
+                let angle = Math.random() * Math.PI * 2;
+                let dist = 40 + Math.random() * 50;
+                particles.push({
+                    x: handX + Math.cos(angle) * dist, y: handY + Math.sin(angle) * dist,
+                    vx: -Math.cos(angle) * (dist / 10), vy: -Math.sin(angle) * (dist / 10),
+                    life: 12, color: '#e0f2fe', size: 3
+                });
+            }
+
+            ctx.shadowBlur = 15; ctx.shadowColor = '#06b6d4'; ctx.fillStyle = '#ffffff';
+            ctx.beginPath(); ctx.arc(handX, handY, 6 + (45 - player.kamehamehaChargeTime) * 0.3, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+
+            if (--player.kamehamehaChargeTime <= 0) {
+                player.isChargingKamehameha = false; player.isFiringKamehameha = true;
+                player.kamehamehaFireTime = 30; screenShake = 18;
+                triggerText(player.x, player.y - 70, "HA!!!!", '#06b6d4');
+            }
+        }
+
+        if (player.isFlipping || player.isStunned) player.angle += player.rotationalSpeed;
+        if (player.isPunching && --player.punchTime <= 0) player.isPunching = false;
+        if (player.isKicking && --player.kickTime <= 0) player.isKicking = false;
+
+        if (!player.isChargingKamehameha && !player.isFiringKamehameha) {
+            player.vy += gravity; player.x += player.vx; player.y += player.vy;
+        }
+        
+        if (player.y >= groundY) { 
+            player.y = groundY; player.vy = 0; player.isGrounded = true; 
+            player.angle = 0; player.isFlipping = false; player.isStunned = false; player.rotationalSpeed = 0;
+        }
+        player.x = Math.max(20, Math.min(canvas.width - 20, player.x));
+        if ((player.x <= 25 || player.x >= canvas.width - 25) && Math.abs(player.vx) > 6) {
+            player.vx = -player.vx * 0.5; screenShake = 8; triggerText(player.x, player.y - 40, "WALL BOUNCE!", '#ffffff');
+        }
+
+        // ------------------------------------------
+        // COMPETITOR INTELLIGENCE LOOPS
+        // ------------------------------------------
+        let distanceDelta = player.x - enemy.x;
+        
+        if (enemy.isStunned) {
+            enemy.isChargingSuper = false;
+            enemy.isFiringSuper = false;
+            if (--enemy.stunTime <= 0) enemy.isStunned = false;
+        }
+
+        if (!enemy.isStunned && !enemy.isChargingSuper && !enemy.isFiringSuper) {
+            enemy.faceLeft = distanceDelta < 0;
+
+            if (--enemy.aiStateTimer <= 0) {
+                enemy.aiStateTimer = Math.max(3, 10 - combatLevel) + Math.floor(Math.random() * 8);
+                let closeRange = enemy.isBoss ? 70 : 45;
+                
+                let objectiveTarget = null;
+                if (powerUp.active && (enemy.hp < enemy.maxHp * 0.65 || Math.random() < 0.4)) {
+                    objectiveTarget = powerUp;
+                } else if (dbzDrop.active && enemy.superCharges === 0) {
+                    objectiveTarget = dbzDrop;
+                }
+
+                if (objectiveTarget) {
+                    let objDelta = objectiveTarget.x - enemy.x;
+                    let runSpeed = 4.0 + (combatLevel * 0.4);
+                    enemy.vx = objDelta > 0 ? runSpeed : -runSpeed;
+                    enemy.faceLeft = objDelta < 0;
+                    
+                    if (Math.abs(objDelta) < 30 && enemy.isGrounded && objectiveTarget.y < enemy.y - 20) {
+                        enemy.vy = -10; enemy.isGrounded = false;
+                    }
+                }
+                else if (enemy.superCharges > 0 && Math.abs(distanceDelta) > 150 && Math.random() < 0.45) {
+                    enemy.superCharges--;
+                    enemy.isChargingSuper = true;
+                    enemy.superChargeTime = 50;
+                    enemy.vx = 0; enemy.vy = 0;
+                    triggerText(enemy.x, enemy.y - 70, "GALICK...", '#d946ef');
+                }
+                else if ((player.isChargingKamehameha || player.isFiringKamehameha) && enemy.isGrounded && Math.random() < 0.7) {
+                    enemy.vy = -12; enemy.isGrounded = false;
+                    enemy.vx = enemy.faceLeft ? -5 : 5;
+                    if (Math.random() < 0.5) { enemy.isFlipping = true; enemy.rotationalSpeed = enemy.faceLeft ? -0.2 : 0.2; }
+                    triggerText(enemy.x, enemy.y - 60, "EVADE!", "#f43f5e");
+                } 
+                else if (Math.abs(distanceDelta) < closeRange + 25 && (player.isPunching || player.isKicking) && Math.random() < 0.6) {
+                    enemy.isBlocking = true; enemy.vx = 0;
+                }
+                else if (Math.abs(distanceDelta) < 110 && Math.random() < 0.25 && !enemy.isPunching && !enemy.isKicking) {
+                    enemy.isBlocking = true; enemy.vx = 0;
+                } else {
+                    enemy.isBlocking = false;
+                    if (Math.abs(distanceDelta) > closeRange) {
+                        let aiSpeed = 3.8 + (combatLevel * 0.45) + (enemy.isBoss ? 0.9 : 0);
+                        enemy.vx = distanceDelta > 0 ? aiSpeed : -aiSpeed;
+                        
+                        if (Math.abs(distanceDelta) > 180 && Math.random() < 0.28 && enemy.cooldowns.fireball === 0) {
+                            projectiles.push({ 
+                                x: enemy.x + (enemy.faceLeft ? -45 : 45), y: enemy.y - (45 * enemy.scale), 
+                                vx: enemy.faceLeft ? -11.5 : 11.5, isPlayerOwned: false, color: enemy.isBoss ? '#d946ef' : '#f43f5e' 
+                            });
+                            enemy.cooldowns.fireball = enemy.isBoss ? 30 : Math.max(35, 60 - (combatLevel * 4));
+                        }
+                    } else {
+                        enemy.vx = 0;
+                        if (Math.random() < 0.82 && !enemy.isPunching && !enemy.isKicking) {
+                            if (Math.random() > 0.42) { enemy.isPunching = true; enemy.punchTime = 10; }
+                            else { 
+                                enemy.isKicking = true; enemy.kickTime = 12; 
+                                if(Math.random() < 0.45 && enemy.isGrounded) { enemy.vy = -8.5; }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // AI SUPER ATTACK RUNTIME MECHANICS (GALICK GUN)
+        if (enemy.isChargingSuper && !enemy.isStunned) {
+            enemy.vx = 0;
+            screenShake = Math.max(screenShake, 2.5);
+            let coreX = enemy.x + (enemy.faceLeft ? -12 : 12);
+            let coreY = enemy.y - 40;
+            
+            if (Math.random() < 0.6) {
+                let angle = Math.random() * Math.PI * 2;
+                let dist = 40 + Math.random() * 40;
+                particles.push({
+                    x: coreX + Math.cos(angle) * dist, y: coreY + Math.sin(angle) * dist,
+                    vx: -Math.cos(angle) * (dist / 8), vy: -Math.sin(angle) * (dist / 8),
+                    life: 12, color: '#f5d0fe', size: 3
+                });
+            }
+
+            ctx.shadowBlur = 15; ctx.shadowColor = '#d946ef'; ctx.fillStyle = '#ffffff';
+            ctx.beginPath(); ctx.arc(coreX, coreY, 5 + (50 - enemy.superChargeTime) * 0.25, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+
+            if (--enemy.superChargeTime <= 0) {
+                enemy.isChargingSuper = false; enemy.isFiringSuper = true;
+                enemy.superFireTime = 30; screenShake = 16;
+                triggerText(enemy.x, enemy.y - 70, "GUN!!!!", '#d946ef');
+            }
+        }
+
+        // FIXED: AI BEAM HITBOX ATTACK CALCULATOR
+        if (enemy.isFiringSuper && !enemy.isStunned) {
+            screenShake = Math.max(screenShake, 8);
+            let sX = enemy.x + (enemy.faceLeft ? -25 : 25);
+            let sY = enemy.y - 50;
+            
+            // Re-map explicit directional ray constraints across full resolution matrix
+            let bLeft = enemy.faceLeft ? 0 : sX;
+            let bRight = enemy.faceLeft ? sX : canvas.width;
+            let bThick = 35 + Math.sin(Date.now() * 0.05) * 6;
+
+            ctx.save();
+            ctx.shadowBlur = 20; ctx.shadowColor = '#d946ef'; ctx.fillStyle = 'rgba(217, 70, 239, 0.85)';
+            ctx.fillRect(bLeft, sY - bThick / 2, bRight - bLeft, bThick);
+            ctx.shadowBlur = 10; ctx.shadowColor = '#ffffff'; ctx.fillStyle = '#ffffff';
+            ctx.fillRect(bLeft, sY - (bThick * 0.4) / 2, bRight - bLeft, bThick * 0.4);
+            ctx.restore();
+
+            // FIXED: Hit validation uses proper screen boundaries 
+            let playerMidY = player.y - 25;
+            if (player.x >= bLeft && player.x <= bRight && playerMidY >= sY - bThick/2 && playerMidY <= sY + bThick/2) {
+                if (!player.isChargingKamehameha && !player.isFiringKamehameha) {
+                    player.hp = Math.max(0, player.hp - (2.5 + combatLevel * 0.4));
+                    player.isStunned = true; player.stunTime = 12;
+                    player.vx = enemy.faceLeft ? -7.5 : 7.5;
+                    player.vy = -1.5;
+                    player.rotationalSpeed = enemy.faceLeft ? -0.25 : 0.25;
+                    spawnParticles(player.x, player.y - 25, '#ffffff', 2);
+                    if (Math.random() < 0.12) triggerText(player.x, player.y - 55, "💥 TRAPPED!", '#d946ef');
+                }
+            }
+            if (--enemy.superFireTime <= 0) enemy.isFiringSuper = false;
+        }
+
+        if (enemy.isStunned || enemy.isFlipping) enemy.angle += enemy.rotationalSpeed;
+        if (enemy.isPunching && --enemy.punchTime <= 0) enemy.isPunching = false;
+        if (enemy.isKicking && --enemy.kickTime <= 0) enemy.isKicking = false;
+
+        if (!enemy.isChargingSuper && !enemy.isFiringSuper) {
+            enemy.vy += gravity; enemy.x += enemy.vx; enemy.y += enemy.vy;
+        }
+        
+        if (enemy.y >= groundY) { 
+            enemy.y = groundY; enemy.vy = 0; enemy.isGrounded = true; 
+            enemy.angle = 0; enemy.isStunned = false; enemy.isFlipping = false; enemy.rotationalSpeed = 0;
+        }
+        enemy.x = Math.max(25, Math.min(canvas.width - 25, enemy.x));
+        if ((enemy.x <= 25 || enemy.x >= canvas.width - 25) && Math.abs(enemy.vx) > 6) {
+            enemy.vx = -enemy.vx * 0.5; enemy.rotationalSpeed = -enemy.rotationalSpeed; screenShake = 10; triggerText(enemy.x, enemy.y - 40, "CRASH BOUNCE!", '#f43f5e');
+        }
+
+        // ------------------------------------------
+        // SHARED ITEM INTERSECTION REGISTERS
+        // ------------------------------------------
+        if (powerUp.active) {
+            powerUp.y += 3.5;
+            ctx.fillStyle = '#22c55e'; ctx.fillRect(powerUp.x, powerUp.y, powerUp.w, powerUp.h);
+            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.strokeRect(powerUp.x, powerUp.y, powerUp.w, powerUp.h);
+            
+            if (player.x >= powerUp.x - 20 && player.x <= powerUp.x + powerUp.w + 20 && player.y >= powerUp.y && player.y - 65 <= powerUp.y + powerUp.h) {
+                player.hp = player.maxHp; powerUp.active = false; powerUp.spawnTimer = 500 + Math.random() * 400;
+                triggerText(player.x, player.y - 70, "HEALTH MAX RECHARGED", "#22c55e");
+                spawnParticles(powerUp.x + 10, powerUp.y + 10, '#22c55e', 20); screenShake = 6;
+            }
+            else if (enemy.x >= powerUp.x - 25 && enemy.x <= powerUp.x + powerUp.w + 25 && enemy.y >= powerUp.y && enemy.y - (60 * enemy.scale) <= powerUp.y + powerUp.h) {
+                enemy.hp = enemy.maxHp; powerUp.active = false; powerUp.spawnTimer = 500 + Math.random() * 400;
+                triggerText(enemy.x, enemy.y - 70, "AI HEALTH RECHARGED", "#22c55e");
+                spawnParticles(powerUp.x + 10, powerUp.y + 10, '#e11d48', 20);
+            }
+            if (powerUp.y > groundY) { powerUp.active = false; powerUp.spawnTimer = 450; }
+        }
+
+        if (dbzDrop.active) {
+            dbzDrop.y += 2.5;
+            ctx.save(); ctx.shadowBlur = 10; ctx.shadowColor = '#22d3ee';
+            ctx.fillStyle = '#ffffff'; ctx.fillRect(dbzDrop.x, dbzDrop.y, dbzDrop.w, dbzDrop.h / 2);
+            ctx.fillStyle = '#0284c7'; ctx.fillRect(dbzDrop.x, dbzDrop.y + dbzDrop.h / 2, dbzDrop.w, dbzDrop.h / 2);
+            ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1.5; ctx.strokeRect(dbzDrop.x, dbzDrop.y, dbzDrop.w, dbzDrop.h);
+            ctx.restore();
+
+            if (player.x >= dbzDrop.x - 22 && player.x <= dbzDrop.x + dbzDrop.w + 22 && player.y >= dbzDrop.y && player.y - 65 <= dbzDrop.y + dbzDrop.h) {
+                player.kamehamehaCharges++; dbzDrop.active = false; dbzDrop.spawnTimer = 400 + Math.random() * 300;
+                triggerText(player.x, player.y - 70, "KAMEHAMEHA LOADED [Q]", "#06b6d4");
+                spawnParticles(dbzDrop.x + 8, dbzDrop.y + 12, '#38bdf8', 25); screenShake = 8;
+            }
+            else if (enemy.x >= dbzDrop.x - 25 && enemy.x <= dbzDrop.x + dbzDrop.w + 25 && enemy.y >= dbzDrop.y && enemy.y - (60 * enemy.scale) <= dbzDrop.y + dbzDrop.h) {
+                enemy.superCharges++; dbzDrop.active = false; dbzDrop.spawnTimer = 400 + Math.random() * 300;
+                triggerText(enemy.x, enemy.y - 70, "AI SUPER CHARGED!", "#d946ef");
+                spawnParticles(dbzDrop.x + 8, dbzDrop.y + 12, '#c084fc', 25); screenShake = 8;
+            }
+            if (dbzDrop.y > groundY) { dbzDrop.active = false; dbzDrop.spawnTimer = 350; }
+        }
+
+        // ------------------------------------------
+        // RADIAL PROJECTILE PHYSICS LOOPS
+        // ------------------------------------------
+        for (let i = projectiles.length - 1; i >= 0; i--) {
+            let p = projectiles[i]; p.x += p.vx;
+            ctx.fillStyle = p.color; ctx.shadowBlur = 12; ctx.shadowColor = p.color;
+            ctx.beginPath(); ctx.arc(p.x, p.y, 9, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+
+            if (p.x < 0 || p.x > canvas.width) { projectiles.splice(i, 1); continue; }
+
+            if (p.isPlayerOwned) {
+                let enemyHeight = 55 * enemy.scale;
+                if (p.x >= enemy.x - 25 && p.x <= enemy.x + 25 && p.y >= enemy.y - enemyHeight && p.y <= enemy.y) {
+                    let baseDmg = 20 + playerUpgrades.fireballDamageBonus;
+                    let finalDmg = enemy.isBlocking ? Math.round(baseDmg * 0.25) : baseDmg;
+                    
+                    enemy.hp = Math.max(0, enemy.hp - finalDmg); score += 150; screenShake = 7;
+                    spawnParticles(p.x, p.y, p.color, 14);
+                    triggerText(enemy.x, enemy.y - enemyHeight, enemy.isBlocking ? `BLOCKED` : `BLAST TUMBLE!`, '#06b6d4');
+                    
+                    if (!enemy.isBlocking) {
+                        enemy.isStunned = true; enemy.stunTime = 25;
+                        enemy.vy = -5.5; enemy.vx = p.vx * 1.4;
+                        enemy.rotationalSpeed = p.vx > 0 ? 0.22 : -0.22;
+                    }
+                    projectiles.splice(i, 1);
+                }
+            } else {
+                if (p.x >= player.x - 25 && p.x <= player.x + 25 && p.y >= player.y - 55 && p.y <= player.y) {
+                    if (player.isFiringKamehameha || player.isChargingKamehameha) {
+                        projectiles.splice(i, 1); spawnParticles(p.x, p.y, '#38bdf8', 6); continue;
+                    }
+                    let dmg = enemy.isBoss ? 25 : 15;
+                    player.hp = Math.max(0, player.hp - dmg); screenShake = 11;
+                    spawnParticles(p.x, p.y, p.color, 14);
+                    triggerText(player.x, player.y - 55, `BLAST TUMBLE!`, '#f43f5e');
+                    
+                    player.isStunned = true; player.stunTime = 20;
+                    player.vy = -5; player.vx = p.vx * 1.3;
+                    player.rotationalSpeed = p.vx > 0 ? 0.2 : -0.2;
+                    
+                    projectiles.splice(i, 1);
+                }
+            }
+        }
+
+        // PLAYER KAMEHAMEHA WAVE HITBOX SECTOR
+        if (player.isFiringKamehameha) {
+            screenShake = Math.max(screenShake, 10);
+            let sourceX = player.x + (player.faceLeft ? -25 : 25);
+            let sourceY = player.y - 50;
+            let beamLeft = player.faceLeft ? 0 : sourceX;
+            let beamRight = player.faceLeft ? sourceX : canvas.width;
+            let beamThickness = 40 + Math.sin(Date.now() * 0.05) * 8;
+            
+            ctx.save(); ctx.shadowBlur = 25; ctx.shadowColor = '#00daff'; ctx.fillStyle = 'rgba(6, 182, 212, 0.85)';
+            ctx.fillRect(beamLeft, sourceY - beamThickness / 2, beamRight - beamLeft, beamThickness);
+            ctx.shadowBlur = 10; ctx.shadowColor = '#ffffff'; ctx.fillStyle = '#ffffff';
+            ctx.fillRect(beamLeft, sourceY - (beamThickness * 0.4) / 2, beamRight - beamLeft, beamThickness * 0.4);
+            ctx.restore();
+
+            if (Math.random() < 0.8) {
+                let rX = beamLeft + Math.random() * (beamRight - beamLeft);
+                spawnParticles(rX, sourceY + (Math.random() - 0.5) * beamThickness, '#e0f2fe', 2, player.faceLeft ? -8 : 8, (Math.random() - 0.5) * 4);
+            }
+
+            let enemyHeight = 55 * enemy.scale;
+            let enemyMidY = enemy.y - enemyHeight / 2;
+            
+            if (enemy.x >= beamLeft && enemy.x <= beamRight && enemyMidY >= sourceY - beamThickness/2 && enemyMidY <= sourceY + beamThickness/2) {
+                enemy.hp = Math.max(0, enemy.hp - (2.5 + combatLevel * 0.5));
+                enemy.isStunned = true; enemy.stunTime = 15;
+                enemy.vx = player.faceLeft ? -8 : 8; enemy.vy = -1.5; 
+                enemy.rotationalSpeed = player.faceLeft ? -0.35 : 0.35;
+                spawnParticles(enemy.x, enemyMidY, '#ffffff', 3, player.faceLeft ? -5 : 5);
+                if (Math.random() < 0.15) triggerText(enemy.x, enemy.y - enemyHeight, "💥 SHREDDING!", '#22d3ee');
+            }
+            if (--player.kamehamehaFireTime <= 0) player.isFiringKamehameha = false;
+        }
+
+        // HITBOX STRIKING PHYSICS
+        let fightDistance = enemy.isBoss ? 60 : 42;
+        if (Math.abs(player.y - enemy.y) < 55 && Math.abs(distanceDelta) < fightDistance) {
+            if (player.isPunching && player.punchTime === 5) {
+                let baseHit = 12 + playerUpgrades.strikeDamageBonus;
+                let dmg = enemy.isBlocking ? Math.round(baseHit * 0.25) : baseHit;
+                enemy.hp = Math.max(0, enemy.hp - dmg); score += 80; screenShake = 5;
+                spawnParticles(enemy.x, player.y - 35, '#06b6d4', 8);
+                triggerText(enemy.x, enemy.y - (45 * enemy.scale), enemy.isBlocking ? `GUARDED` : `PUNCH!`, '#06b6d4');
+                enemy.vx = player.faceLeft ? -5.5 : 5.5;
+            }
+            if (player.isKicking && player.kickTime === 6) {
+                let baseHit = 22 + (playerUpgrades.strikeDamageBonus * 1.5);
+                let dmg = enemy.isBlocking ? Math.round(baseHit * 0.25) : Math.round(baseHit);
+                enemy.hp = Math.max(0, enemy.hp - dmg); score += 120; screenShake = 10;
+                spawnParticles(enemy.x, player.y - 35, '#22d3ee', 14);
+                triggerText(enemy.x, enemy.y - (45 * enemy.scale), enemy.isBlocking ? `GUARDED` : `LAUNCHER KICK!`, '#22d3ee');
+                
+                if (!enemy.isBlocking) {
+                    enemy.isStunned = true; enemy.stunTime = 35;
+                    enemy.vy = -9; enemy.vx = player.faceLeft ? -12 : 12;
+                    enemy.rotationalSpeed = player.faceLeft ? -0.26 : 0.26;
+                } else {
+                    enemy.vx = player.faceLeft ? -5 : 5;
+                }
+            }
+
+            let powerFactor = enemy.isBoss ? 2.2 : 1.0;
+            if (enemy.isPunching && enemy.punchTime === 5) {
+                let dmg = Math.round((9 + combatLevel) * powerFactor);
+                player.hp = Math.max(0, player.hp - dmg); player.x += enemy.faceLeft ? -10 : 10; screenShake = 7;
+                spawnParticles(player.x, enemy.y - 35, '#f43f5e', 8);
+                triggerText(player.x, player.y - 50, `HIT!`, '#f43f5e');
+            }
+            if (enemy.isKicking && enemy.kickTime === 6) {
+                let dmg = Math.round((16 + combatLevel) * powerFactor);
+                player.hp = Math.max(0, player.hp - dmg); screenShake = 13;
+                spawnParticles(player.x, enemy.y - 35, '#e11d48', 16);
+                triggerText(player.x, player.y - 50, `SLAMMED SPIN!`, '#e11d48');
+                
+                player.isStunned = true; player.stunTime = 30;
+                player.vy = -7.5; player.vx = enemy.faceLeft ? -11 : 11;
+                player.rotationalSpeed = enemy.faceLeft ? -0.22 : 0.22;
+            }
+        }
+
+        for (let i = particles.length - 1; i >= 0; i--) {
+            let pt = particles[i]; pt.x += pt.vx; pt.y += pt.vy; pt.life--;
+            ctx.fillStyle = pt.color; ctx.fillRect(pt.x, pt.y, pt.size, pt.size);
+            if (pt.life <= 0) particles.splice(i, 1);
+        }
+
+        for (let i = floatingTexts.length - 1; i >= 0; i--) {
+            let ft = floatingTexts[i]; ft.y -= 0.8; ft.life--;
+            ctx.fillStyle = ft.color; ctx.font = "bold 11px 'Orbitron', sans-serif";
+            ctx.fillText(ft.text, ft.x - 25, ft.y);
+            if (ft.life <= 0) floatingTexts.splice(i, 1);
+        }
+
+        let enemyColor = enemy.isBoss ? '#c084fc' : '#f43f5e';
+        drawStickFigure(player, '#06b6d4');
+        drawStickFigure(enemy, enemyColor);
+
+        ctx.restore();
+
+        // ------------------------------------------
+        // HUD INTERFACES
+        // ------------------------------------------
+        let pPct = Math.round((player.hp / player.maxHp) * 100);
+        let ePct = Math.round((enemy.hp / enemy.maxHp) * 100);
+
+        ctx.fillStyle = '#1e293b'; ctx.fillRect(30, 20, 220, 18);
+        ctx.fillStyle = '#06b6d4'; ctx.fillRect(30, 20, 220 * (player.hp / player.maxHp), 18);
+        ctx.fillStyle = '#ffffff'; ctx.font = "bold 10px 'Orbitron', sans-serif";
+        ctx.fillText(`PLAYER: ${player.hp} / ${player.maxHp} [${pPct}%]`, 36, 33);
+
+        ctx.fillStyle = '#38bdf8'; ctx.font = "bold 9px 'Orbitron', sans-serif";
+        ctx.fillText(`⚡ KAMEHAMEHA STOCKS: ${player.kamehamehaCharges} [Q]`, 32, 54);
+
+        ctx.fillStyle = '#1e293b'; ctx.fillRect(canvas.width - 250, 20, 220, 18);
+        ctx.fillStyle = enemyColor; ctx.fillRect(canvas.width - 250, 20, 220 * (enemy.hp / enemy.maxHp), 18);
+        ctx.fillStyle = '#ffffff'; ctx.font = "bold 10px 'Orbitron', sans-serif";
+        let labelName = enemy.isBoss ? `BOSS_STG_${combatLevel}` : `ENEMY_STG_${combatLevel}`;
+        ctx.fillText(`${labelName}: ${enemy.hp} / ${enemy.maxHp} [${ePct}%]`, canvas.width - 244, 33);
+        
+        ctx.fillStyle = '#f5d0fe'; ctx.font = "bold 9px 'Orbitron', sans-serif";
+        ctx.fillText(`🔥 AI GALICK STOCKS: ${enemy.superCharges}`, canvas.width - 250, 54);
+
+        if (enemy.hp <= 0) {
+            if (combatLevel >= maxLevels) {
+                alert("CONGRATULATIONS! You have conquered the gauntlet!");
+                cancelAnimationFrame(globalLoopId);
+            } else { isSelectingUpgrade = true; }
+        }
+        if (player.hp <= 0) {
+            alert("GAME OVER! You were defeated.");
+            cancelAnimationFrame(globalLoopId);
+        }
+    }
+
+    initCombatLevel();
+    frame();
+}
+
+// ==========================================
+        // MODULE 04: REAL MOUSE DRAG & DROP SOLITAIRE
+        // ==========================================
+        function runSolitaireGame() {
+            setUIData("KLONDIKE SOLITAIRE SORT", "Complete rule stack validation logic. Click & drag to sort data array blocks.", "MOUSE LEFT CLICK & DRAG CARDS", "SORT METRIC TRACKER");
+            
+            const suits = ['♠', '♥', '♦', '♣'];
+            const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+            
+            // Expanded to standard 7 interactive tableau columns
+            let columns = [[], [], [], [], [], [], []]; 
+            
+            // Traditional game states added without removing original variables
+            let stock = [];
+            let waste = [];
+            let foundations = [[], [], [], []]; // 4 win piles built up from Ace to King
+            
+            let selectedDragTarget = null;
+
+            // Generate structural card deck arrays 
+            let deck = [];
+            suits.forEach(s => ranks.forEach((r, idx) => deck.push({ rank: r, suit: s, val: idx + 1, isRed: (s==='♥'||s==='♦') })));
+            
+            // Quick shuffle execution sweep (upgraded to a cleaner high-entropy swap)
+            for (let i = deck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [deck[i], deck[j]] = [deck[j], deck[i]];
+            }
+
+            // Deal out elements dynamically across tableau stacks blocks structures (All 7 Columns)
+            let dIdx = 0;
+            for(let c=0; c<7; c++) {
+                for(let r=0; r <= c; r++) {
+                    columns[c].push({ ...deck[dIdx++], faceUp: (r === c) });
+                }
+            }
+
+            // Gather remainder cards into the draw stock pool
+            while (dIdx < deck.length) {
+                stock.push({ ...deck[dIdx++], faceUp: false });
+            }
+
+            function drawCardObject(card, x, y) {
+                ctx.fillStyle = card.faceUp ? '#ffffff' : '#1e1b4b';
+                ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2;
+                
+                // Draw rounded rectangle card body outline base frame paths
+                ctx.beginPath(); ctx.roundRect(x, y, 65, 95, 6); ctx.fill(); ctx.stroke();
+
+                if (card.faceUp) {
+                    ctx.fillStyle = card.isRed ? '#ef4444' : '#0f172a';
+                    ctx.font = "bold 14px 'Share Tech Mono'";
+                    ctx.fillText(card.rank, x + 8, y + 20);
+                    ctx.font = "22px 'Arial'";
+                    ctx.fillText(card.suit, x + 20, y + 60);
+                } else {
+                    // Draw matrix cyber pattern grid work block for face-down cards
+                    ctx.strokeStyle = '#22d3ee'; ctx.lineWidth = 1;
+                    ctx.beginPath(); ctx.moveTo(x+10, y+10); ctx.lineTo(x+55, y+85); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(x+55, y+10); ctx.lineTo(x+10, y+85); ctx.stroke();
+                }
+            }
+
+            function renderSolitaireMatrix() {
+                ctx.fillStyle = '#064e3b'; ctx.fillRect(0,0,canvas.width,canvas.height); // Standard layout casino felt background
+
+                // --- UPPER METRIC RENDER REGION (STOCK, WASTE, FOUNDATIONS) ---
+                // Stock pile draw base outline
+                if (stock.length > 0) {
+                    drawCardObject({ faceUp: false }, 25, 20);
+                } else {
+                    ctx.strokeStyle = 'rgba(34,211,238,0.2)'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.roundRect(25, 20, 65, 95, 6); ctx.stroke();
+                }
+
+                // Waste deck display card
+                if (waste.length > 0) {
+                    drawCardObject(waste[waste.length - 1], 105, 20);
+                }
+
+                // 4 Suit Foundations spaces
+                for(let f=0; f<4; f++) {
+                    let fx = 300 + f*80;
+                    ctx.strokeStyle = 'rgba(34,211,238,0.15)'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.roundRect(fx, 20, 65, 95, 6); ctx.stroke();
+                    
+                    if(foundations[f].length > 0) {
+                        drawCardObject(foundations[f][foundations[f].length - 1], fx, 20);
+                    }
+                }
+
+                // --- LOWER REGION TABLEAU RIGS ---
+                // Draw Tableau drop frame drop boundaries areas coordinates blocks tracking setups
+                for(let c=0; c<7; c++) {
+                    let cx = 25 + c*80;
+                    ctx.strokeStyle = 'rgba(34,211,238,0.15)'; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.roundRect(cx, 140, 65, 95, 6); ctx.stroke();
+
+                    columns[c].forEach((card, rIdx) => {
+                        if (selectedDragTarget && selectedDragTarget.source === 'tableau' && selectedDragTarget.col === c && selectedDragTarget.rowIdx <= rIdx) {
+                            // Don't render stationary card copy when currently dragging across screen coordinates
+                        } else {
+                            drawCardObject(card, cx, 140 + rIdx*24);
+                        }
+                    });
+                }
+
+                // Render floating active structural items elements being moved currently
+                if (selectedDragTarget) {
+                    selectedDragTarget.cards.forEach((dc, index) => {
+                        drawCardObject(dc, selectedDragTarget.currentX, selectedDragTarget.currentY + index*24);
+                    });
+                }
+            }
+
+            // Mouse Action Tracking Event Listeners
+            canvas.onmousedown = function(e) {
+                let rect = canvas.getBoundingClientRect();
+                let mx = e.clientX - rect.left; let my = e.clientY - rect.top;
+
+                // 1. Click target evaluation on structural stock card array core
+                if (mx >= 25 && mx <= 90 && my >= 20 && my <= 115) {
+                    if (stock.length > 0) {
+                        let card = stock.pop();
+                        card.faceUp = true;
+                        waste.push(card);
+                    } else {
+                        while (waste.length > 0) {
+                            let card = waste.pop();
+                            card.faceUp = false;
+                            stock.push(card);
+                        }
+                    }
+                    renderSolitaireMatrix();
+                    return;
+                }
+
+                // 2. Click target verification over the top waste segment item
+                if (waste.length > 0 && mx >= 105 && mx <= 170 && my >= 20 && my <= 115) {
+                    selectedDragTarget = {
+                        source: 'waste',
+                        offsetX: mx - 105, offsetY: my - 20,
+                        currentX: 105, currentY: 20,
+                        cards: [waste[waste.length - 1]]
+                    };
+                    return;
+                }
+
+                // 3. Click targets monitoring across foundation spaces
+                for (let f=0; f<4; f++) {
+                    let fx = 300 + f*80;
+                    if (foundations[f].length > 0 && mx >= fx && mx <= fx + 65 && my >= 20 && my <= 115) {
+                        selectedDragTarget = {
+                            source: 'foundation', fIdx: f,
+                            offsetX: mx - fx, offsetY: my - 20,
+                            currentX: fx, currentY: 20,
+                            cards: [foundations[f][foundations[f].length - 1]]
+                        };
+                        return;
+                    }
+                }
+
+                // 4. Standard structural columns stack scanning loop checks
+                for(let c=6; c>=0; c--) { // Reverse scan to catch top layer cards first
+                    let colX = 25 + c*80;
+                    for(let r=columns[c].length-1; r>=0; r--) {
+                        let cardY = 140 + r*24;
+                        let hitHeight = (r === columns[c].length - 1) ? 95 : 24;
+                        
+                        if (mx >= colX && mx <= colX + 65 && my >= cardY && my <= cardY + hitHeight) {
+                            if (columns[c][r].faceUp) {
+                                selectedDragTarget = {
+                                    source: 'tableau', col: c, rowIdx: r,
+                                    offsetX: mx - colX, offsetY: my - cardY,
+                                    currentX: colX, currentY: cardY,
+                                    cards: columns[c].slice(r)
+                                };
+                                return;
+                            }
+                        }
+                    }
+                }
+            };
+
+            canvas.onmousemove = function(e) {
+                if (!selectedDragTarget) return;
+                let rect = canvas.getBoundingClientRect();
+                selectedDragTarget.currentX = (e.clientX - rect.left) - selectedDragTarget.offsetX;
+                selectedDragTarget.currentY = (e.clientY - rect.top) - selectedDragTarget.offsetY;
+                renderSolitaireMatrix();
+            };
+
+            canvas.onmouseup = function(e) {
+                if (!selectedDragTarget) return;
+                let rect = canvas.getBoundingClientRect();
+                let dropX = (e.clientX - rect.left);
+                let dropY = (e.clientY - rect.top);
+                
+                let activeMovedCard = selectedDragTarget.cards[0];
+                let validMove = false;
+
+                // Scenario A: Check drop collision placement over Foundation targets
+                if (selectedDragTarget.cards.length === 1 && dropY >= 10 && dropY <= 125) {
+                    let targetF = Math.floor((dropX - 290) / 80);
+                    if (targetF >= 0 && targetF < 4) {
+                        let fStack = foundations[targetF];
+                        if (fStack.length === 0) {
+                            if (activeMovedCard.rank === 'A') validMove = true;
+                        } else {
+                            let topCard = fStack[fStack.length - 1];
+                            // Fixed variable spelling target typo reference: activeMovedCard.val
+                            if (topCard.suit === activeMovedCard.suit && topCard.val === activeMovedCard.val - 1) {
+                                validMove = true;
+                            }
+                        }
+
+                        if (validMove) {
+                            clearSourceCardOrigin(selectedDragTarget);
+                            fStack.push(activeMovedCard);
+                            evaluateWinMetricState();
+                        }
+                    }
+                }
+
+                // Scenario B: Traditional Tableau downward sorting calculations checks
+                if (!validMove && dropY > 125) {
+                    let targetCol = Math.floor((dropX - 15) / 80);
+                    if (targetCol >= 0 && targetCol < 7) {
+                        let targetStack = columns[targetCol];
+
+                        if (targetStack.length === 0) {
+                            if (activeMovedCard.rank === 'K') validMove = true; // Kings-only on empty slots rule
+                        } else {
+                            let topCard = targetStack[targetStack.length - 1];
+                            // Validate descending sequence sorting rules with alternating colors
+                            if (topCard.faceUp && topCard.val === activeMovedCard.val + 1 && topCard.isRed !== activeMovedCard.isRed) {
+                                validMove = true;
+                            }
+                        }
+
+                        if (validMove) {
+                            clearSourceCardOrigin(selectedDragTarget);
+                            selectedDragTarget.cards.forEach(c => targetStack.push(c));
+                        }
+                    }
+                }
+
+                // Flip remaining card face up on old pile if column has cards left exposed
+                if (selectedDragTarget.source === 'tableau' && columns[selectedDragTarget.col].length > 0) {
+                    columns[selectedDragTarget.col][columns[selectedDragTarget.col].length - 1].faceUp = true;
+                }
+
+                selectedDragTarget = null;
+                renderSolitaireMatrix();
+            };
+
+            // Custom secure clearing function for moving pieces without causing array mutations anomalies
+            function clearSourceCardOrigin(tgt) {
+                if (tgt.source === 'waste') waste.pop();
+                if (tgt.source === 'foundation') foundations[tgt.fIdx].pop();
+                if (tgt.source === 'tableau') columns[tgt.col].splice(tgt.rowIdx);
+            }
+
+            function evaluateWinMetricState() {
+                let winSum = foundations[0].length + foundations[1].length + foundations[2].length + foundations[3].length;
+                document.getElementById('g-meta').innerText = `SORT METRIC TRACKER // FOUNDATION: ${winSum}/52`;
+                
+                if (winSum === 52) {
+                    killActiveLoops();
+                    ctx.fillStyle = '#22d3ee'; ctx.font = "24px 'Orbitron'";
+                    ctx.fillText("SOLITAIRE STACK COMPLETED // LOGIC DEPLOYED", 30, 240);
+                }
+            }
+
+            // Loop trigger handler simulation refresh bounds
+            function engineLoop() {
+                if(globalLoopId === null) return;
+                if(!selectedDragTarget) renderSolitaireMatrix();
+                globalLoopId = requestAnimationFrame(engineLoop);
+            }
+            globalLoopId = requestAnimationFrame(engineLoop);
+        }
+// ==========================================
+        // MODULE 05: NEON BRICK BREAKER ENGINE (LEGIT POWER-UPS)
+        // ==========================================
+        function runBrickBreakerGame() {
+            setUIData("BRICK BREAKER // MATRIX", "Deflect the energy sphere to shatter the structural firewalls.", "A/D = Move, SPACE = Fire Lasers (If Active)", "LVL: 01 // LIVES: 03");
+            score = 0;
+
+            let currentLevel = 1;
+            const maxLevels = 3;
+            let lives = 3;
+            
+            let paddle = { x: canvas.width / 2 - 40, y: canvas.height - 30, w: 80, h: 10, targetW: 80 };
+            
+            // Supporting multiple active tracking spheres
+            let balls = [{ x: canvas.width / 2, y: canvas.height - 50, vx: 3, vy: -4, radius: 6, stuckX: null }];
+            
+            // Power-up state engines
+            let currentModifier = null; // Can hold "LASER", "CATCH", "WIDE"
+            let modifierTimer = 0;
+            let lasers = [];
+            let spacePressedLastFrame = false;
+            
+            let brickCols = 8;
+            let brickWidth = 64;
+            let brickHeight = 16;
+            let brickPadding = 6;
+            let brickOffsetTop = 55;
+            let brickOffsetLeft = 22;
+            
+            let bricks = [];
+            let powerUps = []; 
+            const rowColors = ['#f43f5e', '#f97316', '#eab308', '#22c55e', '#a855f7'];
+
+            // Legit item drop table configuration profile
+            const POWERUP_TYPES = [
+                { type: "WIDE", color: "#22d3ee", label: "W" },   // Expand Paddle
+                { type: "LASER", color: "#f43f5e", label: "L" },  // Weapon Systems Enabled
+                { type: "CATCH", color: "#eab308", label: "C" },  // Magnetic Trap
+                { type: "MULTI", color: "#a855f7", label: "M" },  // 3-Ball Array Split
+                { type: "SHIELD", color: "#22c55e", label: "S" }  // Integral Life Restore
+            ];
+
+            function buildLevel(levelNum) {
+                bricks = [];
+                powerUps = [];
+                lasers = [];
+                currentModifier = null;
+                paddle.w = 80;
+                paddle.targetW = 80;
+
+                let rowsForLevel = 3 + levelNum; 
+                for (let r = 0; r < rowsForLevel; r++) {
+                    bricks[r] = [];
+                    for (let c = 0; c < brickCols; c++) {
+                        let shouldSpawn = true;
+                        if (levelNum === 2 && (c === 2 || c === 5)) shouldSpawn = false; 
+                        if (levelNum === 3 && (r + c) % 2 === 0) shouldSpawn = false;   
+                        
+                        bricks[r][c] = { 
+                            x: 0, 
+                            y: 0, 
+                            active: shouldSpawn, 
+                            color: rowColors[r % rowColors.length] 
+                        };
+                    }
+                }
+                updateMetaDisplay();
+            }
+
+            function updateMetaDisplay() {
+                let statusMsg = currentModifier ? `[MOD: ${currentModifier}]` : "SYSTEM_NORMAL";
+                document.getElementById('g-meta').innerText = `LVL: 0${currentLevel} // LIVES: 0${lives} // ${statusMsg} // SCORE: ${String(score).padStart(6, '0')}`;
+            }
+
+            buildLevel(currentLevel);
+
+            function frame() {
+                globalLoopId = requestAnimationFrame(frame);
+                ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // --- MODIFIER SYSTEMS EXPIRATION TIMERS ---
+                if (modifierTimer > 0) {
+                    modifierTimer--;
+                    if (modifierTimer <= 0) {
+                        currentModifier = null;
+                        paddle.targetW = 80;
+                        updateMetaDisplay();
+                    }
+                }
+
+                // --- PADDLE MOVEMENT COMPROUNDS ---
+                if (paddle.w !== paddle.targetW) {
+                    paddle.w += (paddle.targetW - paddle.w) * 0.1;
+                }
+                if (currentKeys['KeyA'] || currentKeys['ArrowLeft']) paddle.x -= 6;
+                if (currentKeys['KeyD'] || currentKeys['ArrowRight']) paddle.x += 6;
+                paddle.x = Math.max(0, Math.min(canvas.width - paddle.w, paddle.x));
+
+                // --- LASER WEAPON OFFENSIVE RUNTIME ---
+                if (currentModifier === "LASER") {
+                    if (currentKeys['Space'] && !spacePressedLastFrame) {
+                        lasers.push({ x: paddle.x + 5, y: paddle.y - 8 });
+                        lasers.push({ x: paddle.x + paddle.w - 9, y: paddle.y - 8 });
+                    }
+                }
+                spacePressedLastFrame = !!currentKeys['Space'];
+
+                // Update Lasers
+                for (let i = lasers.length - 1; i >= 0; i--) {
+                    lasers[i].y -= 5;
+                    if (lasers[i].y < 0) {
+                        lasers.splice(i, 1);
+                        continue;
+                    }
+
+                    // Checking beam cross-sections against physical bricks
+                    let hitShattered = false;
+                    for (let r = 0; r < bricks.length && !hitShattered; r++) {
+                        for (let c = 0; c < brickCols; c++) {
+                            let b = bricks[r][c];
+                            if (b && b.active) {
+                                if (lasers[i].x >= b.x && lasers[i].x <= b.x + brickWidth &&
+                                    lasers[i].y >= b.y && lasers[i].y <= b.y + brickHeight) {
+                                    b.active = false;
+                                    score += 100;
+                                    hitShattered = true;
+                                    updateMetaDisplay();
+                                }
+                            }
+                        }
+                    }
+                    if (hitShattered) {
+                        lasers.splice(i, 1);
+                    }
+                }
+
+                // --- BALLS TRACKING MATRIX LOOPS ---
+                for (let i = balls.length - 1; i >= 0; i--) {
+                    let ball = balls[i];
+
+                    // Handles Catch/Magnetic manual releases
+                    if (ball.stuckX !== null) {
+                        ball.x = paddle.x + ball.stuckX;
+                        if (currentKeys['Space']) {
+                            ball.vx = ((ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2)) * 4 || 2;
+                            ball.vy = -4;
+                            ball.stuckX = null;
+                        } else {
+                            continue; // Skip dynamic standard routing path checks
+                        }
+                    }
+
+                    ball.x += ball.vx;
+                    ball.y += ball.vy;
+
+                    // Bound checks
+                    if (ball.x - ball.radius <= 0 || ball.x + ball.radius >= canvas.width) {
+                        ball.vx *= -1;
+                        ball.x = ball.x - ball.radius <= 0 ? ball.radius : canvas.width - ball.radius;
+                    }
+                    if (ball.y - ball.radius <= 0) {
+                        ball.vy *= -1;
+                        ball.y = ball.radius;
+                    }
+
+                    // Paddle interactions
+                    if (ball.y + ball.radius >= paddle.y && ball.y - ball.radius <= paddle.y + paddle.h) {
+                        if (ball.x >= paddle.x && ball.x <= paddle.x + paddle.w) {
+                            if (currentModifier === "CATCH") {
+                                ball.stuckX = ball.x - paddle.x;
+                                ball.vx = 0; ball.vy = 0;
+                                continue;
+                            }
+                            let hitPoint = (ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2);
+                            ball.vx = hitPoint * 5;
+                            ball.vy = -Math.abs(ball.vy);
+                            ball.y = paddle.y - ball.radius;
+                        }
+                    }
+
+                    // Drain/Floor bounds drops
+                    if (ball.y + ball.radius >= canvas.height) {
+                        balls.splice(i, 1);
+                        if (balls.length === 0) {
+                            lives--;
+                            if (lives <= 0) {
+                                killActiveLoops();
+                                ctx.fillStyle = '#f43f5e'; ctx.font = "20px 'Orbitron'";
+                                ctx.fillText("CRITICAL EXCEPTION // MATRIX TERMINATED", 60, 200);
+                                return;
+                            } else {
+                                balls.push({ x: paddle.x + paddle.w / 2, y: paddle.y - 15, vx: 3, vy: -4, radius: 6, stuckX: null });
+                                currentModifier = null;
+                                paddle.targetW = 80;
+                                updateMetaDisplay();
+                            }
+                        }
+                        continue;
+                    }
+
+                    // Brick dynamic processing sweeps inside ball operations
+                    for (let r = 0; r < bricks.length; r++) {
+                        for (let c = 0; c < brickCols; c++) {
+                            let b = bricks[r][c];
+                            if (b && b.active) {
+                                let bX = c * (brickWidth + brickPadding) + brickOffsetLeft;
+                                let bY = r * (brickHeight + brickPadding) + brickOffsetTop;
+                                b.x = bX; b.y = bY;
+
+                                if (ball.x + ball.radius >= bX && ball.x - ball.radius <= bX + brickWidth &&
+                                    ball.y + ball.radius >= bY && ball.y - ball.radius <= bY + brickHeight) {
+                                    
+                                    b.active = false;
+                                    ball.vy *= -1;
+                                    score += 150;
+
+                                    // Dropping legitimacy mechanics logic
+                                    if (Math.random() < 0.30) {
+                                        let selectedModel = POWERUP_TYPES[Math.floor(Math.random() * POWERUP_TYPES.length)];
+                                        powerUps.push({
+                                            x: bX + brickWidth / 2, y: bY + brickHeight,
+                                            type: selectedModel.type, color: selectedModel.color, label: selectedModel.label,
+                                            speed: 2, size: 10
+                                        });
+                                    }
+                                    updateMetaDisplay();
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // --- POWER-UPS RECOVERY ENGINE ---
+                for (let i = powerUps.length - 1; i >= 0; i--) {
+                    let p = powerUps[i];
+                    p.y += p.speed;
+
+                    if (p.y + p.size >= paddle.y && p.y - p.size <= paddle.y + paddle.h &&
+                        p.x >= paddle.x && p.x <= paddle.x + paddle.w) {
+                        
+                        // Clear concurrent modifications before executing updates
+                        if (p.type !== "SHIELD") {
+                            currentModifier = p.type;
+                            modifierTimer = 600; // Reset active duration frames (~10 seconds)
+                            paddle.targetW = 80; 
+                        }
+
+                        if (p.type === "WIDE") {
+                            paddle.targetW = 130;
+                        } else if (p.type === "SHIELD") {
+                            lives = Math.min(5, lives + 1);
+                        } else if (p.type === "MULTI") {
+                            currentModifier = null; // Multi splits instantly, doesn't lock modifier
+                            let coreBall = balls[0] || { x: paddle.x + paddle.w / 2, y: paddle.y - 15, vx: 2, vy: -4 };
+                            balls.push({ x: coreBall.x, y: coreBall.y, vx: -3, vy: -3, radius: 6, stuckX: null });
+                            balls.push({ x: coreBall.x, y: coreBall.y, vx: 1, vy: -4, radius: 6, stuckX: null });
+                        }
+                        
+                        score += 300;
+                        updateMetaDisplay();
+                        powerUps.splice(i, 1);
+                        continue;
+                    }
+
+                    if (p.y - p.size > canvas.height) powerUps.splice(i, 1);
+                }
+
+                // --- STAGE CLEAR CONDITION VERIFIER ---
+                let totalBricksLeft = 0;
+                for (let r = 0; r < bricks.length; r++) {
+                    for (let c = 0; c < brickCols; c++) {
+                        if (bricks[r][c] && bricks[r][c].active) totalBricksLeft++;
+                    }
+                }
+
+                if (totalBricksLeft === 0) {
+                    if (currentLevel < maxLevels) {
+                        currentLevel++;
+                        balls = [{ x: canvas.width / 2, y: canvas.height - 50, vx: 3 + currentLevel, vy: -(4 + currentLevel), radius: 6, stuckX: null }];
+                        buildLevel(currentLevel);
+                    } else {
+                        killActiveLoops();
+                        ctx.fillStyle = '#22d3ee'; ctx.font = "20px 'Orbitron'";
+                        ctx.fillText("FIREWALL DECRYPTED // DATA SECTOR CLEAR", 50, 200);
+                        return;
+                    }
+                }
+
+                // --- RENDERING PRODUCTION INTERFACES ---
+                // Draw Lasers (If active)
+                ctx.fillStyle = '#f43f5e';
+                lasers.forEach(l => ctx.fillRect(l.x, l.y, 4, 10));
+
+                // Draw Paddle (Changes structural aesthetic based on armed configurations)
+                ctx.fillStyle = currentModifier === "LASER" ? '#f43f5e' : (currentModifier === "CATCH" ? '#eab308' : '#38bdf8');
+                ctx.beginPath(); ctx.roundRect(paddle.x, paddle.y, paddle.w, paddle.h, 3); ctx.fill();
+                if (currentModifier === "LASER") { // Gun pods accent overlay
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(paddle.x, paddle.y - 3, 4, 4);
+                    ctx.fillRect(paddle.x + paddle.w - 4, paddle.y - 3, 4, 4);
+                }
+
+                // Draw Active Balls
+                ctx.fillStyle = '#22d3ee';
+                balls.forEach(ball => {
+                    ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2); ctx.fill();
+                });
+
+                // Draw Bricks
+                for (let r = 0; r < bricks.length; r++) {
+                    for (let c = 0; c < brickCols; c++) {
+                        let b = bricks[r][c];
+                        if (b && b.active) {
+                            ctx.fillStyle = b.color;
+                            ctx.beginPath(); ctx.roundRect(b.x, b.y, brickWidth, brickHeight, 2); ctx.fill();
+                        }
+                    }
+                }
+
+                // Draw Custom Pill Capsule Power-ups
+                powerUps.forEach(p => {
+                    ctx.fillStyle = p.color;
+                    ctx.beginPath(); ctx.roundRect(p.x - p.size, p.y - 6, p.size * 2, 12, 6); ctx.fill();
+                    
+                    // Center label indicators
+                    ctx.fillStyle = '#0f172a';
+                    ctx.font = "bold 9px 'Orbitron'";
+                    ctx.textAlign = "center";
+                    ctx.fillText(p.label, p.x, p.y + 3);
+                });
+            }
+            frame();
+        }
+// ==========================================
+        // MODULE 05: TETRIS MATRIX ENGINE (FIXED & OPERATIONAL)
+        // ==========================================
+        function runTetrisGame() {
+            setUIData("TETRIS_MATRIX_v1.0", "Arrow keys to move/rotate. Space to drop blocks.", "ARROW KEYS + SPACE", "BLOCKS LOCKED // SCORE: 0000");
+            score = 0;
+            
+            const gridCols = 10;
+            const gridRows = 20;
+            const blockSize = 18;
+            
+            // Centering matrix math offsets
+            const xOffset = (canvas.width - (gridCols * blockSize)) / 2;
+            const yOffset = (canvas.height - (gridRows * blockSize)) / 2;
+            
+            // Initialize fresh memory empty board grid
+            let board = [];
+            for (let r = 0; r < gridRows; r++) {
+                board[r] = [];
+                for (let c = 0; c < gridCols; c++) {
+                    board[r][c] = 0;
+                }
+            }
+            
+            const shapes = {
+                'I': [[1, 1, 1, 1]],
+                'J': [[1, 0, 0], [1, 1, 1]],
+                'L': [[0, 0, 1], [1, 1, 1]],
+                'O': [[1, 1], [1, 1]],
+                'S': [[0, 1, 1], [1, 1, 0]],
+                'Z': [[1, 1, 0], [0, 1, 1]],
+                'T': [[0, 1, 0], [1, 1, 1]]
+            };
+            
+            const colors = ['#ec4899', '#22d3ee', '#eab308', '#a855f7', '#22c55e', '#3b82f6', '#f97316'];
+            
+            let currentPiece = null;
+            let dropCounter = 0;
+            let dropInterval = 30; // Frame loop delay tick intervals
+            let inputDelay = 0;
+            let gameActive = true;
+
+            function getRandomPiece() {
+                const keys = Object.keys(shapes);
+                const randKey = keys[Math.floor(Math.random() * keys.length)];
+                const randColor = colors[Math.floor(Math.random() * colors.length)];
+                return {
+                    matrix: shapes[randKey],
+                    color: randColor,
+                    x: Math.floor((gridCols - shapes[randKey][0].length) / 2),
+                    y: 0
+                };
+            }
+
+            function hasCollision(p, offsetX, offsetY, newMatrix) {
+                const matrix = newMatrix || p.matrix;
+                for (let r = 0; r < matrix.length; r++) {
+                    for (let c = 0; c < matrix[r].length; c++) {
+                        if (matrix[r][c] !== 0) {
+                            let nextX = p.x + c + offsetX;
+                            let nextY = p.y + r + offsetY;
+                            if (nextX < 0 || nextX >= gridCols || nextY >= gridRows) return true;
+                            if (nextY >= 0 && board[nextY][nextX] !== 0) return true;
+                        }
+                    }
+                }
+                return false;
+            }
+
+            function mergePiece(p) {
+                for (let r = 0; r < p.matrix.length; r++) {
+                    for (let c = 0; c < p.matrix[r].length; c++) {
+                        if (p.matrix[r][c] !== 0) {
+                            if (p.y + r >= 0) {
+                                board[p.y + r][p.x + c] = p.color;
+                            }
+                        }
+                    }
+                }
+            }
+
+            function rotatePiece(p) {
+                let nMatrix = [];
+                for (let i = 0; i < p.matrix[0].length; i++) {
+                    nMatrix[i] = [];
+                    for (let j = p.matrix.length - 1; j >= 0; j--) {
+                        nMatrix[i].push(p.matrix[j][i]);
+                    }
+                }
+                if (!hasCollision(p, 0, 0, nMatrix)) {
+                    p.matrix = nMatrix;
+                }
+            }
+
+            function clearLines() {
+                let linesCleared = 0;
+                for (let r = gridRows - 1; r >= 0; r--) {
+                    let complete = true;
+                    for (let c = 0; c < gridCols; c++) {
+                        if (board[r][c] === 0) { complete = false; break; }
+                    }
+                    if (complete) {
+                        board.splice(r, 1);
+                        board.unshift(new Array(gridCols).fill(0));
+                        linesCleared++;
+                        r++; // Recheck matched line rows shifted into position
+                    }
+                }
+                if (linesCleared > 0) {
+                    score += linesCleared * 200;
+                    document.getElementById('g-meta').innerText = `BLOCKS LOCKED // SCORE: ${String(score).padStart(4, '0')}`;
+                }
+            }
+
+            function spawnPiece() {
+                currentPiece = getRandomPiece();
+                if (hasCollision(currentPiece, 0, 0)) {
+                    gameActive = false;
+                    killActiveLoops();
+                    ctx.fillStyle = '#ef4444';
+                    ctx.font = "22px 'Orbitron'";
+                    ctx.fillText("MATRIX OVERFLOW // GAME OVER", 110, 200);
+                }
+            }
+
+            function frame() {
+                if (!gameActive) return;
+                globalLoopId = requestAnimationFrame(frame);
+
+                if (inputDelay > 0) inputDelay--;
+
+                // Handle inputs
+                if (inputDelay === 0) {
+                    if (currentKeys['ArrowLeft'] && !hasCollision(currentPiece, -1, 0)) { currentPiece.x--; inputDelay = 6; }
+                    if (currentKeys['ArrowRight'] && !hasCollision(currentPiece, 1, 0)) { currentPiece.x++; inputDelay = 6; }
+                    if (currentKeys['ArrowUp']) { rotatePiece(currentPiece); inputDelay = 12; }
+                    if (currentKeys['ArrowDown'] && !hasCollision(currentPiece, 0, 1)) { currentPiece.y++; inputDelay = 4; }
+                    if (currentKeys['Space']) {
+                        while (!hasCollision(currentPiece, 0, 1)) { currentPiece.y++; }
+                        mergePiece(currentPiece);
+                        clearLines();
+                        spawnPiece();
+                        inputDelay = 15;
+                    }
+                }
+
+                // Core Physics Gravity fall step timers
+                dropCounter++;
+                if (dropCounter >= dropInterval) {
+                    if (!hasCollision(currentPiece, 0, 1)) {
+                        currentPiece.y++;
+                    } else {
+                        mergePiece(currentPiece);
+                        clearLines();
+                        spawnPiece();
+                    }
+                    dropCounter = 0;
+                }
+
+                // Render execution matrix sweep loops
+                ctx.fillStyle = '#020617';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                // Draw structured board wire borders
+                ctx.strokeStyle = '#334155';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(xOffset - 2, yOffset - 2, gridCols * blockSize + 4, gridRows * blockSize + 4);
+
+                // Render locked block cells
+                for (let r = 0; r < gridRows; r++) {
+                    for (let c = 0; c < gridCols; c++) {
+                        if (board[r][c] !== 0) {
+                            ctx.fillStyle = board[r][c];
+                            ctx.fillRect(xOffset + c * blockSize + 1, yOffset + r * blockSize + 1, blockSize - 2, blockSize - 2);
+                        }
+                    }
+                }
+
+                // Render active piece vectors
+                if (currentPiece) {
+                    ctx.fillStyle = currentPiece.color;
+                    for (let r = 0; r < currentPiece.matrix.length; r++) {
+                        for (let c = 0; c < currentPiece.matrix[r].length; c++) {
+                            if (currentPiece.matrix[r][c] !== 0) {
+                                ctx.fillRect(
+                                    xOffset + (currentPiece.x + c) * blockSize + 1,
+                                    yOffset + (currentPiece.y + r) * blockSize + 1,
+                                    blockSize - 2, blockSize - 2
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+
+            spawnPiece();
+            frame();
+        }
+
+        // ==========================================
+        // MODULE 06: SPEED HYPERDRIVE (ULTRA RACING COCKPIT)
+        // ==========================================
+        function runRacingGame() {
+            // Expand canvas dimensions for a massive arcade screen display box
+            canvas.width = 800;
+            canvas.height = 500;
+
+            setUIData("NEON_OVERDRIVE_v5.0", "W/S or UP/DOWN: Speed & Brake. A/D or LEFT/RIGHT: Steer.", "FULL KEYBOARD MATRIX", "DATA_VELOCITY // SCORE: 0000");
+            score = 0;
+            let gameActive = true;
+            
+            // Player car physics model configuration
+            const car = {
+                x: canvas.width / 2,
+                y: canvas.height - 110,
+                width: 38,
+                height: 68,
+                currentSpeed: 0,
+                maxSpeed: 24,
+                accel: 0.25,
+                decel: 0.15,
+                brakeForce: 0.6,
+                targetAngle: 0,
+                currentAngle: 0
+            };
+            // Interactive screen-juice states
+            let highwayScrollY = 0;
+            let screenShake = 0;
+            const driftParticles = [];
+
+            // Highway configuration mapping
+            const traffic = [];
+            const laneWidth = 100; // Scaled lane bounds matching box size
+            const roadWidth = laneWidth * 4;
+            const roadLeftX = (canvas.width - roadWidth) / 2;
+
+            // Generate dense field of hyper-speed warp stars
+            const warpLines = [];
+            for (let i = 0; i < 50; i++) {
+                warpLines.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    length: Math.random() * 30 + 15,
+                    speedFactor: Math.random() * 0.4 + 0.6,
+                    alpha: Math.random() * 0.6 + 0.2
+                });
+            }
+
+            let trafficTimeout = null;
+            function spawnTraffic() {
+                if (!gameActive) return;
+                // Keep spawning slow traffic cells to dodge
+                const lane = Math.floor(Math.random() * 4);
+                const spawnX = roadLeftX + (lane * laneWidth) + (laneWidth / 2);
+                if (traffic.length === 0 || traffic[traffic.length - 1].y > 180) {
+                    traffic.push({
+                        x: spawnX,
+                        y: -80,
+                        width: 36,
+                        height: 62,
+                        speed: Math.random() * 3 + 4,
+                        hue: Math.random() > 0.5 ? 320 : 25, 
+                        pulse: 0
+                    });
+                }
+                
+                // Adjust traffic spawning speed depending on current score values
+                trafficTimeout = setTimeout(spawnTraffic, Math.max(250, 750 - (score / 30)));
+            }
+            
+            spawnTraffic();
+            function frame() {
+                if (!gameActive && screenShake <= 0) {
+                    if(trafficTimeout) clearTimeout(trafficTimeout);
+                    return;
+                }
+                globalLoopId = requestAnimationFrame(frame);
+
+                // --- 1. HANDLE USER CONTROLS & PHYSICS PROPULSION ---
+                let steeringInput = 0;
+                if (currentKeys['ArrowLeft'] || currentKeys['KeyA']) steeringInput = -1;
+                if (currentKeys['ArrowRight'] || currentKeys['KeyD']) steeringInput = 1;
+
+                let brakingActive = false;
+                if (gameActive) {
+                    // Check manual gas throttle engine vectors
+                    if (currentKeys['ArrowUp'] || currentKeys['KeyW']) {
+                        car.currentSpeed = Math.min(car.maxSpeed, car.currentSpeed + car.accel);
+                    } 
+                    // Check hard hydraulic mechanical brake clamps
+                    else if (currentKeys['ArrowDown'] || currentKeys['KeyS']) {
+                        car.currentSpeed = Math.max(0, car.currentSpeed - car.brakeForce);
+                        brakingActive = car.currentSpeed > 0;
+                    } 
+                    // Natural passive kinetic friction wind resistance drag deceleration
+                    else {
+                        car.currentSpeed = Math.max(0, car.currentSpeed - car.decel);
+                    }
+
+                    // Steer calculations relative to your current motion velocity
+                    car.x += steeringInput * (4.5 + (car.currentSpeed * 0.12));
+                    if (car.x < roadLeftX + car.width/2) car.x = roadLeftX + car.width/2;
+                    if (car.x > roadLeftX + roadWidth - car.width/2) car.x = roadLeftX + roadWidth - car.width/2;
+
+                    car.targetAngle = steeringInput * 0.18;
+                    car.currentAngle += (car.targetAngle - car.currentAngle) * 0.25;
+
+                    // Increment structural score metrics proportional to car speed velocity
+                    if (car.currentSpeed > 1) {
+                        score += Math.floor(car.currentSpeed * 0.1);
+                    }
+                    
+                    let digitalMPH = Math.floor(car.currentSpeed * 12.5);
+                    document.getElementById('g-meta').innerText = `DATA_VELOCITY: ${digitalMPH} MPH // SCORE: ${String(score).padStart(4, '0')}`;
+
+                    // Throw tail pipe exhaust drift flare sparks under sideways steering vectors
+                    if (steeringInput !== 0 && car.currentSpeed > 3) {
+                        screenShake = Math.max(screenShake, car.currentSpeed * 0.08);
+                        for (let p = 0; p < 2; p++) {
+                            driftParticles.push({
+                                x: car.x + (Math.random() - 0.5) * 12,
+                                y: car.y + car.height / 2,
+                                vx: -steeringInput * (Math.random() * 3 + 1),
+                                vy: Math.random() * 2 + car.currentSpeed * 0.3,
+                                size: Math.random() * 3 + 2,
+                                alpha: 1,
+                                color: Math.random() > 0.4 ? '#ec4899' : '#f43f5e'
+                            });
+                        }
+                    }
+                }
+
+                // Dampen operational viewport tracking shake limits
+                let dxShake = (Math.random() - 0.5) * screenShake;
+                let dyShake = (Math.random() - 0.5) * screenShake;
+                screenShake *= 0.9;
+                // --- 2. RENDER THE ARCADE VIEWPORT CANVAS ---
+                ctx.save();
+                ctx.translate(dxShake, dyShake);
+
+                ctx.fillStyle = '#02020e'; // Midnight space void panel
+                ctx.fillRect(-20, -20, canvas.width + 40, canvas.height + 40);
+                // Draw streaming particle warp points tracking velocity vectors
+                warpLines.forEach(line => {
+                    line.y += (car.currentSpeed * 1.6 + 2) * line.speedFactor;
+                    if (line.y > canvas.height) {
+                        line.y = -50;
+                        line.x = Math.random() * canvas.width;
+                    }
+                    ctx.strokeStyle = `rgba(34, 211, 238, ${line.alpha})`;
+                    ctx.lineWidth = Math.max(1, car.currentSpeed * 0.12);
+                    ctx.beginPath();
+                    ctx.moveTo(line.x, line.y);
+                    ctx.lineTo(line.x, line.y + line.length * (1 + car.currentSpeed * 0.1));
+                    ctx.stroke();
+                });
+
+                // --- 3. DRAW EXTRUDED HIGHWAY ASPHALT MATRIX ---
+                ctx.fillStyle = '#060616';
+                ctx.fillRect(roadLeftX, 0, roadWidth, canvas.height);
+
+                // Glowing neon fence rails
+                ctx.shadowColor = '#22d3ee';
+                ctx.shadowBlur = 18;
+                ctx.fillStyle = '#22d3ee';
+                ctx.fillRect(roadLeftX - 4, 0, 4, canvas.height);
+                ctx.fillRect(roadLeftX + roadWidth, 0, 4, canvas.height);
+                ctx.shadowBlur = 0;
+
+                // Infinite loop rolling track calculation step
+                highwayScrollY = (highwayScrollY + car.currentSpeed) % 60;
+                // Render gold dotted dividing highway lane dividers
+                ctx.fillStyle = 'rgba(234, 179, 8, 0.28)';
+                for (let l = 1; l < 4; l++) {
+                    let lx = roadLeftX + (l * laneWidth);
+                    for (let y = highwayScrollY - 60; y < canvas.height; y += 60) {
+                        ctx.fillRect(lx - 1, y, 2, 30);
+                    }
+                }
+
+                // Process and draw drift spark trails
+                for (let i = driftParticles.length - 1; i >= 0; i--) {
+                    let p = driftParticles[i];
+                    p.x += p.vx; p.y += p.vy; p.alpha -= 0.05;
+                    if (p.alpha <= 0) {
+                        driftParticles.splice(i, 1);
+                        continue;
+                    }
+                    ctx.fillStyle = p.color;
+                    ctx.globalAlpha = p.alpha;
+                    ctx.fillRect(p.x, p.y, p.size, p.size);
+                }
+                ctx.globalAlpha = 1.0;
+                // --- 4. ENGINE TRAFFIC HANDLERS & VEHICLES GRID ---
+                for (let i = traffic.length - 1; i >= 0; i--) {
+                    let hazard = traffic[i];
+                    if (gameActive) hazard.y += car.currentSpeed - hazard.speed;
+                    hazard.pulse += 0.1;
+                    if (hazard.y > canvas.height + 90) {
+                        traffic.splice(i, 1);
+                        continue;
+                    }
+
+                    ctx.save();
+                    ctx.translate(hazard.x, hazard.y);
+
+                    let lightAura = Math.abs(Math.sin(hazard.pulse)) * 8;
+                    ctx.shadowColor = `hsl(${hazard.hue}, 90%, 55%)`;
+                    ctx.shadowBlur = lightAura;
+                    // Draw solid hazard block model vehicle hulls
+                    ctx.fillStyle = `hsl(${hazard.hue}, 95%, 48%)`;
+                    ctx.fillRect(-hazard.width / 2, -hazard.height / 2, hazard.width, hazard.height);
+                    ctx.shadowBlur = 0;
+                    // Windows tint
+                    ctx.fillStyle = '#010106';
+                    ctx.fillRect(-hazard.width / 2 + 4, -hazard.height / 5, hazard.width - 8, hazard.height / 2);
+                    // Emergency red rear warning array
+                    ctx.fillStyle = '#ef4444';
+                    ctx.fillRect(-hazard.width / 2 + 4, hazard.height / 2 - 5, 8, 4);
+                    ctx.fillRect(hazard.width / 2 - 12, hazard.height / 2 - 5, 8, 4);
+
+                    ctx.restore();
+                    // --- RECTANGULAR GEOMETRIC COLLISION MATRIX CHECKER ---
+                    if (gameActive &&
+                        car.x - car.width/2 < hazard.x + hazard.width/2 &&
+                        car.x + car.width/2 > hazard.x - hazard.width/2 &&
+                        car.y - car.height/2 < hazard.y + hazard.height/2 &&
+                        car.y + car.height/2 > hazard.y - hazard.height/2
+                    ) {
+                        gameActive = false;
+                        screenShake = 45; // Giant shockwave explosion hit crunch
+                        car.currentSpeed = 0;
+                        if(trafficTimeout) clearTimeout(trafficTimeout);
+                        
+                        setTimeout(() => {
+                            ctx.fillStyle = '#f43f5e';
+                            ctx.font = "28px 'Orbitron'";
+                            ctx.fillText("CRITICAL IMPACT // CORE REBOOT REQUIRED", 120, 220);
+                            ctx.font = "14px 'Share Tech Mono'";
+                            ctx.fillStyle = '#ffffff';
+                            ctx.fillText("FLIP AN ALTERNATE TERMINAL FUNCTION KEY AT LEFT STACK TO INITIALIZE FIRMWARE RESET", 110, 260);
+                        }, 150);
+                    }
+                }
+
+                // --- 5. RENDER OVERCLOCK RACING CHASSIS (TOP-DOWN) ---
+                if (gameActive || screenShake > 0) {
+                    ctx.save();
+                    ctx.translate(car.x, car.y);
+                    ctx.rotate(car.currentAngle);
+
+                    // High intensity headlight projections scaling up matching current speed values
+                    if (car.currentSpeed > 0) {
+                        let dynamicBeamLength = 130 + car.currentSpeed * 4;
+                        let headlightGlow = ctx.createLinearGradient(0, -car.height/2, 0, -car.height/2 - dynamicBeamLength);
+                        headlightGlow.addColorStop(0, 'rgba(34, 211, 238, 0.55)');
+                        headlightGlow.addColorStop(1, 'rgba(34, 211, 238, 0.0)');
+                        ctx.fillStyle = headlightGlow;
+                        
+                        // Cone Left
+                        ctx.beginPath();
+                        ctx.moveTo(-12, -car.height / 2);
+                        ctx.lineTo(-42, -car.height / 2 - dynamicBeamLength);
+                        ctx.lineTo(18, -car.height / 2 - dynamicBeamLength);
+                        ctx.closePath(); ctx.fill();
+                        // Cone Right
+                        ctx.beginPath();
+                        ctx.moveTo(12, -car.height / 2);
+                        ctx.lineTo(-18, -car.height / 2 - dynamicBeamLength);
+                        ctx.lineTo(42, -car.height / 2 - dynamicBeamLength);
+                        ctx.closePath(); ctx.fill();
+                    }
+
+                    // Dual engine nozzle thrust flares output lines
+                    if (car.currentSpeed > 2 && gameActive) {
+                        ctx.fillStyle = Math.random() > 0.45 ? '#ec4899' : '#38bdf8';
+                        let flareH = (car.currentSpeed * 0.8) + Math.random() * 8;
+                        ctx.fillRect(-8, car.height / 2, 5, flareH);
+                        ctx.fillRect(3, car.height / 2, 5, flareH);
+                    }
+
+                    // Rubber chassis tires
+                    ctx.fillStyle = '#010104';
+                    ctx.fillRect(-car.width/2 - 2, -car.height/2 + 10, 3, 14);
+                    ctx.fillRect(car.width/2 - 1, -car.height/2 + 10, 3, 14);
+                    ctx.fillRect(-car.width/2 - 2, car.height/2 - 24, 3, 14);
+                    ctx.fillRect(car.width/2 - 1, car.height/2 - 24, 3, 14);
+                    // Primary hot cyan neon body shield plating
+                    ctx.shadowColor = '#22d3ee';
+                    ctx.shadowBlur = car.currentSpeed > 15 ? 14 : 8; // Bloom glow pulses brighter when hitting high gear speeds
+                    ctx.fillStyle = '#22d3ee';
+                    ctx.fillRect(-car.width / 2, -car.height / 2, car.width, car.height);
+                    ctx.shadowBlur = 0;
+                    // Pilot windshield bubble array
+                    ctx.fillStyle = '#02020e';
+                    ctx.fillRect(-car.width / 2 + 5, -car.height / 8, car.width - 10, car.height / 1.8);
+                    // Performance racing strip accents
+                    ctx.fillStyle = '#ec4899';
+                    ctx.fillRect(-2, -car.height / 2, 4, car.height / 3.2);
+
+                    // Glowing rear lens bar
+                    ctx.fillStyle = brakingActive ? '#ff1253' : (car.currentSpeed > 0 ? '#991b1b' : '#450a0a');
+                    ctx.fillRect(-car.width / 2 + 4, car.height / 2 - 5, 8, 4);
+                    ctx.fillRect(car.width / 2 - 12, car.height / 2 - 5, 8, 4);
+
+                    ctx.restore();
+                }
+
+                // --- 6. DRAW HUD SPEEDOMETER INTERFACE METERS ---
+                if (gameActive) {
+                    let hudX = 35;
+                    let hudY = canvas.height - 35;
+                    
+                    // Draw velocity structural meter gauge frame
+                    ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+                    ctx.strokeStyle = '#22d3ee';
+                    ctx.lineWidth = 1.5;
+                    ctx.fillRect(hudX, hudY - 14, 160, 14);
+                    ctx.strokeRect(hudX, hudY - 14, 160, 14);
+                    // Render filled bar tracking current engine speeds
+                    let speedPercentage = car.currentSpeed / car.maxSpeed;
+                    ctx.fillStyle = speedPercentage > 0.8 ? '#ec4899' : '#22d3ee';
+                    ctx.fillRect(hudX + 2, hudY - 12, 156 * speedPercentage, 10);
+                }
+
+                ctx.restore();
+            }
+            frame();
+        }
+    </script>
+</body>
+</html>

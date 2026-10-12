@@ -1,0 +1,104 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bulk Import ACVV Records</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body { 
+            margin: 0; 
+            padding: 0; 
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(to bottom, #d1e2c4, #8fcf7f);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .upload-card {
+            background: #ffffff;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            width: 90%;
+            max-width: 550px;
+            text-align: center;
+        }
+        h2 { color: #1b5e20; margin-top: 0; margin-bottom: 15px; font-weight: 800; font-size: 24px; }
+        p { color: #555; font-size: 14px; margin-bottom: 25px; line-height: 1.5; }
+        .upload-area {
+            border: 2px dashed #81c784;
+            padding: 40px 20px;
+            border-radius: 8px;
+            background: #f0fff0;
+            margin-bottom: 25px;
+            transition: background 0.3s;
+        }
+        .upload-area:hover { background: #e8f5e9; }
+        .submit-btn {
+            background-color: #1b5e20;
+            color: white;
+            border: none;
+            padding: 14px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 15px;
+            cursor: pointer;
+            width: 100%;
+            transition: background 0.3s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .submit-btn:hover { background-color: #2e7d32; }
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            color: #1976d2;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        .back-link:hover { text-decoration: underline; }
+        
+        /* Message styling */
+        .messages { list-style: none; padding: 0; margin-bottom: 20px; }
+        .messages li { padding: 12px; border-radius: 6px; margin-bottom: 10px; font-size: 14px; font-weight: bold; text-align: left; }
+        .messages li.success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .messages li.error { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    </style>
+</head>
+<body>
+
+    <div class="upload-card">
+        <h2><i class="fas fa-file-import"></i> Bulk Import ACVV Records</h2>
+        <p>
+            Upload your <strong>CSV</strong> or <strong>Excel (.xlsx)</strong> file here. Ensure your column headers exactly match the system requirements (e.g., <em>Member Group Name</em>, <em>MG Code</em>, <em>ACCOUNT NUMBER</em>).
+        </p>
+
+        {% if messages %}
+            <ul class="messages">
+                {% for message in messages %}
+                    <li class="{{ message.tags }}">{{ message }}</li>
+                {% endfor %}
+            </ul>
+        {% endif %}
+
+        <form method="POST" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="upload-area">
+                <i class="fas fa-cloud-upload-alt" style="font-size: 40px; color: #81c784; margin-bottom: 15px; display: block;"></i>
+                <!-- Updated accept attribute to include Excel formats -->
+                <input type="file" name="csv_upload" 
+                       accept=".csv, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" 
+                       required style="font-size: 14px; max-width: 100%;">
+            </div>
+            <button type="submit" class="submit-btn"><i class="fas fa-sync-alt"></i> Process Import Data</button>
+        </form>
+
+        <a href="{% url 'acvv_list' %}" class="back-link"><i class="fas fa-arrow-left"></i> Back to Main Dashboard</a>
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Inbox - Unified Task Log</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+    /* --- INTEGRATED GLOBAL STYLES --- */
+    html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+    body {
+        font-family: sans-serif;
+        background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        padding: 20px;
+        box-sizing: border-box;
+    }
+
+    .log-container {
+        width: 100%;
+        max-width: 1400px; 
+        height: 85vh; 
+        margin: 10px auto; 
+        padding: 20px;
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .log-header {
+        border-bottom: 2px solid #aed581;
+        padding-bottom: 15px;
+        margin-bottom: 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-shrink: 0;
+    }
+    .log-header h1 { margin: 0; color: #1b5e20; font-size: 24px; }
+    
+    .log-controls { display: flex; gap: 15px; align-items: center; }
+    
+    #search_input {
+        padding: 8px 12px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        width: 300px;
+        font-size: 14px;
+    }
+
+    /* Style for new dropdown */
+    #date_sort_filter {
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 14px;
+        background-color: white;
+        cursor: pointer;
+    }
+
+    .table-wrapper {
+        overflow-y: auto;
+        flex-grow: 1;
+        border: 1px solid #eee;
+        border-radius: 4px;
+    }
+
+    .task-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+    
+    .task-table th {
+        background-color: #43a047;
+        color: white;
+        padding: 12px 15px;
+        text-align: left;
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: uppercase;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        cursor: pointer;
+    }
+
+    .task-table td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #eee;
+        font-size: 14px;
+        word-wrap: break-word;
+    }
+
+    .task-table tr:nth-child(even) { background-color: #f9fbe7; }
+    .task-table tr.clickable-row:hover { background-color: #e8f5e9; cursor: pointer; }
+    
+    .btn {
+        padding: 8px 16px;
+        border-radius: 5px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 13px;
+        display: inline-block;
+    }
+
+    .return-button {
+        background-color: #1b5e20;
+        color: white;
+        margin-bottom: 10px;
+        align-self: flex-start;
+    }
+
+    .delegate-btn { background-color: #f7931e; color: white; }
+
+    #hidden_refresher { display: none; }
+</style>
+</head>
+<body>
+
+    <div style="width: 100%; max-width: 1400px;">
+        <a href="{% url 'dashboard' %}" class="btn return-button">← Back To Home Screen</a>
+    </div>
+
+<div class="log-container">
+    <div class="log-header">
+        <h1>📨 Live Inbox</h1>
+        <div class="log-controls">
+            <select id="date_sort_filter">
+                <option value="">⏳ Sort by Date...</option>
+                <option value="newest">Newest to Oldest</option>
+                <option value="oldest">Oldest to Newest</option>
+            </select>
+
+            <input type="text" id="search_input" placeholder="🔍 Search subject or sender..." autofocus>
+            <p style="margin: 0; font-size: 14px; color: #555;">Total Pending: <strong id="pending_count">{{ email_list|length }}</strong></p>
+        </div>
+    </div>
+    
+    <div class="table-wrapper">
+        <table class="task-table" id="main_table">
+            <thead>
+                <tr>
+                    <th style="width: 35%;" onclick="sortInboxTable(0)">Subject <i class="fas fa-sort"></i></th>
+                    <th style="width: 20%;" onclick="sortInboxTable(1)">From <i class="fas fa-sort"></i></th>
+                    <th style="width: 15%;" onclick="sortInboxTable(2)">Received Date <i class="fas fa-sort"></i></th>
+                    <th style="width: 15%;" onclick="sortInboxTable(3)">Status <i class="fas fa-sort"></i></th>
+                    <th style="width: 15%;">Action</th> 
+                </tr>
+            </thead>
+            <tbody id="table_body">
+                {% for email in email_list %}
+                <tr onclick="window.location.href='{% url 'delegate_email' email_id=email.email_id %}';" class="clickable-row">
+                    <td>
+                        <b>{{ email.subject }}</b>
+                        <span style="display:block; font-size:12px; color:#777; font-style:italic;">{{ email.snippet|default:"No preview available." }}</span>
+                    </td>
+                    <td>{{ email.sender }}</td>
+                    <td data-sort="{{ email.received_at|date:'U' }}" style="font-size: 13px; color: #333;">
+                        {{ email.received_at|date:"d/m/Y H:i" }}
+                    </td>
+                    <td style="color: #1e88e5; font-weight: bold;">PENDING</td>
+                    <td>
+                        <a href="{% url 'delegate_email' email_id=email.email_id %}" class="btn delegate-btn">DELEGATE</a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr class="no-emails">
+                    <td colspan="5" style="text-align: center; padding: 30px; color: #777;">
+                        No pending emails found in the live inbox.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<iframe id="hidden_refresher" src="{{ request.path }}"></iframe>
+
+<script>
+let sortOrder = {}; // Tracks ASC/DESC for each column
+
+// --- 🟢 NEW SORTING LOGIC ---
+function sortInboxTable(n) {
+    const tableBody = document.getElementById("table_body");
+    const rows = Array.from(tableBody.querySelectorAll("tr:not(.no-emails)"));
+    
+    // Toggle sort order
+    sortOrder[n] = !sortOrder[n];
+    const isAscending = sortOrder[n];
+
+    rows.sort((rowA, rowB) => {
+        const cellA = rowA.cells[n];
+        const cellB = rowB.cells[n];
+        
+        // Handle Date Sorting using Unix timestamps
+        const sortValA = cellA.getAttribute('data-sort');
+        const sortValB = cellB.getAttribute('data-sort');
+        
+        if (sortValA && sortValB) {
+            return isAscending ? sortValA - sortValB : sortValB - sortValA;
+        }
+
+        // Default string sorting
+        let textA = cellA.innerText.trim().toLowerCase();
+        let textB = cellB.innerText.trim().toLowerCase();
+        return isAscending ? textA.localeCompare(textB) : textB.localeCompare(textA);
+    });
+
+    // Re-append rows in new order
+    rows.forEach(row => tableBody.appendChild(row));
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const searchInput = document.getElementById('search_input');
+    const tableBody = document.getElementById('table_body');
+    const totalDisplay = document.getElementById('pending_count');
+    const iframe = document.getElementById('hidden_refresher');
+    const dateSortFilter = document.getElementById('date_sort_filter');
+
+    // 1. SEARCH FILTER
+    function applyFilter() {
+        const filter = searchInput.value.toLowerCase();
+        const rows = tableBody.querySelectorAll('tr:not(.no-emails)');
+        Array.from(rows).forEach(row => {
+            const text = row.textContent.toLowerCase();
+            row.style.display = text.includes(filter) ? "" : "none";
+        });
+    }
+    searchInput.addEventListener('input', applyFilter);
+
+    // 2. 🟢 DATE SORT DROPDOWN TRIGGER
+    if (dateSortFilter) {
+        dateSortFilter.addEventListener('change', function() {
+            const val = this.value;
+            if (val === 'newest') {
+                sortOrder[2] = true; // Set to ASC then sortTable will flip to DESC (Newest)
+                sortInboxTable(2);
+            } else if (val === 'oldest') {
+                sortOrder[2] = false; // Set to DESC then sortTable will flip to ASC (Oldest)
+                sortInboxTable(2);
+            }
+        });
+    }
+
+    // 3. THE SILENT UPDATE
+    iframe.onload = function() {
+        try {
+            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+            const newRows = iframeDoc.getElementById('table_body').innerHTML;
+            const newCount = iframeDoc.getElementById('pending_count').innerText;
+
+            // Preserve search and sorting order
+            tableBody.innerHTML = newRows;
+            totalDisplay.innerText = newCount;
+
+            // Re-apply current sort if one was selected
+            const currentSortVal = dateSortFilter.value;
+            if (currentSortVal === 'newest') {
+                sortOrder[2] = true; sortInboxTable(2);
+            } else if (currentSortVal === 'oldest') {
+                sortOrder[2] = false; sortInboxTable(2);
+            }
+
+            applyFilter();
+        } catch (e) {
+            console.warn("Background refresh error:", e);
+        }
+    };
+
+    // 4. REFRESH TIMER (30 seconds)
+    setInterval(function() {
+        iframe.contentWindow.location.reload();
+    }, 30000);
+});
+</script>
+
+</body>
+</html>

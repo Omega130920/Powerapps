@@ -1,0 +1,525 @@
+{% load static %}
+{% load math_filters %}
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Review Bank Line {{ recon_record.pk }}</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+/* Basic Styles */
+body{font-family:sans-serif;background:linear-gradient(to bottom,#d1e2c4,#d1e2c4);margin:20px;color:#333;line-height:1.6}
+/* WIDENED CONTAINER FOR LANDSCAPE */
+.container{max-width:1400px;margin:2em auto;padding:20px;background-color:#f0fff0;border-radius:8px;box-shadow:0 4px 8px rgba(0,0,0,.1)}
+
+h2{color:#1b5e20;border-bottom:2px solid #aed581;padding-bottom:10px;margin-bottom:20px}
+h3{color:#1b5e20;margin-top:20px; font-size: 1.1em;}
+.data-table th,.data-table td{padding:10px;border-bottom:1px solid #aed581;text-align:left;font-size:.9em}
+.data-table th{width:40%;background-color:#e6ffe6;color:#1b5e20}
+
+/* 🚀 NEW: 3 COLUMN GRID LAYOUT */
+.landscape-layout {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 24px;
+    align-items: start;
+}
+.column-card {
+    background: white;
+    border: 1px solid #c5e1a5;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+.column-card h3:first-child {
+    margin-top: 0;
+    border-bottom: 2px solid #e6ffe6;
+    padding-bottom: 8px;
+}
+
+/* Button Styles */
+.action-buttons-container { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+.return-button,.edit-button{display:block;padding:12px 20px;background-color:#81c784;border:1px solid #81c784;border-radius:5px;text-align:center;text-decoration:none;color:white;font-weight:bold;cursor:pointer;transition:background-color .3s ease}
+.edit-button{background-color:#3f51b5;border-color:#3f51b5}
+.edit-button:hover{background-color:#303f9f}
+.return-button:hover{background-color:#66bb6a}
+.status-badge{padding:5px 10px;border-radius:4px;color:white;font-weight:700;font-size:.8em}
+
+/* Status Colors */
+.status-partially-recon{background-color:#ff9800;} 
+.status-fully-recon{background-color:#1b5e20;} 
+.status-reconciled{background-color:#FFC107;color:#333}
+
+/* New Breakdown Styles */
+.breakdown-header { background-color: #43a047 !important; color: white !important; font-weight: bold; }
+.breakdown-row:hover { background-color: #f1f8e9; }
+
+/* --- MODAL STYLES --- */
+.modal{display:none;position:fixed;z-index:100;left:0;top:0;width:100%;height:100%;overflow:auto;background-color:rgba(0,0,0,.4)}
+.modal-content{background-color:#fefefe;margin:5% auto;padding:20px;border:1px solid #888;width:90%;max-width:550px;border-radius:8px;box-shadow:0 5px 15px rgba(0,0,0,.3)}
+.modal-content h3{color:#3f51b5;margin-top:0}
+.modal-content label{display:block;margin-top:10px;font-weight:700;color:#1b5e20}
+.modal-content select,.modal-content input[type="date"], .modal-content input[type="email"], .modal-content input[type="text"], .modal-content textarea{width:100%;padding:8px;margin-top:5px;border:1px solid #ccc;border-radius:4px;box-sizing:border-box;font-family: inherit;}
+.modal-footer{display:flex;justify-content:flex-end;margin-top:20px;gap:10px}
+.modal-save-button{padding:10px 20px;background-color:#4CAF50;color:white;border:none;border-radius:5px;cursor:pointer}
+.modal-save-button:hover{background-color:#43a047}
+.modal-cancel-button{padding:10px 20px;background-color:#f44336;color:white;border:none;border-radius:5px;cursor:pointer}
+.modal-cancel-button:hover{background-color:#d32f2f}
+
+.modal-content textarea { resize: vertical; min-height: 80px; }
+
+/* 🚀 NEW: VIEW NOTES BUTTON STYLE 🚀 */
+.view-notes-link {
+    background: #e3f2fd;
+    color: #1976d2;
+    border: 1px solid #bbdefb;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-weight: bold;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    width: 100%;
+    justify-content: center;
+}
+.view-notes-link:hover {
+    background: #1976d2;
+    color: white;
+}
+
+/* SEARCH SEARCH STYLES */
+.search-wrapper { position: relative; margin-top: 5px; }
+.search-input-field { 
+    width: 100%; 
+    padding: 10px; 
+    border: 2px solid #3f51b5; 
+    border-radius: 4px; 
+    box-sizing: border-box; 
+    margin-bottom: 2px;
+}
+.search-results-container {
+    max-height: 150px;
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    background: white;
+    display: none;
+    position: absolute;
+    width: 100%;
+    z-index: 10;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+.search-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid #eee;
+    font-size: 0.9em;
+}
+.search-item:hover { background-color: #e3f2fd; }
+.search-item.selected { background-color: #3f51b5; color: white; }
+
+/* --- EMAIL TOGGLE STYLES --- */
+.email-section { 
+    margin-top: 15px; 
+    padding-top: 15px; 
+    border-top: 1px dashed #ccc; 
+}
+.toggle-wrapper { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.switch { position: relative; display: inline-block; width: 40px; height: 20px; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 20px; }
+.slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+input:checked + .slider { background-color: #3f51b5; }
+input:checked + .slider:before { transform: translateX(20px); }
+#email_fields { display: none; background: #f9f9f9; padding: 10px; border-radius: 4px; border: 1px solid #eee; }
+
+</style>
+</head>
+<body>
+
+<div class="container">
+
+    <h2>Review Bank Line: {{ recon_record.pk }}</h2>
+    
+    <div class="landscape-layout">
+        
+        <!-- ======================================= -->
+        <!-- COLUMN 1: RECON OVERVIEW & ACTIONS      -->
+        <!-- ======================================= -->
+        <div class="column-card">
+            <h3><i class="fas fa-info-circle"></i> Recon Overview</h3>
+            <table class="data-table" style="width: 100%;">
+                <tr>
+                    <th>Current Company Code</th>
+                    <td><strong>{{ recon_record.company_code|default:"BULK ALLOCATION" }}</strong></td>
+                </tr>
+                <tr>
+                    <th>Current Fiscal Date</th>
+                    <td>{{ recon_record.fiscal_period_date|date:"Y-m-d"|default:"N/A" }}</td>
+                </tr>
+                <tr>
+                    <th>Current Review Category</th>
+                    <td>{{ current_category|default:"Not Categorized" }}</td>
+                </tr>
+                <tr>
+                    <th>Internal Note History</th>
+                    <td>
+                        <button id="openNotesBtn" class="view-notes-link">
+                            <i class="fas fa-history"></i> Audit Trail ({{ bank_notes|length }})
+                        </button>
+                    </td>
+                </tr>
+                <tr>
+                    <th>Current Recon Status</th>
+                    <td>
+                        {% if "Partially Reconciled" in recon_record.recon_status %}
+                            <span class="status-partially-recon status-badge">{{ recon_record.recon_status }}</span>
+                        {% elif "Unreconciled" in recon_record.recon_status or "Assigned" in recon_record.recon_status %}
+                            <span class="status-reconciled status-badge">{{ recon_record.recon_status }}</span>
+                        {% elif "Fully Reconciled" in recon_record.recon_status or "Reconciled" == recon_record.recon_status %}
+                            <span class="status-fully-recon status-badge">{{ recon_record.recon_status }}</span>
+                        {% else %}
+                            <span class="status-reconciled status-badge">{{ recon_record.recon_status|default:"Unassigned" }}</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            </table>
+
+            <!-- Moved Actions Here for Better Flow -->
+            <div class="action-buttons-container">
+                <button id="editBtn" class="edit-button"><i class="fas fa-edit"></i> Edit/Confirm Details</button>
+                
+                {% if is_from_unity_info and recon_record.company_code %}
+                    <a href="{% url 'unity_information' company_code=recon_record.company_code %}#bank-lines" class="return-button">
+                        &larr; Back to {{ recon_record.company_code }} Information
+                    </a>
+                {% elif source == 'global' %}
+                    <a href="{% url 'global_bank' %}" class="return-button" style="background-color: #2e7d32; border-color: #1b5e20;">
+                        &larr; Back to Global Bank History
+                    </a>
+                {% else %}
+                    <a href="{% url 'bank_list' %}" class="return-button">
+                        &larr; Back to Bank Lines List
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- ======================================= -->
+        <!-- COLUMN 2: SETTLEMENT STATUS & ALLOCATION-->
+        <!-- ======================================= -->
+        <div class="column-card">
+            <h3><i class="fas fa-chart-pie"></i> Settlement Status</h3>
+            <table class="data-table" style="width: 100%;">
+                <tr>
+                    <th>Segment Amount Assigned</th>
+                    <td>R {{ recon_record.transaction_amount|floatformat:2 }}</td>
+                </tr>
+                <tr>
+                    <th>Actual Bill Settlement (Consumed)</th>
+                    <td style="font-weight: bold; color: #ff9800;">
+                        R {{ recon_record.amount_settled|floatformat:2 }}
+                    </td>
+                </tr>
+                <tr>
+                    <th>Moved to Credit Pool (Overs)</th>
+                    <td style="font-weight: bold; color: #1b5e20;">
+                        R {{ recon_record.get_total_credit_moved|floatformat:2 }}
+                    </td>
+                </tr>
+                
+                {% with total_out=recon_record.amount_settled %}
+                {% if recon_record.transaction_amount|sub:total_out > 0.009 %}
+                <tr>
+                    <th style="background-color: #fff3e0;">Unallocated Balance</th>
+                    <td style="font-weight: bold; color: #d32f2f; background-color: #fff3e0;">
+                        R {{ recon_record.transaction_amount|sub:total_out|floatformat:2 }}
+                    </td>
+                </tr>
+                {% endif %}
+                {% endwith %}
+            </table>
+
+            {% if settlements %}
+            <h3 style="margin-top: 25px;"><i class="fas fa-layer-group"></i> Detailed Bulk Allocation</h3>
+            <table class="data-table" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr>
+                        <th class="breakdown-header">Member Group</th>
+                        <th class="breakdown-header">Fiscal Date</th>
+                        <th class="breakdown-header" style="text-align: right;">Allocated</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for settlement in settlements %}
+                    <tr class="breakdown-row">
+                        <td><strong>{{ settlement.unity_bill_source.C_Company_Code }}</strong></td>
+                        <td>{{ settlement.unity_bill_source.A_CCDatesMonth|date:"Y-m-d" }}</td>
+                        <td style="text-align: right; font-weight: bold; color: #2e7d32;">
+                            R {{ settlement.settled_amount|floatformat:2 }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    <tr style="background-color: #e6ffe6;">
+                        <td colspan="2" style="text-align: right; font-weight: bold;">Total Consumed:</td>
+                        <td style="text-align: right; font-weight: bold; color: #1b5e20;">R {{ recon_record.amount_settled|floatformat:2 }}</td>
+                    </tr>
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
+
+        <!-- ======================================= -->
+        <!-- COLUMN 3: SOURCE TRANSACTION DETAILS    -->
+        <!-- ======================================= -->
+        <div class="column-card">
+            <h3><i class="fas fa-file-invoice-dollar"></i> Source Transaction Details</h3>
+            <table class="data-table" style="width: 100%;">
+                <tr><th>Transaction Date</th><td>{{ bank_record.date|date:"Y-m-d" }}</td></tr>
+                <tr><th>Reference</th><td>{{ bank_record.statement_reference|default:"N/A" }}</td></tr>
+                <tr><th>Description</th><td>{{ bank_record.transaction_description|default:"N/A" }}</td></tr>
+            </table>
+        </div>
+
+    </div>
+</div>
+
+{# AUDIT TRAIL MODAL #}
+<div id="notesModal" class="modal">
+    <div class="modal-content" style="max-width: 650px;">
+        <h3><i class="fas fa-history"></i> Internal Note History: Line {{ recon_record.pk }}</h3>
+        <div style="max-height: 400px; overflow-y: auto; padding: 10px; border: 1px solid #eee; background: white;">
+            {% for note in bank_notes %}
+                <div style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #f1f1f1;">
+                    <div style="font-size: 0.8em; color: #555; margin-bottom: 4px;">
+                        <i class="fas fa-user-circle"></i> <strong>{{ note.created_by }}</strong> 
+                        <span style="margin: 0 5px; color: #ccc;">|</span>
+                        <i class="far fa-clock"></i> {{ note.created_at|date:"Y-m-d H:i" }}
+                        {% if note.category %}
+                            <span style="float: right; font-size: 0.85em; background: #e8f5e9; color: #2e7d32; padding: 1px 6px; border-radius: 10px;">{{ note.category }}</span>
+                        {% endif %}
+                    </div>
+                    <div style="font-size: 0.95em; color: #333; line-height: 1.5; white-space: pre-line;">
+                        {{ note.note_text }}
+                    </div>
+                </div>
+            {% empty %}
+                <p style="text-align: center; color: #888; font-style: italic;">No history recorded for this line.</p>
+            {% endfor %}
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="modal-cancel-button" id="closeNotesBtn" style="background-color: #607d8b;">Close Audit Trail</button>
+        </div>
+    </div>
+</div>
+
+<div id="reviewModal" class="modal">
+    <div class="modal-content">
+        <h3>Update Review Details: Line {{ recon_record.pk }}</h3>
+        
+        <form id="reviewForm" method="POST" action="{% url 'update_bankline_details' recon_id=recon_record.pk %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <input type="hidden" name="source_param" value="{{ source }}">
+
+            <label for="mg_search">Search/Change Company Code:</label>
+            <div class="search-wrapper">
+                <input type="text" id="mg_search" class="search-input-field" placeholder="Type to search company code..." autocomplete="off" value="{{ recon_record.company_code|default:'' }}">
+                <div id="mg_results" class="search-results-container">
+                    <div class="search-item" data-value="">--- Clear Allocation ---</div>
+                    {% for code in company_codes %}
+                        <div class="search-item" data-value="{{ code }}">{{ code }}</div>
+                    {% endfor %}
+                </div>
+                <select id="company_code_select" name="company_code_select" style="display: none;">
+                    <option value="" {% if not recon_record.company_code %}selected{% endif %}>--- Clear Allocation ---</option>
+                    {% for code in company_codes %}
+                        <option value="{{ code }}" {% if recon_record.company_code == code %}selected{% endif %}>{{ code }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <label for="fiscal_date">Assign Fiscal Date:</label>
+            <input type="date" id="fiscal_date" name="fiscal_date" value="{{ recon_record.fiscal_period_date|date:'Y-m-d'|default:'' }}">
+            
+            <label for="review_note">Note Selector:</label>
+            <select id="review_note" name="review_note" required>
+                <option value="" disabled {% if not current_category %}selected{% endif %}>--- Select Note Category ---</option>
+                {% for note in review_notes %}
+                    <option value="{{ note }}" {% if current_category == note %}selected{% endif %}>{{ note }}</option>
+                {% endfor %}
+            </select>
+
+            <label for="review_note_text">Add New Internal Comment:</label>
+            <textarea id="review_note_text" name="review_note_text" placeholder="Type a new update here... (History is preserved automatically)"></textarea>
+
+            <div class="email-section">
+                <div class="toggle-wrapper">
+                    <label class="switch">
+                        <input type="checkbox" name="send_email_toggle" id="send_email_toggle">
+                        <span class="slider"></span>
+                    </label>
+                    <span style="font-weight: bold; color: #1b5e20;">Send Email Notification?</span>
+                </div>
+
+                <div id="email_fields">
+    <label for="recipient_email">Recipient Email:</label>
+    <input type="email" id="recipient_email" name="recipient_email" placeholder="e.g. accounts@client.co.za">
+
+    <label for="cc_email">CC (Optional):</label>
+    <input type="email" id="cc_email" name="cc_email" placeholder="e.g. manager@unity.co.za">
+
+    <label for="email_subject">Email Subject:</label>
+    <input type="text" id="email_subject" name="email_subject" value="[Member Group: {{ recon_record.company_code|default:'N/A' }}] Update regarding Bank Transaction Ref: {{ bank_record.statement_reference }}">
+    
+    <label for="email_body_content">Email Body Content:</label>
+    <textarea id="email_body_content" name="email_body_content" 
+              placeholder="Enter the message for the recipient..." style="min-height: 120px;">Dear Sir/Madam,
+
+Please see the following update regarding Member Group {{ recon_record.company_code|default:'' }}.
+
+Kind Regards,
+{{ request.user.username }}</textarea>
+
+    <label for="email_attachments">Attach Files (Multiple):</label>
+    <input type="file" id="email_attachments" name="email_attachments" multiple style="padding: 10px; background: white; border: 1px dashed #ccc; width: 100%;">
+</div>
+
+            <div class="modal-footer">
+                <button type="button" class="modal-cancel-button" id="closeBtn">Cancel</button>
+                <button type="submit" class="modal-save-button">Save & Post</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // --- Modals ---
+    const reviewModal = document.getElementById('reviewModal');
+    const notesModal = document.getElementById('notesModal');
+    
+    // --- Buttons ---
+    const editBtn = document.getElementById('editBtn');
+    const closeBtn = document.getElementById('closeBtn');
+    const openNotesBtn = document.getElementById('openNotesBtn');
+    const closeNotesBtn = document.getElementById('closeNotesBtn');
+    
+    const form = document.getElementById('reviewForm');
+    
+    // Search elements
+    const searchInput = document.getElementById('mg_search');
+    const resultsContainer = document.getElementById('mg_results');
+    const hiddenSelect = document.getElementById('company_code_select');
+    const searchItems = document.querySelectorAll('.search-item');
+
+    // Email elements
+    const emailToggle = document.getElementById('send_email_toggle');
+    const emailFields = document.getElementById('email_fields');
+
+    // --- Modal Logic ---
+    if (editBtn) editBtn.onclick = () => reviewModal.style.display = "block";
+    closeBtn.onclick = () => reviewModal.style.display = "none";
+    
+    if (openNotesBtn) openNotesBtn.onclick = () => notesModal.style.display = "block";
+    if (closeNotesBtn) closeNotesBtn.onclick = () => notesModal.style.display = "none";
+    
+    window.onclick = (event) => {
+        if (event.target == reviewModal) reviewModal.style.display = "none";
+        if (event.target == notesModal) notesModal.style.display = "none";
+    }
+
+    // Toggle email fields visibility
+    emailToggle.addEventListener('change', function() {
+        emailFields.style.display = this.checked ? "block" : "none";
+        if(this.checked) {
+            document.getElementById('recipient_email').required = true;
+        } else {
+            document.getElementById('recipient_email').required = false;
+        }
+    });
+
+    // --- SEARCH LOGIC ---
+    let currentFocus = -1;
+
+    searchInput.addEventListener('focus', () => {
+        resultsContainer.style.display = "block";
+    });
+
+    searchInput.addEventListener('input', function() {
+        const filter = this.value.toUpperCase();
+        resultsContainer.style.display = "block";
+        let hasResults = false;
+        currentFocus = -1;
+
+        searchItems.forEach(item => {
+            const text = item.textContent || item.innerText;
+            if (text.toUpperCase().indexOf(filter) > -1) {
+                item.style.display = "";
+                hasResults = true;
+            } else {
+                item.style.display = "none";
+            }
+        });
+
+        if (!hasResults) resultsContainer.style.display = "none";
+    });
+
+    searchInput.addEventListener('keydown', function(e) {
+        let items = resultsContainer.querySelectorAll('.search-item:not([style*="display: none"])');
+        if (e.keyCode == 40) { // Down
+            currentFocus++;
+            addActive(items);
+        } else if (e.keyCode == 38) { // Up
+            currentFocus--;
+            addActive(items);
+        } else if (e.keyCode == 13) { // Enter
+            e.preventDefault();
+            if (currentFocus > -1 && items[currentFocus]) {
+                items[currentFocus].click();
+            }
+        }
+    });
+
+    function addActive(items) {
+        if (!items) return false;
+        removeActive(items);
+        if (currentFocus >= items.length) currentFocus = 0;
+        if (currentFocus < 0) currentFocus = (items.length - 1);
+        items[currentFocus].classList.add("selected");
+        items[currentFocus].scrollIntoView({ block: "nearest" });
+    }
+
+    function removeActive(items) {
+        items.forEach(item => item.classList.remove("selected"));
+    }
+
+    searchItems.forEach(item => {
+        item.addEventListener('click', function() {
+            const val = this.getAttribute('data-value');
+            searchInput.value = this.textContent.trim();
+            hiddenSelect.value = val;
+            resultsContainer.style.display = "none";
+        });
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.search-wrapper')) {
+            resultsContainer.style.display = "none";
+        }
+    });
+
+    form.onsubmit = function(e) {
+        e.preventDefault(); 
+        const isConfirmed = confirm("Are you sure you want to POST these changes?");
+        if (isConfirmed) form.submit();
+    }
+});
+</script>
+
+</body>
+</html>

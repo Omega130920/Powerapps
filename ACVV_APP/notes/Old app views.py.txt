@@ -1,0 +1,2131 @@
+## This app belongs to Luanovaneck ##
+## This app is a part of the call_center_project ##
+from django.shortcuts import render, redirect, get_object_or_404
+from .models import TraceResult, ClientList, Call, ClientPayment, PDFRecord, DailyDebtorWorkflow, DebtCollection6, Agent
+from django.http import JsonResponse, Http404
+from django.utils import timezone
+from django.db.models import Q
+from django.db import connection
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth import login
+from django.core.mail import EmailMessage, send_mail
+from django.conf import settings
+from django.core.files.base import ContentFile
+from django.http import HttpResponse
+from datetime import timedelta
+import os
+from django.urls import reverse
+from django.db import transaction
+from decimal import Decimal, InvalidOperation
+from django.db.models import Prefetch
+from django.core.paginator import Paginator, PageNotAnInteger, EmptyPage
+import seaborn as sns
+import matplotlib.pyplot as plt
+import pandas as pd
+import base64
+import io
+from django.conf import settings
+from django.core.mail import EmailMessage, send_mail
+from django.contrib.auth.models import User
+from django.contrib import messages
+from django.template.loader import render_to_string
+import json
+from django.contrib.auth.views import PasswordResetConfirmView
+from django.views.decorators.csrf import csrf_exempt
+# from django.views.decorators.http import require_POST # Removed this to handle GET requests gracefully
+from django.db.models import Count, Sum, F, FloatField
+from django.contrib.auth.models import User
+from django.db.models.functions import ExtractMonth, ExtractYear
+from googleapiclient.errors import HttpError
+# This is the correct way to import and use the datetime class directly.
+from datetime import datetime
+
+# Correct usage:
+current_time = datetime.now()
+
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+import os
+import pickle
+import mimetypes
+
+import matplotlib
+matplotlib.use('Agg')
+
+# In your view function for saving ClientPayment, you will need to find the line
+# that is causing the error and correct it. For example, if you had:
+# `ClientPayment.objects.create(payment_date=datetime.datetime.datetime.now())`
+# You would change it to:
+# `ClientPayment.objects.create(payment_date=datetime.now())
+
+def home(request):
+    print("Home view called!")
+    return render(request, 'Futura/home.html')
+
+def trace_results(request):
+    print("trace_results view called!")
+    results = TraceResult.objects.all()
+    return render(request, 'Futura/trace_results.html', {'results': results})
+    class Meta:
+        managed = False
+        db_table = 'Trace_result'
+@login_required
+def agent_overview(request):
+    if request.method == 'POST':
+        logout(request)
+        return redirect('login')
+
+    username = request.user.username
+    return render(request, 'Futura/agent_overview.html', {'username': username})
+
+
+@login_required
+def client_details(request):
+    client_details_data = []
+    arrangements = []
+    calls = []
+    debt_records = []  # To store individual debt records
+    specific_debt_record = None # To store a specific debt record if requested
+    
+    # Initialize an empty list for payments
+    client_payments = []
+
+    if request.method == 'GET':
+        id_number = request.GET.get('id_number')
+        debt_no = request.GET.get('debt_no') # Get the specific debt number if provided
+
+        if id_number:
+            try:
+                clients = ClientList.objects.filter(ID_Number=id_number)
+                if clients.exists():
+                    client = clients.first()
+
+                    trace_results = TraceResult.objects.filter(ID_Number=client.ID_Number)
+                    all_contact_numbers = []
+                    for result in trace_results:
+                        contact_fields = [
+                            result.cell_number, result.Home1, result.Work1, result.Cell1,
+                            result.Home2, result.Work2, result.Cell2, result.Home3,
+                            result.Work3, result.Cell3, result.Home4, result.Work4,
+                            result.Cell4, result.Home5, result.Work5, result.Cell5,
+                            result.Home6, result.Work6, result.Cell6, result.Home7,
+                            result.Work7, result.Cell7, result.Home8, result.Work8,
+                            result.Cell8, result.Home9, result.Work9, result.Cell9,
+                            result.Home10, result.Work10, result.Cell10, result.Home11,
+                            result.Work11, result.Cell11, result.Home12, result.Work12,
+                            result.Cell12, result.Home13, result.Work13, result.Cell13,
+                            result.Home14, result.Work14, result.Cell14, result.Home15,
+                            result.Work15, result.Cell15,
+                            result.D_O_1, result.D_O_2, result.D_O_3, result.D_O_4, result.D_O_5,
+                            result.D_O_6, result.D_O_7, result.D_O_8, result.D_O_9, result.D_O_10,
+                            result.D_O_11, result.D_O_12, result.D_O_13, result.D_O_14, result.D_O_15,
+                        ]
+                        all_contact_numbers.extend([num for num in contact_fields if num and num != "NULL" and isinstance(num, str)])
+                    contact_details = ", ".join(all_contact_numbers)
+                    arr_exists = Call.objects.filter(id_number=id_number, call_result='ARR').exists()
+
+                    try:
+                        payment = ClientPayment.objects.filter(id_number=id_number).latest('created_at')
+                        last_payment_date = payment.date_of_statement
+                        last_payment_amount = payment.amount_deposited
+                    except ClientPayment.DoesNotExist:
+                        last_payment_date = None
+                        last_payment_amount = None
+
+                    # Fetch all debt records for this ID Number
+                    with connection.cursor() as cursor:
+                        cursor.execute(
+                            "SELECT `[No.]`, `TOTAL` FROM debt_collection_6 WHERE `ID NUMBER OF DEBTOR` = %s",
+                            [id_number])
+                        all_client_debt_records = cursor.fetchall()
+                        for record in all_client_debt_records:
+                            # Corrected Line: Remove the comma before converting to float
+                            debt_records.append({'debt_no': record[0], 'total': float(record[1].replace(',', ''))}) 
+
+                    # Calculate total debt by summing the individual records
+                    total_debt = sum(record['total'] for record in debt_records if isinstance(record['total'], (int, float)))
+                    
+                    # Get all payments for the client, not just the latest
+                    client_payments = ClientPayment.objects.filter(id_number=id_number)
+                    total_paid = sum(p.amount_deposited for p in client_payments)
+
+                    # Calculate outstanding balance - FIXED LINE
+                    outstanding_balance = Decimal(str(total_debt)) - total_paid
+
+                    client_info = {
+                        'client': client,
+                        'contact_details': contact_details,
+                        'total_debt': total_debt,  # Use the calculated total
+                        'arr_exists': arr_exists,
+                        'last_payment_date': last_payment_date,
+                        'last_payment_amount': last_payment_amount,
+                        'debt_records': debt_records, # Pass the list of debt records
+                        'outstanding_balance': outstanding_balance, # Pass the new outstanding balance
+                    }
+
+                    try:
+                        call = Call.objects.filter(id_number=id_number).latest('start_time')
+                        client_info['number_of_months'] = call.number_of_months
+                        client_info['installments'] = call.installments
+                        client_info['start_month'] = call.start_month
+                        client_info['day_of_month'] = call.day_of_month
+                    except Call.DoesNotExist:
+                        client_info['number_of_months'] = "N/A"
+                        client_info['installments'] = "N/A"
+                        client_info['start_month'] = "N/A"
+                        client_info['day_of_month'] = "N/A"
+
+                    client_details_data.append(client_info)
+
+                    # Fetch arrangements and calls
+                    arrangements = Call.objects.filter(id_number=id_number, call_result='ARR')
+                    calls = Call.objects.filter(id_number=id_number)
+                    for arr in arrangements:
+                        arr.first_name = client.FIRST_NAME
+                        arr.surname = client.SURNAME
+
+                    # If a specific debt_no is requested, find that record
+                    if debt_no:
+                        specific_debt_record = next((dr for dr in debt_records if str(dr['debt_no']) == debt_no), None)
+
+                    context = {
+                        'client_details_data': client_details_data,
+                        'arrangements': arrangements,
+                        'calls': calls,
+                        'debt_records': debt_records,
+                        'specific_debt_record': specific_debt_record,
+                        # Add the client payments queryset to the context
+                        'client_payments': client_payments,
+                    }
+                    return render(request, 'Futura/client_details.html', context)
+                else:
+                    return render(request, 'Futura/client_details.html', {'client_details_data': [], 'arrangements': [], 'calls': [], 'debt_records': [], 'error': 'Client not found', 'client_payments': []})
+
+            except TraceResult.DoesNotExist:
+                clients = ClientList.objects.filter(ID_Number=id_number)
+                client = clients.first() if clients.exists() else None
+                client_details_data = [{'client': client, 'contact_details': "N/A",
+                                         'total_debt': "N/A",
+                                         'arr_exists': False, 'last_payment_date': None,
+                                         'last_payment_amount': None, 'debt_records': []}] if client else []
+                arrangements = []
+                calls = []
+                debt_records = []
+                context = {
+                    'client_details_data': client_details_data,
+                    'arrangements': arrangements,
+                    'calls': calls,
+                    'debt_records': debt_records,
+                    'specific_debt_record': None,
+                    # Ensure client_payments is in the context even if no trace result exists
+                    'client_payments': [],
+                }
+                return render(request, 'Futura/client_details.html', context)
+
+        else: # When id_number is NOT provided
+            clients = ClientList.objects.all()
+            client_details_data = []
+            arrangements = []
+            calls = []
+            all_debt_records = {} # Dictionary to store debt records per client
+            for client in clients:
+                trace_results = TraceResult.objects.filter(ID_Number=client.ID_Number)
+                all_contact_numbers = [] # Your contact fields here
+                for result in trace_results:
+                    contact_fields = [
+                        result.cell_number, result.Home1, result.Work1, result.Cell1,
+                        result.Home2, result.Work2, result.Cell2, result.Home3,
+                        result.Work3, result.Cell3, result.Home4, result.Work4,
+                        result.Cell4, result.Home5, result.Work5, result.Cell5,
+                        result.Home6, result.Work6, result.Cell6, result.Home7,
+                        result.Work7, result.Cell7, result.Home8, result.Work8,
+                        result.Cell8, result.Home9, result.Work9, result.Cell9,
+                        result.Home10, result.Work10, result.Cell10, result.Home11,
+                        result.Work11, result.Cell11, result.Home12, result.Work12,
+                        result.Cell12, result.Home13, result.Work13, result.Cell13,
+                        result.Home14, result.Work14, result.Cell14, result.Home15,
+                        result.Work15, result.Cell15,
+                        result.D_O_1, result.D_O_2, result.D_O_3, result.D_O_4, result.D_O_5,
+                        result.D_O_6, result.D_O_7, result.D_O_8, result.D_O_9, result.D_O_10,
+                        result.D_O_11, result.D_O_12, result.D_O_13, result.D_O_14, result.D_O_15,
+                    ]
+                    all_contact_numbers.extend([num for num in contact_fields if num and num != "NULL" and isinstance(num, str)])
+                contact_details = ", ".join(all_contact_numbers)
+
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT `[No.]`, `TOTAL` FROM debt_collection_6 WHERE `ID NUMBER OF DEBTOR` = %s",
+                        [client.ID_Number])
+                    all_client_debt_records = cursor.fetchall()
+                    client_debt_records = []
+                    for record in all_client_debt_records:
+                        # Corrected Line: Remove the comma before converting to float
+                        client_debt_records.append({'debt_no': record[0], 'total': float(record[1].replace(',', ''))})
+                    total_debt = sum(record['total'] for record in client_debt_records if isinstance(record['total'], (int, float)))
+                    all_debt_records[client.ID_Number] = client_debt_records
+
+                try:
+                    payment = ClientPayment.objects.filter(id_number=client.ID_Number).latest('created_at')
+                    last_payment_date = payment.date_of_statement
+                    last_payment_amount = payment.amount_deposited
+                except ClientPayment.DoesNotExist:
+                    last_payment_date = None
+                    last_payment_amount = None
+                
+                # Get total payments for the client
+                payments = ClientPayment.objects.filter(id_number=client.ID_Number)
+                total_paid = sum(p.amount_deposited for p in payments)
+                
+                # Calculate outstanding balance - FIXED LINE
+                outstanding_balance = Decimal(str(total_debt)) - total_paid
+
+                client_info = {
+                    'client': client,
+                    'contact_details': contact_details,
+                    'total_debt': total_debt,
+                    'arr_exists': Call.objects.filter(id_number=client.ID_Number, call_result='ARR').exists(),
+                    'last_payment_date': last_payment_date,
+                    'last_payment_amount': last_payment_amount,
+                    'debt_records': all_debt_records.get(client.ID_Number, []),
+                    'outstanding_balance': outstanding_balance,
+                }
+                try:
+                    call = Call.objects.filter(id_number=client.ID_Number).latest('start_time')
+                    client_info['number_of_months'] = call.number_of_months
+                    client_info['installments'] = call.installments
+                    client_info['start_month'] = call.start_month
+                    client_info['day_of_month'] = call.day_of_month
+                except Call.DoesNotExist:
+                    client_info['number_of_months'] = "N/A"
+                    client_info['installments'] = "N/A"
+                    client_info['start_month'] = "N/A"
+                    client_info['day_of_month'] = "N/A"
+
+                client_details_data.append(client_info)
+
+            context = {
+                'client_details_data': client_details_data,
+                'arrangements': arrangements,
+                'calls': calls,
+                'debt_records': debt_records,
+                'specific_debt_record': None,
+            }
+            return render(request, 'Futura/client_information.html', context)
+
+    else:
+        context = {
+            'client_details_data': client_details_data,
+            'arrangements': arrangements,
+            'calls': calls,
+            'debt_records': debt_records,
+            'specific_debt_record': None,
+            'client_payments': client_payments,
+        }
+        return render(request, 'Futura/client_details.html', context)
+
+@login_required
+def client_list(request):
+    clients = ClientList.objects.all()
+    client_data = []
+
+    search_id = request.GET.get('search_id', '').strip()
+
+    print(f"Received search_id: '{search_id}'")
+
+    if search_id:
+        clients = clients.filter(ID_Number__icontains=search_id)
+
+    print(f"Number of clients after filtering: {clients.count()}")
+
+    for client in clients:
+        if search_id:
+            trace_results = TraceResult.objects.filter(ID_Number=search_id)
+        else:
+            trace_results = TraceResult.objects.filter(ID_Number=client.ID_Number)
+
+        print(f"Number of trace_results for {client.ID_Number}: {trace_results.count()}")
+
+        phone_numbers = []
+        called_numbers = []
+
+        for result in trace_results:
+            contact_fields = [
+                result.cell_number, result.Home1, result.Work1, result.Cell1,
+                result.Home2, result.Work2, result.Cell2, result.Home3,
+                result.Work3, result.Cell3, result.Home4, result.Work4,
+                result.Cell4, result.Home5, result.Work5, result.Cell5,
+                result.Home6, result.Work6, result.Cell6, result.Home7,
+                result.Work7, result.Cell7, result.Home8, result.Work8,
+                result.Cell8, result.Home9, result.Work9, result.Cell9,
+                result.Home10, result.Work10, result.Cell10, result.Home11,
+                result.Work11, result.Cell11, result.Home12, result.Work12,
+                result.Cell12, result.Home13, result.Work13, result.Cell13,
+                result.Home14, result.Work14, result.Cell14, result.Home15,
+                result.Work15, result.Cell15,
+                result.D_O_1, result.D_O_2, result.D_O_3, result.D_O_4, result.D_O_5,
+                result.D_O_6, result.D_O_7, result.D_O_8, result.D_O_9, result.D_O_10,
+                result.D_O_11, result.D_O_12, result.D_O_13, result.D_O_14, result.D_O_15,
+            ]
+            phone_numbers.extend([num for num in contact_fields if num and num != "NULL" and num])
+
+        for number in phone_numbers:
+            if search_id:
+                calls = Call.objects.filter(id_number=search_id, phone_number=number)
+            else:
+                calls = Call.objects.filter(id_number=client.ID_Number, phone_number=number)
+
+            print(f"Number of calls for {client.ID_Number} and {number}: {calls.count()}")
+
+            if calls.exists():
+                called_numbers.append(number)
+
+        client_data.append({
+            'client': client,
+            'total_numbers': len(phone_numbers),
+            'called_count': len(called_numbers),
+            'outstanding_numbers': len(phone_numbers) - len(called_numbers),
+        })
+
+    return render(request, 'Futura/client_list.html', {'client_data': client_data})
+
+def arrangements(request):
+    arr_calls = Call.objects.filter(call_result='ARR')  # Only ARR calls
+    arrangements_data = []
+
+    for call in arr_calls:
+        try:
+            client = ClientList.objects.get(ID_Number=call.id_number)
+            arrangements_data.append({
+                'id_number': call.id_number,
+                'first_name': client.FIRST_NAME,
+                'surname': client.SURNAME,
+                'phone_number': call.phone_number,
+                'call_result': call.call_result,
+                'notes': call.notes,
+            })
+        except ClientList.DoesNotExist:
+            arrangements_data.append({
+                'id_number': call.id_number,
+                'first_name': 'Client Not Found',
+                'surname': 'Client Not Found',
+                'phone_number': call.phone_number,
+                'call_result': call.call_result,
+                'notes': call.notes,
+            })
+
+    return render(request, 'Futura/arrangements.html', {'arrangements': arrangements_data})
+
+@login_required
+def client_information(request):
+    records_per_page = 36
+    page = request.GET.get('page')
+    search_id = request.GET.get('search_id')
+    search_first_name = request.GET.get('search_first_name')
+    search_surname = request.GET.get('search_surname')
+
+    with connection.cursor() as cursor:
+        cursor.execute("SELECT `[No.]`, `ID NUMBER OF DEBTOR`, TOTAL FROM debt_collection_6")
+        all_debt_records = cursor.fetchall()
+
+        debtor_ids = [record[1] for record in all_debt_records]
+
+        # Fetch all relevant clients in one go
+        clients = ClientList.objects.filter(ID_Number__in=debtor_ids)
+        client_dict = {client.ID_Number: client for client in clients}
+
+        filtered_debt_records = []
+        for record in all_debt_records:
+            debt_no, id_number, total = record
+            client = client_dict.get(id_number)
+            if client:
+                include = True
+                if search_id and search_id.lower() not in str(client.ID_Number).lower():
+                    include = False
+                if search_first_name and search_first_name.lower() not in str(client.FIRST_NAME).lower():
+                    include = False
+                if search_surname and search_surname.lower() not in str(client.SURNAME).lower():
+                    include = False
+                if include:
+                    filtered_debt_records.append({
+                        'debt_no': debt_no,
+                        'id_number': id_number,
+                        'total_debt': total,
+                        'client': client,
+                    })
+
+        paginator = Paginator(filtered_debt_records, records_per_page)
+
+        try:
+            debt_records_page = paginator.page(page)
+        except PageNotAnInteger:
+            debt_records_page = paginator.page(1)
+        except EmptyPage:
+            debt_records_page = paginator.page(paginator.num_pages)
+
+        context = {
+            'debt_records_page': debt_records_page,
+        }
+        return render(request, 'Futura/client_information.html', context)
+
+@login_required
+def create_call(request):
+    current_datetime = datetime.now().isoformat()
+    if request.method == 'POST':
+        try:
+            agent = request.user.username
+            id_number = request.POST.get('id_number')
+            phone_number = request.POST.get('phone_number')
+            start_time_str = request.POST.get('start_time')
+            end_time_str = request.POST.get('end_time')
+            direction = request.POST.get('direction')
+            outcome = request.POST.get('outcome')
+            call_result = request.POST.get('call_result')
+            notes = request.POST.get('notes')
+            recipient_email = request.POST.get('recipient_email')
+            number_of_months = request.POST.get('number_of_months')
+            installments = request.POST.get('installments')
+            start_month = request.POST.get('start_month')
+            day_of_month = request.POST.get('day_of_month')
+
+            start_time = datetime.fromisoformat(start_time_str)
+            end_time = datetime.fromisoformat(end_time_str)
+
+            # Retrieve client details for the email subject and body
+            client = get_object_or_404(ClientList, ID_Number=id_number)
+            
+            # Retrieve TOTAL from DebtCollection6 using the correct attribute name 'total_debt'
+            debt_record = get_object_or_404(DebtCollection6, id_number=id_number)
+
+            # Define fixed email subject and body with the correct attribute
+            subject = "Important Account Reminder"
+            body = f"Dear {client.TITLE} {client.SURNAME} {client.FIRST_NAME}, This is a reminder regarding your outstanding account balance of R{debt_record.total_debt}. Please contact us urgently. Thank you, Thipa Attorneys."
+
+            attachment_name = None
+            if 'attachment' in request.FILES and request.FILES['attachment']:
+                attachment = request.FILES['attachment']
+                email = EmailMessage(subject, body, settings.EMAIL_HOST_USER, [recipient_email])
+                email.attach(attachment.name, attachment.read(), attachment.content_type)
+                email.send()
+                attachment_name = attachment.name
+            else:
+                send_mail(subject, body, settings.EMAIL_HOST_USER, [recipient_email], fail_silently=False)
+
+            call = Call(
+                agent=agent,
+                id_number=id_number,
+                phone_number=phone_number,
+                start_time=start_time,
+                end_time=end_time,
+                direction=direction,
+                outcome=outcome,
+                call_result=call_result,
+                notes=notes,
+                recipient_email=recipient_email,
+                attachment_name=attachment_name,
+                number_of_months=number_of_months,
+                installments=installments,
+                start_month=start_month,
+                day_of_month=day_of_month,
+            )
+            call.save()
+            return redirect('agent_overview')
+        except Exception as e:
+            print(f"Error processing form submission: {e}")
+            return HttpResponse(f"Error: {e}")
+
+    return render(request, 'Futura/create_call_page.html', {'current_datetime': current_datetime})
+
+def get_client_details(request):
+    id_number = request.GET.get('id_number')
+    try:
+        client = ClientList.objects.get(ID_Number=id_number)
+        return JsonResponse({'first_name': client.FIRST_NAME, 'surname': client.SURNAME})
+    except ClientList.DoesNotExist:
+        return JsonResponse({'first_name': '', 'surname': ''})
+    except TraceResult.DoesNotExist:
+        return [{'client': client, 'contact_details': "N/A", 'last_cred': "N/A", 'total_debt': "N/A", 'arr_exists': False}]
+
+def get_phone_numbers(request):
+    id_number = request.GET.get('id_number')
+    try:
+        trace_results = TraceResult.objects.filter(ID_Number=id_number)
+        phone_numbers = []
+        for result in trace_results:
+            contact_fields = [
+                result.cell_number, result.Home1, result.Work1, result.Cell1,
+                result.Home2, result.Work2, result.Cell2, result.Home3,
+                result.Work3, result.Cell3, result.Home4, result.Work4,
+                result.Cell4, result.Home5, result.Work5, result.Cell5,
+                result.Home6, result.Work6, result.Cell6, result.Home7,
+                result.Work7, result.Cell7, result.Home8, result.Work8,
+                result.Cell8, result.Home9, result.Work9, result.Cell9,
+                result.Home10, result.Work10, result.Cell10, result.Home11,
+                result.Work11, result.Cell11, result.Home12, result.Work12,
+                result.Cell12, result.Home13, result.Work13, result.Cell13,
+                result.Home14, result.Work14, result.Cell14, result.Home15,
+                result.Work15, result.Cell15,
+                result.D_O_1, result.D_O_2, result.D_O_3, result.D_O_4, result.D_O_5,
+                result.D_O_6, result.D_O_7, result.D_O_8, result.D_O_9, result.D_O_10,
+                result.D_O_11, result.D_O_12, result.D_O_13, result.D_O_14, result.D_O_15,
+            ]
+            phone_numbers.extend([num for num in contact_fields if num and num != "NULL"])
+        return JsonResponse({'phone_numbers': phone_numbers})
+    except TraceResult.DoesNotExist:
+        return JsonResponse({'phone_numbers': []})
+
+def extract_phone_numbers(trace_results):
+    phone_numbers = set()
+    for result in trace_results:
+        contact_fields = [
+            result.cell_number, result.Home1, result.Work1, result.Cell1,
+            result.Home2, result.Work2, result.Cell2, result.Home3,
+            result.Work3, result.Cell3, result.Home4, result.Work4,
+            result.Cell4, result.Home5, result.Work5, result.Cell5,
+            result.Home6, result.Work6, result.Cell6, result.Home7,
+            result.Work7, result.Cell7, result.Home8, result.Work8,
+            result.Cell8, result.Home9, result.Work9, result.Cell9,
+            result.Home10, result.Work10, result.Cell10, result.Home11,
+            result.Work11, result.Cell11, result.Home12, result.Work12,
+            result.Cell12, result.Home13, result.Work13, result.Cell13,
+            result.Home14, result.Work14, result.Cell14, result.Home15,
+            result.Work15, result.Cell15,
+            result.D_O_1, result.D_O_2, result.D_O_3, result.D_O_4, result.D_O_5,
+            result.D_O_6, result.D_O_7, result.D_O_8, result.D_O_9, result.D_O_10,
+            result.D_O_11, result.D_O_12, result.D_O_13, result.D_O_14, result.D_O_15,
+        ]
+        phone_numbers.update(num for num in contact_fields if num and num != "NULL")
+    return list(phone_numbers)
+
+def client_list(request):
+    clients = ClientList.objects.all()
+    all_trace_results = TraceResult.objects.all()
+    all_calls = Call.objects.all()
+    client_data = []
+    search_id = request.GET.get('search_id', '').strip()
+
+    if search_id:
+        clients = clients.filter(ID_Number__icontains=search_id)
+        trace_results = [result for result in all_trace_results if search_id in result.ID_Number]
+    else:
+        trace_results = all_trace_results
+
+    for client in clients:
+        client_trace_results = [result for result in trace_results if result.ID_Number == client.ID_Number]
+        phone_numbers = set()
+        for result in client_trace_results:
+            contact_fields = [
+                result.cell_number, result.Home1, result.Work1, result.Cell1,
+                result.Home2, result.Work2, result.Cell2, result.Home3,
+                result.Work3, result.Cell3, result.Home4, result.Work4,
+                result.Cell4, result.Home5, result.Work5, result.Cell5,
+                result.Home6, result.Work6, result.Cell6, result.Home7,
+                result.Work7, result.Cell7, result.Home8, result.Work8,
+                result.Cell8, result.Home9, result.Work9, result.Cell9,
+                result.Home10, result.Work10, result.Cell10, result.Home11,
+                result.Work11, result.Cell11, result.Home12, result.Work12,
+                result.Cell12, result.Home13, result.Work13, result.Cell13,
+                result.Home14, result.Work14, result.Cell14, result.Home15,
+                result.Work15, result.Cell15,
+                result.D_O_1, result.D_O_2, result.D_O_3, result.D_O_4, result.D_O_5,
+                result.D_O_6, result.D_O_7, result.D_O_8, result.D_O_9, result.D_O_10,
+                result.D_O_11, result.D_O_12, result.D_O_13, result.D_O_14, result.D_O_15,
+            ]
+            phone_numbers.update(num for num in contact_fields if num and num != "NULL" and num)
+        phone_numbers = list(phone_numbers)
+
+        called_numbers = [call.phone_number for call in all_calls if call.id_number == client.ID_Number and call.phone_number in phone_numbers]
+        called_numbers = list(set(called_numbers))
+
+        client_data.append({
+            'client': client,
+            'total_numbers': len(phone_numbers),
+            'called_count': len(called_numbers),
+            'outstanding_numbers': len(phone_numbers) - len(called_numbers),
+        })
+
+    return render(request, 'Futura/client_list.html', {'client_data': client_data, 'search_id':search_id})
+
+def viewcalled(request, id_number):
+    called_numbers = Call.objects.filter(id_number=id_number).values_list('phone_number', flat=True).distinct()
+    return render(request, 'Futura/viewcalled.html', {'id_number': id_number, 'called_numbers': called_numbers})
+
+def login_view(request):
+    if request.method == 'POST':
+        username = request.POST.get('username')
+        password = request.POST.get('password')
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            return redirect('agent_overview')
+        else:
+            return render(request, 'Futura/login.html', {'error_message': 'Invalid username or password'})
+    return render(request, 'Futura/login.html')
+
+@login_required
+def agent_overview(request):
+    # ... your agent_overview logic ...
+    return render(request, 'Futura/agent_overview.html')
+
+@login_required
+def call_list(request):
+    agent_username = request.user.username  # Get the logged-in agent's username
+    calls = Call.objects.filter(agent=agent_username)  # Filter calls by agent
+
+    return render(request, 'Futura/call_list.html', {'calls': calls})
+
+def client_list_for_client(request, id_number):
+    client = get_object_or_404(ClientList, ID_Number=id_number)
+    client_data = []
+
+    trace_results = TraceResult.objects.filter(ID_Number=client.ID_Number)
+
+    phone_numbers = []
+    called_numbers = []
+
+    for result in trace_results:
+        contact_fields = [
+            result.cell_number, result.Home1, result.Work1, result.Cell1,
+            result.Home2, result.Work2, result.Cell2, result.Home3,
+            result.Work3, result.Cell3, result.Home4, result.Work4,
+            result.Cell4, result.Home5, result.Work5, result.Cell5,
+            result.Home6, result.Work6, result.Cell6, result.Home7,
+            result.Work7, result.Cell7, result.Home8, result.Work8,
+            result.Cell8, result.Home9, result.Work9, result.Cell9,
+            result.Home10, result.Work10, result.Cell10, result.Home11,
+            result.Work11, result.Cell11, result.Home12, result.Work12,
+            result.Cell12, result.Home13, result.Work13, result.Cell13,
+            result.Home14, result.Work14, result.Cell14, result.Home15,
+            result.Work15, result.Cell15,
+            result.D_O_1, result.D_O_2, result.D_O_3, result.D_O_4, result.D_O_5,
+            result.D_O_6, result.D_O_7, result.D_O_8, result.D_O_9, result.D_O_10,
+            result.D_O_11, result.D_O_12, result.D_O_13, result.D_O_14, result.D_O_15,
+        ]
+        phone_numbers.extend([num for num in contact_fields if num and num != "NULL" and num])
+
+    for number in phone_numbers:
+        calls = Call.objects.filter(id_number=client.ID_Number, phone_number=number)
+
+        if calls.exists():
+            called_numbers.append(number)
+
+    client_data.append({
+        'client': client,
+        'total_numbers': len(phone_numbers),
+        'called_count': len(called_numbers),
+        'outstanding_numbers': len(phone_numbers) - len(called_numbers),
+    })
+
+    return render(request, 'Futura/client_list_page.html', {'client_data': client_data, 'id_number': id_number})
+
+def arrangements_for_client(request, id_number):
+    arr_calls = Call.objects.filter(call_result='ARR', id_number=id_number)
+    arrangements_data = []
+
+    for call in arr_calls:
+        try:
+            client = ClientList.objects.get(ID_Number=call.id_number)
+            arrangements_data.append({
+                'id_number': call.id_number,
+                'first_name': client.FIRST_NAME,
+                'surname': client.SURNAME,
+                'phone_number': call.phone_number,
+                'call_result': call.call_result,
+                'notes': call.notes,
+            })
+        except ClientList.DoesNotExist:
+            arrangements_data.append({
+                'id_number': call.id_number,
+                'first_name': 'Client Not Found',
+                'surname': 'Client Not Found',
+                'phone_number': call.phone_number,
+                'call_result': call.call_result,
+                'notes': call.notes,
+            })
+
+    return render(request, 'Futura/arrangements_page.html', {'arrangements': arrangements_data, 'id_number': id_number})
+
+@login_required
+def recon_view(request):
+    """
+    Handles PDF uploads, client payment submissions, and displays reconciliation data.
+    
+    This view has been updated to use Django's messages framework for user feedback
+    and to optimize data fetching and processing for improved performance.
+    """
+    if request.method == 'POST':
+        # Check if the request is specifically for PDF upload
+        if 'pdf_file' in request.FILES and request.POST.get('id_number'):
+            id_number = request.POST.get('id_number')
+            pdf_file = request.FILES['pdf_file']
+            
+            try:
+                # The .get_or_create() method is a useful Django shortcut that attempts
+                # to get an object with the given parameters, creating one if it doesn't exist.
+                # This prevents duplicate records if a user re-uploads the same PDF.
+                pdf_record, created = PDFRecord.objects.get_or_create(
+                    id_number=id_number
+                )
+                pdf_record.pdf_file.save(pdf_file.name, pdf_file)
+                pdf_record.save()
+
+                if created:
+                    print(f"Successfully created and saved new PDF for ID: {id_number}")
+                    messages.success(request, f"PDF for ID: {id_number} was uploaded successfully.")
+                else:
+                    print(f"Successfully updated PDF for ID: {id_number}")
+                    messages.success(request, f"PDF for ID: {id_number} was updated successfully.")
+            except Exception as e:
+                print(f"Error saving PDF record: {e}")
+                messages.error(request, f"Error saving PDF record: {e}")
+            
+            return redirect('recon')
+        
+        # Check if the request is specifically for client payment
+        elif 'debtor_no' in request.POST:
+            id_number = request.POST.get('debtor_no')
+            amount_deposited = request.POST.get('amountDeposited')
+            statement_reference = request.POST.get('statementReference')
+            date_of_statement = request.POST.get('dateOfStatement')
+
+            try:
+                if amount_deposited:
+                    amount_deposited = Decimal(amount_deposited)
+                else:
+                    amount_deposited = Decimal('0.00')
+
+                if date_of_statement:
+                    date_of_statement = datetime.strptime(date_of_statement, "%Y-%m-%d").date()
+                else:
+                    date_of_statement = None
+                
+                # Create and save the new ClientPayment record.
+                ClientPayment.objects.create(
+                    id_number=id_number,
+                    amount_deposited=amount_deposited,
+                    statement_reference=statement_reference,
+                    date_of_statement=date_of_statement
+                )
+                print("Saving ClientPayment:", {
+                    'id_number': id_number,
+                    'amount_deposited': amount_deposited,
+                    'statement_reference': statement_reference,
+                    'date_of_statement': date_of_statement,
+                })
+                messages.success(request, f"Payment for debtor {id_number} was saved successfully.")
+            except InvalidOperation:
+                messages.error(request, "Error: The amount deposited is not a valid number.")
+            except ValueError:
+                messages.error(request, "Error: The date of statement is not in a valid format.")
+            except Exception as e:
+                print("Error saving ClientPayment:", e)
+                messages.error(request, f"Error saving client payment: {e}")
+
+            return redirect('recon')
+
+
+    # --- DATA FETCHING & PROCESSING FOR DISPLAY ---
+    clients = ClientList.objects.all()
+    client_ids = [client.ID_Number for client in clients]
+    
+    # Pre-fetch all TraceResult and ClientPayment data with a single query each.
+    all_trace_results = TraceResult.objects.filter(ID_Number__in=client_ids)
+    payments_data = ClientPayment.objects.filter(id_number__in=client_ids).values(
+        'id_number').annotate(total_paid=Sum('amount_deposited'))
+    
+    # Fetch all PDF records and create a lookup dictionary
+    pdf_records = PDFRecord.objects.filter(id_number__in=client_ids)
+    pdf_dict = {record.id_number: record for record in pdf_records}
+
+    # Create efficient dictionaries for O(1) lookups.
+    trace_results_dict = {}
+    for result in all_trace_results:
+        if result.ID_Number not in trace_results_dict:
+            trace_results_dict[result.ID_Number] = []
+        trace_results_dict[result.ID_Number].append(result)
+
+    payments_dict = {item['id_number']: item['total_paid'] for item in payments_data}
+    
+    # Fetch all debt records for all clients at once using raw SQL for efficiency.
+    all_debt_records = {}
+    if client_ids:
+        # Use a parameterized query to prevent SQL injection.
+        with connection.cursor() as cursor:
+            # We convert the list to a tuple for the IN clause
+            # The %s placeholder expects a single argument, which should be a sequence.
+            placeholders = ', '.join(['%s'] * len(client_ids))
+            query = f"SELECT `ID NUMBER OF DEBTOR`, `[DEBT NO]`, `TOTAL` FROM debt_collection_6 WHERE `ID NUMBER OF DEBTOR` IN ({placeholders})"
+            cursor.execute(query, tuple(client_ids))
+            for row in cursor.fetchall():
+                id_number, debt_no, total = row
+                if id_number not in all_debt_records:
+                    all_debt_records[id_number] = []
+                all_debt_records[id_number].append({'debt_no': debt_no, 'total': float(total)})
+    
+    # Calculate the total debt for each client by summing their individual debts.
+    debt_totals = {id_num: sum(d['total'] for d in records) for id_num, records in all_debt_records.items()}
+
+    clients_data = []
+    for client in clients:
+        # Use the pre-built dictionary for an efficient lookup.
+        trace_results = trace_results_dict.get(client.ID_Number, [])
+        contact_numbers = set()
+        for result in trace_results:
+            # A more concise way to get all the contact numbers from the object.
+            contact_fields = [
+                result.cell_number, result.Home1, result.Work1, result.Cell1,
+                result.Home2, result.Work2, result.Cell2, result.Home3,
+                result.Work3, result.Cell3, result.Home4, result.Work4,
+                result.Cell4, result.Home5, result.Work5, result.Cell5,
+                result.Home6, result.Work6, result.Cell6, result.Home7,
+                result.Work7, result.Cell7, result.Home8, result.Work8,
+                result.Cell8, result.Home9, result.Work9, result.Cell9,
+                result.Home10, result.Work10, result.Cell10, result.Home11,
+                result.Work11, result.Cell11, result.Home12, result.Work12,
+                result.Cell12, result.Home13, result.Work13, result.Cell13,
+                result.Home14, result.Work14, result.Cell14, result.Home15,
+                result.Work15, result.Cell15,
+                result.D_O_1, result.D_O_2, result.D_O_3, result.D_O_4, result.D_O_5,
+                result.D_O_6, result.D_O_7, result.D_O_8, result.D_O_9, result.D_O_10,
+                result.D_O_11, result.D_O_12, result.D_O_13, result.D_O_14, result.D_O_15,
+            ]
+            contact_numbers.update(num for num in contact_fields if num and num != "NULL")
+        contact_details = ", ".join(contact_numbers)
+        
+        # Get the total debt and total payments from the pre-calculated dictionaries.
+        total_debt = debt_totals.get(client.ID_Number, 0)
+        total_paid = payments_dict.get(client.ID_Number, Decimal('0'))
+        
+        # Ensure total_debt is a Decimal before performing subtraction
+        try:
+            total_debt_decimal = Decimal(str(total_debt))
+        except (InvalidOperation, TypeError):
+            total_debt_decimal = Decimal('0.00')
+
+        outstanding_balance = total_debt_decimal - total_paid
+
+        # Get the PDF URL if it exists
+        pdf_record = pdf_dict.get(client.ID_Number)
+        pdf_url = pdf_record.pdf_file.url if pdf_record else None
+
+        clients_data.append({
+            'client': client,
+            'contact_details': contact_details,
+            'total_debt': total_debt,
+            'total_paid': total_paid,
+            'outstanding_balance': outstanding_balance,
+            'bankline_url': f"YOUR_BANKLINE_URL_{client.ID_Number}",
+            'debt_records': all_debt_records.get(client.ID_Number, []),
+            'pdf_url': pdf_url, # Add the PDF URL to the data
+        })
+
+    return render(request, 'recon.html', {'clients_data': clients_data})
+
+
+@login_required
+def view_pdf(request, id_number):
+    """
+    Retrieves and serves the latest uploaded PDF for a given ID number.
+    Returns a 404 error if no PDF is found.
+    """
+    try:
+        # Get the latest PDF record for the given ID number.
+        # This will raise a Http404 if not found.
+        pdf_record = get_object_or_404(PDFRecord, id_number=id_number)
+        
+        # Open the file in binary read mode
+        with pdf_record.pdf_file.open('rb') as pdf_file:
+            response = HttpResponse(pdf_file.read(), content_type='application/pdf')
+            # The 'attachment' disposition will force a download, 'inline' will show it in the browser
+            response['Content-Disposition'] = f'inline; filename="{pdf_record.pdf_file.name}"'
+            return response
+    except Http404:
+        return HttpResponse("No PDF found for this ID number.", status=404)
+    except Exception as e:
+        # Catch any other potential errors and return a server error message.
+        return HttpResponse(f"An error occurred: {e}", status=500)
+
+@login_required
+def create_call_for_client(request, id_number):
+    client = get_object_or_404(ClientList, ID_Number=id_number)
+    
+    if request.method == 'POST':
+        try:
+            agent = request.user.username
+            phone_number = request.POST.get('phone_number')
+            start_time_str = request.POST.get('start_time')
+            end_time_str = request.POST.get('end_time')
+            direction = request.POST.get('direction')
+            outcome = request.POST.get('outcome')
+            call_result = request.POST.get('call_result')
+            notes = request.POST.get('notes')
+            recipient_email = request.POST.get('recipient_email')
+            number_of_months = request.POST.get('number_of_months')
+            installments = request.POST.get('installments')
+            start_month = request.POST.get('start_month')
+            day_of_month = request.POST.get('day_of_month')
+            
+            start_time = datetime.fromisoformat(start_time_str)
+            end_time = datetime.fromisoformat(end_time_str)
+
+            # Retrieve TOTAL from DebtCollection6 using the correct attribute name 'total_debt'
+            debt_record = get_object_or_404(DebtCollection6, id_number=id_number)
+
+            # Define fixed email subject and body with the correct attribute
+            subject = "Important Account Reminder"
+            body = f"Dear {client.TITLE} {client.SURNAME} {client.FIRST_NAME}, This is a reminder regarding your outstanding account balance of R{debt_record.total_debt}. Please contact us urgently. Thank you, Thipa Attorneys."
+            
+            attachment_name = None
+            if 'attachment' in request.FILES and request.FILES['attachment']:
+                attachment = request.FILES['attachment']
+                email = EmailMessage(subject, body, settings.EMAIL_HOST_USER, [recipient_email])
+                email.attach(attachment.name, attachment.read(), attachment.content_type)
+                email.send()
+                attachment_name = attachment.name
+            else:
+                send_mail(subject, body, settings.EMAIL_HOST_USER, [recipient_email], fail_silently=False)
+
+            call = Call(
+                agent=agent,
+                id_number=id_number,
+                phone_number=phone_number,
+                start_time=start_time,
+                end_time=end_time,
+                direction=direction,
+                outcome=outcome,
+                call_result=call_result,
+                notes=notes,
+                recipient_email=recipient_email,
+                attachment_name=attachment_name,
+                number_of_months=number_of_months,
+                installments=installments,
+                start_month=start_month,
+                day_of_month=day_of_month,
+            )
+            call.save()
+            return redirect('agent_overview')
+        except Exception as e:
+            print(f"Error processing form submission: {e}")
+            return HttpResponse(f"Error: {e}")
+
+    return render(request, 'Futura/create_call_page.html', {'client': client, 'id_number': id_number})
+
+
+def call_list_for_client(request, id_number):
+    calls = Call.objects.filter(id_number=id_number)
+    return render(request, 'Futura/call_list_page.html', {'calls': calls, 'id_number': id_number})
+
+from django import get_version
+
+def arrangement_graph(request):
+    all_calls = Call.objects.all()
+    total_ids = all_calls.values('id_number').distinct().count()
+    arr_ids = all_calls.filter(call_result='ARR').values('id_number').distinct().count()
+
+    if total_ids > 0:
+        arr_percentage = (arr_ids / total_ids) * 100
+    else:
+        arr_percentage = 0
+
+    data = {'Category': ['Arrangements', 'Total'], 'Count': [arr_ids, total_ids]}
+    df = pd.DataFrame(data)
+
+    plt.figure(figsize=(8, 6))
+    sns.barplot(x='Category', y='Count', data=df)
+    plt.title(f'Arrangement Percentage: {arr_percentage:.2f}%')
+    plt.ylabel('Count')
+
+    buffer = io.BytesIO()
+    plt.savefig(buffer, format='png')
+    buffer.seek(0)
+    image_png = buffer.getvalue()
+    buffer.close()
+
+    graphic = base64.b64encode(image_png).decode('utf-8')
+
+    return render(request, 'arrangement_graph.html', {'graphic': graphic})
+
+def forgot_password(request):
+    if request.method == 'POST':
+        username = request.POST['username']
+        try:
+            user = User.objects.get(username=username)
+            # Generate a password reset token
+            from django.contrib.auth.tokens import PasswordResetTokenGenerator
+            token_generator = PasswordResetTokenGenerator()
+            token = token_generator.make_token(user)
+            reset_link = f"https://yourdomain.com/password_reset/{user.id}/{token.key}"
+
+            # Send the password reset email
+            subject = 'Password Reset Request'
+            message = render_to_string('password_reset_email.html', {'reset_link': reset_link, 'user': user})
+            from_email = settings.DEFAULT_FROM_EMAIL
+            recipient_list = ['luanoveck@gmail.com']  # Replace with the user's email
+            send_mail(subject, message, from_email, recipient_list, html_message=message)
+
+            return redirect('password_reset_sent')  # Redirect to a success page
+        except User.DoesNotExist:
+            # Handle the case where the username doesn't exist
+            return render(request, 'forgotpassword.html', {'error': 'Username not found.'})
+    else:
+        return render(request, 'forgotpassword.html')
+    
+def password_reset_sent(request):
+    return render(request, 'password_reset_sent.html')
+
+def dashboard(request):
+    # Get calls per month for each agent in 2025
+    calls_data = (
+        Call.objects.filter(start_time__year=2025)
+        .values("agent", "start_time__month")
+        .annotate(call_count=Count("id"))
+    )
+
+    # Get total installment value for each agent in 2025
+    installment_data = (
+        Call.objects.filter(start_time__year=2025)
+        .values("agent")
+        .annotate(total_installments=Sum("installments"))
+    )
+
+    # Prepare data for Chart.js
+    calls_by_agent = {}
+    for item in calls_data:
+        agent = item["agent"]
+        month = item["start_time__month"]
+        count = item["call_count"]
+        if agent not in calls_by_agent:
+            calls_by_agent[agent] = [0] * 12  # Initialize with 12 months
+        calls_by_agent[agent][month - 1] = count  # Month is 1-based
+
+    installment_values = {}
+    for item in installment_data:
+        agent = str(item["agent"])  # Convert agent to string
+        value = item["total_installments"]
+        installment_values[agent] = value
+
+    # Convert calls_by_agent to JSON
+    calls_by_agent_json = json.dumps(calls_by_agent)
+
+    context = {
+        "calls_by_agent": calls_by_agent,
+        "installment_values": installment_values,
+        "calls_by_agent_json": calls_by_agent_json,  # Add JSON data to context
+    }
+    return render(request, "dashboard.html", context)
+
+@csrf_exempt
+def custom_logout(request):
+    logout(request)
+    return redirect('login')  # Replace 'login' with your login URL name
+
+def bulk_sms(request):
+    rpc_data = []
+    selected_date = None
+
+    if request.method == 'POST':
+        if 'fetch_rpc' in request.POST:
+            date_str = request.POST.get('call_date')
+            if date_str:
+                try:
+                    selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                    print(f"Selected date: {selected_date}")
+                    with connection.cursor() as cursor:
+                        query = """
+                            SELECT 
+                                fc.id_number,
+                                fc.outcome, 
+                                fc.phone_number
+                            FROM 
+                                futura_call fc
+                            WHERE 
+                                fc.outcome = 'RPC' AND 
+                                DATE(fc.start_time) = %s;
+                        """
+                        print(f"SQL Query: {query % (selected_date,)}")
+                        cursor.execute(query, [selected_date])
+                        columns = [col[0] for col in cursor.description]
+                        rpc_data = [dict(zip(columns, row)) for row in cursor.fetchall()]
+                        print(f"RPC Data: {rpc_data}")
+
+                    # Generate Customized SMS Message Body with id_number and add it to rpc_data
+                    for contact in rpc_data:
+                        contact['sms_message'] = f"Dear client, your ID number is: {contact['id_number']}. This is a reminder regarding your account. Please contact us urgently. Thank you, Thipa Attorneys."
+
+                except ValueError:
+                    messages.error(request, "Invalid date format. Please use YYYY-MM-DD.")
+                    return render(request, 'Futura/bulk_sms.html')
+                except Exception as e:
+                    error_message = f"Error fetching RPC data: {e}"
+                    messages.error(request, error_message)
+                    return render(request, 'Futura/bulk_sms.html')
+            else:
+                messages.error(request, "Please select a date.")
+                return render(request, 'Futura/bulk_sms.html')
+
+        elif 'send_sms' in request.POST:
+            # Fixed SMS Message Body - This should be defined *outside* the loop
+            fixed_sms_message = "Dear client, this is a reminder regarding your account. Please contact us urgently. Thank you, Thipa Attorneys."
+
+            # Send SMS logic here (replace with your actual SMS sending code)
+            for contact in rpc_data:  # Use the rpc_data fetched earlier
+                phone_number = contact['phone_number']
+                # Replace this with your SMS sending function:
+                send_sms(phone_number, fixed_sms_message)  # Use the fixed message
+                print(f"Pretending to send SMS to {phone_number}: {fixed_sms_message}")  # Debugging
+
+            messages.success(request, "Bulk SMS messages have been queued for sending.")
+
+    context = {
+        'rpc_data': rpc_data,
+        'selected_date': selected_date,
+    }
+    return render(request, 'Futura/bulk_sms.html', context)
+
+def send_sms(phone_number, message):
+    """
+    This is a placeholder function. 
+    Replace this with your actual SMS sending implementation 
+    using your chosen SMS provider's API or library.
+    """
+    print(f"Pretending to send SMS to {phone_number}: {message}")
+    return True
+
+
+def bulk_email(request):
+    email_data = []
+    selected_date = None
+
+    if request.method == 'POST':
+        if 'fetch_emails' in request.POST:  # Changed button name
+            date_str = request.POST.get('email_date')
+            if date_str:
+                try:
+                    selected_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                    print(f"Selected date: {selected_date}")
+                    with connection.cursor() as cursor:
+                        query = """
+                            SELECT 
+                                fc.id_number,
+                                fc.outcome,
+                                fc.recipient_email  -- Assuming this is the email column
+                            FROM 
+                                futura_call fc
+                            WHERE 
+                                fc.outcome = 'RPC' AND  -- Filter by outcome (adjust as needed)
+                                DATE(fc.start_time) = %s;
+                        """
+                        print(f"SQL Query: {query % (selected_date,)}")
+                        cursor.execute(query, [selected_date])
+                        columns = [col[0] for col in cursor.description]
+                        email_data = [dict(zip(columns, row)) for row in cursor.fetchall()]
+                        print(f"Email Data: {email_data}")
+
+                    # Generate Customized Email Message Body and Subject and add them to email_data
+                    email_subject = "Important Account Reminder"  # Fixed subject
+                    for contact in email_data:
+                        contact['email_message'] = f"Dear client, your ID number is: {contact['id_number']}. This is a reminder regarding your account. Please contact us urgently. Thank you, Thipa Attorneys."
+                        contact['email_subject'] = email_subject  # Add subject to each record
+
+                except ValueError:
+                    messages.error(request, "Invalid date format. Please use YYYY-MM-DD.")
+                    return render(request, 'Futura/bulk_email.html')
+                except Exception as e:
+                    error_message = f"Error fetching email data: {e}"
+                    messages.error(request, error_message)
+                    return render(request, 'Futura/bulk_email.html')
+            else:
+                messages.error(request, "Please select a date.")
+                return render(request, 'Futura/bulk_email.html')
+
+        elif 'send_emails' in request.POST:  # Changed button name
+            # Email sending logic here
+            for contact in email_data:
+                recipient_email = contact['recipient_email']  # Get email from data
+                email_subject = contact['email_subject']
+                email_message = contact['email_message']
+                try:
+                    # Replace this with your actual email sending function
+                    send_email(recipient_email, email_subject, email_message)  # Example call
+                    print(f"Pretending to send email to: {recipient_email}")  # Debugging
+                    # You would likely want to handle success/failure of the email sending
+                except Exception as e:
+                    messages.error(request, f"Error sending email to {recipient_email}: {e}")
+
+            messages.success(request, "Bulk emails have been queued for sending.")
+
+    context = {
+        'email_data': email_data,
+        'selected_date': selected_date,
+    }
+    return render(request, 'Futura/bulk_email.html', context)
+
+# Replace this with your actual email sending function
+def send_email(recipient_email, subject, message):
+    """
+    This is a placeholder function. 
+    Replace this with your actual email sending implementation 
+    using Django's send_mail or a library.
+    """
+    print(f"Pretending to send email to {recipient_email} with subject '{subject}' and message: {message}")
+    # Your email sending logic would go here
+    # You would typically use Django's send_mail function
+    # or a library for sending emails
+    # Return True if successful, False if failed (or raise an exception)
+    return True
+
+@login_required
+def daily_workflow(request):
+    """
+    This view manages the daily workflow for a logged-in agent.
+    It now filters the workflow based on the client selected from the Agent Dashboard.
+    """
+    try:
+        current_agent = request.user.agent
+    except Agent.DoesNotExist:
+        messages.error(request, "Agent profile not found.")
+        return redirect('login') 
+
+    today = timezone.localdate()
+
+    # Get the 'client' parameter from the URL
+    client_param = request.GET.get('client')
+
+    # Start with a base queryset for today's uncompleted debtors for the current agent
+    base_queryset = DailyDebtorWorkflow.objects.filter(
+        agent=current_agent,
+        completion_date=today,
+        completed=False
+    )
+    
+    # Filter the queryset based on the client parameter
+    if client_param:
+        if client_param == 'Limpopo,Kannaland':
+            base_queryset = base_queryset.filter(debtor__client_name__in=['Limpopo', 'Kannaland'])
+        else:
+            base_queryset = base_queryset.filter(debtor__client_name=client_param)
+
+    if request.method == 'POST':
+        if 'complete_debtor' in request.POST:
+            debtor_no_to_complete = request.POST.get('complete_debtor')
+            if debtor_no_to_complete:
+                try:
+                    with transaction.atomic():
+                        workflow_entry = base_queryset.get(
+                            debtor__debtor_no=debtor_no_to_complete
+                        )
+                        workflow_entry.completed = True
+                        workflow_entry.save()
+                    messages.success(request, f"Debtor {debtor_no_to_complete} marked as completed successfully!")
+                except DailyDebtorWorkflow.DoesNotExist:
+                    messages.error(request, f"Debtor {debtor_no_to_complete} not found in today's workflow.")
+        
+        # Correctly build the URL with query parameters
+        redirect_url = reverse('daily_workflow')
+        if client_param:
+            redirect_url += f"?client={client_param}"
+        return redirect(redirect_url)
+
+    uncompleted_daily_debtors_queryset = base_queryset
+    
+    if not uncompleted_daily_debtors_queryset.exists():
+        five_days_ago = today - timedelta(days=5)
+        
+        recently_called_ids = DailyDebtorWorkflow.objects.filter(
+            agent=current_agent,
+            completed=True,
+            completion_date__gte=five_days_ago
+        ).values_list('debtor__debtor_no', flat=True)
+
+        new_debtors_qs = DebtCollection6.objects.exclude(debtor_no__in=recently_called_ids)
+        if client_param:
+            if client_param == 'Limpopo,Kannaland':
+                new_debtors_qs = new_debtors_qs.filter(client_name__in=['Limpopo', 'Kannaland'])
+            else:
+                new_debtors_qs = new_debtors_qs.filter(client_name=client_param)
+
+        debtor_pks_to_add = new_debtors_qs.order_by('?')[:60].values_list('pk', flat=True)
+        
+        workflow_entries = [
+            DailyDebtorWorkflow(
+                agent=current_agent,
+                debtor_id=pk, 
+                completion_date=today
+            ) for pk in debtor_pks_to_add
+        ]
+
+        DailyDebtorWorkflow.objects.bulk_create(workflow_entries)
+    
+    daily_debtors_queryset = base_queryset.select_related('debtor')
+    
+    debtor_id_numbers = daily_debtors_queryset.values_list('debtor__id_number', flat=True).filter(debtor__id_number__isnull=False)
+
+    trace_results_qs = TraceResult.objects.filter(ID_Number__in=debtor_id_numbers)
+    
+    phone_numbers_dict = {}
+    for result in trace_results_qs:
+        id_number = result.ID_Number
+        if id_number:
+            contact_fields = [
+                result.cell_number, result.Home1, result.Work1, result.Cell1,
+                result.Home2, result.Work2, result.Cell2, result.Home3,
+                result.Work3, result.Cell3, result.Home4, result.Work4,
+                result.Cell4, result.Home5, result.Work5, result.Cell5,
+                result.Home6, result.Work6, result.Cell6, result.Home7,
+                result.Work7, result.Cell7, result.Home8, result.Work8,
+                result.Cell8, result.Home9, result.Work9, result.Cell9,
+                result.Home10, result.Work10, result.Cell10, result.Home11,
+                result.Work11, result.Cell11, result.Home12, result.Work12,
+                result.Cell12, result.Home13, result.Work13, result.Cell13,
+                result.Home14, result.Work14, result.Cell14, result.Home15,
+                result.Work15, result.Cell15,
+                result.D_O_1, result.D_O_2, result.D_O_3, result.D_O_4, result.D_O_5,
+                result.D_O_6, result.D_O_7, result.D_O_8, result.D_O_9, result.D_O_10,
+                result.D_O_11, result.D_O_12, result.D_O_13, result.D_O_14, result.D_O_15,
+            ]
+            
+            if id_number not in phone_numbers_dict:
+                phone_numbers_dict[id_number] = set()
+
+            for num in contact_fields:
+                if num and num != "NULL":
+                    phone_numbers_dict[id_number].add(num)
+    
+    for key in phone_numbers_dict:
+        phone_numbers_dict[key] = list(phone_numbers_dict[key])
+    
+    debtor_id_numbers = daily_debtors_queryset.values_list('debtor__id_number', flat=True).filter(debtor__id_number__isnull=False)
+    
+    payments_data = ClientPayment.objects.filter(id_number__in=debtor_id_numbers).values(
+        'id_number').annotate(total_paid=Sum('amount_deposited'))
+    payments_dict = {item['id_number']: item['total_paid'] for item in payments_data}
+    
+    daily_debtors = []
+    for entry in daily_debtors_queryset:
+        if entry.debtor.id_number:
+            total_debt = entry.debtor.total_debt
+            total_paid = payments_dict.get(entry.debtor.id_number, Decimal('0'))
+            
+            try:
+                total_debt_decimal = Decimal(str(total_debt))
+            except (InvalidOperation, TypeError):
+                total_debt_decimal = Decimal('0.00')
+
+            outstanding_balance = total_debt_decimal - total_paid
+            
+            daily_debtors.append({
+                'debtor_no': entry.debtor.debtor_no,
+                'debtor_name': entry.debtor.debtor_name,
+                'id_number': entry.debtor.id_number,
+                'total_debt': total_debt,
+                'outstanding_balance': outstanding_balance,
+                'completed': entry.completed,
+                'phone_numbers': phone_numbers_dict.get(entry.debtor.id_number, []),
+            })
+        
+    context = {
+        'daily_debtors': daily_debtors,
+    }
+    return render(request, 'Futura/daily_workflow.html', context)
+
+
+
+
+
+###Report Building tools###
+# Standard library imports
+import os
+import io
+import json
+import base64
+from datetime import datetime, timedelta
+
+# Third-party imports for charting
+import seaborn as sns
+import matplotlib.pyplot as plt
+import pandas as pd
+
+# ReportLab imports for PDF generation
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+from reportlab.lib import colors
+from reportlab.graphics.shapes import Drawing
+from reportlab.graphics.charts.barcharts import VerticalBarChart
+from reportlab.graphics.charts.piecharts import Pie
+
+def get_report_default_text():
+    """
+    Returns a dictionary of default text content for the report.
+    This can be easily updated or later fetched from a database.
+    """
+    return {
+        "intro_paragraph_1": "Thipa Attorneys Incorporated is contracted by the provisions of the National Treasury to collect debt. Futura SA Administrators have been tasked with collecting outstanding and/or overpayments to debtors relating to Government Services for multiple institutions.",
+        "report_status_paragraph": f"This report reflects the progress in collecting debt on behalf of Thipa Attorneys Incorporated for 3rd parties. This is a progress report as at {datetime.now().strftime('%d.%m.%Y')}.",
+        "section_1_title": "PREVIOUS MEETING MINUTES AND OBJECTIVES",
+        "section_1_text": "Split the books to collectable and non-collectable",
+        "section_2_title": "BOOK ANALYSIS",
+        "section_2_text_1": "The agents prioritized debtors as follows, Drs and companies first, with account values from high to low.",
+        "section_2_text_2": "Multiple attempts are made over multiple days with varying times, to ensure we do all that we can to establish contact with a debtor.",
+        "section_2_text_3": "The LDoH debt collection attempt results are as follows;",
+        "call_analysis_title": "Outbound Call Analysis Campaign LDoH:",
+        "monthly_payments_intro": "The following bar chart illustrates the total payments received on a month-by-month basis. This visual representation helps to quickly identify payment trends and seasonal fluctuations.",
+        "payment_breakdown_intro": "This table provides a detailed breakdown of all payments received, organized by ID number, year, and month. The table shows the total amount paid for each unique ID number.",
+        "collection_status_intro": "The pie chart below visually represents the ratio of total paid debt to the outstanding balance. This gives a quick insight into the overall collection progress.",
+        "summary_intro": "This table provides a summary of key metrics related to the debt book, including total debt, total paid, outstanding balance, and the number of debtors who have made payments.",
+        "final_report_text": """
+4. OUTSTANDING MATTERS
+
+
+5. DEBTORS FEEDBACK 
+
+
+6. CLOSING 
+
+"""
+    }
+
+# Function to generate a bar chart image from chart data with labels
+def create_payment_chart_image(chart_data):
+    """
+    Generates a bar chart with data labels on top of each bar, saves it to a buffer,
+    and returns the buffer for embedding in a PDF.
+    """
+    labels = chart_data.get('labels', [])
+    data = chart_data.get('data', [])
+
+    # Create a DataFrame for easy plotting
+    df = pd.DataFrame({'Month': labels, 'Total Paid': data})
+    
+    # Use a professional seaborn style
+    plt.style.use('seaborn-v0_8-whitegrid')
+    plt.figure(figsize=(8, 5))
+    
+    # Create the bar plot
+    ax = sns.barplot(x='Month', y='Total Paid', data=df, color='skyblue')
+    
+    # Add labels and title
+    plt.title('Monthly Payments', fontsize=16, fontweight='bold')
+    plt.xlabel('Month', fontsize=12)
+    plt.ylabel('Total Paid (R)', fontsize=12)
+    
+    # Add value labels on top of the bars
+    for p in ax.patches:
+        height = p.get_height()
+        ax.annotate(f'R{height:,.2f}', 
+                    (p.get_x() + p.get_width() / 2., height), 
+                    ha='center', va='center', 
+                    xytext=(0, 9), 
+                    textcoords='offset points')
+    
+    # Save the chart to a buffer
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', bbox_inches='tight')
+    buf.seek(0)
+    plt.close()
+    
+    return buf
+
+# View to render the payment report page with a chart and table
+@login_required
+def payment_report_view(request):
+    """
+    Generates a report of payments aggregated by month and year,
+    and prepares the data for a bar chart.
+    Now filters based on client selected from the Agent Dashboard.
+    """
+    # Get the 'client' parameter from the URL
+    client_param = request.GET.get('client')
+
+    # Start with base querysets for both models
+    debt_queryset = DebtCollection6.objects.all()
+    payment_queryset = ClientPayment.objects.all()
+
+    # Apply filtering if a client is specified in the URL
+    if client_param:
+        if client_param == 'Limpopo,Kannaland':
+            # Handle the special case for multiple clients
+            debt_queryset = debt_queryset.filter(client_name__in=['Limpopo Provincial Government Department of Health', 'Kannaland'])
+        else:
+            # Handle a single client
+            debt_queryset = debt_queryset.filter(client_name=client_param)
+
+        # Now, filter the payments to only include those from the filtered debtors.
+        filtered_debtor_ids = debt_queryset.values_list('id_number', flat=True)
+        payment_queryset = payment_queryset.filter(id_number__in=filtered_debtor_ids)
+
+    # 1. Fetch and aggregate payment data by month and year from the filtered queryset
+    payments_by_month_queryset = payment_queryset.annotate(
+        year=ExtractYear('date_of_statement'),
+        month=ExtractMonth('date_of_statement')
+    ).values(
+        'year',
+        'month'
+    ).annotate(
+        total_paid=Sum('amount_deposited')
+    ).order_by(
+        'year',
+        'month'
+    )
+
+    # 2. Process data for the Chart.js
+    chart_data = {
+        'labels': ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+        'data': [0] * 12,
+    }
+
+    # Fill the data array with the total payments from the queryset.
+    for item in payments_by_month_queryset:
+        month_index = item['month'] - 1
+        if 0 <= month_index < 12:
+            chart_data['data'][month_index] = float(item['total_paid'])
+
+    # 3. Serialize the chart data to a JSON string
+    chart_data_json = json.dumps(chart_data)
+
+    # 4. Fetch detailed data for the table view
+    payments_detail = payment_queryset.annotate(
+        year=ExtractYear('date_of_statement'),
+        month=ExtractMonth('date_of_statement')
+    ).values(
+        'id_number',
+        'year',
+        'month'
+    ).annotate(
+        total_paid=Sum('amount_deposited')
+    ).order_by(
+        'id_number',
+        'year',
+        'month'
+    )
+
+    month_names = [
+        None, 'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+    ]
+
+    context = {
+        'payments_by_month': payments_detail,
+        'month_names': month_names,
+        'chart_data_json': chart_data_json,
+    }
+
+    return render(request, 'payment_report.html', context)
+
+@login_required
+def book_analysis_view(request):
+    """
+    Generates a reconciliation report with a pie chart.
+    Now filters based on client selected from the Agent Dashboard.
+    """
+    # Get the 'client' parameter from the URL
+    client_param = request.GET.get('client')
+    print(f"*** DEBUG: Client parameter received: '{client_param}'")
+
+    # Start with base querysets for DebtCollection6 and ClientPayment
+    debt_queryset = DebtCollection6.objects.all()
+    payment_queryset = ClientPayment.objects.all()
+
+    # If a client is specified, filter the querysets
+    if client_param:
+        if client_param == 'Limpopo,Kannaland':
+            # Handle the special case for multiple clients with their correct full names
+            debt_queryset = debt_queryset.filter(client_name__in=['Limpopo Provincial Government Department of Health', 'Kannaland'])
+        else:
+            # Handle a single client
+            debt_queryset = debt_queryset.filter(client_name=client_param)
+
+        # Now, filter the payments to only include those from the filtered debtors.
+        # This requires getting the `id_number` from the filtered DebtCollection6 objects.
+        filtered_debtor_ids = debt_queryset.values_list('id_number', flat=True)
+        payment_queryset = payment_queryset.filter(id_number__in=filtered_debtor_ids)
+
+    # Log the counts to see if the filtering worked as expected
+    print(f"*** DEBUG: Debtors found after filtering: {debt_queryset.count()}")
+    print(f"*** DEBUG: Payments found after filtering: {payment_queryset.count()}")
+
+    try:
+        total_debt_aggregate = debt_queryset.aggregate(
+            total_debt_sum=Sum(F('total_debt'), output_field=FloatField())
+        )['total_debt_sum']
+        total_debt = float(total_debt_aggregate) if total_debt_aggregate is not None else 0
+
+        payment_aggregate = payment_queryset.aggregate(
+            total_paid_sum=Sum('amount_deposited'),
+            debtors_paid_count=Count('id_number', distinct=True)
+        )
+        total_paid = float(payment_aggregate['total_paid_sum']) if payment_aggregate['total_paid_sum'] else 0
+        total_debtors_paid = payment_aggregate['debtors_paid_count']
+
+        outstanding_balance = total_debt - total_paid
+
+        if total_debt > 0:
+            percentage_paid = (total_paid / total_debt) * 100
+            percentage_outstanding = (outstanding_balance / total_debt) * 100
+        else:
+            percentage_paid = 0
+            percentage_outstanding = 0
+            total_debtors_paid = 0
+    except Exception as e:
+        # This block catches any errors during the calculations.
+        print(f"*** ERROR: An exception occurred during financial data calculation: {e}")
+        total_debt = 0
+        total_paid = 0
+        outstanding_balance = 0
+        percentage_paid = 0
+        percentage_outstanding = 0
+        total_debtors_paid = 0
+
+    context = {
+        'total_debt': total_debt,
+        'total_paid': total_paid,
+        'outstanding_balance': outstanding_balance,
+        'percentage_paid': percentage_paid,
+        'percentage_outstanding': percentage_outstanding,
+        'total_debtors_paid': total_debtors_paid,
+        'client_param': client_param, # Added for context
+    }
+
+    return render(request, 'futura/book_analysis.html', context)
+
+
+
+
+@login_required
+def front_office_report_view(request):
+    """
+    This view is now updated to provide a form to edit the PDF content.
+    """
+    context = get_report_default_text()
+    return render(request, 'Futura/front_office_report.html', context)
+
+@login_required
+def generate_front_office_report_pdf(request):
+    """
+    Generates a combined front office report in PDF format using ReportLab.
+    This function now uses the POST data from the form to generate the content.
+    """
+    try:
+        # Check if the request method is POST
+        if request.method == 'POST':
+            report_text = {
+                "intro_paragraph_1": request.POST.get('intro_paragraph_1'),
+                "report_status_paragraph": request.POST.get('report_status_paragraph'),
+                "section_1_title": request.POST.get('section_1_title'),
+                "section_1_text": request.POST.get('section_1_text'),
+                "section_2_title": request.POST.get('section_2_title'),
+                "section_2_text_1": request.POST.get('section_2_text_1'),
+                "section_2_text_2": request.POST.get('section_2_text_2'),
+                "section_2_text_3": request.POST.get('section_2_text_3'),
+                "call_analysis_title": request.POST.get('call_analysis_title'),
+                "monthly_payments_intro": request.POST.get('monthly_payments_intro'),
+                "payment_breakdown_intro": request.POST.get('payment_breakdown_intro'),
+                "collection_status_intro": request.POST.get('collection_status_intro'),
+                "summary_intro": request.POST.get('summary_intro'),
+                "final_report_text": request.POST.get('final_report_text')
+            }
+        else:
+            # If not a POST request, use default text
+            report_text = get_report_default_text()
+
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = 'attachment; filename="front_office_report.pdf"'
+
+        doc = SimpleDocTemplate(response, pagesize=A4)
+        story = []
+
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            name='Title',
+            fontSize=24,
+            leading=28,
+            alignment=TA_CENTER,
+            spaceAfter=20,
+            fontName='Helvetica-Bold'
+        )
+        heading_style = styles['h2']
+        list_style = styles['Normal']
+        list_style.leftIndent = 20
+        # Style for the final report text sections
+        final_heading_style = ParagraphStyle(
+            name='FinalReportHeading',
+            fontSize=12,
+            leading=14,
+            spaceAfter=6,
+            fontName='Helvetica-Bold'
+        )
+        final_list_style = ParagraphStyle(
+            name='FinalReportList',
+            fontSize=10,
+            leading=12,
+            leftIndent=15
+        )
+
+        # Title
+        story.append(Paragraph("Front Office Combined Report", title_style))
+        story.append(Spacer(1, 12))
+        
+        # New text from the form
+        story.append(Paragraph(report_text['intro_paragraph_1'], styles['Normal']))
+        story.append(Spacer(1, 12))
+        
+        story.append(Paragraph(report_text['report_status_paragraph'], styles['Normal']))
+        story.append(Spacer(1, 24))
+        
+        story.append(Paragraph("1. " + report_text['section_1_title'], heading_style))
+        story.append(Spacer(1, 6))
+        story.append(Paragraph("• " + report_text['section_1_text'], list_style))
+        story.append(Spacer(1, 12))
+        
+        story.append(Paragraph("2. " + report_text['section_2_title'], heading_style))
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(report_text['section_2_text_1'], styles['Normal']))
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(report_text['section_2_text_2'], styles['Normal']))
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(report_text['section_2_text_3'], styles['Normal']))
+        story.append(Spacer(1, 12))
+        story.append(Paragraph(report_text['call_analysis_title'], heading_style))
+        story.append(Spacer(1, 12))
+        
+        # --- 1. Data from Payment Report ---
+        payments_by_month_queryset = ClientPayment.objects.annotate(
+            year=ExtractYear('date_of_statement'),
+            month=ExtractMonth('date_of_statement')
+        ).values(
+            'year',
+            'month'
+        ).annotate(
+            total_paid=Sum('amount_deposited')
+        ).order_by(
+            'year',
+            'month'
+        )
+
+        chart_data = {
+            'labels': ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+            'data': [0] * 12,
+        }
+        
+        if payments_by_month_queryset.exists():
+            for item in payments_by_month_queryset:
+                month_index = item['month'] - 1
+                if 0 <= month_index < 12:
+                    chart_data['data'][month_index] = float(item['total_paid'])
+
+        # --- Matplotlib Bar Chart with totals ---
+        story.append(Paragraph("Monthly Payments", heading_style))
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(report_text['monthly_payments_intro'], styles['Normal']))
+        story.append(Spacer(1, 12))
+        
+        payment_chart_image_buffer = create_payment_chart_image(chart_data)
+        
+        if payment_chart_image_buffer:
+            img = Image(payment_chart_image_buffer, width=400, height=250)
+            story.append(img)
+        story.append(Spacer(1, 24))
+
+        # --- Detailed Payment Table ---
+        story.append(Paragraph("Payment Breakdown", heading_style))
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(report_text['payment_breakdown_intro'], styles['Normal']))
+        story.append(Spacer(1, 12))
+        
+        payments_detail = ClientPayment.objects.annotate(
+            year=ExtractYear('date_of_statement'),
+            month=ExtractMonth('date_of_statement')
+        ).values(
+            'id_number',
+            'year',
+            'month'
+        ).annotate(
+            total_paid=Sum('amount_deposited')
+        ).order_by(
+            'id_number',
+            'year',
+            'month'
+        )
+        month_names = [None, 'January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+        table_data = [['ID Number', 'Year', 'Month', 'Total Paid (R)']]
+        for payment in payments_detail:
+            month_name = month_names[payment['month']]
+            table_data.append([
+                payment['id_number'],
+                payment['year'],
+                month_name,
+                f"R{payment['total_paid']:.2f}"
+            ])
+
+        payment_table = Table(table_data)
+        payment_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2563eb')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        story.append(payment_table)
+        story.append(Spacer(1, 24))
+
+        # --- 2. Data from Book Analysis Report ---
+        try:
+            total_debt_aggregate = DebtCollection6.objects.aggregate(
+                total_debt_sum=Sum(F('total_debt'), output_field=FloatField())
+            )['total_debt_sum']
+            total_debt = float(total_debt_aggregate) if total_debt_aggregate is not None else 0
+
+            payment_aggregate = ClientPayment.objects.aggregate(
+                total_paid_sum=Sum('amount_deposited'),
+                debtors_paid_count=Count('id_number', distinct=True)
+            )
+            total_paid = float(payment_aggregate['total_paid_sum']) if payment_aggregate['total_paid_sum'] else 0
+            total_debtors_paid = payment_aggregate['debtors_paid_count']
+
+            outstanding_balance = total_debt - total_paid
+
+            if total_debt > 0:
+                percentage_paid = (total_paid / total_debt) * 100
+                percentage_outstanding = (outstanding_balance / total_debt) * 100
+            else:
+                percentage_paid = 0
+                percentage_outstanding = 0
+                total_debtors_paid = 0
+        except Exception as e:
+            total_debt = 0
+            total_paid = 0
+            outstanding_balance = 0
+            percentage_paid = 0
+            percentage_outstanding = 0
+            total_debtors_paid = 0
+
+        # --- Pie Chart ---
+        story.append(Paragraph("Collection Status", heading_style))
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(report_text['collection_status_intro'], styles['Normal']))
+        story.append(Spacer(1, 12))
+        
+        drawing_pie = Drawing(200, 200)
+        pc = Pie()
+        pc.x = 50
+        pc.y = 20
+        pc.height = 150
+        pc.width = 150
+        pc.data = [total_paid, outstanding_balance]
+        pc.labels = ['Total Paid', 'Outstanding']
+        pc.slices.strokeWidth = 0.5
+        pc.slices[0].fillColor = colors.HexColor('#16a34a')
+        pc.slices[1].fillColor = colors.HexColor('#dc2626')
+        drawing_pie.add(pc)
+        story.append(drawing_pie)
+        story.append(Spacer(1, 24))
+
+        # --- Summary Metrics Table ---
+        story.append(Paragraph("Book Analysis Summary", heading_style))
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(report_text['summary_intro'], styles['Normal']))
+        story.append(Spacer(1, 12))
+        
+        summary_data = [
+            ['Metric', 'Value'],
+            ['Total Debtors with Payments', total_debtors_paid],
+            ['Total Debt', f"R{total_debt:.2f}"],
+            ['Total Paid', f"R{total_paid:.2f}"],
+            ['Outstanding Balance', f"R{outstanding_balance:.2f}"],
+            ['Percentage Paid', f"{percentage_paid:.2f}%"],
+            ['Percentage Outstanding', f"{percentage_outstanding:.2f}%"]
+        ]
+        summary_table = Table(summary_data)
+        summary_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#2563eb')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black)
+        ]))
+        story.append(summary_table)
+        story.append(Spacer(1, 24))
+
+        # --- New Final Report Text ---
+        final_report_content = report_text.get('final_report_text', '').strip().split('\n')
+        if final_report_content:
+            story.append(Paragraph(final_report_content[0].strip(), final_heading_style))
+            story.append(Spacer(1, 6))
+            for line in final_report_content[1:]:
+                clean_line = line.strip()
+                if clean_line:
+                    if clean_line.startswith('•'):
+                        story.append(Paragraph(clean_line, final_list_style))
+                    elif clean_line.startswith('4.') or clean_line.startswith('5.') or clean_line.startswith('6.'):
+                        story.append(Paragraph(clean_line, final_heading_style))
+                    else:
+                        story.append(Paragraph(clean_line, styles['Normal']))
+                story.append(Spacer(1, 6))
+
+        # Build the document
+        doc.build(story)
+
+        return response
+    except Exception as e:
+        # Log the error for debugging
+        print(f"Error generating PDF: {e}")
+        # You might want to return an error page or a simple message
+        return HttpResponse(f"Error generating PDF: {e}", status=500)
+
+# IMPORTANT: Replace this with the correct absolute path to your project's root directory.
+# You can find this in your project's settings.py as BASE_DIR.
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+print(f"Project base directory is: {BASE_DIR}")
+
+from dotenv import load_dotenv
+load_dotenv()
+
+# If modifying these scopes, delete the file token.json.
+SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+
+def get_gmail_service():
+    """
+    Handles authentication with the Gmail API.
+    Returns the Gmail service object, or a redirect URL if authentication is required.
+    """
+    creds = None
+    if os.path.exists('token.json'):
+        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file('credentials.json', SCOPES)
+            flow.redirect_uri = os.environ.get("NGROK_TUNNEL") + 'futura/inbox/'
+            auth_url, _ = flow.authorization_url(prompt='consent', access_type='offline')
+            return auth_url
+        with open('token.json', 'w') as token:
+            token.write(creds.to_json())
+    return build('gmail', 'v1', credentials=creds)
+
+def fetch_gmail_inbox(request):
+    """
+    Fetches a paginated list of emails from the user's inbox.
+    Manages pagination using a session to store page tokens.
+    """
+    print('--- fetch_gmail_inbox view initiated ---')
+    service = get_gmail_service()
+
+    # If the service returns a string, it's a redirect URL for authentication
+    if isinstance(service, str):
+        return redirect(service)
+
+    email_data = []
+    page_token = request.GET.get('page_token', None)
+    
+    # Initialize a list in the session to store page tokens if it doesn't exist
+    if 'page_token_history' not in request.session:
+        request.session['page_token_history'] = [None]
+    
+    # Check for 'previous' button action
+    if request.GET.get('action') == 'previous':
+        if len(request.session['page_token_history']) > 1:
+            # Remove the current page token
+            request.session['page_token_history'].pop()
+            # Get the previous page token from the history
+            page_token = request.session['page_token_history'][-1]
+    elif page_token:
+        # If a new page_token is provided, add it to the history
+        if page_token not in request.session['page_token_history']:
+            request.session['page_token_history'].append(page_token)
+    
+    try:
+        results = service.users().messages().list(
+            userId='me',
+            maxResults=12,
+            pageToken=page_token
+        ).execute()
+        
+        email_messages = results.get('messages', [])
+        new_next_page_token = results.get('nextPageToken', None)
+
+        for msg in email_messages:
+            msg_id = msg['id']
+            message_data = service.users().messages().get(
+                userId='me',
+                id=msg_id,
+                format='metadata',
+                metadataHeaders=['From', 'Subject', 'Date']
+            ).execute()
+            
+            headers = {header['name']: header['value'] for header in message_data.get('payload', {}).get('headers', [])}
+            
+            email_data.append({
+                'id': msg_id,
+                'sender': headers.get('From', 'No Sender'),
+                'subject': headers.get('Subject', 'No Subject'),
+                'received': headers.get('Date', 'No Date'),
+                'body': message_data.get('snippet', '')
+            })
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return HttpResponse(f"An error occurred: {e}", status=500)
+
+    # Check if there is a previous page available
+    has_previous_page = len(request.session['page_token_history']) > 1
+    
+    context = {
+        'email_data': email_data,
+        'next_page_token': new_next_page_token,
+        'has_previous_page': has_previous_page,
+    }
+    return render(request, 'gmail_inbox.html', context)
+
+
+# The get_email view for a single email remains unchanged and is correctly implemented.
+def get_email(request, email_id):
+    service = get_gmail_service()
+    if isinstance(service, str):
+        return JsonResponse({'error': 'Authentication required'}, status=401)
+    
+    try:
+        message = service.users().messages().get(userId='me', id=email_id, format='full').execute()
+        
+        headers = {header['name']: header['value'] for header in message.get('payload', {}).get('headers', [])}
+        from_email = headers.get('From', 'No Sender')
+        subject = headers.get('Subject', 'No Subject')
+        
+        email_body = ""
+        payload = message.get('payload', {})
+        
+        def get_body(parts):
+            body_text = ""
+            for part in parts:
+                if part.get('parts'):
+                    body_text += get_body(part['parts'])
+                elif part.get('body', {}).get('data'):
+                    data = part['body']['data']
+                    mime_type = part['mimeType']
+                    decoded_data = base64.urlsafe_b64decode(data).decode('utf-8', errors='ignore')
+                    
+                    if mime_type == 'text/html':
+                        return decoded_data
+                    if mime_type == 'text/plain' and not body_text:
+                        body_text = decoded_data
+            return body_text
+            
+        email_body = get_body([payload])
+
+        response_data = {
+            'subject': subject,
+            'from_email': from_email,
+            'body': email_body,
+        }
+        
+        return JsonResponse(response_data)
+
+    except Exception as e:
+        print(f"An error occurred while fetching email: {e}")
+        return JsonResponse({'error': f"An error occurred: {e}"}, status=500)

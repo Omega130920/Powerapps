@@ -1,0 +1,226 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Delegate Task</title>
+<style>
+/* -------------------------------------- */
+/* BASE STYLES */
+/* -------------------------------------- */
+body{font-family:sans-serif;margin:0;color:#333;line-height:1.6;background-color:#d1e2c4}
+/* -------------------------------------- */
+/* DELEGATE FORM STYLES */
+/* -------------------------------------- */
+.delegate-container{max-width:700px;margin:40px auto;padding:30px;background-color:#fff;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.15);border:1px solid #c3e6cb}
+.delegate-container h1{margin-bottom:20px;color:#43a047;font-size:28px;border-bottom:2px solid #e0f2f1;padding-bottom:15px}
+.form-group{margin-bottom:20px}
+.form-group label{display:block;margin-bottom:5px;font-weight:700;color:#333;font-size:14px}
+.form-group input[type=text],.form-group select,.form-group textarea{width:100%;padding:8px 10px;border:1px solid #aed581;border-radius:4px;box-sizing:border-box;font-size:14px}
+.form-group input[type=text]:focus,.form-group select:focus,.form-group textarea:focus{border-color:#66bb6a;box-shadow:0 0 0 .1rem rgba(102,187,106,.5);outline:none}
+.btn-delegate{padding:12px;background-color:#81c784;color:white;border:none;border-radius:4px;cursor:pointer;font-size:18px;transition:background-color .3s ease}
+.btn-delegate:hover{background-color:#66bb6a}
+
+/* NEW: Button container for flex/alignment */
+.button-container { display: flex; justify-content: space-between; align-items: center; margin-top: 25px; }
+.btn-cancel { 
+    padding: 12px 20px; 
+    background-color: #757575; /* Gray color for cancel */
+    color: white; 
+    border: none; 
+    border-radius: 4px; 
+    cursor: pointer; 
+    font-size: 18px; 
+    transition: background-color .3s ease;
+    text-decoration: none; /* Ensure it looks like a button even though it's an anchor */
+    display: inline-block;
+}
+.btn-cancel:hover { background-color: #616161; }
+/* Override width: 100% on btn-delegate so it only takes needed space */
+.btn-delegate-submit { width: auto; padding: 12px 20px; margin-left: auto; }
+
+/* --- STYLES FOR ORIGINAL CONTENT (IFrame Box) --- */
+.original-content-box{background-color:#fff8e1;border:1px solid #ffcc80;padding:15px;margin-bottom:25px;border-radius:4px}
+.original-content-box label{font-weight:700;color:#ff9800;font-size:14px;display:block;margin-bottom:5px}
+.original-content-box iframe{width:100%;min-height:300px;border:1px solid #ccc;border-radius:4px;display:block}
+/* --- NEW STYLES FOR ATTACHMENT LIST --- */
+.attachment-list{margin-top:15px;padding:10px;background-color:#f0fff0;border:1px dashed #c3e6cb;border-radius:4px}
+.attachment-list strong{color:#2e7d32;display:block;margin-bottom:5px;font-size:14px}
+.attachment-link{display:inline-block;margin-right:15px;color:#1e88e5;text-decoration:underline;font-size:13px}
+/* --- GRID STYLES FOR FIELDS --- */
+.form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin-bottom:20px}
+/* New CSS from unity_list.html for the search input appearance */
+.search-input{width:100%;padding:10px;box-sizing:border-box;border:1px solid #aed581;border-radius:4px;font-size:1em}
+/* Ensure the focused look remains the same as other inputs */
+.search-input:focus{border-color:#66bb6a;box-shadow:0 0 0 .1rem rgba(102,187,106,.5);outline:none}
+/* New CSS to hide options (used by JS) */
+.form-group #email_type option.hidden{display:none}
+/* New CSS to control visibility of other form groups */
+.conditional-fields{grid-column:1/-1;display:contents}
+/* Specific targeting for the conditional fields wrapper to restore the grid context */
+.form-grid>#conditional_fields_wrapper{display:grid;grid-template-columns:subgrid;gap:inherit;grid-column:1/-1}
+</style>
+</head>
+<body>
+<div class="delegate-container">
+<h1>Delegate Task for **{{ member_code }}**</h1>
+<form method="post">
+{% csrf_token %}
+<div class="form-group">
+<label for="email_subject">Email Subject:</label>
+<input type="text" id="email_subject" name="email_subject" value="{{ email_subject }}" required>
+</div>
+<div class="form-group original-content-box">
+<label>Original Email Content:</label>
+<iframe src="{% url 'get_email_body_html' email_id=email_id %}" sandbox></iframe>
+{% if attachments %}
+<div class="attachment-list">
+<strong>Attachments (Included in Delegation):</strong>
+{% for att in attachments %}
+<input type="hidden" name="delegated_attachment_id" value="{{ att.attachmentId }}">
+<input type="hidden" name="delegated_attachment_filename" value="{{ att.filename }}">
+<input type="hidden" name="delegated_attachment_size" value="{{ att.size }}">
+<a href="{% url 'download_attachment' message_id=email_id attachment_id=att.attachmentId %}" target="_blank" class="attachment-link">
+📄 {{ att.filename }} ({{ att.size|filesizeformat }})
+</a>
+{% endfor %}
+</div>
+{% endif %}
+<p style="margin-top: 10px; font-size: 12px; color: #999;">
+*All attachments are automatically delegated with the task metadata.*
+</p>
+</div>
+<div class="form-grid" id="main_form_grid">
+<div class="form-group" id="group-workrelated">
+<label for="work_related">Work Related:*(Mandatory)*</label>
+<select id="work_related" name="work_related">
+<option value="Yes">Yes</option>
+<option value="No">No</option>
+</select>
+</div>
+<div class="conditional-fields" id="conditional_fields_wrapper">
+<div class="form-group" id="group-mip">
+<label for="mip_number">Member Group Code:</label>
+<input type="text" id="mip_number" name="mip_number" placeholder="Enter MG Code" value="{{ current_inbox_entry.mip_number|default:'' }}" list="member_group_suggestions" class="search-input">
+<datalist id="member_group_suggestions">
+{% for code in member_group_codes %}
+<option value="{{ code }}">
+{% endfor %}
+</datalist>
+</div>
+<div class="form-group" id="group-emailcategory">
+<label for="email_category">Email Type:</label>
+<select id="email_category" name="email_category">
+<option value="">-- Select --</option>
+<option value="Schedule">Schedule</option>
+<option value="Claim">Claim</option>
+<option value="Query">Query</option>
+<option value="Bank">Bank</option>
+<option value="Info Only">Info Only</option>
+<option value="LPI">LPI</option>
+</select>
+</div>
+<div class="form-group" id="group-emailstatus">
+<label for="email_type">Email Status:</label>
+<select id="New" name="New">
+<option value="New">New</option>
+</select>
+</div>
+<div class="form-group" id="group-commtype">
+<label for="email_method">Communication Type:</label>
+<select id="email_method" name="email_method">
+<option value="Email">Inbox Email</option>
+</select>
+</div>
+</div>
+</div>
+<div class="form-group" id="delegation_fields">
+<label for="agent_name">Delegate To Agent:*(Mandatory)*</label>
+<select id="agent_name" name="agent_name" required>
+<option value="__Select Agent__">__Select Agent__</option>
+{% for agent in available_agents %}
+<option value="{{ agent }}">{{ agent }}</option>
+{% endfor %}
+</select>
+</div>
+
+<input type="hidden" name="email_id" value="{{ email_id }}">
+
+<div class="button-container">
+    <a href="{% url 'fetch_emails' %}" class="btn-cancel">Cancel (Back to Inbox)</a>
+    <button type="submit" id="submit_button" class="btn-delegate btn-delegate-submit">Confirm Delegation</button>
+</div>
+
+</form>
+</div>
+<script>
+document.addEventListener('DOMContentLoaded',function(){
+// --- Element Selectors ---
+const categorySelect=document.getElementById('email_category');
+const typeSelect=document.getElementById('email_type');
+// Elements for the new conditional logic
+const workRelatedSelect=document.getElementById('work_related');
+const delegationFields=document.getElementById('delegation_fields');
+const submitButton=document.getElementById('submit_button');
+const agentSelect=document.getElementById('agent_name');
+// Select the wrapper for all fields that should be hidden (excluding work_related)
+const conditionalFieldsWrapper=document.getElementById('conditional_fields_wrapper');
+// Select all relevant optional inputs inside the wrapper to clear their values
+const optionalInputs=document.querySelectorAll('#conditional_fields_wrapper select,#conditional_fields_wrapper input[type="text"]');
+
+// The original cascading logic (updateEnquirySelection) is now REMOVED as requested.
+// We only need the toggleDelegationFields logic.
+
+// --- Conditional Visibility Logic ---
+function toggleDelegationFields(){
+if(workRelatedSelect.value==='No'){
+// If NOT work related (Recycle Bin action)
+// Hide all classification/lookup fields
+conditionalFieldsWrapper.style.display='none';
+// Hide agent delegation field
+delegationFields.style.display='none';
+submitButton.textContent='Confirm Move to Recycle Bin';
+// Remove 'required' status and reset values when hidden
+agentSelect.removeAttribute('required');
+agentSelect.value='__Select Agent__';
+// Clear classification fields values
+optionalInputs.forEach(input=>{
+if(input.tagName==='SELECT'){
+input.value=''; // Set to empty option
+}else{
+input.value=''; // Clear text value
+}
+});
+}else{
+// If YES work related (Delegate action)
+// Show all classification/lookup fields
+conditionalFieldsWrapper.style.display='grid'; // Re-enables grid layout for children
+// Show agent delegation field
+delegationFields.style.display='block';
+submitButton.textContent='Confirm Delegation';
+// Re-add 'required' status when visible
+agentSelect.setAttribute('required','required');
+// Restore initial selection state (in case of postback data)
+{% if current_inbox_entry.delegated_to %}
+agentSelect.value="{{ current_inbox_entry.delegated_to }}";
+{% else %}
+agentSelect.value='__Select Agent__';
+{% endif %}
+// Restore field values if present (e.g., failed POST)
+{% if current_inbox_entry %}
+categorySelect.value="{{ current_inbox_entry.category|default:'' }}";
+typeSelect.value="{{ current_inbox_entry.type|default:'' }}";
+{% endif %}
+}
+}
+// --- Event Listeners and Initial Calls ---
+// categorySelect.addEventListener('change', updateEnquirySelection); // REMOVED
+workRelatedSelect.addEventListener('change',toggleDelegationFields);
+// Initial setup on page load
+// updateEnquirySelection(); // REMOVED, no longer needed
+toggleDelegationFields();
+});
+</script>
+</body>
+</html>
