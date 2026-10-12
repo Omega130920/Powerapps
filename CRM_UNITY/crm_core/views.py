@@ -271,7 +271,7 @@ def logout_view(request):
     return redirect('login')
 
 # ==============================================================================
-# MICROSOFT GRAPH EMAIL (UNITY_INTERNAL AUTOMATIC LOGIC)
+# MICROSOFT GRAPH EMAIL (UNITY_INTERNAL AUTOMATIC LOGIC)'delegation_timestamp': 
 # ==============================================================================
 
 @login_required
@@ -2205,9 +2205,10 @@ def get_unified_email_data(request):
     """
     Helper function to merge CrmInbox (New) and CrmDelegateTo (Delegated) 
     data into a single list for the UI and CSV Export.
-    Includes safety checks for 'None' strings and Agent lookups.
+    - Received Date comes strictly from CrmInbox (or synced lookup).
+    - Delegated Date comes strictly from CrmDelegateTo.received_timestamp.
     """
-    # 1. Action Lookup (Check for replies and original delegation actions)
+    # 1. Action Lookup (Check for replies and user mappings)
     last_reply_map = CrmDelegateAction.objects.filter(
         action_type='REPLY_SENT'
     ).values('task_email_id').annotate(last_replied=Max('action_timestamp'))
@@ -2217,11 +2218,6 @@ def get_unified_email_data(request):
         action_type='restore_to_inbox' 
     ).values('task_email_id', 'action_user')
     user_dict = {item['task_email_id']: item['action_user'] for item in delegation_user_map if item.get('task_email_id')}
-
-    delegated_actions = CrmDelegateAction.objects.filter(
-        action_type__in=['DELEGATE', 'DELEGATED', 'ASSIGNED']
-    ).values('task_email_id', 'action_timestamp')
-    delegated_date_map = {item['task_email_id']: item['action_timestamp'] for item in delegated_actions if item.get('task_email_id')}
 
     action_notes_qs = CrmDelegateAction.objects.exclude(
         note_content__isnull=True
@@ -2242,11 +2238,17 @@ def get_unified_email_data(request):
     # 2. Setup Filters 
     date_filter, _, _ = get_date_filters(request)
 
-    # 3. Fetch Delegated Emails
+    # 3. Fetch Delegated Emails (CrmDelegateTo)
     delegated_qs = CrmDelegateTo.objects.filter(date_filter).order_by('-received_timestamp')
     delegated_ids = {getattr(task, 'email_id') for task in delegated_qs if getattr(task, 'email_id', None)}
 
-    # 4. Fetch New/Pending Emails
+    # Map CrmInbox received_timestamps by email_id so we can look them up instantly
+    inbox_received_map = {
+        item.email_id: item.received_timestamp 
+        for item in CrmInbox.objects.filter(email_id__in=delegated_ids)
+    }
+
+    # 4. Fetch New/Pending Emails (CrmInbox)
     new_emails_qs = CrmInbox.objects.filter(date_filter).exclude(
         email_id__in=delegated_ids
     ).order_by('-received_timestamp')
@@ -2258,9 +2260,16 @@ def get_unified_email_data(request):
     except NameError:
         cat_dict = {}
 
-    # Process Delegated
+    # Process Delegated Items (CrmDelegateTo)
     for task in delegated_qs:
         eid = getattr(task, 'email_id', '')
+        
+        # 🟢 Received Date comes from CrmInbox lookup, fallback to CrmDelegateTo if needed
+        received_time = inbox_received_map.get(eid) or getattr(task, 'arrival_timestamp', None)
+        
+        # 🟢 Delegated Date pulls strictly from CrmDelegateTo.received_timestamp
+        delegated_time = getattr(task, 'received_timestamp', None)
+
         unified_list.append({
             'email_id': eid,
             'subject': getattr(task, 'subject', 'No Subject') or "No Subject",
@@ -2274,16 +2283,16 @@ def get_unified_email_data(request):
             
             'category': cat_dict.get(str(getattr(task, 'category', '')), getattr(task, 'category', 'Unclassified')),
             'type': getattr(task, 'type', 'None'), 
-            'received_timestamp': getattr(task, 'received_timestamp', None),
+            
+            'received_timestamp': received_time,      # From CrmInbox via mapping
+            'delegated_timestamp': delegated_time,    # Strictly from CrmDelegateTo.received_timestamp
             'last_replied_timestamp': last_reply_dict.get(eid),
             
-            'delegated_timestamp': delegated_date_map.get(eid),
             'action_note': action_note_map.get(eid, ''),
-            
             'is_delegated': True
         })
 
-    # Process New
+    # Process New Items (CrmInbox)
     for email in new_emails_qs:
         eid = getattr(email, 'email_id', '')
         unified_list.append({
@@ -2299,12 +2308,12 @@ def get_unified_email_data(request):
             
             'category': getattr(email, 'category', 'Unclassified'),
             'type': getattr(email, 'type', 'Incoming Email'), 
-            'received_timestamp': getattr(email, 'received_timestamp', None),
+            
+            'received_timestamp': getattr(email, 'received_timestamp', None), # From CrmInbox
+            'delegated_timestamp': None,                                       # None because it's not delegated yet
             'last_replied_timestamp': None,
             
-            'delegated_timestamp': None,
             'action_note': action_note_map.get(eid, ''),
-            
             'is_delegated': False
         })
 

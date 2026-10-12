@@ -169,13 +169,30 @@
     <form method="post" action="{% if is_editing %}{% url 'edit_bill' company_code=company_code bill_id=bill_id %}{% else %}{% url 'create_pre_bill' company_code=company_code %}{% endif %}">
         {% csrf_token %}
 
-        <!-- Render any hidden fields automatically -->
+        <!-- Render any core hidden fields automatically -->
         {% for field in form.hidden_fields %}
             {{ field }}
         {% endfor %}
 
         <div class="form-grid">
-            <!-- Row 1: Active Members, Scheduled Bill Amount (R), Pre-Bill Date -->
+            <!-- System/Context fields visible and posted back correctly -->
+            <div class="form-group">
+                <label for="{{ form.A_CCDatesMonth.id_for_label }}">{{ form.A_CCDatesMonth.label }}</label>
+                {{ form.A_CCDatesMonth }}
+                {% if form.A_CCDatesMonth.errors %}<small class="error-msg">{{ form.A_CCDatesMonth.errors }}</small>{% endif %}
+            </div>
+            <div class="form-group">
+                <label for="{{ form.C_Company_Code.id_for_label }}">{{ form.C_Company_Code.label }}</label>
+                {{ form.C_Company_Code }}
+                {% if form.C_Company_Code.errors %}<small class="error-msg">{{ form.C_Company_Code.errors }}</small>{% endif %}
+            </div>
+            <div class="form-group full-width">
+                <label for="{{ form.D_Company_Name.id_for_label }}">{{ form.D_Company_Name.label }}</label>
+                {{ form.D_Company_Name }}
+                {% if form.D_Company_Name.errors %}<small class="error-msg">{{ form.D_Company_Name.errors }}</small>{% endif %}
+            </div>
+
+            <!-- First Horizontal Flow Row -->
             <div class="form-group">
                 <label for="{{ form.E_Active_Members.id_for_label }}">{{ form.E_Active_Members.label }}</label>
                 {{ form.E_Active_Members }}
@@ -192,7 +209,7 @@
                 {% if form.F_Pre_Bill_Date.errors %}<small class="error-msg">{{ form.F_Pre_Bill_Date.errors }}</small>{% endif %}
             </div>
 
-            <!-- Row 2: Schedule Date, Final Date, Submitted Date -->
+            <!-- Second Horizontal Flow Row -->
             <div class="form-group">
                 <label for="{{ form.G_Schedule_Date.id_for_label }}">{{ form.G_Schedule_Date.label }}</label>
                 {{ form.G_Schedule_Date }}
@@ -209,18 +226,11 @@
                 {% if form.I_Submitted_Date.errors %}<small class="error-msg">{{ form.I_Submitted_Date.errors }}</small>{% endif %}
             </div>
 
-            <!-- Row 3: Salary Amount (R) -->
+            <!-- Last Horizontal Flow Row -->
             <div class="form-group">
                 <label for="{{ form.salary_amount.id_for_label }}">{{ form.salary_amount.label }}</label>
                 {{ form.salary_amount }}
                 {% if form.salary_amount.errors %}<small class="error-msg">{{ form.salary_amount.errors }}</small>{% endif %}
-            </div>
-
-            <!-- Keep any extra remaining fields (like CCDatesMonth, Fund Code, Company Name if part of form) hidden or neatly at the bottom if needed -->
-            <div style="display:none;">
-                {{ form.A_CCDatesMonth }}
-                {{ form.C_Company_Code }}
-                {{ form.D_Company_Name }}
             </div>
 
             <div class="button-group">

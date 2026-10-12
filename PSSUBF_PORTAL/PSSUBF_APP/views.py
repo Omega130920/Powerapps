@@ -1062,7 +1062,7 @@ from .models import PssubfAction, PssubfDelegate
 @login_required
 def pssubf_audit_logs(request):
     """
-    Master Audit Log: Shows strictly email-related actions and maps their live status.
+    Master Audit Log: Shows delegation logs with email details.
     Includes an export-to-Excel (XLSX) function that respects applied filters.
     """
     query = request.GET.get('q', '').strip()
@@ -1071,22 +1071,15 @@ def pssubf_audit_logs(request):
     
     is_export = request.GET.get('export') == 'excel'
 
-    # Strict filter: Only allow email-related action types
-    email_action_types = [
-        'Delegation', 
-        'Direct Email Sent', 
-        'EMAIL_REPLY', 
-        'Email Sent', 
-        'Task Delegation'
-    ]
-    logs = PssubfAction.objects.filter(action_type__in=email_action_types)
+    # Query delegations instead of raw actions to match the required columns
+    logs = PssubfDelegate.objects.all().order_by('-created_at')
 
     # Apply Search Filter
     if query:
         logs = logs.filter(
-            Q(action_user__icontains=query) |
-            Q(action_type__icontains=query) |
-            Q(note_content__icontains=query)
+            Q(assigned_agent__icontains=query) |
+            Q(subject__icontains=query) |
+            Q(status__icontains=query)
         )
 
     # Bulletproof Date Range Filters (Timezone Aware Boundaries)
@@ -1094,7 +1087,7 @@ def pssubf_audit_logs(request):
         try:
             start_d = datetime.strptime(start_date_str, '%Y-%m-%d').date()
             start_dt = make_aware(datetime.combine(start_d, time.min))
-            logs = logs.filter(action_timestamp__gte=start_dt)
+            logs = logs.filter(created_at__gte=start_dt)
         except ValueError:
             pass
 
@@ -1102,44 +1095,37 @@ def pssubf_audit_logs(request):
         try:
             end_d = datetime.strptime(end_date_str, '%Y-%m-%d').date()
             end_dt = make_aware(datetime.combine(end_d, time.max))
-            logs = logs.filter(action_timestamp__lte=end_dt)
+            logs = logs.filter(created_at__lte=end_dt)
         except ValueError:
             pass
 
-    logs = logs.order_by('-action_timestamp')
-
-    # Map live status from PssubfDelegate to each log entry
-    email_ids = [log.task_email_id for log in logs if log.task_email_id]
-    delegate_status_map = {
-        d.email_id: d.status for d in PssubfDelegate.objects.filter(email_id__in=email_ids)
-    }
-
+    # Enrich delegation objects with inbox fallback details
     for log in logs:
-        # Attach the live status attribute (defaults to 'Unknown' or 'Pending' if not found)
-        log.live_status = delegate_status_map.get(log.task_email_id, 'Pending')
+        # Match with Inbox to get Received Date
+        inbox_match = PssubfInbox.objects.filter(email_id=log.email_id).first()
+        received_ts = inbox_match.received_timestamp if inbox_match and inbox_match.received_timestamp else None
         
-        # 🟢 FIX: Handle database quirks where datetime fields are returned as strings
-        # This bypasses Django's template filter entirely and forces a clean date string.
-        if log.action_timestamp:
-            try:
-                if isinstance(log.action_timestamp, str):
-                    # Clean the string and parse it manually if Django didn't convert it to a datetime object
-                    clean_str = log.action_timestamp.split('.')[0]
-                    parsed_dt = datetime.strptime(clean_str, "%Y-%m-%d %H:%M:%S")
-                    log.display_date = parsed_dt.strftime("%d %b %Y %H:%M:%S")
-                    log.excel_date = parsed_dt.strftime("%Y-%m-%d %H:%M:%S")
-                else:
-                    # Normal Python datetime object formatting
-                    dt = localtime(log.action_timestamp) if is_aware(log.action_timestamp) else log.action_timestamp
-                    log.display_date = dt.strftime("%d %b %Y %H:%M:%S")
-                    log.excel_date = dt.strftime("%Y-%m-%d %H:%M:%S")
-            except Exception:
-                # Absolute fallback if format is corrupted but exists
-                log.display_date = str(log.action_timestamp)
-                log.excel_date = str(log.action_timestamp)
+        # Format Received Date
+        if received_ts:
+            dt_received = localtime(received_ts) if is_aware(received_ts) else received_ts
+            log.display_received_date = dt_received.strftime("%d %b %Y %H:%M:%S")
+            log.excel_received_date = dt_received.strftime("%Y-%m-%d %H:%M:%S")
         else:
-            log.display_date = "No Timestamp"
-            log.excel_date = "No Timestamp"
+            log.display_received_date = "Unknown"
+            log.excel_received_date = "Unknown"
+
+        # Format Delegation Date
+        if log.created_at:
+            dt_delegated = localtime(log.created_at) if is_aware(log.created_at) else log.created_at
+            log.display_delegation_date = dt_delegated.strftime("%d %b %Y %H:%M:%S")
+            log.excel_delegation_date = dt_delegated.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            log.display_delegation_date = "Unknown"
+            log.excel_delegation_date = "Unknown"
+            
+        # Map properties to template variables
+        log.email_subject = log.subject
+        log.live_status = log.status
 
     # GENERATE XLSX SPREADSHEET IF REQUESTED
     if is_export:
@@ -1151,22 +1137,22 @@ def pssubf_audit_logs(request):
         ws = wb.active
         ws.title = "Audit Logs"
         
-        # Write Headers (Task ID Removed)
-        headers = ['Timestamp', 'User', 'Action Type', 'Live Status', 'Details / Notes']
+        # Write Headers
+        headers = ['Email Subject', 'Email Received', 'Delegation Date', 'Email Status', 'Delegated Agent']
         ws.append(headers)
         
         # Format Header Row (Bold)
         for cell in ws[1]:
             cell.font = openpyxl.styles.Font(bold=True)
             
-        # Write Data Rows using our newly parsed safe string
+        # Write Data Rows
         for log in logs:
             ws.append([
-                log.excel_date,
-                log.action_user,
-                log.action_type,
+                log.email_subject,
+                log.excel_received_date,
+                log.excel_delegation_date,
                 log.live_status,
-                log.note_content
+                log.assigned_agent
             ])
             
         wb.save(response)

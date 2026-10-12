@@ -216,24 +216,24 @@
         <table class="task-table" id="main_table">
             <thead>
                 <tr>
-                    <th style="width: 10%;">Received Date</th>
-                    <!-- 🟢 ADDED: Delegated Date -->
-                    <th style="width: 10%;">Delegated Date</th>
-                    <th style="width: 25%;">Subject</th>
-                    <th style="width: 14%;">From</th>
-                    <th style="width: 8%;">MG Code</th>
+                    <th style="width: 11%;">Received Date</th>
+                    <th style="width: 11%;">Delegated Date</th>
+                    <th style="width: 24%;">Subject</th>
+                    <th style="width: 13%;">From</th>
+                    <th style="width: 7%;">MG Code</th>
                     <th style="width: 8%;">Status</th>
-                    <th style="width: 12%;">Delegated To</th>
-                    <!-- 🟢 ADDED: Action Note -->
-                    <th style="width: 13%;">Action Note</th>
+                    <th style="width: 11%;">Delegated To</th>
+                    <th style="width: 15%;">Action Note</th>
                 </tr>
             </thead>
             <tbody id="table_body">
                 {% for row in page_obj %}
                 <tr onclick="window.location.href='{% if request.user.is_superuser or request.user.groups.all.0.name == 'Managers' %}{% url 'delegate_email' email_id=row.email_id %}{% elif row.is_delegated %}{% url 'delegate_action' email_id=row.email_id %}{% else %}{% url 'delegate_email' email_id=row.email_id %}{% endif %}';" class="clickable-row">
-                    <td class="font-mono">{{ row.received_timestamp|date:"Y-m-d H:i" }}</td>
                     
-                    <!-- 🟢 ADDED: Delegated Date Data -->
+                    <!-- Received Date from crm_inbox -->
+                    <td class="font-mono">{{ row.received_timestamp|date:"Y-m-d H:i"|default:"-" }}</td>
+                    
+                    <!-- Delegated Date from crm_delegate_to -->
                     <td class="font-mono">
                         {% if row.delegated_timestamp %}
                             {{ row.delegated_timestamp|date:"Y-m-d H:i" }}
@@ -261,7 +261,7 @@
                     </td>
                     <td style="font-weight: 500;">{{ row.delegated_to|default:"-" }}</td>
                     
-                    <!-- 🟢 ADDED: Action Note Data -->
+                    <!-- Action Note -->
                     <td>
                         {% if row.action_note %}
                             <span style="color: #2e7d32; font-weight: 500;">
