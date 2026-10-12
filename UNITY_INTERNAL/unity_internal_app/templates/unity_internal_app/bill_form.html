@@ -169,10 +169,21 @@
     <form method="post" action="{% if is_editing %}{% url 'edit_bill' company_code=company_code bill_id=bill_id %}{% else %}{% url 'create_pre_bill' company_code=company_code %}{% endif %}">
         {% csrf_token %}
 
+<<<<<<< HEAD
         <!-- Render any core hidden fields automatically -->
+=======
+        <!-- Render any hidden form fields automatically -->
+>>>>>>> d9c72c912b9bb852b7415021646b9cbb58d8ae66
         {% for field in form.hidden_fields %}
             {{ field }}
         {% endfor %}
+
+        <!-- Hidden container for required model fields that aren't displayed in grid rows -->
+        <div style="display:none;">
+            {{ form.A_CCDatesMonth }}
+            {{ form.C_Company_Code }}
+            {{ form.D_Company_Name }}
+        </div>
 
         <div class="form-grid">
             <!-- System/Context fields visible and posted back correctly -->
