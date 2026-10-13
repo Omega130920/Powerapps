@@ -662,9 +662,10 @@ def unity_information(request: HttpRequest, company_code):
             'icon': '📤'
         })
 
+    # 🟢 DIRECT EMAILS: Strictly use the clean attached_email_id column
     direct_emails = UnityNotes.objects.filter(member_group_code__iexact=clean_lookup, communication_type='Sent Email')
     for email in direct_emails:
-        outlook_id = email.attached_email_id or (email.action_notes.replace("OUTLOOK_ID:", "").strip() if email.action_notes and "OUTLOOK_ID:" in email.action_notes else None)
+        outlook_id = email.attached_email_id.strip() if email.attached_email_id else None
         
         email_sent_subject = email.action_notes or 'Email Sent'
         if email.notes and "Subject:" in email.notes:
@@ -701,11 +702,10 @@ def unity_information(request: HttpRequest, company_code):
     if email_search_query:
         filtered_email_log = []
         for log in combined_email_log:
-            # Aggregate all searchable fields into a single lowercase string for easy matching
             searchable_text = f"{log.get('subject', '')} {log.get('sender', '')} " \
-                              f"{log.get('assigned_to', '')} {log.get('status', '')} " \
-                              f"{log.get('type', '')} {log.get('display_type', '')} " \
-                              f"{log.get('action_user', '')}".lower()
+                            f"{log.get('assigned_to', '')} {log.get('status', '')} " \
+                            f"{log.get('type', '')} {log.get('display_type', '')} " \
+                            f"{log.get('action_user', '')}".lower()
             
             if email_search_query in searchable_text:
                 filtered_email_log.append(log)
@@ -758,12 +758,13 @@ def unity_information(request: HttpRequest, company_code):
                     user=request.user, 
                     attachments=attachments,
                     cc_email=cc_recipients,    
-                    bcc_email=bcc_recipients   
+                    bcc_email=bcc_recipients    
                 )
                 if response.get('success'):
                     attachment_count = len(attachments)
                     attach_string = f" ({attachment_count} files)" if attachment_count > 0 else ""
                     
+                    # 🟢 Explicitly save the Graph response ID into attached_email_id
                     UnityNotes.objects.create(
                         member_group_code=company_code, 
                         user=request.user.username, 
@@ -832,7 +833,7 @@ def unity_information(request: HttpRequest, company_code):
         'notes': notes, 
         'communication_logs': communication_logs, 
         'combined_email_log': combined_email_log, 
-        'email_search_query': email_search_query, # Pass the query to keep the search bar populated
+        'email_search_query': email_search_query, 
         'is_fallback': is_fallback, 
         'bank_lines': bank_lines, 
         'credit_notes': credit_notes, 
