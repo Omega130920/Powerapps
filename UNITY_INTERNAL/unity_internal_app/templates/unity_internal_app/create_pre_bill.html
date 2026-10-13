@@ -97,6 +97,7 @@
             color: #d32f2f;
             font-size: 0.85rem;
             margin-top: 4px;
+            font-weight: bold;
         }
 
         .button-group {
@@ -166,16 +167,26 @@
         {% endif %}
     </h2>
 
-    <form method="post" action="{% if is_editing %}{% url 'edit_bill' company_code=company_code bill_id=bill_id %}{% else %}{% url 'create_pre_bill' company_code=company_code %}{% endif %}">
+    
+
+    <!-- If there are non-field errors, display them at the top -->
+    {% if form.non_field_errors %}
+        <div style="background-color: #ffebee; color: #c62828; padding: 12px; border-radius: 6px; margin-bottom: 20px;">
+            {{ form.non_field_errors }}
+        </div>
+    {% endif %}
+
+    <!-- Added novalidate to bypass silent HTML5 browser validation blocks -->
+    <form method="post" novalidate action="{% if is_editing %}{% url 'edit_bill' company_code=company_code bill_id=bill_id %}{% else %}{% url 'create_pre_bill' company_code=company_code %}{% endif %}">
         {% csrf_token %}
 
-        <!-- Render any core hidden fields automatically -->
+        <!-- Render core hidden fields automatically -->
         {% for field in form.hidden_fields %}
             {{ field }}
         {% endfor %}
 
         <div class="form-grid">
-            <!-- System/Context fields visible and posted back correctly -->
+            <!-- System/Context fields -->
             <div class="form-group">
                 <label for="{{ form.A_CCDatesMonth.id_for_label }}">{{ form.A_CCDatesMonth.label }}</label>
                 {{ form.A_CCDatesMonth }}

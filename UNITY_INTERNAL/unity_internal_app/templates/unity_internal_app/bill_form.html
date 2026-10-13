@@ -166,7 +166,23 @@
         {% endif %}
     </h2>
 
-    <form method="post" action="{% if is_editing %}{% url 'edit_bill' company_code=company_code bill_id=bill_id %}{% else %}{% url 'create_pre_bill' company_code=company_code %}{% endif %}">
+    <!-- Display messages if present -->
+    {% if messages %}
+        <div style="background-color: #ffebee; color: #c62828; padding: 12px; border-radius: 6px; margin-bottom: 20px;">
+            {% for message in messages %}
+                <p style="margin: 0;">{{ message }}</p>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <!-- If there are non-field errors, display them at the top -->
+    {% if form.non_field_errors %}
+        <div style="background-color: #ffebee; color: #c62828; padding: 12px; border-radius: 6px; margin-bottom: 20px;">
+            {{ form.non_field_errors }}
+        </div>
+    {% endif %}
+
+    <form method="post" novalidate action="{% if is_editing %}{% url 'edit_bill' company_code=company_code bill_id=bill_id %}{% else %}{% url 'create_pre_bill' company_code=company_code %}{% endif %}">
         {% csrf_token %}
 
         <!-- Render any core hidden fields automatically -->
@@ -244,7 +260,7 @@
                 <a href="{% url 'unity_information' company_code=company_code %}" class="back-link">
                     ← Back to Information
                 </a>
-                <button type="submit" class="save-button">
+                <button type="submit" onclick="this.form.submit();" class="save-button">
                     {% if is_editing %}
                         Save Changes
                     {% else %}
