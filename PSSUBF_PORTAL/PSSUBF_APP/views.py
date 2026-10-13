@@ -230,9 +230,13 @@ def outlook_dashboard_view(request):
     for email in all_emails:
         e_id = email['id']
         
-        # --- SECURITY FILTERING START ---
+        # --- SECURITY & RECYCLE BIN FILTERING START ---
         if e_id in delegated_map:
             delegation_record = delegated_map[e_id]
+            
+            # Immediately skip if marked as Recycled or permanently deleted
+            if delegation_record.status in ['Recycled', 'PERM_DEL']:
+                continue
             
             # 1. Skip if already processed (anything not 'Assigned' is considered archived/done)
             if delegation_record.status != 'Assigned':
@@ -244,6 +248,11 @@ def outlook_dashboard_view(request):
             if delegation_record.assigned_agent and delegation_record.assigned_agent != current_username:
                 if not request.user.is_superuser:
                     continue
+        else:
+            # Check if it was marked PERM_DEL in Inbox previously
+            inbox_check = local_inbox_map.get(e_id)
+            if inbox_check and inbox_check.status == 'PERM_DEL':
+                continue
         # --- SECURITY FILTERING END ---
 
         # Sync PssubfInbox (The Archive) - Safe get_or_create prevents duplicate key errors
@@ -276,6 +285,8 @@ def outlook_dashboard_view(request):
             )
         else:
             delegation = delegated_map[e_id]
+            if delegation.status in ['Recycled', 'PERM_DEL']:
+                continue
 
         # Prepare for Template
         email_display = {
@@ -1064,6 +1075,7 @@ def pssubf_audit_logs(request):
     """
     Master Audit Log: Shows delegation logs with email details.
     Includes an export-to-Excel (XLSX) function that respects applied filters.
+    Excludes Recycled records.
     """
     query = request.GET.get('q', '').strip()
     start_date_str = request.GET.get('start_date')
@@ -1071,8 +1083,8 @@ def pssubf_audit_logs(request):
     
     is_export = request.GET.get('export') == 'excel'
 
-    # Query delegations instead of raw actions to match the required columns
-    logs = PssubfDelegate.objects.all().order_by('-created_at')
+    # Query delegations and exclude Recycled items
+    logs = PssubfDelegate.objects.exclude(status='Recycled').order_by('-created_at')
 
     # Apply Search Filter
     if query:
@@ -1182,34 +1194,31 @@ def pssubf_recycle_bin(request):
 def pssubf_restore_item(request, email_id):
     """
     Restores an item from the Recycle Bin back to the Triage Dashboard.
-    Clears the status so the Dashboard filter no longer excludes it.
+    Updates the delegate status back to 'Assigned' so it returns safely.
     """
     # 1. Get the recycled task record
     task = get_object_or_404(PssubfDelegate, email_id=email_id)
     
-    # 2. Find the original Inbox record (The one the dashboard looks at)
+    # 2. Update status back to Assigned instead of deleting the row
+    task.status = 'Assigned'
+    task.assigned_agent = None  # Clear agent so it can be re-assigned cleanly
+    task.save()
+    
+    # 3. Clear inbox status if needed
     inbox_item = PssubfInbox.objects.filter(email_id=email_id).first()
-
     if inbox_item:
-        # 🚀 CRITICAL: Clear the status. 
-        # Setting it to '' or None makes it "New" again so it shows in the Dashboard.
-        inbox_item.status = '' 
+        inbox_item.status = ''
         inbox_item.save()
 
-    # 3. Delete the 'Recycled' delegate entry so the system sees it as a fresh start
-    task.delete() 
-    
     # 4. Log the action
     PssubfAction.objects.create(
         task_email_id=email_id,
         action_user=request.user.username,
         action_type="RESTORE",
-        note_content="Item restored. Status cleared to return to Triage Dashboard."
+        note_content="Item restored from Recycle Bin back to Triage Dashboard."
     )
     
     messages.success(request, "Email restored to Dashboard. You can now assign an agent.")
-    
-    # 5. Redirect to the Dashboard so you can see it's back
     return redirect('pssubf_dashboard')
 
 logger = logging.getLogger(__name__)
@@ -1269,14 +1278,13 @@ def pssubf_recycle_view(request, email_id):
 @login_required
 def pssubf_delete_permanent(request, email_id):
     """
-    Permanently deletes a single record from both the Delegate and Inbox tables 
-    so it is completely scrubbed from local app views and cannot return.
+    Permanently marks a record as permanently deleted ('PERM_DEL') 
+    so the dashboard sync loop knows never to recreate it.
     """
-    # 1. Delete from Delegate table (Removes it from Recycle Bin view)
-    PssubfDelegate.objects.filter(email_id=email_id).delete()
-    
-    # 2. ALSO explicitly delete from Inbox table (Prevents it from reappearing in inbox/dashboard)
-    PssubfInbox.objects.filter(email_id=email_id).delete()
+    # Instead of hard-deleting which triggers get_or_create on next fetch, 
+    # update status to a permanent tombstone state: 'PERM_DEL'
+    PssubfDelegate.objects.filter(email_id=email_id).update(status='PERM_DEL', assigned_agent=None)
+    PssubfInbox.objects.filter(email_id=email_id).update(status='PERM_DEL')
     
     messages.error(request, "Record permanently deleted from the system.")
     return redirect('pssubf_recycle_bin')
@@ -1285,16 +1293,18 @@ def pssubf_delete_permanent(request, email_id):
 @login_required
 def pssubf_bulk_delete(request):
     """
-    Handles multiple permanent deletions from the recycle bin.
+    Handles multiple permanent deletions from the recycle bin 
+    by marking them with the 'PERM_DEL' tombstone status so they are never recreated.
     """
     if request.method == 'POST':
         selected_ids = request.POST.getlist('selected_ids')
         action = request.POST.get('action')
 
         if selected_ids and action == 'permanent_delete':
-            # 🔴 Hard delete from both tables simultaneously
-            PssubfDelegate.objects.filter(email_id__in=selected_ids).delete()
-            PssubfInbox.objects.filter(email_id__in=selected_ids).delete()
+            # 🚀 CRITICAL FIX: Update status to 'PERM_DEL' instead of hard-deleting
+            # This prevents outlook_dashboard_view sync loop from recreating them via get_or_create.
+            PssubfDelegate.objects.filter(email_id__in=selected_ids).update(status='PERM_DEL', assigned_agent=None)
+            PssubfInbox.objects.filter(email_id__in=selected_ids).update(status='PERM_DEL')
             
             messages.error(request, f"Permanently deleted {len(selected_ids)} records from the system.")
         else:
