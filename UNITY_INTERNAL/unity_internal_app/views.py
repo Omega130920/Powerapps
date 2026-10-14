@@ -423,6 +423,7 @@ def unity_information(request: HttpRequest, company_code):
     """
     Displays detailed information for a single record.
     UPDATED: Strictly uses ReconnedBank.amount_settled without double-deducting journals.
+    UPDATED: Securely maps direct emails to valid Graph IDs or safe PK fallbacks.
     """
     from .models import (
         EmailDelegation, DelegationTransactionLog, UnityNotes, 
@@ -662,11 +663,13 @@ def unity_information(request: HttpRequest, company_code):
             'icon': '📤'
         })
 
-    # 🟢 DIRECT EMAILS: Load and print mapped IDs to terminal (using email.pk)
+    # 🟢 DIRECT EMAILS: Load UnityNotes and safely validate Graph IDs or fall back to PK
     direct_emails = UnityNotes.objects.filter(member_group_code__iexact=clean_lookup, communication_type='Sent Email')
     for email in direct_emails:
-        outlook_id = email.attached_email_id.strip() if email.attached_email_id else None
-        print(f"👉 [DEBUG Unity Info] Loaded UnityNote PK {email.pk} | attached_email_id column value: '{email.attached_email_id}'")
+        raw_id = email.attached_email_id.strip() if email.attached_email_id else ""
+        valid_outlook_id = raw_id if (raw_id and not raw_id.startswith("MANUAL") and len(raw_id) > 20) else str(email.pk)
+        
+        print(f"👉 [DEBUG Unity Info] Loaded UnityNote PK {email.pk} | attached_email_id column value: '{email.attached_email_id}' -> Resolved ID: '{valid_outlook_id}'")
         
         email_sent_subject = email.action_notes or 'Email Sent'
         if email.notes and "Subject:" in email.notes:
@@ -689,7 +692,7 @@ def unity_information(request: HttpRequest, company_code):
             'sender': email.user,
             'assigned_to': email.notes.split('\n')[0][:50] if email.notes else 'Recipient', 
             'status': 'Direct', 
-            'email_id': outlook_id, 
+            'email_id': valid_outlook_id, 
             'action_user': email.user, 
             'badge_color': '#4CAF50', 
             'icon': '📤'
@@ -762,7 +765,6 @@ def unity_information(request: HttpRequest, company_code):
                     bcc_email=bcc_recipients    
                 )
                 
-                # 🟢 DEBUG: Print what Graph API returned upon sending
                 print(f"🚀 [DEBUG SEND] Graph API Response received: {response}")
                 
                 if response.get('success'):
@@ -4602,88 +4604,75 @@ import urllib.parse
 @login_required
 def view_email_thread(request, email_id):
     """
-    Displays email content, attachments, and combined timeline of 
-    automated transactions, delegation notes, and manual unity notes.
+    Displays email content, attachments, and combined timeline.
+    Updated to handle both Graph API message IDs and UnityNotes Primary Keys safely.
     """
     from .models import EmailDelegation, DelegationTransactionLog, UnityNotes, DelegationNote, OutlookInbox
     from django.http import Http404
 
-    # 🟢 Decode URL-encoded characters and clean whitespace
     raw_incoming_id = email_id
     email_id = urllib.parse.unquote(email_id).strip()
     
-    # 🛑 DEBUG: Print what URL parameter was received and unquoted
-    print(f"\n🔍 [DEBUG VIEW THREAD] Raw incoming URL email_id: '{raw_incoming_id}' | Cleaned/Unquoted email_id: '{email_id}'")
-
-    # Guard clause
     if not email_id or email_id.upper() in ['NONE', 'NULL', 'MANUAL_SEND_SUCCESS', 'UNDEFINED']:
-        print("❌ [DEBUG VIEW THREAD] Blocked by guard clause (Invalid/Placeholder ID)")
         raise Http404("A valid Email ID is required to view this thread.")
 
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
 
-    # 1. Fetch Local Data safely across all possible tables
-    task = EmailDelegation.objects.filter(email_id=email_id).first()
-    inbox_item = OutlookInbox.objects.filter(email_id=email_id).first()
-    direct_note = UnityNotes.objects.filter(attached_email_id=email_id).first()
-
-    print(f"🔎 [DEBUG LOOKUP] Found in EmailDelegation: {bool(task)} | Found in OutlookInbox: {bool(inbox_item)} | Found in UnityNotes (Direct Note): {bool(direct_note)}")
-
-    if not task and not inbox_item and not direct_note:
-        print("❌ [DEBUG VIEW THREAD] Record not found in ANY table! Raising 404.")
-        raise Http404("The requested email thread could not be found.")
-    
-    # 2. Fetch Live Content from Graph API with safety fallback for direct emails
-    email_body = "Could not retrieve content from Outlook (Email may have been moved or archived)."
+    task = None
+    inbox_item = None
+    direct_note = None
+    email_body = ""
     attachments = []
     email_data = {}
 
-    try:
-        endpoint = f"messages/{email_id}"
-        email_data = OutlookGraphService._make_graph_request(endpoint, target_email, method='GET')
-        
-        if isinstance(email_data, dict) and email_data.get('details', {}).get('code') == 'ErrorItemNotFound':
-            print("⚠️ [DEBUG GRAPH] Graph API returned ErrorItemNotFound. Falling back to local DB content.")
-            if inbox_item:
-                email_body = inbox_item.body_content
-            elif direct_note:
-                email_body = direct_note.notes
-        elif isinstance(email_data, dict) and 'error' not in email_data:
-            print("✅ [DEBUG GRAPH] Successfully fetched message content from Microsoft Graph API.")
-            email_body = email_data.get('body', {}).get('content', "")
-            
-            # 3. Handle Attachments
-            attachments = OutlookGraphService.fetch_attachments(target_email, email_id)
-            for att in attachments:
-                content_type = att.get('contentType', '').lower()
-                if 'image' in content_type:
-                    raw_att = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
-                    if isinstance(raw_att, dict) and 'contentBytes' in raw_att:
-                        att['contentBytes'] = raw_att.get('contentBytes')
-        elif direct_note:
-            email_body = direct_note.notes
-        elif inbox_item:
-            email_body = inbox_item.body_content
-            
-    except Exception as e:
-        print(f"❌ [DEBUG GRAPH EXCEPTION] Exception during Graph lookup: {e}")
-        logger.error(f"Error in view_email_thread: {e}")
+    # 🚀 ROBUST LOOKUP: Check if email_id is a numeric UnityNote PK or a Graph ID string
+    if email_id.isdigit():
+        direct_note = UnityNotes.objects.filter(pk=int(email_id)).first()
+        if direct_note and direct_note.attached_email_id:
+            graph_id = direct_note.attached_email_id.strip()
+            # Try fetching live from Graph if attached_email_id is valid
+            if graph_id and not graph_id.startswith("MANUAL"):
+                try:
+                    endpoint = f"messages/{graph_id}"
+                    email_data = OutlookGraphService._make_graph_request(endpoint, target_email, method='GET')
+                except Exception:
+                    pass
+    else:
+        # Standard lookup by string ID (Graph ID / Inbox ID)
+        task = EmailDelegation.objects.filter(email_id=email_id).first()
+        inbox_item = OutlookInbox.objects.filter(email_id=email_id).first()
+        direct_note = UnityNotes.objects.filter(attached_email_id=email_id).first()
+
+        try:
+            endpoint = f"messages/{email_id}"
+            email_data = OutlookGraphService._make_graph_request(endpoint, target_email, method='GET')
+        except Exception:
+            pass
+
+    # Resolve email body content safely
+    if isinstance(email_data, dict) and 'error' not in email_data:
+        email_body = email_data.get('body', {}).get('content', "")
+        try:
+            attachments = OutlookGraphService.fetch_attachments(target_email, email_id if not email_id.isdigit() else direct_note.attached_email_id)
+        except Exception:
+            pass
+    else:
         if direct_note:
             email_body = direct_note.notes
         elif inbox_item:
             email_body = inbox_item.body_content
+        else:
+            email_body = "<div class='alert alert-warning'>Email content is only available locally or the message was moved in Outlook.</div>"
 
-    # 4. Fetch Audit Trail Data
+    # Audit Trail & Timeline
     actions = []
     delegation_notes = []
     if task:
         actions = list(DelegationTransactionLog.objects.filter(delegation=task).select_related('user'))
         delegation_notes = list(DelegationNote.objects.filter(delegation=task).select_related('user'))
 
-    # 5. Fetch Manual Unity Notes associated with this Email ID
-    manual_unity_notes = list(UnityNotes.objects.filter(attached_email_id=email_id))
+    manual_unity_notes = list(UnityNotes.objects.filter(attached_email_id=email_id)) if not email_id.isdigit() else []
 
-    # 6. Build Combined Timeline
     combined_timeline = []
     for act in actions:
         combined_timeline.append({'type': 'action', 'date': act.timestamp, 'obj': act})
@@ -4694,7 +4683,6 @@ def view_email_thread(request, email_id):
 
     combined_timeline.sort(key=lambda x: x['date'], reverse=True)
 
-    # 7. Final Context Preparation
     fallback_subject = direct_note.action_notes if direct_note else (inbox_item.subject if inbox_item else (task.subject if task else 'Direct Email Thread'))
     context = {
         'task': task,
