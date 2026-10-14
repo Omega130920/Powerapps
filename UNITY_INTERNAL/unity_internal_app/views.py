@@ -4605,10 +4605,11 @@ import urllib.parse
 def view_email_thread(request, email_id):
     """
     Displays email content, attachments, and combined timeline.
-    Updated to handle both Graph API message IDs and UnityNotes Primary Keys safely.
+    Isolated by source/type to completely prevent ID contamination.
     """
     from .models import EmailDelegation, DelegationTransactionLog, UnityNotes, DelegationNote, OutlookInbox
     from django.http import Http404
+    import urllib.parse
 
     raw_incoming_id = email_id
     email_id = urllib.parse.unquote(email_id).strip()
@@ -4625,12 +4626,14 @@ def view_email_thread(request, email_id):
     attachments = []
     email_data = {}
 
-    # 🚀 ROBUST LOOKUP: Check if email_id is a numeric UnityNote PK or a Graph ID string
+    # 🚀 ISOLATED SEARCH CONDITION:
+    # If the identifier is purely numeric, it's a local UnityNotes primary key (Direct Email).
+    # Otherwise, check if it's a Graph ID string or a delegation task.
     if email_id.isdigit():
+        # Condition 1: Direct Email stored in UnityNotes (searched by PK)
         direct_note = UnityNotes.objects.filter(pk=int(email_id)).first()
         if direct_note and direct_note.attached_email_id:
             graph_id = direct_note.attached_email_id.strip()
-            # Try fetching live from Graph if attached_email_id is valid
             if graph_id and not graph_id.startswith("MANUAL"):
                 try:
                     endpoint = f"messages/{graph_id}"
@@ -4638,9 +4641,11 @@ def view_email_thread(request, email_id):
                 except Exception:
                     pass
     else:
-        # Standard lookup by string ID (Graph ID / Inbox ID)
+        # Condition 2: Delegated Task / Inbox Email (searched by Graph string ID)
         task = EmailDelegation.objects.filter(email_id=email_id).first()
         inbox_item = OutlookInbox.objects.filter(email_id=email_id).first()
+        
+        # Fallback check if it was stored as a string Graph ID in UnityNotes
         direct_note = UnityNotes.objects.filter(attached_email_id=email_id).first()
 
         try:
@@ -4653,7 +4658,8 @@ def view_email_thread(request, email_id):
     if isinstance(email_data, dict) and 'error' not in email_data:
         email_body = email_data.get('body', {}).get('content', "")
         try:
-            attachments = OutlookGraphService.fetch_attachments(target_email, email_id if not email_id.isdigit() else direct_note.attached_email_id)
+            target_graph_id = email_id if not email_id.isdigit() else direct_note.attached_email_id
+            attachments = OutlookGraphService.fetch_attachments(target_email, target_graph_id)
         except Exception:
             pass
     else:
