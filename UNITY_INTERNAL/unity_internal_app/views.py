@@ -662,10 +662,11 @@ def unity_information(request: HttpRequest, company_code):
             'icon': '📤'
         })
 
-    # 🟢 DIRECT EMAILS: Strictly use the clean attached_email_id column
+    # 🟢 DIRECT EMAILS: Load and print mapped IDs to terminal (using email.pk)
     direct_emails = UnityNotes.objects.filter(member_group_code__iexact=clean_lookup, communication_type='Sent Email')
     for email in direct_emails:
         outlook_id = email.attached_email_id.strip() if email.attached_email_id else None
+        print(f"👉 [DEBUG Unity Info] Loaded UnityNote PK {email.pk} | attached_email_id column value: '{email.attached_email_id}'")
         
         email_sent_subject = email.action_notes or 'Email Sent'
         if email.notes and "Subject:" in email.notes:
@@ -760,18 +761,24 @@ def unity_information(request: HttpRequest, company_code):
                     cc_email=cc_recipients,    
                     bcc_email=bcc_recipients    
                 )
+                
+                # 🟢 DEBUG: Print what Graph API returned upon sending
+                print(f"🚀 [DEBUG SEND] Graph API Response received: {response}")
+                
                 if response.get('success'):
                     attachment_count = len(attachments)
                     attach_string = f" ({attachment_count} files)" if attachment_count > 0 else ""
+                    graph_id = response.get('id', '')
                     
-                    # 🟢 Explicitly save the Graph response ID into attached_email_id
+                    print(f"💾 [DEBUG SAVE] Saving direct email to UnityNotes with attached_email_id: '{graph_id}'")
+                    
                     UnityNotes.objects.create(
                         member_group_code=company_code, 
                         user=request.user.username, 
                         date=timezone.now(), 
                         communication_type='Sent Email', 
                         action_notes=action_note_val[:90], 
-                        attached_email_id=response.get('id', ''), 
+                        attached_email_id=graph_id, 
                         notes=f"To: {recipient}\nCC: {cc_recipients}\nBCC: {bcc_recipients}\nSubject: {subject}\nAttachments: {attach_string}\n{email_body_html}"
                     )
                     messages.success(request, f"Email sent with {attachment_count} attachment(s)!")
@@ -4602,10 +4609,15 @@ def view_email_thread(request, email_id):
     from django.http import Http404
 
     # 🟢 Decode URL-encoded characters and clean whitespace
+    raw_incoming_id = email_id
     email_id = urllib.parse.unquote(email_id).strip()
     
-    # 🛑 Guard clause: Prevent querying with empty or invalid placeholders
+    # 🛑 DEBUG: Print what URL parameter was received and unquoted
+    print(f"\n🔍 [DEBUG VIEW THREAD] Raw incoming URL email_id: '{raw_incoming_id}' | Cleaned/Unquoted email_id: '{email_id}'")
+
+    # Guard clause
     if not email_id or email_id.upper() in ['NONE', 'NULL', 'MANUAL_SEND_SUCCESS', 'UNDEFINED']:
+        print("❌ [DEBUG VIEW THREAD] Blocked by guard clause (Invalid/Placeholder ID)")
         raise Http404("A valid Email ID is required to view this thread.")
 
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
@@ -4615,8 +4627,10 @@ def view_email_thread(request, email_id):
     inbox_item = OutlookInbox.objects.filter(email_id=email_id).first()
     direct_note = UnityNotes.objects.filter(attached_email_id=email_id).first()
 
-    # If the email ID does not exist anywhere in the database, block it immediately
+    print(f"🔎 [DEBUG LOOKUP] Found in EmailDelegation: {bool(task)} | Found in OutlookInbox: {bool(inbox_item)} | Found in UnityNotes (Direct Note): {bool(direct_note)}")
+
     if not task and not inbox_item and not direct_note:
+        print("❌ [DEBUG VIEW THREAD] Record not found in ANY table! Raising 404.")
         raise Http404("The requested email thread could not be found.")
     
     # 2. Fetch Live Content from Graph API with safety fallback for direct emails
@@ -4629,14 +4643,16 @@ def view_email_thread(request, email_id):
         email_data = OutlookGraphService._make_graph_request(endpoint, target_email, method='GET')
         
         if isinstance(email_data, dict) and email_data.get('details', {}).get('code') == 'ErrorItemNotFound':
+            print("⚠️ [DEBUG GRAPH] Graph API returned ErrorItemNotFound. Falling back to local DB content.")
             if inbox_item:
                 email_body = inbox_item.body_content
             elif direct_note:
                 email_body = direct_note.notes
         elif isinstance(email_data, dict) and 'error' not in email_data:
+            print("✅ [DEBUG GRAPH] Successfully fetched message content from Microsoft Graph API.")
             email_body = email_data.get('body', {}).get('content', "")
             
-            # 3. Handle Attachments (Only if email exists in Outlook)
+            # 3. Handle Attachments
             attachments = OutlookGraphService.fetch_attachments(target_email, email_id)
             for att in attachments:
                 content_type = att.get('contentType', '').lower()
@@ -4650,6 +4666,7 @@ def view_email_thread(request, email_id):
             email_body = inbox_item.body_content
             
     except Exception as e:
+        print(f"❌ [DEBUG GRAPH EXCEPTION] Exception during Graph lookup: {e}")
         logger.error(f"Error in view_email_thread: {e}")
         if direct_note:
             email_body = direct_note.notes
