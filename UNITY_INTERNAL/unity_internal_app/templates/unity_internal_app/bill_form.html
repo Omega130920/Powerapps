@@ -166,15 +166,6 @@
         {% endif %}
     </h2>
 
-    <!-- Display messages if present -->
-    {% if messages %}
-        <div style="background-color: #ffebee; color: #c62828; padding: 12px; border-radius: 6px; margin-bottom: 20px;">
-            {% for message in messages %}
-                <p style="margin: 0;">{{ message }}</p>
-            {% endfor %}
-        </div>
-    {% endif %}
-
     <!-- If there are non-field errors, display them at the top -->
     {% if form.non_field_errors %}
         <div style="background-color: #ffebee; color: #c62828; padding: 12px; border-radius: 6px; margin-bottom: 20px;">

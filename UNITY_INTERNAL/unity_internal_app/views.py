@@ -4601,16 +4601,25 @@ def view_email_thread(request, email_id):
     from .models import EmailDelegation, DelegationTransactionLog, UnityNotes, DelegationNote, OutlookInbox
     from django.http import Http404
 
-    # 🟢 Decode URL-encoded characters (e.g. %3D to =) to match the exact database record
-    email_id = urllib.parse.unquote(email_id)
+    # 🟢 Decode URL-encoded characters and clean whitespace
+    email_id = urllib.parse.unquote(email_id).strip()
+    
+    # 🛑 Guard clause: Prevent querying with empty or invalid placeholders
+    if not email_id or email_id.upper() in ['NONE', 'NULL', 'MANUAL_SEND_SUCCESS', 'UNDEFINED']:
+        raise Http404("A valid Email ID is required to view this thread.")
 
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
 
-    # 1. Fetch Local Data safely without crashing if missing
+    # 1. Fetch Local Data safely across all possible tables
     task = EmailDelegation.objects.filter(email_id=email_id).first()
     inbox_item = OutlookInbox.objects.filter(email_id=email_id).first()
+    direct_note = UnityNotes.objects.filter(attached_email_id=email_id).first()
+
+    # If the email ID does not exist anywhere in the database, block it immediately
+    if not task and not inbox_item and not direct_note:
+        raise Http404("The requested email thread could not be found.")
     
-    # 2. Fetch Live Content from Graph API with safety fallback
+    # 2. Fetch Live Content from Graph API with safety fallback for direct emails
     email_body = "Could not retrieve content from Outlook (Email may have been moved or archived)."
     attachments = []
     email_data = {}
@@ -4622,6 +4631,8 @@ def view_email_thread(request, email_id):
         if isinstance(email_data, dict) and email_data.get('details', {}).get('code') == 'ErrorItemNotFound':
             if inbox_item:
                 email_body = inbox_item.body_content
+            elif direct_note:
+                email_body = direct_note.notes
         elif isinstance(email_data, dict) and 'error' not in email_data:
             email_body = email_data.get('body', {}).get('content', "")
             
@@ -4633,12 +4644,16 @@ def view_email_thread(request, email_id):
                     raw_att = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
                     if isinstance(raw_att, dict) and 'contentBytes' in raw_att:
                         att['contentBytes'] = raw_att.get('contentBytes')
+        elif direct_note:
+            email_body = direct_note.notes
         elif inbox_item:
             email_body = inbox_item.body_content
             
     except Exception as e:
         logger.error(f"Error in view_email_thread: {e}")
-        if inbox_item:
+        if direct_note:
+            email_body = direct_note.notes
+        elif inbox_item:
             email_body = inbox_item.body_content
 
     # 4. Fetch Audit Trail Data
@@ -4663,10 +4678,10 @@ def view_email_thread(request, email_id):
     combined_timeline.sort(key=lambda x: x['date'], reverse=True)
 
     # 7. Final Context Preparation
-    fallback_subject = inbox_item.subject if inbox_item else (task.subject if task else 'Unknown Thread')
+    fallback_subject = direct_note.action_notes if direct_note else (inbox_item.subject if inbox_item else (task.subject if task else 'Direct Email Thread'))
     context = {
         'task': task,
-        'email': email_data if 'error' not in email_data else {'subject': fallback_subject},
+        'email': email_data if isinstance(email_data, dict) and 'error' not in email_data else {'subject': fallback_subject},
         'email_body': email_body,
         'attachments': attachments,
         'combined_timeline': combined_timeline,
