@@ -172,7 +172,6 @@
                     <form method="POST" class="pt-2" id="noteForm">
                         {% csrf_token %}
                         <input type="hidden" name="action_type" value="add_note">
-                        
                         <input type="hidden" name="call_direction" value="Outbound">
                         
                         <div class="mb-2">
@@ -236,7 +235,11 @@
                             </select>
                         </div>
 
-                        <textarea name="note_content" class="form-control form-control-sm form-control-glass mb-2" rows="4" placeholder="Add an internal note to the audit trail..." required></textarea>
+                        <div class="mb-3">
+                            <label class="small fw-bold opacity-75">Note Content:</label>
+                            <textarea name="note_content" class="form-control form-control-sm form-control-glass" rows="4" placeholder="Add an internal note to the audit trail..." required></textarea>
+                        </div>
+
                         <button type="submit" class="btn btn-primary btn-sm w-100 rounded-pill shadow-sm mb-3">Save Internal Note</button>
                     </form>
 
@@ -255,7 +258,7 @@
                     <h5 class="mb-1 text-primary fw-bold">{{ email_subject }}</h5>
                     <div class="d-flex justify-content-between align-items-center">
                         <span class="small opacity-75"><strong>From:</strong> {{ task.sender }}</span>
-                        <spam class="small opacity-75"><strong>Received:</strong> {{ task.created_at|date:"M d, Y H:i" }}</span>
+                        <span class="small opacity-75"><strong>Received:</strong> {{ task.created_at|date:"M d, Y H:i" }}</span>
                         <span class="badge bg-dark rounded-pill">Agent: {{ task.assigned_agent }}</span>
                     </div>
                 </div>
@@ -296,9 +299,13 @@
                             {% csrf_token %}
                             <input type="hidden" name="action_type" value="send_reply">
                             
-                            <input type="hidden" name="call_direction" value="Outbound">
-                            <input type="hidden" name="call_method" value="Emails">
-                            <input type="hidden" name="call_type" value="Feedback to Beneficiary">
+                            <!-- Hidden inputs populated from modal popup -->
+                            <input type="hidden" name="call_direction" id="modal_call_direction" value="Outbound">
+                            <input type="hidden" name="call_method" id="modal_call_method" value="Emails">
+                            <input type="hidden" name="call_type" id="modal_call_type" value="Feedback to Beneficiary">
+                            <input type="hidden" name="email_category" id="modal_email_category" value="{{ task.email_category }}">
+                            <input type="hidden" name="status" id="modal_status" value="{{ task.status }}">
+                            <input type="hidden" name="note_content" id="modal_note_content" value="">
 
                             <div class="row mb-3">
                                 <div class="col-md-6">
@@ -311,7 +318,6 @@
                                 </div>
                             </div>
 
-                            <!-- NEW CC & BCC ROW -->
                             <div class="row mb-3">
                                 <div class="col-md-6">
                                     <label class="form-label small fw-bold">Cc (Optional):</label>
@@ -332,11 +338,11 @@
 
                             <div class="mb-3">
                                 <label class="form-label small fw-bold">Email Body:</label>
-                                <textarea name="reply_body" class="form-control form-control-glass" rows="8" placeholder="Type your reply..." required></textarea>
+                                <textarea name="reply_body" id="replyBodyField" class="form-control form-control-glass" rows="8" placeholder="Type your reply..." required></textarea>
                             </div>
 
                             <div class="d-flex justify-content-end">
-                                <button type="submit" class="btn btn-success fw-bold px-4 rounded-pill shadow-sm">
+                                <button type="button" class="btn btn-success fw-bold px-4 rounded-pill shadow-sm" onclick="openOutboundModal()">
                                     <i class="bi bi-send-fill me-2"></i> Send Reply
                                 </button>
                             </div>
@@ -348,9 +354,112 @@
     </div>
 </div>
 
+<!-- 🟢 OUTBOUND NOTE CONFIGURATION MODAL POPUP -->
+<div class="modal fade" id="outboundOptionsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content glass-card shadow-lg border-0" style="background: rgba(245, 248, 243, 0.95); backdrop-filter: blur(20px);">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title fw-bold fs-6"><i class="bi bi-journal-check me-2"></i> Log Outbound Email Note</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p class="small text-muted mb-3">Please specify the outbound interaction details before dispatching this email response:</p>
+                
+                <div class="mb-3">
+                    <label class="small fw-bold opacity-75">Call Method:</label>
+                    <select id="popup_call_method" class="form-select form-select-sm form-control-glass">
+                        <option value="Emails" selected>Emails</option>
+                        <option value="Phone">Phone</option>
+                        <option value="SMS">SMS</option>
+                        <option value="Letter">Letter</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="small fw-bold opacity-75">Call Type:</label>
+                    <select id="popup_call_type" class="form-select form-select-sm form-control-glass">
+                        <option value="Feedback to Beneficiary" selected>Feedback to Beneficiary</option>
+                        <option value="Change of contact/banking details submitted to Sanlam" >Change of contact/banking details submitted to Sanlam</option>
+                        <option value="Change of guardianship submitted to Sanlam">"Change of guardianship submitted to Sanlam"</option>
+                        <option value="Complaint filed and reported">Complaint filed and reported</option>
+                        <option value="Benefit statement sent">Benefit statement sent</option>
+                        <option value="Follow up on incomplete claim">Follow up on incomplete claim</option>
+                        <option value="Funds Less than R10 000">Funds Less than R10 000</option>
+                        <option value="Feedback to Beneficiary">Feedback to Beneficiary</option>
+                        <option value="Feedback to SALT">Feedback to SALT</option>
+                        <option value="Acknowledgement Letter Sent">Acknowledgement Letter Sent</option>
+                        <option value="Feedback to Sanlam">Feedback to Sanlam</option>
+                        <option value="Feedback to Guardian">Feedback to Guardian</option>
+                        <option value="Follow Up Incomplete Claim Pack">Follow Up Incomplete Claim Pack</option>
+                        <option value="Failed Bank Validation">Failed Bank Validation</option>
+                        <option value="SALT - Return New Entrance Pack (Incomplete)">SALT - Return New Entrance Pack (Incomplete)</option>
+                        <option value="Complete Claim Loaded">Complete Claim Loaded</option>
+                        <option value="Tracing Claim Sent to Sanlam">Tracing Claim Sent to Sanlam</option>
+                        <option value="Feedback to Other">Feedback to Other</option>
+                        <option value="Proof of Payment Sent">Proof of Payment Sent</option>
+                        <option value="Funds Depleted">Funds Depleted</option>
+                        <option value="New Entrance Pack Submitted to Sanlam">New Entrance Pack Submitted to Sanlam</option>
+                        <option value="Sanlam - Overdue Payments">Sanlam - Overdue Payments</option>
+                        <option value="Guardian Deceased">Guardian Deceased</option>
+                        <option value="Beneficiary Reached Maturity">Beneficiary Reached Maturity</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="small fw-bold opacity-75">Confirm Category:</label>
+                    <select id="popup_email_category" class="form-select form-select-sm form-control-glass">
+                        <option value="Query" {% if task.email_category == 'Query' %}selected{% endif %}>Query</option>
+                        <option value="Claim" {% if task.email_category == 'Claim' %}selected{% endif %}>Claim</option>
+                        <option value="Unsure" {% if task.email_category == 'Unsure' %}selected{% endif %}>Unsure</option>
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="small fw-bold opacity-75">Confirm Status:</label>
+                    <select id="popup_status" class="form-select form-select-sm form-control-glass">
+                        <option value="In Progress" {% if task.status == 'In Progress' %}selected{% endif %}>In Progress</option>
+                        <option value="Delegated" {% if task.status == 'Delegated' %}selected{% endif %}>Delegated</option>
+                    </select>
+                </div>
+
+                <!-- 🟢 ADDED NOTE CONTENT TEXT BOX INSIDE MODAL -->
+                <div class="mb-3">
+                    <label class="small fw-bold opacity-75">Outbound Note Content:</label>
+                    <textarea id="popup_note_content" class="form-control form-control-sm form-control-glass" rows="3" placeholder="Add custom notes for this outbound reply..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer border-0 p-3 bg-white bg-opacity-50">
+                <button type="button" class="btn btn-secondary btn-sm rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success btn-sm rounded-pill px-4 fw-bold" onclick="submitOutboundReply()">Confirm & Send</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
+    function openOutboundModal() {
+        const bodyField = document.getElementById('replyBodyField');
+        if (!bodyField.value.trim()) {
+            alert("Please fill out the email body before sending.");
+            bodyField.focus();
+            return;
+        }
+        const myModal = new bootstrap.Modal(document.getElementById('outboundOptionsModal'));
+        myModal.show();
+    }
+
+    function submitOutboundReply() {
+        document.getElementById('modal_call_method').value = document.getElementById('popup_call_method').value;
+        document.getElementById('modal_call_type').value = document.getElementById('popup_call_type').value;
+        document.getElementById('modal_email_category').value = document.getElementById('popup_email_category').value;
+        document.getElementById('modal_status').value = document.getElementById('popup_status').value;
+        document.getElementById('modal_note_content').value = document.getElementById('popup_note_content').value;
+
+        document.getElementById('replyFormContent').submit();
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         const alerts = document.querySelectorAll('.auto-close-alert');
         alerts.forEach(function(alert) {
@@ -360,7 +469,7 @@
             }, 3000);
         });
 
-        const forms = ['metadataForm', 'noteForm', 'replyFormContent'];
+        const forms = ['metadataForm', 'noteForm'];
         forms.forEach(function(formId) {
             const form = document.getElementById(formId);
             if (form) {

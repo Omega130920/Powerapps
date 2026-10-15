@@ -509,7 +509,6 @@ def pssubf_action_view(request, email_id):
     available_users = User.objects.filter(is_active=True) if is_vanessa else []
      
     # --- 1. DETECT AND INTERCEPT ADMINISTRATIVE SYSTEM LOG STRINGS ---
-    # UPDATED CODE:
     if any(str(email_id).startswith(prefix) for prefix in ["PROFILE_MOD_", "PROFILE_"]):
         is_system_log = True
         clean_numeric_id = str(email_id).replace("PROFILE_MOD_", "").replace("PROFILE_", "").replace("NOTE_", "")
@@ -637,7 +636,7 @@ def pssubf_action_view(request, email_id):
                 task.status = new_status
             task.save()
 
-            mip_number = getattr(task, 'member_group_code', None)
+            mip_number = getattr(task, 'member_group_code', None) or ''
              
             # --- PUSH TO SYSTEM LOG (Beneficiary Page) ---
             SystemLog.objects.create(
@@ -671,7 +670,7 @@ def pssubf_action_view(request, email_id):
             )
             messages.success(request, "Internal note saved.")
 
-        # 3. Handle External Email Reply
+        # 3. Handle External Email Reply (Updated with Popup Modal Options)
         elif action_type == 'send_reply':
             recipient = request.POST.get('reply_recipient')
             cc_recipient = request.POST.get('reply_cc', '').strip()
@@ -679,12 +678,23 @@ def pssubf_action_view(request, email_id):
             subject = request.POST.get('reply_subject')
             raw_body_content = request.POST.get('reply_body')
              
+            # Extract outbound metadata coming from popup modal
+            call_direction = "Outbound"
+            call_method = request.POST.get('call_method', 'Emails')
+            call_type = request.POST.get('call_type', 'Feedback to Beneficiary')
+            new_category = request.POST.get('email_category')
+            new_status = request.POST.get('status')
+
+            # Update task metadata if changed
+            if task:
+                if new_category:
+                    task.email_category = new_category
+                if new_status:
+                    task.status = new_status
+                task.save()
+
             # Format the email body to preserve paragraphs
             body_content = format_email_body(raw_body_content)
-             
-            call_direction = "Outbound"
-            call_method = "Emails"
-            call_type = "Feedback to Beneficiary"
 
             uploaded_files = request.FILES.getlist('reply_attachments')
             attachments_payload = []
@@ -724,27 +734,26 @@ def pssubf_action_view(request, email_id):
             if isinstance(response, dict) and 'error' in response:
                 messages.error(request, f"Email failed: {response.get('error')}")
             else:
-                audit_string = "[Outbound | Email Reply Sent]"
+                audit_string = f"[{call_direction} | {call_method} | {call_type}]"
                  
                 # Build dynamic log string for CC/BCC to keep audit trails clean if empty
                 cc_log = f"\nCC: {cc_recipient}" if cc_recipient else ""
                 bcc_log = f"\nBCC: {bcc_recipient}" if bcc_recipient else ""
 
-                mip_number = getattr(task, 'member_group_code', None)
+                mip_number = getattr(task, 'member_group_code', None) or ''
                  
-                # --- PUSH TO SYSTEM LOG (Beneficiary Page) ---
-                if mip_number:
-                    SystemLog.objects.create(
-                        mip_number=mip_number,
-                        log_title="External Email Reply",
-                        call_direction=call_direction,
-                        call_method=call_method,
-                        call_type=call_type,
-                        category=getattr(task, 'email_category', 'Query'),
-                        status=getattr(task, 'status', 'In Progress'),
-                        note_content=f"REPLY SENT TO {recipient}{cc_log}{bcc_log}: {raw_body_content}",
-                        created_by=request.user.username
-                    )
+                # --- PUSH TO SYSTEM LOG (Beneficiary Page) AS OUTBOUND ---
+                SystemLog.objects.create(
+                    mip_number=mip_number,
+                    log_title="External Email Reply (Outbound)",
+                    call_direction=call_direction,
+                    call_method=call_method,
+                    call_type=call_type,
+                    category=new_category or getattr(task, 'email_category', 'Query'),
+                    status=new_status or getattr(task, 'status', 'In Progress'),
+                    note_content=f"REPLY SENT TO {recipient}{cc_log}{bcc_log}:\n{raw_body_content}",
+                    created_by=request.user.username
+                )
 
                 # Log the outgoing reply into the direct email table
                 PssubfDirectEmail.objects.create(
@@ -769,10 +778,10 @@ def pssubf_action_view(request, email_id):
                     task_email_id=email_id,
                     agent_name=request.user.username,
                     note_text=f"{audit_string} REPLY SENT TO {recipient}{cc_log}{bcc_log}: {raw_body_content}",
-                    classification_at_time=getattr(task, 'email_category', 'N/A'),
-                    status_at_time=task.status
+                    classification_at_time=new_category or getattr(task, 'email_category', 'N/A'),
+                    status_at_time=new_status or getattr(task, 'status', 'In Progress')
                 )
-                messages.success(request, "Reply sent and logged.")
+                messages.success(request, "Reply sent, logged as an Outbound note, and recorded successfully.")
 
         # 4. Mark as Complete
         elif action_type == 'mark_complete':
