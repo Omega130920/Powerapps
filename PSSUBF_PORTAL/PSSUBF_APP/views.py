@@ -845,13 +845,29 @@ def pssubf_action_view(request, email_id):
 
 
 @login_required
-def pssubf_view_thread(request, email_id):
+def view_email_thread(request, email_id):
+    """
+    Displays email content, attachments, and combined timeline.
+    Refactored to mirror the clean PSSUBF thread viewer pattern, isolating local 
+    direct entries from Microsoft Graph API calls to completely prevent ID contamination.
+    """
+    from .models import EmailDelegation, DelegationTransactionLog, UnityNotes, DelegationNote, OutlookInbox
+    from django.http import Http404
+    import urllib.parse
+    import os
+
+    # Decode URL-encoded incoming IDs safely
+    email_id = urllib.parse.unquote(email_id).strip()
+    
+    if not email_id or email_id.upper() in ['NONE', 'NULL', 'MANUAL_SEND_SUCCESS', 'UNDEFINED']:
+        raise Http404("A valid Email ID is required to view this thread.")
+
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     email_data = {}
     attachments = []
     
     # 1. Determine if this is a local Direct Email or a Graph API email
-    is_direct = str(email_id).startswith('DIRECT_')
+    is_direct = str(email_id).startswith('DIRECT_') or email_id.isdigit()
     local_email = None
     
     email_body = "Could not retrieve content. (Email may have been moved or deleted)."
@@ -859,31 +875,69 @@ def pssubf_view_thread(request, email_id):
     if is_direct:
         # --- HANDLE LOCAL DIRECT EMAILS (As root) ---
         try:
-            db_id = str(email_id).split('_')[-1]
-            local_email = PssubfDirectEmail.objects.get(id=db_id)
-            email_body = getattr(local_email, 'body_html', '')
-            email_data = {
-                'id': email_id,
-                'subject': local_email.subject,
-                'from': {
-                    'emailAddress': {
-                        'name': getattr(local_email, 'agent_name', request.user.username),
-                        'address': target_email
-                    }
-                },
-                'receivedDateTime': local_email.sent_at if hasattr(local_email, 'sent_at') else timezone.now().isoformat()
-            }
+            db_id = str(email_id).split('_')[-1] if 'DIRECT_' in str(email_id) else email_id
+            local_email = UnityNotes.objects.filter(pk=int(db_id)).first()
             
-            # Check for local attachment on the root direct email
-            if hasattr(local_email, 'attachment_path') and local_email.attachment_path:
-                filename = os.path.basename(str(local_email.attachment_path))
-                attachments.append({
-                    'id': 'local',
-                    'name': filename,
-                    'isInline': False,
-                    'contentType': 'application/octet-stream',
-                    'local_url': f"{settings.MEDIA_URL}{local_email.attachment_path}"
-                })
+            if local_email:
+                raw_body = getattr(local_email, 'notes', '') or ''
+                formatted_body = raw_body.replace('\r\n', '<br>').replace('\n', '<br>')
+                
+                # Map usernames nicely for signature display
+                agent_username = getattr(local_email, 'user', request.user.username)
+                name_mapping = {
+                    'LuanovanEck': 'Luano van Eck',
+                    'Testuser1': 'Test Agent',
+                    'omega': 'Omega System Assistant',
+                }
+                full_name = name_mapping.get(agent_username, agent_username.replace('_', ' ').title())
+
+                # Standardize Signature Mirror (PSSUBF Style)
+                signature_html = f"""
+                <br><br>
+                <div style="font-family: Arial, sans-serif; font-size: 13px; color: #333; margin-top: 20px; border-top: 1px solid #ccc; padding-top: 10px;">
+                    <table cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
+                        <tr>
+                            <td style="padding-right: 20px; vertical-align: top; width: 160px;">
+                                <p style="margin: 0 0 4px 0; font-size: 14px;"><strong style="color: #1b5e20;">{full_name}</strong></p>
+                                <p style="margin: 0 0 6px 0; font-size: 12px; color: #555;">Unity Operations</p>
+                                <img src="https://futurasa.co.za/wp-content/uploads/2023/10/Futura-Logo.png" alt="Futura Logo" style="width: 150px; display: block;">
+                            </td>
+                            <td style="vertical-align: top;">
+                                <p style="margin: 0 0 4px 0;"><strong>Phone:</strong> 087 702 5950</p>
+                                <p style="margin: 0 0 4px 0;"><strong>Fax:</strong> 086 225 2554</p>
+                                <p style="margin: 0 0 0 0;"><strong>Email:</strong> <a href="mailto:{target_email}" style="color: #2e7d32;">{target_email}</a></p>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+                """
+                
+                email_body = formatted_body + signature_html
+                
+                email_data = {
+                    'id': email_id,
+                    'subject': getattr(local_email, 'action_notes', 'Direct Email Sent'),
+                    'from': {
+                        'emailAddress': {
+                            'name': full_name,
+                            'address': target_email
+                        }
+                    },
+                    'receivedDateTime': local_email.date if hasattr(local_email, 'date') else timezone.now().isoformat()
+                }
+                
+                # Check for local attachment on the root direct email
+                if hasattr(local_email, 'attached_file') and local_email.attached_file:
+                    filename = os.path.basename(str(local_email.attached_file))
+                    attachments.append({
+                        'id': 'local',
+                        'name': filename,
+                        'isInline': False,
+                        'contentType': 'application/octet-stream',
+                        'local_url': f"{settings.MEDIA_URL}{local_email.attached_file}"
+                    })
+            else:
+                raise Http404("Local direct email record not found.")
         except Exception as e:
             email_data = {'subject': 'Error loading local email', 'id': email_id}
             email_body = str(e)
@@ -891,7 +945,7 @@ def pssubf_view_thread(request, email_id):
     else:
         # --- HANDLE STANDARD OUTLOOK EMAILS (As root) ---
         try:
-            response = OutlookGraphService._make_graph_request(f"messages/{email_id}", method='GET')
+            response = OutlookGraphService._make_graph_request(f"messages/{email_id}", target_email, method='GET')
             if response and 'error' not in response:
                 email_data = response
                 email_body = email_data.get('body', {}).get('content', '')
@@ -912,22 +966,22 @@ def pssubf_view_thread(request, email_id):
             else:
                 email_data = {'subject': 'Email Not Found in Outlook', 'id': email_id}
         except Exception as e:
-            logger.error(f"Error in pssubf_view_thread fetching graph: {e}")
             email_data = {'subject': 'Error Loading Email', 'id': email_id}
 
-    # 2. Build Unified Timeline (Audit Trail + Replies)
-    actions = list(PssubfAction.objects.filter(task_email_id=email_id).order_by('-action_timestamp'))
-    
-    # Fetch related local outbound emails/replies sharing the same thread subject
+    # Fetch task and related audit items if it links to EmailDelegation
+    task = EmailDelegation.objects.filter(email_id=email_id).first() if not is_direct else None
+    actions = list(DelegationTransactionLog.objects.filter(delegation=task).select_related('user')) if task else []
+    delegation_notes = list(DelegationNote.objects.filter(delegation=task).select_related('user')) if task else []
+
+    # Fetch related local outbound emails/replies sharing the same thread subject or context
     subject = email_data.get('subject', 'No Subject')
     clean_subject = subject.replace("RE: ", "").replace("Re: ", "").replace("FW: ", "").replace("Fw: ", "").strip()
     
     outbound_replies = []
     if clean_subject and clean_subject != "No Subject":
-        qs = PssubfDirectEmail.objects.filter(subject__icontains=clean_subject)
-        # Exclude the root email if it is a local direct email to avoid duplicating it in the replies stream
+        qs = UnityNotes.objects.filter(communication_type='Sent Email', notes__icontains=clean_subject)
         if is_direct and local_email:
-            qs = qs.exclude(id=local_email.id)
+            qs = qs.exclude(pk=local_email.pk)
         outbound_replies = list(qs)
 
     combined_timeline = []
@@ -936,13 +990,21 @@ def pssubf_view_thread(request, email_id):
     for act in actions:
         combined_timeline.append({
             'type': 'action',
-            'date': act.action_timestamp,
+            'date': act.timestamp,
             'obj': act
         })
         
-    # Add Replies to Timeline
+    # Add Delegation Notes to Timeline
+    for d_note in delegation_notes:
+        combined_timeline.append({
+            'type': 'del_note',
+            'date': d_note.created_at,
+            'obj': d_note
+        })
+        
+    # Add Replies / Related Unity Notes to Timeline
     for rep in outbound_replies:
-        agent_username = getattr(rep, 'agent_name', 'Agent')
+        agent_username = getattr(rep, 'user', 'Agent')
         name_mapping = {
             'LuanovanEck': 'Luano van Eck',
             'Testuser1': 'Test Agent',
@@ -950,25 +1012,22 @@ def pssubf_view_thread(request, email_id):
         }
         full_name = name_mapping.get(agent_username, agent_username.replace('_', ' ').title())
 
-        # Fix formatting for simple textareas
-        raw_body = getattr(rep, 'body_html', '').replace('\r\n', '<br>').replace('\n', '<br>')
+        raw_body = getattr(rep, 'notes', '').replace('\r\n', '<br>').replace('\n', '<br>')
         
-        # Standardize Signature Mirror
         signature_html = f"""
         <br><br>
         <div style="font-family: Arial, sans-serif; font-size: 13px; color: #333; margin-top: 20px; border-top: 1px solid #ccc; padding-top: 10px;">
             <table cellpadding="0" cellspacing="0" border="0" style="width: 100%;">
                 <tr>
-                        <p style="margin: 0 0 4px 0; font-size: 14px;"><strong style="color: #1b5e20;">{full_name}</strong></p>
-                        <p style="margin: 0 0 6px 0; font-size: 12px; color: #555;">PSSUBF Beneficiary Operations</p>
                     <td style="padding-right: 20px; vertical-align: top; width: 160px;">
+                        <p style="margin: 0 0 4px 0; font-size: 14px;"><strong style="color: #1b5e20;">{full_name}</strong></p>
+                        <p style="margin: 0 0 6px 0; font-size: 12px; color: #555;">Unity Operations</p>
                         <img src="https://futurasa.co.za/wp-content/uploads/2023/10/Futura-Logo.png" alt="Futura Logo" style="width: 150px; display: block;">
                     </td>
                     <td style="vertical-align: top;">
-
-                        <p style="margin: 0 0 4px 0;"><strong>phone:</strong> 087 702 5950</p>
-                        <p style="margin: 0 0 4px 0;"><strong>fax:</strong> 086 225 2554</p>
-                        <p style="margin: 0 0 0 0;"><strong>Email:</strong> <a href="mailto:pssubf@futurasa.co.za" style="color: #2e7d32;">pssubf@futurasa.co.za</a></p>
+                        <p style="margin: 0 0 4px 0;"><strong>Phone:</strong> 087 702 5950</p>
+                        <p style="margin: 0 0 4px 0;"><strong>Fax:</strong> 086 225 2554</p>
+                        <p style="margin: 0 0 0 0;"><strong>Email:</strong> <a href="mailto:{target_email}" style="color: #2e7d32;">{target_email}</a></p>
                     </td>
                 </tr>
             </table>
@@ -976,12 +1035,12 @@ def pssubf_view_thread(request, email_id):
         """
         
         rep_attachment_url = None
-        if hasattr(rep, 'attachment_path') and rep.attachment_path:
-            rep_attachment_url = f"{settings.MEDIA_URL}{rep.attachment_path}"
+        if hasattr(rep, 'attached_file') and rep.attached_file:
+            rep_attachment_url = f"{settings.MEDIA_URL}{rep.attached_file}"
             
         combined_timeline.append({
             'type': 'reply',
-            'date': rep.sent_at,
+            'date': rep.date,
             'obj': rep,
             'full_name': full_name,
             'formatted_body': raw_body + signature_html,
@@ -989,19 +1048,18 @@ def pssubf_view_thread(request, email_id):
         })
         
     # Sort timeline chronologically (Newest items First)
-    # Using a safe fallback date (year 1900) so records missing a timestamp don't crash the sorter
-    # and safely drop to the very bottom of the timeline.
     fallback_date = timezone.now().replace(year=1900)
     combined_timeline.sort(key=lambda x: x['date'] if x['date'] else fallback_date, reverse=True)
 
     context = {
+        'task': task,
         'email': email_data,
         'email_body': email_body,
         'attachments': attachments,
         'combined_timeline': combined_timeline,
         'is_direct': is_direct
     }
-    return render(request, 'pssubf/thread_history.html', context)
+    return render(request, 'unity_internal_app/view_email_thread.html', context)
 
 @login_required
 def download_pssubf_attachment(request, message_id, attachment_id):
