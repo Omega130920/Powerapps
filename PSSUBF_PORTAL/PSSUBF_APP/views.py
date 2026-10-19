@@ -849,13 +849,10 @@ def pssubf_view_thread(request, email_id):
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     email_data = {}
     attachments = []
-    
     # 1. Determine if this is a local Direct Email or a Graph API email
     is_direct = str(email_id).startswith('DIRECT_')
     local_email = None
-    
     email_body = "Could not retrieve content. (Email may have been moved or deleted)."
-
     if is_direct:
         # --- HANDLE LOCAL DIRECT EMAILS (As root) ---
         try:
@@ -887,15 +884,13 @@ def pssubf_view_thread(request, email_id):
         except Exception as e:
             email_data = {'subject': 'Error loading local email', 'id': email_id}
             email_body = str(e)
-            
     else:
         # --- HANDLE STANDARD OUTLOOK EMAILS (As root) ---
         try:
             response = OutlookGraphService._make_graph_request(f"messages/{email_id}", method='GET')
             if response and 'error' not in response:
                 email_data = response
-                email_body = email_data.get('body', {}).get('content', '')
-                
+                email_body = email_data.get('body', {}).get('content', '')    
                 # Fetch attachments
                 atts = OutlookGraphService.fetch_attachments(target_email, email_id)
                 if atts:
@@ -920,8 +915,7 @@ def pssubf_view_thread(request, email_id):
     
     # Fetch related local outbound emails/replies sharing the same thread subject
     subject = email_data.get('subject', 'No Subject')
-    clean_subject = subject.replace("RE: ", "").replace("Re: ", "").replace("FW: ", "").replace("Fw: ", "").strip()
-    
+    clean_subject = subject.replace("RE: ", "").replace("Re: ", "").replace("FW: ", "").replace("Fw: ", "").strip()   
     outbound_replies = []
     if clean_subject and clean_subject != "No Subject":
         qs = PssubfDirectEmail.objects.filter(subject__icontains=clean_subject)
@@ -929,9 +923,7 @@ def pssubf_view_thread(request, email_id):
         if is_direct and local_email:
             qs = qs.exclude(id=local_email.id)
         outbound_replies = list(qs)
-
     combined_timeline = []
-    
     # Add Audit Actions to Timeline
     for act in actions:
         combined_timeline.append({
@@ -965,7 +957,10 @@ def pssubf_view_thread(request, email_id):
                         <img src="https://futurasa.co.za/wp-content/uploads/2023/10/Futura-Logo.png" alt="Futura Logo" style="width: 150px; display: block;">
                     </td>
                     <td style="vertical-align: top;">
+<<<<<<< HEAD
 
+=======
+>>>>>>> 5114ace7b5484003d18ea38181237bad24a26529
                         <p style="margin: 0 0 4px 0;"><strong>phone:</strong> 087 702 5950</p>
                         <p style="margin: 0 0 4px 0;"><strong>fax:</strong> 086 225 2554</p>
                         <p style="margin: 0 0 0 0;"><strong>Email:</strong> <a href="mailto:pssubf@futurasa.co.za" style="color: #2e7d32;">pssubf@futurasa.co.za</a></p>
@@ -974,7 +969,6 @@ def pssubf_view_thread(request, email_id):
             </table>
         </div>
         """
-        
         rep_attachment_url = None
         if hasattr(rep, 'attachment_path') and rep.attachment_path:
             rep_attachment_url = f"{settings.MEDIA_URL}{rep.attachment_path}"
@@ -987,13 +981,11 @@ def pssubf_view_thread(request, email_id):
             'formatted_body': raw_body + signature_html,
             'attachment_url': rep_attachment_url
         })
-        
     # Sort timeline chronologically (Newest items First)
     # Using a safe fallback date (year 1900) so records missing a timestamp don't crash the sorter
     # and safely drop to the very bottom of the timeline.
     fallback_date = timezone.now().replace(year=1900)
     combined_timeline.sort(key=lambda x: x['date'] if x['date'] else fallback_date, reverse=True)
-
     context = {
         'email': email_data,
         'email_body': email_body,
