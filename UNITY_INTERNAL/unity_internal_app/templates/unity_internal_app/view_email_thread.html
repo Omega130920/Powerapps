@@ -49,6 +49,11 @@
         .event-meta { display: block; margin-top: 10px; font-size: 12px; color: #718096; border-top: 1px solid #f7fafc; padding-top: 8px; }
         .event-text { font-size: 14px; color: #2d3748; margin: 5px 0; }
         .email-details-block { background-color: #f8f9fa; border-left: 3px solid #ccc; padding: 8px 12px; margin-top: 8px; font-size: 0.95em; color: #555; }
+        
+        /* 🚀 Stacked Email Meta Rows & Reply Box Styles */
+        .email-meta-stack { font-size: 13px; color: #4a5568; background: #f8f9fa; padding: 10px 12px; border-radius: 6px; margin-bottom: 10px; line-height: 1.6; border: 1px solid #edf2f7; }
+        .email-meta-stack div { display: block; margin-bottom: 2px; }
+        .email-reply-block { background-color: #faf5fb; border-left: 4px solid #7b1fa2; padding: 12px 15px; border-radius: 4px; margin-top: 8px; font-size: 14px; line-height: 1.6; color: #2d3748; }
     </style>
 </head>
 <body>
@@ -128,15 +133,32 @@
             {% elif item.type == 'reply' %}
                 <div class="timeline-icon" style="background-color: #7b1fa2;"></div>
                 <span class="badge-status bg-reply">Reply Sent</span>
-                <div class="card-body-content" style="padding: 10px 0; font-size: 14px;">
+                
+                <!-- Stacked Header Layout for To, CC, BCC, Subject -->
+                <div class="email-meta-stack">
+                    <div><strong>To:</strong> {{ item.reply_to }}</div>
+                    <div><strong>CC:</strong> {{ item.reply_cc }}</div>
+                    <div><strong>BCC:</strong> {{ item.reply_bcc }}</div>
+                    <div><strong>Subject:</strong> {{ item.reply_subject }}</div>
+                </div>
+
+                <!-- Reply Body Content -->
+                <div class="email-reply-block">
                     {{ item.formatted_body|safe }}
                 </div>
                 
+                <!-- Reply Attachment Display -->
                 {% if item.attachment_url %}
-                <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #ddd;">
-                    <a href="{{ item.attachment_url }}" target="_blank" class="btn-download-small" style="display:inline-block; width:auto; padding:6px 12px; background-color: #1976d2;">
-                        <i class="fas fa-paperclip"></i> Download Attached File
-                    </a>
+                <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed #e2e8f0; display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 36px; height: 36px; background: #e3f2fd; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-file-alt" style="color: #1976d2; font-size: 18px;"></i>
+                    </div>
+                    <div>
+                        <div style="font-size: 12px; font-weight: bold; color: #333; max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ item.attachment_name }}">{{ item.attachment_name }}</div>
+                        <a href="{{ item.attachment_url }}" target="_blank" style="font-size: 11px; color: #1976d2; text-decoration: none; font-weight: 600;">
+                            <i class="fas fa-download"></i> Download Attachment
+                        </a>
+                    </div>
                 </div>
                 {% endif %}
 

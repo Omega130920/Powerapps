@@ -881,6 +881,7 @@ class DelegationTransactionLog(models.Model):
     recipient_email = models.EmailField()
     body = models.TextField(null=True, blank=True) # <--- ADD THIS LINE
     timestamp = models.DateTimeField(auto_now_add=True)
+    attached_file = models.FileField(upload_to='reply_attachments/', blank=True, null=True)
 
     class Meta:
         managed = False # Ensure this remains False

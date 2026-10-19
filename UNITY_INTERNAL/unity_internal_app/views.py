@@ -4199,7 +4199,7 @@ def outlook_delegated_action(request, delegation_id):
     """
     Handles Notes, Replies, Metadata Updates, RESTORATION, and COMPLETION.
     Updated to support newline-to-HTML conversion for email bodies, TO/CC/BCC tracking,
-    and injecting original email history into the reply.
+    injecting original email history, and safely saving attached files to transaction logs.
     """
     delegation = get_object_or_404(EmailDelegation, pk=delegation_id)
     
@@ -4246,7 +4246,6 @@ def outlook_delegated_action(request, delegation_id):
             
             posted_status = request.POST.get('status')
             if posted_status == 'NEW':
-                # 🚀 FIX: Use 'PEN' (Pending) or 'INP' instead of 'IN_PROGRESS' to avoid the DataError
                 delegation.status = 'PEN' 
             else:
                 delegation.status = posted_status
@@ -4311,8 +4310,6 @@ def outlook_delegated_action(request, delegation_id):
                 <br>
                 {original_email.body_content}
                 """
-                
-                # 🚀 3. STITCH IN THE CORRECT ORDER: Reply -> Signature -> Thread History
                 final_email_body = formatted_body + user_signature + thread_history
                 
             except OutlookInbox.DoesNotExist:
@@ -4325,7 +4322,7 @@ def outlook_delegated_action(request, delegation_id):
                 subject=subject, 
                 body_content=final_email_body, 
                 content_type='HTML',
-                user=None,  # 🚀 4. SET TO NONE SO SERVICES.PY DOESN'T ADD THE SIGNATURE AGAIN AT THE BOTTOM
+                user=None, 
                 attachments=reply_files,
                 cc_email=member_cc_email,   
                 bcc_email=member_bcc_email  
@@ -4335,14 +4332,23 @@ def outlook_delegated_action(request, delegation_id):
                 final_action_type = 'REPLIED' if log_type == 'REPLY' else action_destination
                 tracking_metadata = f"{subject} | CC: {member_cc_email or 'None'} | BCC: {member_bcc_email or 'None'}"
                 
+                # Log transaction using helper function
                 log_delegation_transaction(
                     delegation_id, 
                     request.user, 
                     tracking_metadata, 
                     recipient, 
                     action_type=final_action_type,
-                    body=formatted_body  
+                    body=formatted_body 
                 )
+                
+                # 🚀 Fetch the latest transaction log record created for this delegation to attach the file securely
+                uploaded_file = reply_files[0] if reply_files else None
+                if uploaded_file:
+                    tx_log = DelegationTransactionLog.objects.filter(delegation_id=delegation_id).order_by('-id').first()
+                    if tx_log:
+                        tx_log.attached_file = uploaded_file
+                        tx_log.save()
                 
                 file_count = len(reply_files)
                 messages.success(request, f"Reply sent successfully with {file_count} attachment(s).")
@@ -4364,7 +4370,6 @@ def outlook_delegated_action(request, delegation_id):
     else:
         attachments = OutlookGraphService.fetch_attachments(target_email, delegation.email_id)
         for att in attachments:
-            # 🚀 Prevent AttributeError if contentType is null (None)
             content_type = (att.get('contentType') or '').lower()
             if 'image' in content_type:
                 raw_att = OutlookGraphService.get_attachment_raw(target_email, delegation.email_id, att['id'])
@@ -4377,7 +4382,6 @@ def outlook_delegated_action(request, delegation_id):
         else:
             email_display = email_data
 
-    # 🚀 Fetch the local inbox record using the delegation's email_id 
     local_inbox = OutlookInbox.objects.filter(email_id=delegation.email_id).first()
 
     context = {
@@ -4603,7 +4607,7 @@ def view_email_thread(request, email_id):
     """
     Displays email content, attachments, and combined timeline.
     Isolated by source/type (DIRECT_ local vs. Graph API) to prevent ID contamination.
-    Includes local attachment file mapping and delegated reply timeline handling.
+    Includes local attachment file mapping and delegated reply timeline handling from DelegationTransactionLog.body.
     """
     from .models import EmailDelegation, DelegationTransactionLog, UnityNotes, DelegationNote, OutlookInbox
     from django.http import Http404
@@ -4719,7 +4723,7 @@ def view_email_thread(request, email_id):
     for act in actions:
         combined_timeline.append({'type': 'action', 'date': act.timestamp, 'obj': act})
         
-    # 2. 🟢 RESTORED: Standard Delegated Replies (REPLIED action type)
+    # 2. 🟢 Delegated Replies (Extracting To, CC, BCC, Subject, and Attachments)
     for reply in threaded_replies:
         agent_username = reply.user.username if reply.user_id else 'System'
         name_mapping = {
@@ -4729,16 +4733,50 @@ def view_email_thread(request, email_id):
         }
         full_name = name_mapping.get(agent_username, agent_username.replace('_', ' ').title())
         
-        raw_body = getattr(reply, 'note_content', '') or getattr(reply, 'subject', '') or ''
+        raw_body = getattr(reply, 'body', '') or ''
         formatted_body = raw_body.replace('\r\n', '<br>').replace('\n', '<br>')
         
+        reply_to = getattr(reply, 'recipient_email', '-') or '-'
+        reply_subject = '-'
+        reply_cc = '-'
+        reply_bcc = '-'
+        
+        meta_string = getattr(reply, 'note_content', '') or ''
+        if '|' in meta_string:
+            parts = meta_string.split('|')
+            reply_subject = parts[0].strip()
+            for p in parts[1:]:
+                if 'CC:' in p:
+                    reply_cc = p.replace('CC:', '').strip()
+                elif 'BCC:' in p:
+                    reply_bcc = p.replace('BCC:', '').strip()
+        else:
+            reply_subject = meta_string or 'Reply to Task'
+
+        # 🚀 Robust multi-field Attachment File Check (pulls from attached_file column)
+        reply_attachment_name = None
+        reply_attachment_url = None
+        att_file_obj = getattr(reply, 'attached_file', None) or getattr(reply, 'attachment', None) or getattr(reply, 'file', None)
+        
+        if not att_file_obj and task:
+            att_file_obj = getattr(task, 'attached_file', None) or getattr(task, 'attachment', None)
+            
+        if att_file_obj:
+            reply_attachment_name = os.path.basename(str(att_file_obj))
+            reply_attachment_url = f"{settings.MEDIA_URL}{att_file_obj}"
+
         combined_timeline.append({
             'type': 'reply',
             'date': reply.timestamp,
             'obj': reply,
             'full_name': full_name,
             'formatted_body': formatted_body,
-            'attachment_url': None
+            'reply_to': reply_to,
+            'reply_subject': reply_subject,
+            'reply_cc': reply_cc if reply_cc != 'None' else '-',
+            'reply_bcc': reply_bcc if reply_bcc != 'None' else '-',
+            'attachment_name': reply_attachment_name,
+            'attachment_url': reply_attachment_url
         })
 
     # 3. Delegation Notes
