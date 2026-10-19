@@ -71,7 +71,7 @@
 
     <div class="email-thread-card">
         <div class="card-header-main">
-            <h3>{% if email.subject %}{{ email.subject }}{% elif task and task.subject %}{{ task.subject }}{% else %}(No Subject){% endif %}</h3>
+            <h3>{% if email.subject %}{{ email.subject }}{% elif task and task.subject %}{{ task.subject }}{% else %}No Subject{% endif %}</h3>
             <div style="font-size: 14px; color: #4a5568;">
                 <strong>Identifier:</strong> {{ email.id }} <br>
                 <strong>Date:</strong> {% if email.receivedDateTime %}{{ email.receivedDateTime|date:"d M Y, H:i" }}{% elif task %}{{ task.received_at|date:"d M Y, H:i" }}{% endif %}
@@ -79,7 +79,6 @@
         </div>
         <div class="card-body-content">{{ email_body|safe }}</div>
 
-        <!-- ATTACHMENT SECTION (Handles both Graph API attachments and local uploaded files) -->
         {% if attachments %}
         <div class="attachment-history-section">
             <strong style="display:block; margin-bottom:10px; color:#2e7d32; font-size: 14px;"><i class="fas fa-paperclip"></i> Files associated with this thread:</strong>
@@ -133,7 +132,6 @@
                     {{ item.formatted_body|safe }}
                 </div>
                 
-                <!-- Timeline Reply Attachment Display -->
                 {% if item.attachment_url %}
                 <div style="margin-top: 10px; padding-top: 8px; border-top: 1px dashed #ddd;">
                     <a href="{{ item.attachment_url }}" target="_blank" class="btn-download-small" style="display:inline-block; width:auto; padding:6px 12px; background-color: #1976d2;">
@@ -147,7 +145,10 @@
             {% elif item.type == 'unity_note' %}
                 <div class="timeline-icon" style="background-color: #0d47a1;"></div>
                 <span class="badge-status bg-note">Unity Management Note</span>
-                <p class="event-text" style="white-space: pre-line;">{{ item.obj.notes }}</p>
+                
+                <div class="event-text" style="font-size: 14px; line-height: 1.6;">
+                    {{ item.obj.notes|safe }}
+                </div>
                 <div class="email-details-block" style="border-left-color: #0d47a1;"><strong>Action/Ref:</strong> {{ item.obj.action_notes|default:"General Note" }}</div>
                 <span class="event-meta">Logged by: <strong>{{ item.obj.user }}</strong> | {{ item.date|date:"d M Y, H:i" }}</span>
 

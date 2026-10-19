@@ -3180,7 +3180,7 @@ def unallocate_surplus(request, bill_id):
 def confirmations_view(request):
     """
     Displays bills ready for daily confirmation review.
-    UPDATED: Removed 'Deposit Reference' from Excel export headers and mapping.
+    UPDATED: Removed 50-item limit and page restrictions for exports so ALL records export.
     """
     from decimal import Decimal
     from datetime import datetime, date, timedelta
@@ -3218,7 +3218,12 @@ def confirmations_view(request):
                 pass
                 
         bills_queryset = bills_queryset.order_by('J_Final_Date', 'C_Company_Code').distinct()
-        review_bills = bills_queryset[:50]
+        
+        # 🚀 Check if export is requested
+        is_export = bool(request.GET.get('export_excel'))
+        
+        # 🚀 If exporting, take ALL bills. If viewing in browser, limit to first 50.
+        review_bills = bills_queryset if is_export else bills_queryset[:50]
 
         confirmation_data = []
         
@@ -3239,7 +3244,7 @@ def confirmations_view(request):
                     recon_record = settlement.reconned_bank_line
                     
                     try:
-                        import_record = recon_record.bank_line  # 🚀 THIS IS THE importbank TABLE
+                        import_record = recon_record.bank_line 
                     except Exception:
                         import_record = None
 
@@ -3248,7 +3253,6 @@ def confirmations_view(request):
                     source['source'] = 'BANK'  
                     source['bank_total'] = recon_record.transaction_amount
                     
-                    # 🚀 PULL transaction_description (lowercase 't') FROM importbank
                     if import_record:
                         raw_desc = getattr(import_record, 'transaction_description', '-') or '-'
                         source['description'] = raw_desc 
@@ -3306,7 +3310,7 @@ def confirmations_view(request):
 
         confirmation_data.sort(key=lambda x: x['confirmed_date'] if x['confirmed_date'] else date(1900, 1, 1), reverse=True)
 
-        if request.GET.get('export_excel'):
+        if is_export:
             import openpyxl
             from openpyxl.styles import Font, Alignment
             from django.http import HttpResponse
@@ -3315,7 +3319,6 @@ def confirmations_view(request):
             ws = wb.active
             ws.title = "Confirmations"
 
-            # 🚀 Removed 'Deposit Reference' from headers
             headers = [
                 'CCDates Month', 'Fund Code', 'Member Group Code', 'Member Group Name', 
                 'Active Member - (Info from FuturaSA & NOT checked by Sanlam)', 'Schedule Date', 'Final Data Received Date', 'Schedule Amount', 
@@ -3341,7 +3344,6 @@ def confirmations_view(request):
                 else:
                     for index, s in enumerate(sources):
                         export_source_text = 'Overs Line' if s.get('source') == 'CREDIT' else 'Bank'
-                        # 🚀 Removed bank_ref from export columns, mapping strictly to description and source text
                         bank_cols = [s['date'], s['bank_total'], s['amount'], s['comment'], s.get('description', ''), export_source_text]
                         
                         if index == 0:
@@ -3365,9 +3367,6 @@ def confirmations_view(request):
         print("!!! CONFIRMATIONS VIEW ERROR !!!")
         print(traceback.format_exc())
         return HttpResponse(f"Internal Server Error: {str(e)}", status=500)
-
-
-# --- Admin Billing View (Line-by-Line Display) ---
 
 @login_required
 def admin_billing_view(request):
@@ -4604,7 +4603,7 @@ def view_email_thread(request, email_id):
     """
     Displays email content, attachments, and combined timeline.
     Isolated by source/type (DIRECT_ local vs. Graph API) to prevent ID contamination.
-    Includes local attachment file mapping.
+    Includes local attachment file mapping and delegated reply timeline handling.
     """
     from .models import EmailDelegation, DelegationTransactionLog, UnityNotes, DelegationNote, OutlookInbox
     from django.http import Http404
@@ -4639,7 +4638,6 @@ def view_email_thread(request, email_id):
                 raw_body = direct_note.notes or ""
                 email_body = raw_body.replace('\r\n', '<br>').replace('\n', '<br>')
                 
-                # 🟢 Map usernames nicely for sender display
                 agent_username = getattr(direct_note, 'user', request.user.username)
                 name_mapping = {
                     'LuanovanEck': 'Luano van Eck',
@@ -4660,7 +4658,6 @@ def view_email_thread(request, email_id):
                     'receivedDateTime': direct_note.date
                 }
                 
-                # 🟢 Check for local attachment file on UnityNotes record
                 if hasattr(direct_note, 'attached_file') and direct_note.attached_file:
                     filename = os.path.basename(str(direct_note.attached_file))
                     attachments.append({
@@ -4687,7 +4684,6 @@ def view_email_thread(request, email_id):
                 email_data = response
                 email_body = email_data.get('body', {}).get('content', '')
                 
-                # Fetch attachments & handle inline CIDs
                 atts = OutlookGraphService.fetch_attachments(target_email, email_id)
                 if atts:
                     for att in atts:
@@ -4709,17 +4705,47 @@ def view_email_thread(request, email_id):
 
     # Audit Trail & Timeline
     actions = []
+    threaded_replies = []
     delegation_notes = []
+    
     if task:
-        actions = list(DelegationTransactionLog.objects.filter(delegation=task).select_related('user'))
+        actions = list(DelegationTransactionLog.objects.filter(delegation=task).exclude(action_type='REPLIED').select_related('user'))
+        threaded_replies = list(DelegationTransactionLog.objects.filter(delegation=task, action_type='REPLIED').select_related('user'))
         delegation_notes = list(DelegationNote.objects.filter(delegation=task).select_related('user'))
 
     combined_timeline = []
+    
+    # 1. General Action Logs
     for act in actions:
         combined_timeline.append({'type': 'action', 'date': act.timestamp, 'obj': act})
+        
+    # 2. 🟢 RESTORED: Standard Delegated Replies (REPLIED action type)
+    for reply in threaded_replies:
+        agent_username = reply.user.username if reply.user_id else 'System'
+        name_mapping = {
+            'LuanovanEck': 'Luano van Eck',
+            'Testuser1': 'Test Agent',
+            'omega': 'Omega System Assistant',
+        }
+        full_name = name_mapping.get(agent_username, agent_username.replace('_', ' ').title())
+        
+        raw_body = getattr(reply, 'note_content', '') or getattr(reply, 'subject', '') or ''
+        formatted_body = raw_body.replace('\r\n', '<br>').replace('\n', '<br>')
+        
+        combined_timeline.append({
+            'type': 'reply',
+            'date': reply.timestamp,
+            'obj': reply,
+            'full_name': full_name,
+            'formatted_body': formatted_body,
+            'attachment_url': None
+        })
+
+    # 3. Delegation Notes
     for d_note in delegation_notes:
         combined_timeline.append({'type': 'del_note', 'date': d_note.created_at, 'obj': d_note})
 
+    # 4. Direct Email Notes
     if direct_note:
         combined_timeline.append({
             'type': 'unity_note', 
