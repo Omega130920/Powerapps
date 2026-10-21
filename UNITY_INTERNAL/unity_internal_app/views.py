@@ -6943,11 +6943,14 @@ def apply_bank_journal_to_bill(request, bill_id):
     """
     Applies an available (staged) BankJournalEntry to an open UnityBill 
     without double-consuming the parent bank line's amount_settled.
+    Captures closing note from modal if provided.
     """
     if request.method != 'POST':
         return redirect('dashboard')
 
     journal_id = request.POST.get('journal_id')
+    recon_note = request.POST.get('recon_note', '').strip()  # 🚀 Capture note from modal
+    
     target_bill = get_object_or_404(UnityBill.objects.select_for_update(), pk=bill_id)
     company_code = target_bill.C_Company_Code
 
@@ -6962,11 +6965,12 @@ def apply_bank_journal_to_bill(request, bill_id):
         journal.save()
 
         # 3. Create the audit trail entry in BillSettlement
+        aware_dt = timezone.now()
         settlement_kwargs = {
             'reconned_bank_line': recon_line,
             'unity_bill_source': target_bill,
             'settled_amount': journal.amount,
-            'settlement_date': timezone.now(),
+            'settlement_date': aware_dt,
             'confirmed_by': request.user
         }
         
@@ -6975,21 +6979,44 @@ def apply_bank_journal_to_bill(request, bill_id):
         elif hasattr(BillSettlement, 'source_bank_journal_id'):
             settlement_kwargs['source_bank_journal_id'] = journal.id
 
+        # 🚀 Add settlement note if the model field exists
+        if hasattr(BillSettlement, 'settlement_note') and recon_note:
+            settlement_kwargs['settlement_note'] = recon_note
+
         BillSettlement.objects.create(**settlement_kwargs)
 
         # NOTE: We DO NOT modify recon_line.amount_settled here 
         # because the bank line was already debited/consumed when the journal was initially staged!
 
-        # 4. Check if bill is fully settled
+        # 4. Check if bill is fully settled or if a closing note forces closure
         total_applied = BillSettlement.objects.filter(
             unity_bill_source_id=target_bill.pk
         ).aggregate(t=Sum('settled_amount'))['t'] or Decimal('0.00')
 
-        if total_applied >= ((target_bill.H_Schedule_Amount or Decimal('0.00')) - Decimal('0.01')):
+        # Calculate if bill is covered within tolerance or fully matched
+        scheduled_amount = target_bill.H_Schedule_Amount or Decimal('0.00')
+        remaining_liability = max(Decimal('0.00'), scheduled_amount - total_applied)
+        
+        # If the journal application clears the bill or user submitted a closure note via the modal popup
+        if remaining_liability <= Decimal('5.00') or recon_note:
             target_bill.is_reconciled = True
-            target_bill.J_Final_Date = timezone.now().date()
+            if not target_bill.J_Final_Date:
+                target_bill.J_Final_Date = aware_dt.date()
             target_bill.save()
-            messages.success(request, f"Successfully applied R{journal.amount} journal. Bill #{target_bill.id} is now fully reconciled and closed.")
+
+            # 🚀 Save the Closing Note to the General Audit Trail (UnityClaimNote)
+            if recon_note:
+                UnityClaimNote.objects.create(
+                    company_code=company_code,
+                    note_description=f"JOURNAL RECON FINALIZED: {recon_note}",
+                    note_selection="RECON CLOSURE",
+                    created_by=request.user
+                )
+                # Sweep note to all existing settlements for this bill if applicable
+                if hasattr(BillSettlement, 'settlement_note'):
+                    BillSettlement.objects.filter(unity_bill_source_id=target_bill.pk).update(settlement_note=recon_note)
+
+            messages.success(request, f"Successfully applied R{journal.amount} journal with note. Bill #{target_bill.id} is now reconciled and closed.")
         else:
             messages.success(request, f"Successfully applied R{journal.amount} journal to Bill #{target_bill.id}.")
 

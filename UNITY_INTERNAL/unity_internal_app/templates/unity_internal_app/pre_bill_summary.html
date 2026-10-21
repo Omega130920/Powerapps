@@ -117,7 +117,7 @@ tbody tr:nth-child(even){background-color:#e6ffe6;}
 {% endif %}
 </div>
 
-<button type="button" onclick="openFinalizeModal()" class="return-button" style="background-color: #388e3c; margin-bottom: 20px; border: none; cursor: pointer;">
+<button type="button" onclick="openFinalizeModal('{% url 'finalize_reconciliation' company_code=company_code bill_id=bill_record.id %}')" class="return-button" style="background-color: #388e3c; margin-bottom: 20px; border: none; cursor: pointer;">
 Proceed to Recon (Finalize)
 </button>
 
@@ -155,9 +155,9 @@ These amounts were explicitly extracted/journaled from bank lines for <strong>{{
     <td style="padding: 10px;">#{{ journal.source_bank_line_id }}</td>
     <td style="padding: 10px;">{{ journal.created_at|date:"Y-m-d H:i" }}</td>
     <td style="padding: 10px;">{{ journal.created_by }}</td>
-    <td style="padding: 10px; font-weight: bold; color: #2e7d32;">R {{ journal.amount|floatformat:2 }}</td>
+    <td style="padding: 10px; font-weight: bold; color: #2e7d32;" class="journal-amount-val" data-amount="{{ journal.amount }}">R {{ journal.amount|floatformat:2 }}</td>
     <td style="padding: 10px;">
-        <form action="{% url 'apply_bank_journal_to_bill' bill_id=bill_record.id %}" method="POST">
+        <form action="{% url 'apply_bank_journal_to_bill' bill_id=bill_record.id %}" method="POST" class="journal-apply-form">
             {% csrf_token %}
             <input type="hidden" name="journal_id" value="{{ journal.id }}">
             <div class="allocation-form-group">
@@ -373,14 +373,14 @@ Allocating these funds will create a Journal Entry to reduce the remaining sched
 {% for surplus in available_surpluses %}
 <tr style="border-bottom: 1px solid #eee;">
 <td style="padding: 8px;">{{ surplus.origin_date|date:"Y-m-d" }} (Bill #{{ surplus.unity_bill_source_id }})</td>
-<td style="padding: 8px; font-weight: bold; color: green;">R {{ surplus.temp_available|floatformat:2 }}</td>
+<td style="padding: 8px; font-weight: bold; color: green;" class="surplus-avail-val">R {{ surplus.temp_available|floatformat:2 }}</td>
 <td style="padding: 8px;">
-<form action="{% url 'allocate_surplus_to_bill' bill_id=bill_record.id %}" method="POST" style="display: flex; gap: 10px; align-items: center;">
+<form action="{% url 'allocate_surplus_to_bill' bill_id=bill_record.id %}" method="POST" class="surplus-allocate-form" style="display: flex; gap: 10px; align-items: center;">
 {% csrf_token %}
 <input type="hidden" name="surplus_id" value="{{ surplus.id }}">
 <div style="display: flex; align-items: center;">
 <span style="margin-right: 5px; font-weight: bold;">R</span>
-<input type="number" name="amount" step="0.01" min="0.01" max="{{ surplus.temp_available|floatformat:2 }}" placeholder="0.00" required style="width: 100px; padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
+<input type="number" name="amount" class="surplus-amount-input" step="0.01" min="0.01" max="{{ surplus.temp_available|floatformat:2 }}" placeholder="0.00" required style="width: 100px; padding: 5px; border: 1px solid #ccc; border-radius: 4px;">
 </div>
 <button type="submit" class="dashboard-button" style="padding: 5px 15px; font-size: 12px; background-color: #1976d2; border: none; color: white; cursor: pointer; border-radius: 3px;">Allocate</button>
 </form>
@@ -449,10 +449,11 @@ Remove
         <div class="modal-header">Finalize Reconciliation</div>
         <p style="font-size: 0.95em; color: #555; margin-top: 10px;">The bill is fully covered. Please provide a closing note for the audit trail before final reconciliation.</p>
         
-        <form action="{% url 'finalize_reconciliation' company_code=company_code bill_id=bill_record.id %}" method="POST">
-            {% csrf_token %}
+        <form id="modalFinalizeForm" method="POST">
+            {% csrf_token %>
+            <div id="modalExtraFields"></div>
             <label class="modal-label">Recon Closing Note:</label>
-            <textarea name="recon_note" class="modal-textarea" placeholder="e.g. Reconciliation completed. Fully paid via bank deposits and surplus allocation..."></textarea>
+            <textarea name="recon_note" class="modal-textarea" placeholder="e.g. Reconciliation completed. Fully paid via bank deposits and journal allocation..." required></textarea>
             
             <div class="modal-footer">
                 <button type="button" onclick="closeFinalizeModal()" class="return-button" style="background-color:#999; border:none; margin-right:8px; font-size: 0.9em;">Cancel</button>
@@ -463,8 +464,22 @@ Remove
 </div>
 
 <script>
-function openFinalizeModal() {
-    document.getElementById('finalizeModal').style.display = 'block';
+function openFinalizeModal(actionUrl, extraData = {}) {
+    const modal = document.getElementById('finalizeModal');
+    const form = document.getElementById('modalFinalizeForm');
+    form.action = actionUrl;
+
+    const extraContainer = document.getElementById('modalExtraFields');
+    extraContainer.innerHTML = '';
+    for (const [key, value] of Object.entries(extraData)) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = key;
+        input.value = value;
+        extraContainer.appendChild(input);
+    }
+
+    modal.style.display = 'block';
 }
 
 function closeFinalizeModal() {
@@ -488,15 +503,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const creditAllocated = parseFloat("{{ total_credit_notes_assigned|default:0 }}");
     const journalAllocated = parseFloat("{{ total_journal_assigned|default:0 }}");
     const cashAlreadyInDB = parseFloat("{{ total_cash_applied|default:0 }}");
-    
-    // 🚀 NEW: Get applied bank journals total from the backend context
     const appliedBankJournals = parseFloat("{{ applied_bank_journals|default:0 }}");
     
-    const availableCreditTotal = parseFloat("{{ total_available_credit|default:0 }}");
+    function calculateLiveRemaining(currentTypedCash = 0) {
+        let remaining = scheduledAmount - creditAllocated - journalAllocated - appliedBankJournals - cashAlreadyInDB - currentTypedCash;
+        return remaining < 0 ? 0 : remaining;
+    }
 
     function calculateLiveOutstanding() {
         let currentTypedCash = 0;
-        
         amountInputs.forEach(input => {
             const val = parseFloat(input.value);
             if (!isNaN(val)) {
@@ -504,11 +519,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
 
-        // 🚀 UPDATED FORMULA: Subtract appliedBankJournals so live calculations account for applied journals
-        let remaining = scheduledAmount - creditAllocated - journalAllocated - appliedBankJournals - cashAlreadyInDB - currentTypedCash;
-        
-        if (remaining < 0) remaining = 0;
-
+        let remaining = calculateLiveRemaining(currentTypedCash);
         const formatted = new Intl.NumberFormat('en-ZA', { style: 'currency', currency: 'ZAR' }).format(remaining);
         outstandingDisplay.innerText = formatted;
         
@@ -518,6 +529,40 @@ document.addEventListener('DOMContentLoaded', function() {
             outstandingDisplay.style.color = "white";
         }
     }
+
+    // 🚀 Intercept Staged Bank Journal Apply submissions
+    document.querySelectorAll('.journal-apply-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            const journalAmount = parseFloat(this.closest('tr').querySelector('.journal-amount-val').dataset.amount) || 0;
+            let currentTypedCash = 0;
+            amountInputs.forEach(i => currentTypedCash += parseFloat(i.value || 0));
+            
+            let remainingAfter = calculateLiveRemaining(currentTypedCash) - journalAmount;
+
+            if (remainingAfter <= 0.01) {
+                e.preventDefault();
+                const journalId = this.querySelector('input[name="journal_id"]').value;
+                openFinalizeModal(this.action, { 'journal_id': journalId });
+            }
+        });
+    });
+
+    // 🚀 Intercept Surplus Allocate submissions
+    document.querySelectorAll('.surplus-allocate-form').forEach(form => {
+        form.addEventListener('submit', function(e) {
+            const surplusAmount = parseFloat(this.querySelector('.surplus-amount-input').value) || 0;
+            let currentTypedCash = 0;
+            amountInputs.forEach(i => currentTypedCash += parseFloat(i.value || 0));
+            
+            let remainingAfter = calculateLiveRemaining(currentTypedCash) - surplusAmount;
+
+            if (remainingAfter <= 0.01) {
+                e.preventDefault();
+                const surplusId = this.querySelector('input[name="surplus_id"]').value;
+                openFinalizeModal(this.action, { 'surplus_id': surplusId, 'amount': surplusAmount });
+            }
+        });
+    });
 
     checkboxes.forEach(box => {
         box.type = "checkbox";

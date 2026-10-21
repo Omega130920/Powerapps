@@ -203,9 +203,11 @@
                     <div class="small fw-bold">{{ item.sender }}</div>
                 </td>
                 <td class="text-center">
-                    <!-- 🟢 ADDED |urlencode and |escapejs to protect special characters -->
+                    <!-- 🟢 Native Bootstrap toggle attributes prevent JS execution race conditions -->
                     <button class="btn-ogie" 
-                            onclick="openHistoryModal('{{ item.id|urlencode }}', '{{ item.sender|escapejs }}')"
+                            data-bs-toggle="modal" 
+                            data-bs-target="#historyModal"
+                            onclick="loadHistoryContent('{{ item.id|urlencode }}', '{{ item.sender|escapejs }}')"
                             title="View History">
                         <i class="bi bi-eye"></i>
                     </button>
@@ -254,18 +256,14 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-    const historyModal = new bootstrap.Modal(document.getElementById('historyModal'));
-
-    function openHistoryModal(messageId, emailAddress) {
+    function loadHistoryContent(messageId, emailAddress) {
         document.getElementById('targetEmailDisplay').innerText = emailAddress;
         document.getElementById('historyModalBody').innerHTML = `
-            <div class="history-loading">
+            <div class="history-loading text-center py-4">
                 <div class="spinner-border text-success" role="status"></div>
                 <p class="mt-2">Fetching history for <b>${emailAddress}</b>...</p>
             </div>
         `;
-        
-        historyModal.show();
 
         fetch(`/pssubf/history-preview/${messageId}/`)
             .then(response => response.text())
@@ -281,6 +279,18 @@
                 `;
             });
     }
+
+    // 🟢 Clean up lingering backdrops and scroll traps automatically when closed
+    document.addEventListener('DOMContentLoaded', function() {
+        const modalElement = document.getElementById('historyModal');
+        modalElement.addEventListener('hidden.bs.modal', function () {
+            const backdrops = document.querySelectorAll('.modal-backdrop');
+            backdrops.forEach(backdrop => backdrop.remove());
+            document.body.classList.remove('modal-open');
+            document.body.style.overflow = '';
+            document.body.style.paddingRight = '';
+        });
+    });
 </script>
 
 </body>

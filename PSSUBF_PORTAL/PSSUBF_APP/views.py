@@ -323,7 +323,7 @@ def outlook_dashboard_view(request):
 def pssubf_delegate_view(request, email_id):
     """View to fetch live email details and delegate tasks or log internal notes."""
     
-    # 🟢 Decode the URL-encoded email ID to prevent lookup mismatches
+    # Decode the URL-encoded email ID to prevent lookup mismatches
     email_id = unquote(email_id)
 
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
@@ -341,7 +341,6 @@ def pssubf_delegate_view(request, email_id):
 
         # --- 1. HANDLE INTERNAL NOTE / QUICK LOG SUBMISSION ---
         if action_type == 'add_note':
-            # 🟢 Explicitly capture the selected call direction from the dropdown (fallback to Inbound)
             call_direction = request.POST.get('call_direction', 'Inbound').strip()
             call_method = request.POST.get('call_method', 'Phone')
             call_type = request.POST.get('call_type', 'General Query')
@@ -349,18 +348,16 @@ def pssubf_delegate_view(request, email_id):
             email_category = request.POST.get('email_category', task.email_category if task else 'Query')
             status = request.POST.get('status', task.status if task else 'In Progress')
 
-            # 🟢 Dynamically set action label based on whether it's Outbound or Inbound
             action_type_label = 'Outbound Note' if call_direction == 'Outbound' else 'Inbound Note'
 
             mip_code = task.member_group_code if task else None
             id_num = task.id_number if task else None
 
-            # Create Quick Log (SystemLog) with the exact user-selected direction
             SystemLog.objects.create(
                 mip_number=mip_code,
                 id_number=id_num,
                 log_title=f"{call_direction} - {call_method}: {call_type[:40]}",
-                call_direction=call_direction,  # Captures 'Outbound' or 'Inbound' properly
+                call_direction=call_direction, 
                 call_method=call_method,
                 call_type=call_type,
                 category=email_category if email_category in dict(SystemLog.CATEGORY_CHOICES) else 'Query',
@@ -369,7 +366,6 @@ def pssubf_delegate_view(request, email_id):
                 created_by=request.user.username
             )
 
-            # Create Action History Entry with the matching label ('Outbound Note' or 'Inbound Note')
             PssubfAction.objects.create(
                 task_email_id=email_id,
                 action_type=action_type_label,
@@ -378,7 +374,6 @@ def pssubf_delegate_view(request, email_id):
                 action_timestamp=timezone.now()
             )
 
-            # Update task metadata if changed
             if task:
                 task.email_category = email_category
                 task.status = status
@@ -406,7 +401,8 @@ def pssubf_delegate_view(request, email_id):
                 inbox_item.status = 'Completed'
                 inbox_item.save()
             messages.success(request, "Task marked as complete.")
-            return redirect('pssubf_delegations_list')
+            # 🟢 Redirect back to inbox list instead of dashboard
+            return redirect('pssubf_inbox')
 
         # --- 4. DEFAULT DELEGATION SUBMISSION ---
         else:
@@ -441,7 +437,8 @@ def pssubf_delegate_view(request, email_id):
                     inbox_item.save()
 
                 messages.success(request, message)
-                return redirect('pssubf_delegations_list')
+                # 🟢 Redirect back to inbox list ('pssubf_inbox') instead of dashboard/delegations list
+                return redirect('pssubf_inbox')
             else:
                 messages.error(request, f"Error: {message}")
 

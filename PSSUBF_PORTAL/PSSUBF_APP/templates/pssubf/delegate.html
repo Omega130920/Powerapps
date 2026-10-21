@@ -24,7 +24,6 @@
             padding: 40px 20px;
         }
 
-        /* --- GLASS CONTAINER --- */
         .delegate-container { 
             max-width: 1000px; 
             margin: 0 auto; 
@@ -46,7 +45,6 @@
             padding-bottom: 15px; 
         }
 
-        /* --- EMAIL CONTENT CARD --- */
         .email-thread-card { 
             background: rgba(255, 255, 255, 0.4); 
             border-radius: 16px; 
@@ -77,7 +75,6 @@
             font-size: 14px; 
         }
 
-        /* --- ATTACHMENTS --- */
         .attachment-list { 
             padding: 15px 20px; 
             background: rgba(67, 160, 71, 0.1); 
@@ -101,7 +98,6 @@
             font-weight: 600; 
         }
 
-        /* --- FORM CONTROLS --- */
         .form-group { margin-bottom: 20px; }
         .form-group label { 
             display: block; 
@@ -128,9 +124,6 @@
             border-color: var(--accent-green);
         }
 
-        .form-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
-
-        /* --- BUTTONS --- */
         .button-container { 
             display: flex; 
             justify-content: space-between; 
@@ -233,7 +226,6 @@
                 <input type="text" name="id_number" class="form-control-custom" placeholder="e.g. 9001015000088">
             </div>
 
-            <!-- 🟢 ADDED EMAIL CATEGORY DROPDOWN -->
             <div class="form-group">
                 <label for="email_category">Email Category:</label>
                 <select id="email_category" name="email_category" class="form-control-custom">
@@ -257,7 +249,8 @@
         </div>
 
         <div class="button-container">
-            <a href="{% url 'pssubf_dashboard' %}" class="btn-cancel">Cancel</a>
+            <!-- 🟢 Changed cancel link to point directly to your inbox list route name -->
+            <button type="button" onclick="history.back()" class="btn-cancel border-0">Cancel</button>
             <button type="submit" id="submit_button" class="btn-delegate">
                 <span id="btn-icon"><i class="bi bi-person-plus-fill"></i></span> 
                 <span id="btn-text">Assign Task</span>

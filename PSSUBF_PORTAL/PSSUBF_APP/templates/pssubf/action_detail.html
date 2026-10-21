@@ -88,6 +88,8 @@
         <h2 class="mb-0 fw-light"><i class="bi bi-gear-wide-connected me-2"></i> Task <strong>Action</strong></h2>
         <div class="d-flex gap-2">
             <a href="{% url 'pssubf_thread' email_id %}" class="btn btn-light btn-sm border-white bg-opacity-50"><i class="bi bi-chat-dots"></i> Full History</a>
+            <!-- 🟢 Corrected to match the actual url name 'pssubf_audit_logs' from your urls.py -->
+            <a href="{% url 'pssubf_audit_logs' %}" class="btn btn-outline-dark btn-sm rounded-pill px-3 bg-white bg-opacity-50"><i class="bi bi-journal-text"></i> Back to Audit Log</a>
             <a href="{% url 'pssubf_delegations_list' %}" class="btn btn-dark btn-sm rounded-pill px-3"><i class="bi bi-house-door"></i> Back to Queue</a>
         </div>
     </div>
@@ -299,7 +301,6 @@
                             {% csrf_token %}
                             <input type="hidden" name="action_type" value="send_reply">
                             
-                            <!-- Hidden inputs populated from modal popup -->
                             <input type="hidden" name="call_direction" id="modal_call_direction" value="Outbound">
                             <input type="hidden" name="call_method" id="modal_call_method" value="Emails">
                             <input type="hidden" name="call_type" id="modal_call_type" value="Feedback to Beneficiary">
@@ -380,12 +381,11 @@
                     <select id="popup_call_type" class="form-select form-select-sm form-control-glass">
                         <option value="Feedback to Beneficiary" selected>Feedback to Beneficiary</option>
                         <option value="Change of contact/banking details submitted to Sanlam" >Change of contact/banking details submitted to Sanlam</option>
-                        <option value="Change of guardianship submitted to Sanlam">"Change of guardianship submitted to Sanlam"</option>
+                        <option value="Change of guardianship submitted to Sanlam">Change of guardianship submitted to Sanlam</option>
                         <option value="Complaint filed and reported">Complaint filed and reported</option>
                         <option value="Benefit statement sent">Benefit statement sent</option>
                         <option value="Follow up on incomplete claim">Follow up on incomplete claim</option>
                         <option value="Funds Less than R10 000">Funds Less than R10 000</option>
-                        <option value="Feedback to Beneficiary">Feedback to Beneficiary</option>
                         <option value="Feedback to SALT">Feedback to SALT</option>
                         <option value="Acknowledgement Letter Sent">Acknowledgement Letter Sent</option>
                         <option value="Feedback to Sanlam">Feedback to Sanlam</option>
@@ -422,7 +422,6 @@
                     </select>
                 </div>
 
-                <!-- 🟢 ADDED NOTE CONTENT TEXT BOX INSIDE MODAL -->
                 <div class="mb-3">
                     <label class="small fw-bold opacity-75">Outbound Note Content:</label>
                     <textarea id="popup_note_content" class="form-control form-control-sm form-control-glass" rows="3" placeholder="Add custom notes for this outbound reply..."></textarea>
