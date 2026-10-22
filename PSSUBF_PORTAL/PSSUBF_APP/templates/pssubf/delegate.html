@@ -172,8 +172,23 @@
     <h1><i class="bi bi-send-check-fill me-2"></i> Delegate PSSUBF Task</h1>
 
     <form method="post">
-        {% csrf_token %}
         
+        <!-- 🟢 Added Received Date and From (Sender) fields above Subject -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label>Date Received:</label>
+                    <input type="text" class="form-control-custom" style="background: rgba(255,255,255,0.3);" value="{{ received_timestamp|date:'Y-m-d H:i' }}" readonly>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label>From (Sender):</label>
+                    <input type="text" class="form-control-custom" style="background: rgba(255,255,255,0.3);" value="{{ sender }}" readonly>
+                </div>
+            </div>
+        </div>
+
         <div class="form-group">
             <label>Email Subject:</label>
             <input type="text" class="form-control-custom" style="background: rgba(255,255,255,0.3);" value="{{ email_subject }}" readonly>
@@ -216,16 +231,21 @@
         </div>
 
         <div id="classification_fields_wrapper">
+            <!-- 🟢 COMMENTED OUT: MIP Number
             <div class="form-group">
                 <label>MIP Number:</label>
                 <input type="text" name="member_group_code" class="form-control-custom" placeholder="e.g. GS001">
             </div>
+            -->
 
+            <!-- 🟢 COMMENTED OUT: ID Number
             <div class="form-group">
                 <label>ID Number:</label>
                 <input type="text" name="id_number" class="form-control-custom" placeholder="e.g. 9001015000088">
             </div>
+            -->
 
+            <!-- 🟢 COMMENTED OUT: Email Category
             <div class="form-group">
                 <label for="email_category">Email Category:</label>
                 <select id="email_category" name="email_category" class="form-control-custom">
@@ -236,6 +256,7 @@
                     <option value="Unsure">Unsure</option>
                 </select>
             </div>
+            -->
 
             <div class="form-group">
                 <label for="assigned_agent">Delegate To Agent:*</label>
@@ -249,7 +270,6 @@
         </div>
 
         <div class="button-container">
-            <!-- 🟢 Changed cancel link to point directly to your inbox list route name -->
             <button type="button" onclick="history.back()" class="btn-cancel border-0">Cancel</button>
             <button type="submit" id="submit_button" class="btn-delegate">
                 <span id="btn-icon"><i class="bi bi-person-plus-fill"></i></span> 

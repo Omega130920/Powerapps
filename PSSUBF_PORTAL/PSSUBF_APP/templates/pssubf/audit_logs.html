@@ -111,19 +111,6 @@
 <body>
 
 <div class="log-container">
-    {% if messages %}
-        <div class="row mt-2">
-            <div class="col-12">
-                {% for message in messages %}
-                    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags }}{% endif %} alert-dismissible fade show rounded-3 shadow-sm mb-3" role="alert">
-                        <i class="bi {% if message.tags == 'error' %}bi-exclamation-triangle-fill{% else %}bi-info-circle-fill{% endif %} me-2"></i>
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                {% endfor %}
-            </div>
-        </div>
-    {% endif %}
 
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="mb-0 fw-light"><i class="bi bi-journal-text me-2"></i> Master <strong>Audit Logs</strong></h2>
@@ -142,15 +129,15 @@
                 </div>
             </div>
             <div class="col-md-2">
-                <label class="form-label small fw-bold opacity-75">Start Date:</label>
+                <label class="form-label small fw-bold opacity-75">Received Start Date:</label>
                 <input type="date" name="start_date" class="form-control form-control-glass" value="{{ start_date|default:'' }}">
             </div>
             <div class="col-md-2">
-                <label class="form-label small fw-bold opacity-75">End Date:</label>
+                <label class="form-label small fw-bold opacity-75">Received End Date:</label>
                 <input type="date" name="end_date" class="form-control form-control-glass" value="{{ end_date|default:'' }}">
             </div>
             <div class="col-md-5 d-flex gap-2">
-                <button type="submit" class="btn btn-success flex-grow-1 rounded-pill fw-bold">Filter</button>
+                <button type="submit" class="btn btn-success flex-grow-1 rounded-pill fw-bold">Search</button>
                 <button type="submit" name="export" value="excel" class="btn btn-primary rounded-pill px-4 fw-bold" title="Export to Excel">
                     <i class="bi bi-file-earmark-excel-fill me-1"></i> Export to Excel
                 </button>

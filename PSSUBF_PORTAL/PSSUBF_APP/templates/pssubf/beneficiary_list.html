@@ -24,7 +24,7 @@
         }
 
         .container-custom {
-            max-width: 1400px; 
+            max-width: 1450px; 
             width: 100%;
             margin: 0 auto;
             padding: 35px;
@@ -228,12 +228,13 @@
     <table class="member-table">
         <thead>
             <tr>
-                <th style="width: 25%;">Full Name</th>
-                <th style="width: 15%;">Membership No</th>
-                <th style="width: 15%;">ID Number</th>
-                <th style="width: 15%;">Date of Birth</th>
-                <th style="width: 15%;">Current Age (Y/M)</th>
-                <th style="width: 15%;" class="text-end">Actions</th>
+                <th style="width: 22%;">Full Name</th>
+                <th style="width: 13%;">Membership No</th>
+                <th style="width: 13%;">ID Number</th>
+                <th style="width: 12%;">Date of Birth</th>
+                <th style="width: 13%;">Current Age (Y/M)</th>
+                <th style="width: 14%;">Stipend Amount</th>
+                <th style="width: 13%;" class="text-end">Actions</th>
             </tr>
         </thead>
         <tbody id="memberTableBody">
@@ -251,6 +252,9 @@
                 <td>
                     <span class="age-badge">{{ member.calculated_age }}</span>
                 </td>
+                <td>
+                    <strong>R {{ member.stipened|floatformat:2 }}</strong>
+                </td>
                 <td class="text-end">
                     <a href="{% url 'beneficiary_details' member.membership_number %}" class="btn-view">
                         View Profile
@@ -259,7 +263,7 @@
             </tr>
             {% empty %}
             <tr>
-                <td colspan="6" class="text-center py-5">
+                <td colspan="7" class="text-center py-5">
                     <i class="bi bi-people opacity-25 fs-1"></i>
                     <p class="text-muted mt-2">No beneficiaries found matching your filter.</p>
                 </td>
@@ -347,7 +351,6 @@
                 <input type="text" name="last_name" class="form-control">
             </div>
 
-            <!-- 🟢 UPDATED: Adjusted col widths and added Date of Birth -->
             <div class="col-md-4">
                 <label class="form-label small fw-bold text-muted">ID Number:</label>
                 <input type="text" name="id_number" class="form-control">

@@ -10,7 +10,7 @@ from django.utils import timezone  # Ensured django timezone is used
 from django.shortcuts import render, get_object_or_404, redirect
 from django.conf import settings
 from django.contrib import messages
-from django.http import FileResponse, HttpResponse, Http404, JsonResponse
+from django.http import FileResponse, HttpResponse, Http404, JsonResponse, request
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 import logging
@@ -53,7 +53,13 @@ def pssubf_switchboard(request):
     Mapped to path('')
     Renders the card-based navigation (dashboard.html).
     """
-    return render(request, 'pssubf/dashboard.html')
+    
+    # 🟢 Explicitly pass user context to ensure names display correctly
+    context = {
+        'user': request.user,
+    }
+    
+    return render(request, 'pssubf/dashboard.html', context)
 
 from .models import SystemLog
 
@@ -401,8 +407,7 @@ def pssubf_delegate_view(request, email_id):
                 inbox_item.status = 'Completed'
                 inbox_item.save()
             messages.success(request, "Task marked as complete.")
-            # 🟢 Redirect back to inbox list instead of dashboard
-            return redirect('pssubf_inbox')
+            return redirect('pssubf_dashboard')
 
         # --- 4. DEFAULT DELEGATION SUBMISSION ---
         else:
@@ -410,6 +415,15 @@ def pssubf_delegate_view(request, email_id):
             is_recycle = 'recycle' in request.POST
             
             form_data = request.POST.copy()
+            
+            # 🟢 Fallback handling for fields hidden/commented out in the template
+            if not form_data.get('member_group_code') and task:
+                form_data['member_group_code'] = task.member_group_code or ''
+            if not form_data.get('email_category') and task:
+                form_data['email_category'] = task.email_category or 'Query'
+            elif not form_data.get('email_category'):
+                form_data['email_category'] = 'Query'
+
             provided_mip = form_data.get('member_group_code', '').strip()
             provided_id = form_data.get('id_number', '').strip()
             
@@ -437,8 +451,7 @@ def pssubf_delegate_view(request, email_id):
                     inbox_item.save()
 
                 messages.success(request, message)
-                # 🟢 Redirect back to inbox list ('pssubf_inbox') instead of dashboard/delegations list
-                return redirect('pssubf_inbox')
+                return redirect('pssubf_dashboard')
             else:
                 messages.error(request, f"Error: {message}")
 
@@ -471,7 +484,10 @@ def pssubf_delegate_view(request, email_id):
         'available_users': available_users,
         'inbox_item': inbox_item,
         'task': task,
-        'is_vanessa': is_vanessa
+        'is_vanessa': is_vanessa,
+        # 🟢 Pass received date and sender from inbox item
+        'received_timestamp': inbox_item.received_timestamp if inbox_item else None,
+        'sender': inbox_item.sender if inbox_item else ''
     })
 
 logger = logging.getLogger(__name__)
@@ -574,7 +590,7 @@ def pssubf_action_view(request, email_id):
     if request.method == 'POST':
         action_type = request.POST.get('action_type')
 
-        # 🟢 RE-DELEGATE OVERRIDE FOR VANESSA (Placed BEFORE system log block to allow manager overrides)
+        # 🟢 RE-DELEGATE OVERRIDE FOR VANESSA (Redirects to audit logs upon success)
         if action_type == 'redelegate' and is_vanessa:
             new_agent = request.POST.get('assigned_agent')
             if new_agent:
@@ -592,7 +608,7 @@ def pssubf_action_view(request, email_id):
                         inbox_item.status = 'Delegated'
                         inbox_item.save()
                     messages.success(request, f"Manager Override: Task re-delegated to {new_agent}.")
-                    return redirect('pssubf_delegations_list')
+                    return redirect('pssubf_audit_logs')
                 else:
                     messages.error(request, f"Error re-delegating: {message}")
             return redirect('pssubf_action', email_id=email_id)
@@ -835,7 +851,6 @@ def pssubf_action_view(request, email_id):
         'email_id': email_id,
         'is_direct': is_direct_entry,
         'is_system_log': is_system_log,
-        # 🟢 PASS TO TEMPLATE FOR VANESSA
         'is_vanessa': is_vanessa,
         'available_users': available_users
     })
@@ -1073,7 +1088,7 @@ def pssubf_audit_logs(request):
     """
     Master Audit Log: Shows delegation logs with email details.
     Includes an export-to-Excel (XLSX) function that respects applied filters.
-    Excludes Recycled records.
+    Excludes Recycled records. Filters by email received date.
     """
     query = request.GET.get('q', '').strip()
     start_date_str = request.GET.get('start_date')
@@ -1081,23 +1096,14 @@ def pssubf_audit_logs(request):
     
     is_export = request.GET.get('export') == 'excel'
 
-    # Query delegations and exclude Recycled items
-    logs = PssubfDelegate.objects.exclude(status='Recycled').order_by('-created_at')
+    # 🟢 1. Annotate or fetch related PssubfInbox items to filter by received_timestamp
+    inbox_qs = PssubfInbox.objects.all()
 
-    # Apply Search Filter
-    if query:
-        logs = logs.filter(
-            Q(assigned_agent__icontains=query) |
-            Q(subject__icontains=query) |
-            Q(status__icontains=query)
-        )
-
-    # Bulletproof Date Range Filters (Timezone Aware Boundaries)
     if start_date_str:
         try:
             start_d = datetime.strptime(start_date_str, '%Y-%m-%d').date()
             start_dt = make_aware(datetime.combine(start_d, time.min))
-            logs = logs.filter(created_at__gte=start_dt)
+            inbox_qs = inbox_qs.filter(received_timestamp__gte=start_dt)
         except ValueError:
             pass
 
@@ -1105,15 +1111,37 @@ def pssubf_audit_logs(request):
         try:
             end_d = datetime.strptime(end_date_str, '%Y-%m-%d').date()
             end_dt = make_aware(datetime.combine(end_d, time.max))
-            logs = logs.filter(created_at__lte=end_dt)
+            inbox_qs = inbox_qs.filter(received_timestamp__lte=end_dt)
         except ValueError:
             pass
 
-    # Enrich delegation objects with inbox fallback details
+    # Get the list of email_ids that fall within the received date range
+    filtered_email_ids = inbox_qs.values_list('email_id', flat=True)
+
+    # Query delegations and exclude Recycled items
+    logs = PssubfDelegate.objects.exclude(status='Recycled').order_by('-created_at')
+
+    # 🟢 2. Apply the received date filter to the logs queryset
+    if start_date_str or end_date_str:
+        logs = logs.filter(email_id__in=filtered_email_ids)
+
+    # Apply Search Filter
+    if query:
+        logs = logs.filter(
+            Q(assigned_agent__icontains=query) |
+            Q(subject__icontains=query) |
+            Q(status__icontains=query) |
+            Q(sender__icontains=query)
+        )
+
+    # Enrich delegation objects with inbox fallback details and sender info
     for log in logs:
-        # Match with Inbox to get Received Date
+        # Match with Inbox to get Received Date and Sender details if missing on delegation row
         inbox_match = PssubfInbox.objects.filter(email_id=log.email_id).first()
         received_ts = inbox_match.received_timestamp if inbox_match and inbox_match.received_timestamp else None
+        
+        # Capture From Email Address (Fallback to Inbox sender if delegation model doesn't store it)
+        log.from_email = getattr(log, 'sender', None) or (inbox_match.sender if inbox_match else "Unknown")
         
         # Format Received Date
         if received_ts:
@@ -1147,8 +1175,8 @@ def pssubf_audit_logs(request):
         ws = wb.active
         ws.title = "Audit Logs"
         
-        # Write Headers
-        headers = ['Email Subject', 'Email Received', 'Delegation Date', 'Email Status', 'Delegated Agent']
+        # Write Headers (Added 'From Email')
+        headers = ['Email Subject', 'From Email', 'Email Received', 'Delegation Date', 'Email Status', 'Delegated Agent']
         ws.append(headers)
         
         # Format Header Row (Bold)
@@ -1159,6 +1187,7 @@ def pssubf_audit_logs(request):
         for log in logs:
             ws.append([
                 log.email_subject,
+                log.from_email,
                 log.excel_received_date,
                 log.excel_delegation_date,
                 log.live_status,
@@ -1548,7 +1577,7 @@ def beneficiary_list_view(request):
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
-    # LIVE CALCULATION: Years and Months
+    # LIVE CALCULATION: Years, Months, and formatting stipend display if needed
     for member in page_obj:
         if member.dob:
             birth = member.dob

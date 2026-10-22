@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PSSUBF Management Portal</title>
+    <title>PSSUBF Management Portal, {{ user.first_name }} {{ user.last_name }}</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         :root {
@@ -35,17 +35,10 @@
         h1 {
             font-size: clamp(1.4rem, 2.5vh, 2rem);
             text-align: center;
-            margin: 0.5vh 0 0.2vh 0;
+            margin: 0.5vh 0 1.5vh 0;
             color: var(--text-dark);
             font-weight: 300;
             letter-spacing: 1px;
-        }
-
-        .subtitle {
-            color: var(--text-dark);
-            opacity: 0.7;
-            margin-bottom: 1.5vh;
-            font-size: 0.9rem;
         }
 
         .button-container {
@@ -180,8 +173,7 @@
         </form>
     </div>
 
-    <h1>PSSUBF <strong>Home Screen</strong></h1>
-    <p class="subtitle"></p>
+    <h1>PSSUBF <strong>Home Screen</strong> <span style="font-size: 0.8rem; opacity: 0.75; font-weight: normal;">| Welcome, {{ user.username }}</span></h1>
 
     <div class="button-container">
         <a href="{% url 'pssubf_dashboard' %}" class="button-block">
