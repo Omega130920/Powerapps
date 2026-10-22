@@ -401,8 +401,8 @@ def pssubf_delegate_view(request, email_id):
                 inbox_item.status = 'Completed'
                 inbox_item.save()
             messages.success(request, "Task marked as complete.")
-            # 🟢 Redirect back to inbox list instead of dashboard
-            return redirect('pssubf_inbox')
+            # 🟢 Redirect back to live inbox dashboard using correct URL pattern name
+            return redirect('pssubf_dashboard')
 
         # --- 4. DEFAULT DELEGATION SUBMISSION ---
         else:
@@ -437,8 +437,8 @@ def pssubf_delegate_view(request, email_id):
                     inbox_item.save()
 
                 messages.success(request, message)
-                # 🟢 Redirect back to inbox list ('pssubf_inbox') instead of dashboard/delegations list
-                return redirect('pssubf_inbox')
+                # 🟢 Redirect back to live inbox dashboard using correct URL pattern name
+                return redirect('pssubf_dashboard')
             else:
                 messages.error(request, f"Error: {message}")
 
