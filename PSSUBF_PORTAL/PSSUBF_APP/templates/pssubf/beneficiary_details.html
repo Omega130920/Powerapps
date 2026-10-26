@@ -6,7 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Beneficiary Profile - {{ member.membership_number }}</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
         
@@ -149,12 +151,8 @@
         .registry-table th { width: auto !important; background: rgba(255,255,255,0.1); }
         .registry-table td { font-size: 13px; }
 
-        /* Ensure the nested history expands smoothly */
-        .history-row {
-            transition: all 0.3s ease-in-out;
-        }
+        .history-row { transition: all 0.3s ease-in-out; }
 
-        /* Print Override Layout Configuration Styles */
         @media print {
             body > *:not(#pdfPrintTemplate) { display: none !important; }
             #pdfPrintTemplate { display: block !important; background: white !important; color: #000 !important; padding: 0 !important; }
@@ -212,7 +210,6 @@
                 <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Portfolio Value Date</label><input type="date" name="portfolio_date" value="{{ member.portfolio_date|date:'Y-m-d' }}" required class="w-full p-2.5 border rounded-md clean-input"></div>
                 <div><label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Amount Requested</label><input type="number" step="0.01" name="amount_requested" id="claim_req" onchange="calcClaimAffordabilityFull()" required class="w-full p-2.5 border rounded-md clean-input"></div>
                 
-                <!-- STATUS & DATE PAID FIELDS -->
                 <div>
                     <label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Claim Status</label>
                     <select name="status" id="claim_status" required class="w-full p-2.5 border rounded-md clean-input">
@@ -251,7 +248,6 @@
                     </div>
                 </div>
 
-                <!-- NEW: History Logs Container (Injected via JS) -->
                 <div id="modal_claim_history_container" class="md:col-span-4 mt-4 hidden bg-gray-50 border border-gray-200 rounded-xl p-5 shadow-inner max-h-64 overflow-y-auto">
                 </div>
 
@@ -263,7 +259,7 @@
         </div>
     </div>
 
-    <!-- AD HOC MODAL (Updated to match Ad_hoc_list style) -->
+    <!-- AD HOC MODAL -->
     <div id="adhocModal" class="modal">
         <div class="modal-content">
             <div class="p-5 border-b bg-white flex flex-col items-center relative">
@@ -433,7 +429,7 @@
             </div>
         </div>
 
-        <div class="bg-gray-50 rounded-xl p-6 border border-gray-200 mb-8 space-y-3 text-sm">
+        <div class="bg-gray-55 rounded-xl p-6 border border-gray-200 mb-8 space-y-3 text-sm">
             <div class="flex justify-between border-b border-gray-200 pb-2">
                 <span class="font-semibold text-gray-500 uppercase text-xs">Guardian:</span>
                 <span class="font-bold text-gray-800" id="pdf_guardian_name">--</span>
@@ -478,6 +474,51 @@
         <div class="pt-12 border-t border-gray-200 flex justify-between items-center text-xs text-gray-400 mt-12">
             <p>© Private Security Sector Umbrella Beneficiary Fund</p>
             <p class="italic">Confidential System Document</p>
+        </div>
+    </div>
+
+    <!-- NOTE DETAILS MODAL POPUP -->
+    <div class="modal fade" id="noteDetailModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content shadow-lg border-0" style="background: rgba(245, 248, 243, 0.98); backdrop-filter: blur(20px); border-radius: 16px;">
+                <div class="modal-header bg-success text-white" style="border-radius: 16px 16px 0 0;">
+                    <h5 class="modal-title fw-bold fs-6"><i class="bi bi-journal-text me-2"></i> Log Entry Details</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <span class="small fw-bold text-muted d-block">Date Logged:</span>
+                            <span id="modal_date" class="fw-semibold"></span>
+                        </div>
+                        <div class="col-md-6">
+                            <span class="small fw-bold text-muted d-block">Agent:</span>
+                            <span id="modal_agent" class="fw-semibold"></span>
+                        </div>
+                    </div>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <span class="small fw-bold text-muted d-block">Call Direction:</span>
+                            <span id="modal_direction" class="fw-semibold"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <span class="small fw-bold text-muted d-block">Call Type:</span>
+                            <span id="modal_type" class="fw-semibold"></span>
+                        </div>
+                        <div class="col-md-4">
+                            <span class="small fw-bold text-muted d-block">Action Method:</span>
+                            <span id="modal_method" class="fw-semibold"></span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <span class="small fw-bold text-muted d-block mb-1">Full Internal Note Content:</span>
+                        <div id="modal_content" class="p-3 bg-white border rounded-3 text-dark" style="max-height: 250px; overflow-y: auto; white-space: pre-wrap; line-height: 1.5;"></div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 p-3 bg-light" style="border-radius: 0 0 16px 16px;">
+                    <button type="button" class="btn btn-secondary btn-sm rounded-pill px-4" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -616,7 +657,6 @@
                             </tbody>
                         </table>
                         
-                        <!-- Hidden Data Store for Modal injection (Prevents table HTML layout breaks) -->
                         <div id="hidden_claim_histories" style="display: none;">
                             {% for claim in claims %}
                                 <div id="history_data_{{ claim.id }}">
@@ -745,32 +785,40 @@
                         </form>
                     </div>
 
+                    <!-- EMAIL LOG -->
                     <div id="email-log" class="tab-pane">
-                        <table class="w-full">
+                        <table class="w-full" style="table-layout: fixed;">
+                            <colgroup>
+                                <col style="width: 15%;">
+                                <col style="width: 20%;">
+                                <col style="width: 40%;">
+                                <col style="width: 15%;">
+                                <col style="width: 10%;">
+                            </colgroup>
                             <thead>
                                 <tr class="text-left border-b border-white border-opacity-10">
-                                    <th class="py-2">Dir</th>
-                                    <th>Agent</th>
-                                    <th>Subject</th>
-                                    <th>Date</th>
-                                    <th class="text-right">Actions</th>
+                                    <th class="py-3 px-2">Dir</th>
+                                    <th class="py-3 px-2">Agent</th>
+                                    <th class="py-3 px-2">Subject</th>
+                                    <th class="py-3 px-2">Actioned</th>
+                                    <th class="py-3 px-2 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {% for email in email_logs %}
                                 <tr class="hover:bg-white hover:bg-opacity-5 transition">
-                                    <td>
+                                    <td class="py-3 px-2">
                                         {% if email.type == 'INCOMING' %}
-                                            <span class="badge-in" style="background-color: rgba(59, 130, 246, 0.2); color: #1e3a8a; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold;">📩 Delegated</span>
+                                            <span class="badge-in" style="background-color: rgba(59, 130, 246, 0.2); color: #1e3a8a; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; white-space: nowrap;">📩 Delegated</span>
                                         {% elif email.status == 'Replied' %}
-                                            <span class="badge-reply" style="background-color: rgba(16, 185, 129, 0.2); color: #065f46; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold;">↩️ Replied</span>
+                                            <span class="badge-reply" style="background-color: rgba(16, 185, 129, 0.2); color: #065f46; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; white-space: nowrap;">↩️ Replied</span>
                                         {% else %}
-                                            <span class="badge-out" style="background-color: rgba(245, 158, 11, 0.2); color: #78350f; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold;">📤 Direct</span>
+                                            <span class="badge-out" style="background-color: rgba(245, 158, 11, 0.2); color: #78350f; padding: 3px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; white-space: nowrap;">📤 Direct</span>
                                         {% endif %}
                                     </td>
-                                    <td>{{ email.agent }}</td>
-                                    <td class="text-sm">
-                                        <span>
+                                    <td class="py-3 px-2 text-truncate">{{ email.agent }}</td>
+                                    <td class="py-3 px-2 text-sm">
+                                        <span class="d-block text-truncate">
                                             {% if email.status == 'Replied' %}
                                                 <span class="text-emerald-800 font-bold">RE:</span> {{ email.subject|cut:"RE: "|truncatechars:45 }}
                                             {% else %}
@@ -778,8 +826,8 @@
                                             {% endif %}
                                         </span>
                                     </td>
-                                    <td class="text-xs">{{ email.date|date:"d M Y H:i" }}</td>
-                                    <td class="text-right">
+                                    <td class="py-3 px-2 text-xs" style="white-space: nowrap;">{{ email.date|date:"d M Y H:i" }}</td>
+                                    <td class="py-3 px-2 text-right">
                                         <a href="{% url 'pssubf_thread' email.email_id %}" class="text-emerald-800"><i class="fas fa-stream"></i></a>
                                     </td>
                                 </tr>
@@ -792,7 +840,8 @@
                         </table>
                     </div>
 
-<div id="direct-email" class="tab-pane">
+                    <!-- DIRECT EMAIL -->
+                    <div id="direct-email" class="tab-pane">
                         <form method="POST" action="{% url 'beneficiary_details' member.membership_number %}" enctype="multipart/form-data">
                             {% csrf_token %}
                             <div class="space-y-4">
@@ -837,11 +886,12 @@
                         </form>
                     </div>
 
+                    <!-- CALL LOGS / NOTES -->
                     <div id="notes" class="tab-pane">
                         <div class="glass-card" style="background: rgba(255, 255, 255, 0.25); border: 1px solid var(--glass-border); border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);">
                             <div class="glass-header header-dark" style="padding: 16px 20px; background: rgba(33, 37, 41, 0.85); color: white; font-weight: 700; font-size: 0.95rem; display: flex; justify-content: space-between; align-items: center;">
                                 <span>LOG HISTORY FOR MEMBER {{ member.membership_number }}</span>
-                                <span style="font-size: 0.8rem; font-weight: normal; opacity: 0.8;">(Click row to edit in log page)</span>
+                                <span style="font-size: 0.8rem; font-weight: normal; opacity: 0.8;">(Click row to view full note details)</span>
                             </div>
                             
                             <div class="table-responsive" style="overflow-x: auto; padding: 10px;">
@@ -849,11 +899,9 @@
                                     <thead>
                                         <tr style="border-bottom: 2px solid var(--glass-border);">
                                             <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Date Logged</th>
-                                            <!-- <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">MIP Number</th> -->
                                             <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Call Direction</th>
                                             <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Call Type</th>
                                             <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Action Method</th>
-                                            <!--<th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Confirm Category</th>-->
                                             <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Agent</th>
                                             <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Internal Note</th>
                                         </tr>
@@ -864,28 +912,13 @@
                                             <tr style="cursor: pointer; transition: background 0.2s;" 
                                                 onmouseover="this.style.background='rgba(255, 255, 255, 0.5)'" 
                                                 onmouseout="this.style.background='transparent'"
-                                                onclick="window.location.href='{% url 'pssubf_log_page' %}?edit_id={{ log.id }}'">
+                                                onclick="showNoteDetails('{{ log.created_at|date:"d M Y H:i" }}', '{{ log.call_direction|default:"-"|escapejs }}', '{{ log.call_type|default:"-"|escapejs }}', '{{ log.call_method|default:"-"|escapejs }}', '{{ log.created_by|escapejs }}', '{{ log.note_content|escapejs }}')">
                                                 
                                                 <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ log.created_at|date:"d M Y H:i" }}</td>
-                                                <!--<td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle; white-space: nowrap;"><strong>{{ log.mip_number|default:"-" }}</strong></td>-->
                                                 <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ log.call_direction|default:"-" }}</td>
                                                 <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ log.call_type|default:"-" }}</td>
                                                 <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ log.call_method|default:"-" }}</td>
-                                                
-                                                <!--<td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">
-                                                    {% if log.category == 'Urgent' %}
-                                                        <span class="badge badge-urgent" style="background: #dc3545; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">Urgent</span>
-                                                    {% elif log.category == 'Claim' %}
-                                                        <span class="badge badge-claim" style="background: #0dcaf0; color: black; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">Claim</span>
-                                                    {% elif log.category == 'Follow-up' %}
-                                                        <span class="badge badge-followup" style="background: #ffc107; color: black; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">Follow-up</span>
-                                                    {% else %}
-                                                        <span class="badge badge-default" style="background: #6c757d; color: white; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold;">{{ log.category }}</span>
-                                                    {% endif %}
-                                                </td>-->
-
                                                 <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ log.created_by }}</td>
-
                                                 <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">
                                                     <span class="note-truncate" style="display: inline-block; max-width: 250px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle;" title="{{ log.note_content }}">
                                                         {{ log.note_content }}
@@ -895,7 +928,7 @@
                                             {% endif %}
                                         {% empty %}
                                             <tr>
-                                                <td colspan="7" style="text-align: center; padding: 30px; opacity: 0.6;">
+                                                <td colspan="6" style="text-align: center; padding: 30px; opacity: 0.6;">
                                                     No log entries recorded for this MIP number.
                                                 </td>
                                             </tr>
@@ -910,6 +943,8 @@
         </div>
     </div>
 
+    <!-- Bootstrap JS Bundle for Modals -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.querySelectorAll('.tab-nav li').forEach(tab => {
             tab.addEventListener('click', () => {
@@ -920,6 +955,18 @@
                 if(target) target.classList.add('active');
             });
         });
+
+        function showNoteDetails(date, direction, type, method, agent, content) {
+            document.getElementById('modal_date').textContent = date;
+            document.getElementById('modal_direction').textContent = direction;
+            document.getElementById('modal_type').textContent = type;
+            document.getElementById('modal_method').textContent = method;
+            document.getElementById('modal_agent').textContent = agent;
+            document.getElementById('modal_content').textContent = content;
+
+            const noteModal = new bootstrap.Modal(document.getElementById('noteDetailModal'));
+            noteModal.show();
+        }
 
         function formatHTMLDate(dateString) {
             if (!dateString || dateString === 'None' || dateString === 'null') return '';
@@ -976,7 +1023,6 @@
             };
         }
 
-        // --- NEW DYNAMIC TOGGLE EDIT SCRIPT ---
         function toggleSectionEdit(section, active) {
             const container = document.getElementById('profileBody');
             const inputs = document.querySelectorAll(`.${section}-editable`);
@@ -1118,15 +1164,6 @@
                 document.getElementById('record_id').value = "";
                 document.getElementById('affordability_calculation').value = "Awaiting data...";
                 document.getElementById('raw_affordability_num').value = "0";
-            }
-        }
-
-        function toggleHistory(rowId) {
-            const row = document.getElementById(rowId);
-            if (row.style.display === 'none' || row.style.display === '') {
-                row.style.display = 'table-row';
-            } else {
-                row.style.display = 'none';
             }
         }
 
