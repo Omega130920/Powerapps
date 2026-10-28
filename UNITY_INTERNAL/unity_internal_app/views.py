@@ -4723,7 +4723,7 @@ def view_email_thread(request, email_id):
     for act in actions:
         combined_timeline.append({'type': 'action', 'date': act.timestamp, 'obj': act})
         
-    # 2. 🟢 Delegated Replies (Extracting To, CC, BCC, Subject, and Attachments)
+    # 2. 🟢 Delegated Replies (🚀 Fixed substring matching bug for CC/BCC)
     for reply in threaded_replies:
         agent_username = reply.user.username if reply.user_id else 'System'
         name_mapping = {
@@ -4741,19 +4741,20 @@ def view_email_thread(request, email_id):
         reply_cc = '-'
         reply_bcc = '-'
         
-        meta_string = getattr(reply, 'note_content', '') or ''
+        meta_string = getattr(reply, 'subject', '') or ''
         if '|' in meta_string:
             parts = meta_string.split('|')
             reply_subject = parts[0].strip()
             for p in parts[1:]:
-                if 'CC:' in p:
-                    reply_cc = p.replace('CC:', '').strip()
-                elif 'BCC:' in p:
-                    reply_bcc = p.replace('BCC:', '').strip()
+                p_clean = p.strip()
+                if p_clean.startswith('BCC:'):
+                    reply_bcc = p_clean.replace('BCC:', '').strip()
+                elif p_clean.startswith('CC:'):
+                    reply_cc = p_clean.replace('CC:', '').strip()
         else:
             reply_subject = meta_string or 'Reply to Task'
 
-        # 🚀 Robust multi-field Attachment File Check (pulls from attached_file column)
+        # Robust multi-field Attachment File Check
         reply_attachment_name = None
         reply_attachment_url = None
         att_file_obj = getattr(reply, 'attached_file', None) or getattr(reply, 'attachment', None) or getattr(reply, 'file', None)
@@ -4785,10 +4786,45 @@ def view_email_thread(request, email_id):
 
     # 4. Direct Email Notes
     if direct_note:
+        raw_body = direct_note.notes or ""
+        formatted_body = raw_body.replace('\r\n', '<br>').replace('\n', '<br>')
+        
+        dir_subject = '-'
+        dir_cc = '-'
+        dir_bcc = '-'
+        dir_to = getattr(direct_note, 'recipient_email', '-') or '-'
+        
+        meta_string = getattr(direct_note, 'action_notes', '') or ''
+        if '|' in meta_string:
+            parts = meta_string.split('|')
+            dir_subject = parts[0].strip()
+            for p in parts[1:]:
+                p_clean = p.strip()
+                if p_clean.startswith('BCC:'):
+                    dir_bcc = p_clean.replace('BCC:', '').strip()
+                elif p_clean.startswith('CC:'):
+                    dir_cc = p_clean.replace('CC:', '').strip()
+        else:
+            dir_subject = meta_string or 'Direct Email Sent'
+
+        dir_attachment_name = None
+        dir_attachment_url = None
+        if hasattr(direct_note, 'attached_file') and direct_note.attached_file:
+            dir_attachment_name = os.path.basename(str(direct_note.attached_file))
+            dir_attachment_url = f"{settings.MEDIA_URL}{direct_note.attached_file}"
+
         combined_timeline.append({
             'type': 'unity_note', 
             'date': direct_note.date, 
-            'obj': direct_note
+            'obj': direct_note,
+            'full_name': full_name,
+            'formatted_body': formatted_body,
+            'reply_to': dir_to,
+            'reply_subject': dir_subject,
+            'reply_cc': dir_cc if dir_cc != 'None' else '-',
+            'reply_bcc': dir_bcc if dir_bcc != 'None' else '-',
+            'attachment_name': dir_attachment_name,
+            'attachment_url': dir_attachment_url
         })
 
     fallback_date = timezone.now().replace(year=1900)

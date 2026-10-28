@@ -232,8 +232,15 @@
             <span class="button-desc">Recover deleted tasks</span>
             <span id="badge-recycled" class="badge dark-badge" {% if not recycled_count %}style="display:none;"{% endif %}>{{ recycled_count }}</span>
         </a>
+
+        <a href=## class="button-block">
+            <i class="fas fa-receipt"></i>
+            <span class="button-text">SMS LIST</span>
+            <span id="badge-recycled" class="badge dark-badge" {% if not recycled_count %}style="display:none;"{% endif %}>{{ recycled_count }}</span>
+        </a>
     </div>
 
+    
     <script>
         function refreshDashboardStats() {
             fetch('/dashboard-stats/') 
