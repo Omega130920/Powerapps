@@ -284,7 +284,7 @@ def fetch_emails_view(request):
         return redirect('tasks')
 
     # 1. FETCH LIVE FROM OUTLOOK
-    inbox_data = OutlookGraphService.fetch_inbox_messages(top_count=500)
+    inbox_data = OutlookGraphService.fetch_inbox_messages(top_count=5000)
     
     if 'error' in inbox_data:
         messages.error(request, f"Outlook Error: {inbox_data['error']}")
