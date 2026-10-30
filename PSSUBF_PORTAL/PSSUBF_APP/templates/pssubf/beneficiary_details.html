@@ -477,47 +477,45 @@
         </div>
     </div>
 
-    <!-- NOTE DETAILS MODAL POPUP -->
-    <div class="modal fade" id="noteDetailModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog modal-dialog-centered modal-lg">
-            <div class="modal-content shadow-lg border-0" style="background: rgba(245, 248, 243, 0.98); backdrop-filter: blur(20px); border-radius: 16px;">
-                <div class="modal-header bg-success text-white" style="border-radius: 16px 16px 0 0;">
-                    <h5 class="modal-title fw-bold fs-6"><i class="bi bi-journal-text me-2"></i> Log Entry Details</h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body p-4">
-                    <div class="row mb-3">
-                        <div class="col-md-6">
-                            <span class="small fw-bold text-muted d-block">Date Logged:</span>
-                            <span id="modal_date" class="fw-semibold"></span>
-                        </div>
-                        <div class="col-md-6">
-                            <span class="small fw-bold text-muted d-block">Agent:</span>
-                            <span id="modal_agent" class="fw-semibold"></span>
-                        </div>
+    <!-- NOTE DETAILS MODAL POPUP (Converted to standard custom modal) -->
+    <div id="noteDetailModal" class="modal">
+        <div class="modal-content shadow-lg border-0 !max-w-3xl !p-0 overflow-hidden" style="background: rgba(245, 248, 243, 0.98); backdrop-filter: blur(20px); border-radius: 16px;">
+            <div class="bg-emerald-700 text-white p-4 flex justify-between items-center">
+                <h5 class="font-bold text-lg m-0"><i class="fas fa-book mr-2"></i> Log Entry Details</h5>
+                <button type="button" class="text-white hover:text-red-300 text-2xl font-bold leading-none bg-transparent border-0 cursor-pointer" onclick="closeModal('noteDetailModal')">&times;</button>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <span class="text-xs font-bold text-gray-500 block uppercase">Date Logged:</span>
+                        <span id="modal_date" class="font-semibold text-gray-800"></span>
                     </div>
-                    <div class="row mb-3">
-                        <div class="col-md-4">
-                            <span class="small fw-bold text-muted d-block">Call Direction:</span>
-                            <span id="modal_direction" class="fw-semibold"></span>
-                        </div>
-                        <div class="col-md-4">
-                            <span class="small fw-bold text-muted d-block">Call Type:</span>
-                            <span id="modal_type" class="fw-semibold"></span>
-                        </div>
-                        <div class="col-md-4">
-                            <span class="small fw-bold text-muted d-block">Action Method:</span>
-                            <span id="modal_method" class="fw-semibold"></span>
-                        </div>
-                    </div>
-                    <div class="mb-3">
-                        <span class="small fw-bold text-muted d-block mb-1">Full Internal Note Content:</span>
-                        <div id="modal_content" class="p-3 bg-white border rounded-3 text-dark" style="max-height: 250px; overflow-y: auto; white-space: pre-wrap; line-height: 1.5;"></div>
+                    <div>
+                        <span class="text-xs font-bold text-gray-500 block uppercase">Agent:</span>
+                        <span id="modal_agent" class="font-semibold text-gray-800"></span>
                     </div>
                 </div>
-                <div class="modal-footer border-0 p-3 bg-light" style="border-radius: 0 0 16px 16px;">
-                    <button type="button" class="btn btn-secondary btn-sm rounded-pill px-4" data-bs-dismiss="modal">Close</button>
+                <div class="grid grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <span class="text-xs font-bold text-gray-500 block uppercase">Call Direction:</span>
+                        <span id="modal_direction" class="font-semibold text-gray-800"></span>
+                    </div>
+                    <div>
+                        <span class="text-xs font-bold text-gray-500 block uppercase">Call Type:</span>
+                        <span id="modal_type" class="font-semibold text-gray-800"></span>
+                    </div>
+                    <div>
+                        <span class="text-xs font-bold text-gray-500 block uppercase">Action Method:</span>
+                        <span id="modal_method" class="font-semibold text-gray-800"></span>
+                    </div>
                 </div>
+                <div class="mb-2">
+                    <span class="text-xs font-bold text-gray-500 block uppercase mb-2">Full Internal Note Content:</span>
+                    <div id="modal_content" class="p-4 bg-white border rounded-lg text-gray-800 text-sm shadow-inner" style="max-height: 250px; overflow-y: auto; white-space: pre-wrap; line-height: 1.6;"></div>
+                </div>
+            </div>
+            <div class="p-4 bg-gray-100 border-t border-gray-200 flex justify-end">
+                <button type="button" class="px-6 py-2 bg-gray-500 text-white font-bold rounded-lg hover:bg-gray-600 transition shadow" onclick="closeModal('noteDetailModal')">Close</button>
             </div>
         </div>
     </div>
@@ -957,6 +955,7 @@
             });
         });
 
+        // REWRITTEN: Now opens the exact same way as your Claim Popup
         function showNoteDetails(date, direction, type, method, agent, content) {
             document.getElementById('modal_date').textContent = date;
             document.getElementById('modal_direction').textContent = direction;
@@ -965,8 +964,7 @@
             document.getElementById('modal_agent').textContent = agent;
             document.getElementById('modal_content').textContent = content;
 
-            const noteModal = new bootstrap.Modal(document.getElementById('noteDetailModal'));
-            noteModal.show();
+            document.getElementById('noteDetailModal').style.display = 'block';
         }
 
         function formatHTMLDate(dateString) {
@@ -1297,8 +1295,9 @@
             }
         }
 
+        // REWRITTEN: Global click handler now natively catches all 3 popups perfectly
         window.onclick = function(event) { 
-            if (event.target.classList.contains('modal') && !event.target.classList.contains('fade')) { 
+            if (event.target.classList.contains('modal')) { 
                 event.target.style.display = "none"; 
             } 
         }
@@ -1339,3 +1338,4 @@
     </script>
 </body>
 </html>
+
