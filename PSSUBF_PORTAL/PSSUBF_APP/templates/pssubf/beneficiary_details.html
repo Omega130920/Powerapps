@@ -1298,7 +1298,7 @@
         }
 
         window.onclick = function(event) { 
-            if (event.target.classList.contains('modal')) { 
+            if (event.target.classList.contains('modal') && !event.target.classList.contains('fade')) { 
                 event.target.style.display = "none"; 
             } 
         }
