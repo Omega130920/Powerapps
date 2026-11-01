@@ -26,7 +26,7 @@ from urllib.parse import unquote
 logger = logging.getLogger(__name__)
 
 # Import your unmanaged models
-from .models import AdHocList, ClaimAffordability, ClaimHistory, ClaimList, PssubfBeneficiary, PssubfDirectEmail, PssubfInbox, PssubfDelegate, PssubfAction, PssubfNote, PssubfProfileNote
+from .models import AdHocList, ClaimAffordability, ClaimHistory, ClaimList, PssubfBeneficiary, PssubfDirectEmail, PssubfInbox, PssubfDelegate, PssubfAction, PssubfNote, PssubfProfileNote, SmsLog
 # Import your verified services
 from PSSUBF_APP.services.outlook_graph_service import OutlookGraphService
 from PSSUBF_APP.services.delegation_service import delegate_pssubf_task
@@ -969,13 +969,9 @@ def pssubf_view_thread(request, email_id):
                         <img src="https://futurasa.co.za/wp-content/uploads/2023/10/Futura-Logo.png" alt="Futura Logo" style="width: 150px; display: block;">
                     </td>
                     <td style="vertical-align: top;">
-<<<<<<< HEAD
-
-=======
->>>>>>> 5114ace7b5484003d18ea38181237bad24a26529
                         <p style="margin: 0 0 4px 0;"><strong>phone:</strong> 087 702 5950</p>
                         <p style="margin: 0 0 4px 0;"><strong>fax:</strong> 086 225 2554</p>
-                        <p style="margin: 0 0 0 0;"><strong>Email:</strong> <a href="mailto:pssubf@futurasa.co.za" style="color: #2e7d32;">pssubf@futurasa.co.za</a></p>
+                        <p style="margin: 0 0 0 0;"><strong>Email:</strong> <a href="mailto:pssbf@futurasa.co.za" style="color: #2e7d32;">pssbf@futurasa.co.za</a></p>
                     </td>
                 </tr>
             </table>
@@ -2016,6 +2012,42 @@ def beneficiary_details_view(request, membership_number):
                 print(traceback.format_exc())
                 messages.error(request, f"Ad Hoc Error: {str(e)}")
             return redirect('beneficiary_details', membership_number=membership_number)
+            
+        # --- 6. HANDLE SEND SMS (RAW SQL LOGGING) ---
+        elif action == 'send_sms':
+            recipient_number = request.POST.get('recipient_number')
+            sms_reason = request.POST.get('sms_reason')
+            sms_message = request.POST.get('sms_message')
+
+            if not recipient_number or not sms_message:
+                return JsonResponse({'error': 'Recipient number and message are required.'}, status=400)
+
+            try:
+                # 1. Execute raw SQL to insert into unmanaged table
+                with connection.cursor() as cursor:
+                    cursor.execute("""
+                        INSERT INTO sms_logs 
+                        (membership_number, recipient_number, reason, message_content, agent_name, status, created_at) 
+                        VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                    """, [
+                        membership_number,
+                        recipient_number,
+                        sms_reason,
+                        sms_message,
+                        request.user.username,
+                        'Sent'
+                    ])
+                
+                # -------------------------------------------------------------
+                # 2. Add your external SMS API provider call here 
+                # (e.g. requests.post to Clickatell / SMSPortal)
+                # -------------------------------------------------------------
+
+                return JsonResponse({'status': 'success', 'message': 'SMS logged successfully.'})
+
+            except Exception as e:
+                logger.error(f"Raw SQL SMS Insert Error: {e}")
+                return JsonResponse({'error': str(e)}, status=500)
 
     # --- FETCH DATA FOR TABS ---
     claims = ClaimList.objects.filter(beneficiary__membership_number=membership_number).order_by('-date_logged')
@@ -2112,6 +2144,9 @@ def beneficiary_details_view(request, membership_number):
             a.maturity_display = "---"
             a.calculated_surplus = "N/A"
 
+    # 🟢 Fetch the SMS Logs from the database
+    sms_logs = SmsLog.objects.filter(membership_number=membership_number).order_by('-created_at')
+
     context = {
         'member': member,
         'claims': claims,
@@ -2120,6 +2155,7 @@ def beneficiary_details_view(request, membership_number):
         'internal_notes': internal_notes,
         'pssubf_actions': pssubf_actions,
         'recent_logs': recent_logs,  
+        'sms_logs': sms_logs,           # 🟢 Inject SMS logs into context
         'title': f"Member Profile - {membership_number}"
     }
     return render(request, 'pssubf/beneficiary_details.html', context)
@@ -3590,3 +3626,90 @@ def get_adhoc_details_view(request, record_id):
     
     except Exception as e:
         return JsonResponse({'success': False, 'error': str(e)})
+
+@login_required
+def sms_list_view(request):
+    query = request.GET.get('q', '').strip()
+    if query:
+        sms_logs = SmsLog.objects.filter(
+            Q(membership_number__icontains=query) | 
+            Q(recipient_number__icontains=query) |
+            Q(agent_name__icontains=query)
+        ).order_by('-created_at')
+    else:
+        sms_logs = SmsLog.objects.all().order_by('-created_at')[:200]  # Limit default view for performance
+
+    context = {
+        'sms_logs': sms_logs,
+        'title': 'Global SMS Logs'
+    }
+    return render(request, 'pssubf/sms_list.html', context)
+
+@login_required
+def sms_list_view(request):
+    query = request.GET.get('q', '').strip()
+    date_from = request.GET.get('date_from', '').strip()
+    date_to = request.GET.get('date_to', '').strip()
+    export_action = request.GET.get('export', '').strip()
+
+    # Base queryset
+    sms_logs = SmsLog.objects.all().order_by('-created_at')
+
+    # 1. Universal Search (searches membership, recipient, agent, reason, message content, status)
+    if query:
+        sms_logs = sms_logs.filter(
+            Q(membership_number__icontains=query) | 
+            Q(recipient_number__icontains=query) |
+            Q(agent_name__icontains=query) |
+            Q(reason__icontains=query) |
+            Q(message_content__icontains=query) |
+            Q(status__icontains=query)
+        )
+
+    # 2. Date Range Filtering
+    if date_from:
+        try:
+            dt_from = datetime.strptime(date_from, '%Y-%m-%d')
+            sms_logs = sms_logs.filter(created_at__gte=dt_from)
+        except ValueError:
+            pass
+
+    if date_to:
+        try:
+            # Include the full end day up to 23:59:59
+            dt_to = datetime.strptime(date_to, '%Y-%m-%d').replace(hour=23, minute=59, second=59)
+            sms_logs = sms_logs.filter(created_at__lte=dt_to)
+        except ValueError:
+            pass
+
+    # 3. Handle CSV Export
+    if export_action == 'csv':
+        response = HttpResponse(content_type='text/csv')
+        filename_date = datetime.now().strftime('%Y%m%d_%H%M%S')
+        response['Content-Disposition'] = f'attachment; filename="sms_audit_logs_{filename_date}.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow(['ID', 'Date Sent', 'Membership Number', 'Agent', 'Recipient Number', 'Reason / Template', 'Message Content', 'Status'])
+        
+        for sms in sms_logs:
+            writer.writerow([
+                sms.id,
+                sms.created_at.strftime('%Y-%m-%d %H:%M:%S') if sms.created_at else '',
+                sms.membership_number,
+                sms.agent_name or 'System',
+                sms.recipient_number,
+                sms.reason or 'Manual Custom Message',
+                sms.message_content,
+                sms.status
+            ])
+        return response
+
+    # Limit standard list view rendering to avoid browser overload if unbound
+    sms_logs_limited = sms_logs[:500]
+
+    context = {
+        'sms_logs': sms_logs_limited,
+        'total_count': sms_logs.count(),
+        'title': 'Global SMS Logs'
+    }
+    return render(request, 'pssubf/sms_list.html', context)

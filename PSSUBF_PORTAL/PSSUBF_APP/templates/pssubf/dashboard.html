@@ -233,10 +233,10 @@
             <span id="badge-recycled" class="badge dark-badge" {% if not recycled_count %}style="display:none;"{% endif %}>{{ recycled_count }}</span>
         </a>
 
-        <a href=## class="button-block">
+        <a href="{% url 'sms_list' %}" class="button-block">
             <i class="fas fa-receipt"></i>
             <span class="button-text">SMS LIST</span>
-            <span id="badge-recycled" class="badge dark-badge" {% if not recycled_count %}style="display:none;"{% endif %}>{{ recycled_count }}</span>
+            <span id="badge-sms" class="badge dark-badge" {% if not sms_count %}style="display:none;"{% endif %}>{{ sms_count }}</span>
         </a>
     </div>
 

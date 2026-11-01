@@ -52,4 +52,5 @@ urlpatterns = [
     path('log-entry/', views.pssubf_log_view, name='pssubf_log_page'),
     path('get-adhoc-details/<int:record_id>/', views.get_adhoc_details_view, name='get_adhoc_details'),
     path('adhoc/download-attachment/<int:record_id>/', views.download_adhoc_attachment, name='download_adhoc_attachment'),
+    path('sms-logs/', views.sms_list_view, name='sms_list'),
 ]

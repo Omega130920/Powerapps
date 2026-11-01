@@ -385,3 +385,20 @@ def link_historical_delegations(sender, instance, created, **kwargs):
         )
         if unlinked_logs.exists():
             unlinked_logs.update(mip_number=instance.membership_number)
+            
+class SmsLog(models.Model):
+    membership_number = models.CharField(max_length=100)
+    recipient_number = models.CharField(max_length=20)
+    reason = models.CharField(max_length=255, null=True, blank=True)
+    message_content = models.TextField()
+    agent_name = models.CharField(max_length=150, null=True, blank=True)
+    status = models.CharField(max_length=50, default='Sent')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = 'sms_logs'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"SMS to {self.recipient_number} ({self.membership_number})"

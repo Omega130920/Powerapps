@@ -142,16 +142,11 @@
         .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.4); backdrop-filter: blur(8px); }
         .modal-content { background: rgba(255, 255, 255, 0.9); margin: 3% auto; padding: 0px; border-radius: 20px; width: 85%; max-width: 1100px; max-height: 92vh; overflow-y: auto; border: 1px solid var(--glass-border); }
         
-        .spinner { display: none; width: 12px; height: 12px; border: 2px solid #fff; border-bottom-color: transparent; border-radius: 50%; display: inline-block; box-sizing: border-box; animation: rotation 1s linear infinite; margin-right: 5px; }
-        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
         .clean-input { background-color: #ffffff !important; border: 1px solid #d1d5db !important; transition: border-color 0.2s; }
         .clean-input:focus { border-color: #059669 !important; outline: none; box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1); }
         .highlight-field { background-color: #fef08a !important; font-weight: 700; color: #1f2937; border-color: #eab308 !important; }
         .registry-table th { width: auto !important; background: rgba(255,255,255,0.1); }
         .registry-table td { font-size: 13px; }
-
-        .history-row { transition: all 0.3s ease-in-out; }
 
         @media print {
             body > *:not(#pdfPrintTemplate) { display: none !important; }
@@ -415,6 +410,54 @@
         </div>
     </div>
 
+    <!-- SMS MODAL -->
+    <div id="smsModal" class="modal">
+        <div class="modal-content shadow-lg border-0 !max-w-2xl !p-0 overflow-hidden" style="background: rgba(245, 248, 243, 0.98); backdrop-filter: blur(20px); border-radius: 16px;">
+            <div class="bg-emerald-700 text-white p-4 flex justify-between items-center">
+                <h5 class="font-bold text-lg m-0"><i class="fas fa-sms mr-2"></i> Compose SMS</h5>
+                <button type="button" class="text-white hover:text-red-300 text-2xl font-bold leading-none bg-transparent border-0 cursor-pointer" onclick="closeModal('smsModal')">&times;</button>
+            </div>
+            
+            <form id="smsForm" method="POST" action="{% url 'beneficiary_details' member.membership_number %}" class="p-6">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="send_sms">
+                
+                <div class="mb-4">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Select Recipient Phone Number</label>
+                    <select name="recipient_number" class="w-full p-2.5 border border-gray-300 rounded-md clean-input" required>
+                        <option value="">-- Choose Recipient --</option>
+                        <option value="{{ member.mobile_1 }}">Beneficiary: {{ member.first_name }} {{ member.last_name }} ({{ member.mobile_1|default:"No Number Saved" }})</option>
+                        <option value="{{ member.guardian_mobile }}">Guardian: {{ member.guardian_first_name }} {{ member.guardian_last_name }} ({{ member.guardian_mobile|default:"No Number Saved" }})</option>
+                    </select>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Message Reason / Template</label>
+                    <select id="smsTemplate" name="sms_reason" class="w-full p-2.5 border border-gray-300 rounded-md clean-input" required onchange="populateSmsTemplate(this.value)">
+                        <option value="">-- Select Reason --</option>
+                        <option value="Contact Details Confirmation SMS">Contact Details Confirmation SMS</option>
+                        <option value="Claim Submitted Notification">Claim Submitted Notification</option>
+                        <option value="Monthly Annuity Loaded Notification">Monthly Annuity Loaded Notification</option>
+                        <option value="Requested Supporting Documents">Requested Supporting Documents</option>
+                        <option value="Beneficiary Turned Maturity (18 Years)">Beneficiary Turned Maturity (18 Years)</option>
+                        <option value="Beneficiary U18 With Fund Credit Less Than R10K">Beneficiary U18 With Fund Credit Less Than R10K</option>
+                    </select>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-xs font-bold text-gray-500 uppercase mb-1">* Message Content</label>
+                    <textarea name="sms_message" id="smsMessageContent" class="w-full p-4 border border-gray-300 rounded-md h-32 clean-input resize-none text-sm" required placeholder="Type or select a template to populate message..."></textarea>
+                    <p class="text-[10px] text-gray-400 mt-1 text-right" id="smsCharCount">0 characters</p>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-4 border-t border-gray-200 mt-4">
+                    <button type="button" onclick="closeModal('smsModal')" class="px-6 py-2 bg-gray-400 text-white font-bold rounded-lg hover:bg-gray-500 transition shadow">Cancel</button>
+                    <button type="submit" class="px-6 py-2 bg-emerald-700 text-white font-bold rounded-lg hover:bg-emerald-800 transition shadow"><i class="fas fa-paper-plane mr-2"></i> Send SMS</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- PDF Print Template for Declination Notice -->
     <div id="pdfPrintTemplate" class="hidden p-16 max-w-4xl mx-auto bg-white text-gray-900 border border-gray-200 shadow-sm font-sans">
         <div class="flex justify-between items-start border-b-2 border-green-800 pb-6 mb-8">
@@ -429,7 +472,7 @@
             </div>
         </div>
 
-        <div class="bg-gray-55 rounded-xl p-6 border border-gray-200 mb-8 space-y-3 text-sm">
+        <div class="bg-gray-50 rounded-xl p-6 border border-gray-200 mb-8 space-y-3 text-sm">
             <div class="flex justify-between border-b border-gray-200 pb-2">
                 <span class="font-semibold text-gray-500 uppercase text-xs">Guardian:</span>
                 <span class="font-bold text-gray-800" id="pdf_guardian_name">--</span>
@@ -477,7 +520,7 @@
         </div>
     </div>
 
-    <!-- NOTE DETAILS MODAL POPUP (Converted to standard custom modal) -->
+    <!-- NOTE DETAILS MODAL POPUP -->
     <div id="noteDetailModal" class="modal">
         <div class="modal-content shadow-lg border-0 !max-w-3xl !p-0 overflow-hidden" style="background: rgba(245, 248, 243, 0.98); backdrop-filter: blur(20px); border-radius: 16px;">
             <div class="bg-emerald-700 text-white p-4 flex justify-between items-center">
@@ -541,7 +584,7 @@
                     <li data-tab-target="#email-log">Email Log <i class="fas fa-envelope-open-text ml-2"></i></li>
                     <li data-tab-target="#direct-email">Direct Email <i class="fas fa-paper-plane ml-2"></i></li>
                     <li data-tab-target="#notes">Call Logs <i class="fas fa-sticky-note ml-2"></i></li>
-                    <li data-tab-target="#sms">SMS <i class="fas fa-receipt ml-2"></i></li>
+                    <li data-tab-target="#sms">SMS <i class="fas fa-sms ml-2"></i></li>
                 </ul>
 
                 <div class="tab-content flex-1 overflow-y-auto">
@@ -937,7 +980,109 @@
                             </div>
                         </div>
                     </div>
+
+<!-- SMS TAB -->
+                    <div id="sms" class="tab-pane">
+                        <div class="glass-card" style="background: rgba(255, 255, 255, 0.25); border: 1px solid var(--glass-border); border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);">
+                            <div class="glass-header header-dark" style="padding: 16px 20px; background: rgba(33, 37, 41, 0.85); color: white; font-weight: 700; font-size: 0.95rem; display: flex; justify-content: space-between; align-items: center;">
+                                <span>SMS COMMUNICATION HISTORY</span>
+                                <button type="button" onclick="openSmsModal()" class="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition shadow-sm border border-emerald-500">
+                                    <i class="fas fa-paper-plane mr-1"></i> Send New SMS
+                                </button>
+                            </div>  
+                            
+                            <div class="table-responsive" style="overflow-x: auto; padding: 10px;">
+                                <table class="custom-table" style="width: 100%; border-collapse: collapse; font-size: 0.9rem;">
+                                    <thead>
+                                        <tr style="border-bottom: 2px solid var(--glass-border);">
+                                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Date Sent</th>
+                                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Agent</th>
+                                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Recipient Number</th>
+                                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Reason / Template</th>
+                                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Message Content</th>
+                                            <th style="background: rgba(255, 255, 255, 0.4); padding: 12px 16px; text-align: left; color: var(--text-dark); font-weight: 600; white-space: nowrap;">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for sms in sms_logs %}
+                                            <tr style="cursor: pointer; transition: background 0.2s;" 
+                                                onmouseover="this.style.background='rgba(255, 255, 255, 0.5)'" 
+                                                onmouseout="this.style.background='transparent'"
+                                                onclick="showSmsDetails('{{ sms.created_at|date:"d M Y H:i" }}', '{{ sms.agent_name|default:"System"|escapejs }}', '{{ sms.recipient_number|escapejs }}', '{{ sms.reason|default:"Manual Custom Message"|escapejs }}', '{{ sms.message_content|escapejs }}', '{{ sms.status|escapejs }}')">
+                                                
+                                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ sms.created_at|date:"d M Y H:i" }}</td>
+                                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ sms.agent_name|default:"System" }}</td>
+                                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ sms.recipient_number }}</td>
+                                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">{{ sms.reason|default:"Manual Custom Message" }}</td>
+                                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">
+                                                    <span style="display: inline-block; max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: middle;" title="{{ sms.message_content }}">
+                                                        {{ sms.message_content }}
+                                                    </span>
+                                                </td>
+                                                <td style="padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, 0.3); vertical-align: middle;">
+                                                    <span style="background-color: rgba(16, 185, 129, 0.2); color: #065f46; padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 800; border: 1px solid rgba(16, 185, 129, 0.3);">
+                                                        <i class="fas fa-check-circle mr-1"></i> {{ sms.status }}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        {% empty %}
+                                            <tr>
+                                                <td colspan="6" style="text-align: center; padding: 40px; opacity: 0.6;">
+                                                    <i class="fas fa-comment-slash text-3xl mb-2 block opacity-50"></i>
+                                                    No SMS communication recorded for this member.
+                                                </td>
+                                            </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SMS DETAILS MODAL POPUP -->
+    <div id="smsDetailModal" class="modal">
+        <div class="modal-content shadow-lg border-0 !max-w-3xl !p-0 overflow-hidden" style="background: rgba(245, 248, 243, 0.98); backdrop-filter: blur(20px); border-radius: 16px;">
+            <div class="bg-emerald-700 text-white p-4 flex justify-between items-center">
+                <h5 class="font-bold text-lg m-0"><i class="fas fa-comment-sms mr-2"></i> SMS Log Details</h5>
+                <button type="button" class="text-white hover:text-red-300 text-2xl font-bold leading-none bg-transparent border-0 cursor-pointer" onclick="closeModal('smsDetailModal')">&times;</button>
+            </div>
+            <div class="p-6">
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <span class="text-xs font-bold text-gray-500 block uppercase">Date Sent:</span>
+                        <span id="sms_modal_date" class="font-semibold text-gray-800"></span>
+                    </div>
+                    <div>
+                        <span class="text-xs font-bold text-gray-500 block uppercase">Agent:</span>
+                        <span id="sms_modal_agent" class="font-semibold text-gray-800"></span>
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-4 mb-4">
+                    <div>
+                        <span class="text-xs font-bold text-gray-500 block uppercase">Recipient:</span>
+                        <span id="sms_modal_recipient" class="font-semibold text-gray-800"></span>
+                    </div>
+                    <div class="col-span-2">
+                        <span class="text-xs font-bold text-gray-500 block uppercase">Reason / Template:</span>
+                        <span id="sms_modal_reason" class="font-semibold text-gray-800"></span>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <span class="text-xs font-bold text-gray-500 block uppercase mb-1">Status:</span>
+                    <span id="sms_modal_status" class="inline-block px-3 py-1 bg-emerald-100 text-emerald-800 rounded-md font-bold text-xs border border-emerald-200"></span>
+                </div>
+                <div class="mb-2">
+                    <span class="text-xs font-bold text-gray-500 block uppercase mb-2">Full Message Content:</span>
+                    <div id="sms_modal_content" class="p-4 bg-white border rounded-lg text-gray-800 text-sm shadow-inner" style="max-height: 250px; overflow-y: auto; white-space: pre-wrap; line-height: 1.6;"></div>
+                </div>
+            </div>
+            <div class="p-4 bg-gray-100 border-t border-gray-200 flex justify-end">
+                <button type="button" class="px-6 py-2 bg-gray-500 text-white font-bold rounded-lg hover:bg-gray-600 transition shadow" onclick="closeModal('smsDetailModal')">Close</button>
             </div>
         </div>
     </div>
@@ -955,7 +1100,6 @@
             });
         });
 
-        // REWRITTEN: Now opens the exact same way as your Claim Popup
         function showNoteDetails(date, direction, type, method, agent, content) {
             document.getElementById('modal_date').textContent = date;
             document.getElementById('modal_direction').textContent = direction;
@@ -965,6 +1109,26 @@
             document.getElementById('modal_content').textContent = content;
 
             document.getElementById('noteDetailModal').style.display = 'block';
+        }
+
+        function showSmsDetails(date, agent, recipient, reason, content, status) {
+            document.getElementById('sms_modal_date').textContent = date;
+            document.getElementById('sms_modal_agent').textContent = agent;
+            document.getElementById('sms_modal_recipient').textContent = recipient;
+            document.getElementById('sms_modal_reason').textContent = reason;
+            document.getElementById('sms_modal_content').textContent = content;
+            
+            const statusBadge = document.getElementById('sms_modal_status');
+            
+            if (status.toLowerCase() === 'failed') {
+                statusBadge.className = "inline-block px-3 py-1 bg-red-100 text-red-800 rounded-md font-bold text-xs border border-red-200";
+                statusBadge.innerHTML = `<i class="fas fa-times-circle mr-1"></i> ${status}`;
+            } else {
+                statusBadge.className = "inline-block px-3 py-1 bg-emerald-100 text-emerald-800 rounded-md font-bold text-xs border border-emerald-200";
+                statusBadge.innerHTML = `<i class="fas fa-check-circle mr-1"></i> ${status}`;
+            }
+
+            document.getElementById('smsDetailModal').style.display = 'block';
         }
 
         function formatHTMLDate(dateString) {
@@ -1048,6 +1212,53 @@
         function closeAdHocModal() { 
             document.getElementById('adhocModal').style.display = 'none'; 
         }
+
+        function openSmsModal() {
+            document.getElementById('smsForm').reset();
+            document.getElementById('smsCharCount').innerText = "0 characters";
+            document.getElementById('smsModal').style.display = 'block';
+        }
+
+        function populateSmsTemplate(reason) {
+            const textarea = document.getElementById('smsMessageContent');
+            let templateText = "";
+            
+            switch(reason) {
+                case 'Contact Details Confirmation SMS':
+                    templateText = "Dear PSSUBF Member/Guardian, please confirm your current contact details and address by replying to this message or contacting our offices.";
+                    break;
+                case 'Claim Submitted Notification':
+                    templateText = "Dear Member, your claim request for PSSUBF membership {{ member.membership_number }} has been successfully submitted and is currently being processed.";
+                    break;
+                case 'Monthly Annuity Loaded Notification':
+                    templateText = "Dear Member, your monthly annuity payment has been successfully loaded for PSSUBF membership {{ member.membership_number }}.";
+                    break;
+                case 'Requested Supporting Documents':
+                    templateText = "Dear Member/Guardian, please submit the requested supporting documents for your PSSUBF claim as soon as possible.";
+                    break;
+                case 'Beneficiary Turned Maturity (18 Years)':
+                    templateText = "Dear Member, congratulations on reaching your age of majority (18 years). Please contact PSSUBF offices regarding your beneficiary fund maturity options.";
+                    break;
+                case 'Beneficiary U18 With Fund Credit Less Than R10K':
+                    templateText = "Dear Guardian, please note that the fund credit for PSSUBF beneficiary membership {{ member.membership_number }} is below R10,000.";
+                    break;
+                default:
+                    templateText = "";
+            }
+            
+            textarea.value = templateText;
+            updateSmsCharCount(textarea);
+        }
+
+        function updateSmsCharCount(textarea) {
+            const count = textarea.value.length;
+            const smsCount = Math.ceil(count / 160) || 1;
+            document.getElementById('smsCharCount').innerText = `${count} characters (${smsCount} SMS message${smsCount > 1 ? 's' : ''})`;
+        }
+
+        document.getElementById('smsMessageContent').addEventListener('input', function() {
+            updateSmsCharCount(this);
+        });
 
         function openClaimModal(recordId = null) {
             const modal = document.getElementById('claimModal');
@@ -1295,7 +1506,6 @@
             }
         }
 
-        // REWRITTEN: Global click handler now natively catches all 3 popups perfectly
         window.onclick = function(event) { 
             if (event.target.classList.contains('modal')) { 
                 event.target.style.display = "none"; 
@@ -1335,7 +1545,23 @@
                 }
             }).catch(err => console.error('Submission error:', err));
         });
+
+        document.getElementById('smsForm').addEventListener('submit', function(e) {
+            e.preventDefault(); 
+            let formData = new FormData(this);
+
+            fetch(this.getAttribute('action'), {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            }).then(response => {
+                if (response.ok) {
+                    location.reload(); 
+                } else {
+                    alert('Error sending SMS.');
+                }
+            }).catch(err => console.error('SMS submission error:', err));
+        });
     </script>
 </body>
 </html>
-
