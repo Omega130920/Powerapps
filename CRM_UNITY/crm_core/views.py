@@ -2489,3 +2489,11 @@ def download_member_note_file(request, member_group_code):
     # Instead of a silent 302, we show an error.
     messages.error(request, f"Attachment '{target_filename}' could not be found.")
     return redirect('member_information', member_group_code=member_group_code)
+
+def far_inbox_view(request):
+    """
+    Placeholder view for FAR Delegations.
+    Currently, this is a stub and should be implemented with actual logic.
+    """
+    messages.info(request, "FAR Delegations feature is under development.")
+    return render(request, 'far_inbox.html', {})

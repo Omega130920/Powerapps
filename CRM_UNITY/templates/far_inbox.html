@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Inbox - Unified Task Log</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<style>
+    /* --- INTEGRATED GLOBAL STYLES --- */
+    html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+    body {
+        font-family: sans-serif;
+        background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        padding: 20px;
+        box-sizing: border-box;
+    }
+
+    .log-container {
+        width: 100%;
+        max-width: 1400px; 
+        height: 85vh; 
+        margin: 10px auto; 
+        padding: 20px;
+        background-color: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .log-header {
+        border-bottom: 2px solid #aed581;
+        padding-bottom: 15px;
+        margin-bottom: 15px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-shrink: 0;
+    }
+    .log-header h1 { margin: 0; color: #1b5e20; font-size: 24px; }
+    
+    .log-controls { display: flex; gap: 15px; align-items: center; }
+    
+    #search_input {
+        padding: 8px 12px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        width: 300px;
+        font-size: 14px;
+    }
+
+    /* Style for new dropdown */
+    #date_sort_filter {
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-size: 14px;
+        background-color: white;
+        cursor: pointer;
+    }
+
+    .table-wrapper {
+        overflow-y: auto;
+        flex-grow: 1;
+        border: 1px solid #eee;
+        border-radius: 4px;
+    }
+
+    .task-table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+    }
+    
+    .task-table th {
+        background-color: #43a047;
+        color: white;
+        padding: 12px 15px;
+        text-align: left;
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: uppercase;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        cursor: pointer;
+    }
+
+    .task-table td {
+        padding: 12px 15px;
+        border-bottom: 1px solid #eee;
+        font-size: 14px;
+        word-wrap: break-word;
+    }
+
+    .task-table tr:nth-child(even) { background-color: #f9fbe7; }
+    .task-table tr.clickable-row:hover { background-color: #e8f5e9; cursor: pointer; }
+    
+    .btn {
+        padding: 8px 16px;
+        border-radius: 5px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 13px;
+        display: inline-block;
+    }
+
+    .return-button {
+        background-color: #1b5e20;
+        color: white;
+        margin-bottom: 10px;
+        align-self: flex-start;
+    }
+
+    .delegate-btn { background-color: #f7931e; color: white; }
+
+    #hidden_refresher { display: none; }
+</style>
+</head>
+<body>
+
+    <div style="width: 100%; max-width: 1400px;">
+        <a href="{% url 'dashboard' %}" class="btn return-button">← Back To Home Screen</a>
+    </div>
+
+<div class="log-container">
+    <div class="log-header">
+        <h1>📨 Live Inbox</h1>
+        <div class="log-controls">
+            <select id="date_sort_filter">
+                <option value="">⏳ Sort by Date...</option>
+                <option value="newest">Newest to Oldest</option>
+                <option value="oldest">Oldest to Newest</option>
+            </select>
+
+            <input type="text" id="search_input" placeholder="🔍 Search subject or sender..." autofocus>
+            <p style="margin: 0; font-size: 14px; color: #555;">Total Pending: <strong id="pending_count">{{ email_list|length }}</strong></p>
+        </div>
+    </div>
+</body>
+</html>

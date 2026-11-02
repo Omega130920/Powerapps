@@ -139,11 +139,13 @@
         
         <!-- Delegations: Now visible to all users -->
         <a href="{% url 'fetch_emails' %}" class="button-block">
-            Delegations
+            CRM_Delegations
             {% if new_emails_count > 0 %}
                 <span class="badge blue-badge">{{ new_emails_count }}</span>
             {% endif %}
         </a>
+
+        <a href="{% url 'far_inbox' %}" class="button-block">FAR Delegations</a>
 
         <!-- Recycle Bin: Now visible to all users -->
         <a href="{% url 'recycle_bin' %}" class="button-block">
