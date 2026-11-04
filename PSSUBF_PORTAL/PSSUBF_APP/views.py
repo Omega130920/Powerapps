@@ -31,6 +31,7 @@ from .models import AdHocList, ClaimAffordability, ClaimHistory, ClaimList, Pssu
 from PSSUBF_APP.services.outlook_graph_service import OutlookGraphService
 from PSSUBF_APP.services.delegation_service import delegate_pssubf_task
 
+
 # --- HELPER FUNCTION: Safely formats plain text to HTML paragraphs ---
 def format_email_body(text):
     if not text:
@@ -1599,11 +1600,23 @@ def beneficiary_list_view(request):
     })
 
 import os
+import requests
 from django.core.files.storage import FileSystemStorage
+
+import re
+
+import re
+
+import re
 
 @login_required
 def beneficiary_details_view(request, membership_number):
     member = get_object_or_404(PssubfBeneficiary, membership_number=membership_number)
+    
+    # Pre-define SMS local scope variables to satisfy static analyzers / Pylance
+    recipient_number = ""
+    sms_reason = ""
+    sms_message = ""
     
     # Handles South African formatting (spaces and commas) safely
     def clean_decimal(value):
@@ -2013,17 +2026,80 @@ def beneficiary_details_view(request, membership_number):
                 messages.error(request, f"Ad Hoc Error: {str(e)}")
             return redirect('beneficiary_details', membership_number=membership_number)
             
-        # --- 6. HANDLE SEND SMS (RAW SQL LOGGING) ---
+        # --- 6. HANDLE SEND SMS (WINSMS REST API V1 INTEGRATION & SAFE SQL LOGGING) ---
         elif action == 'send_sms':
-            recipient_number = request.POST.get('recipient_number')
-            sms_reason = request.POST.get('sms_reason')
-            sms_message = request.POST.get('sms_message')
+            recipient_number = request.POST.get('recipient_number', '').strip()
+            sms_reason = request.POST.get('sms_reason', '').strip()
+            sms_message = request.POST.get('sms_message', '').strip()
 
             if not recipient_number or not sms_message:
-                return JsonResponse({'error': 'Recipient number and message are required.'}, status=400)
+                return JsonResponse({'status': 'error', 'error': 'Recipient number and message are required.'}, status=400)
+
+            # Strip non-digits and format for South Africa (27...)
+            clean_digits = re.sub(r'\D', '', recipient_number)
+            if clean_digits.startswith('0'):
+                formatted_number = '27' + clean_digits[1:]
+            else:
+                formatted_number = clean_digits
+
+            api_key = getattr(settings, 'WINSMS_API_KEY', '').strip()
 
             try:
-                # 1. Execute raw SQL to insert into unmanaged table
+                # 1. Call WinSMS REST API v1 Endpoint (Raw API Key in AUTHORIZATION header)
+                winsms_url = "https://api.winsms.co.za/api/rest/v1/sms/outgoing/send"
+                headers = {
+                    'AUTHORIZATION': api_key,  # 🟢 RAW API Key passed without Bearer prefix
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                }
+                payload = {
+                    'message': sms_message,
+                    'recipients': [
+                        {'mobileNumber': formatted_number}
+                    ]
+                }
+
+                response = requests.post(winsms_url, json=payload, headers=headers, timeout=15)
+                
+                # ------------------ WINSMS REST API DEBUG BLOCK ------------------
+                masked_key = f"{api_key[:4]}***" if api_key else "EMPTY"
+                print("\n" + "=" * 60)
+                print(f"[WinSMS REST v1 DEBUG] Destination     : {formatted_number}")
+                print(f"[WinSMS REST v1 DEBUG] HTTP Status Code: {response.status_code}")
+                print(f"[WinSMS REST v1 DEBUG] API Key Loaded  : {masked_key} (Length: {len(api_key)})")
+                print(f"[WinSMS REST v1 DEBUG] Raw JSON Response:\n{response.text}")
+                print("=" * 60 + "\n")
+                # -----------------------------------------------------------------
+
+                is_success = False
+                error_msg = ""
+
+                if response.status_code in [200, 201]:
+                    try:
+                        res_json = response.json()
+                        recipients_res = res_json.get('recipients', [])
+                        if recipients_res and recipients_res[0].get('accepted', False):
+                            is_success = True
+                            status_label = 'Sent'
+                        else:
+                            err_detail = recipients_res[0].get('errorDetails', 'Rejected by gateway') if recipients_res else 'No recipient returned'
+                            status_label = f"Failed: {err_detail}"
+                            error_msg = str(err_detail)
+                    except Exception:
+                        is_success = True
+                        status_label = 'Sent'
+                else:
+                    try:
+                        res_json = response.json()
+                        error_msg = res_json.get('errorMessage', res_json.get('message', response.text))
+                    except Exception:
+                        error_msg = response.text
+                    status_label = f"Failed ({response.status_code}): {error_msg}"
+
+                # Safe SQL Truncation to prevent MySQL 1406 "Data too long" exception
+                safe_status_label = str(status_label)[:50]
+
+                # 2. Execute raw SQL insert safely
                 with connection.cursor() as cursor:
                     cursor.execute("""
                         INSERT INTO sms_logs 
@@ -2031,23 +2107,41 @@ def beneficiary_details_view(request, membership_number):
                         VALUES (%s, %s, %s, %s, %s, %s, NOW())
                     """, [
                         membership_number,
-                        recipient_number,
+                        formatted_number,
                         sms_reason,
                         sms_message,
                         request.user.username,
-                        'Sent'
+                        safe_status_label
                     ])
-                
-                # -------------------------------------------------------------
-                # 2. Add your external SMS API provider call here 
-                # (e.g. requests.post to Clickatell / SMSPortal)
-                # -------------------------------------------------------------
 
-                return JsonResponse({'status': 'success', 'message': 'SMS logged successfully.'})
+                if is_success:
+                    return JsonResponse({'status': 'success', 'message': 'SMS sent via WinSMS REST API successfully.'})
+                else:
+                    return JsonResponse({'status': 'error', 'error': f'WinSMS Gateway Error: {error_msg}'}, status=400)
 
             except Exception as e:
-                logger.error(f"Raw SQL SMS Insert Error: {e}")
-                return JsonResponse({'error': str(e)}, status=500)
+                logger.error(f"WinSMS Gateway Connection Error: {e}")
+                print(f"\n[WinSMS REST DEBUG EXCEPTION] Connection failed: {e}\n")
+                
+                safe_error_status = f"Failed: Network Error ({str(e)[:25]})"[:50]
+                try:
+                    with connection.cursor() as cursor:
+                        cursor.execute("""
+                            INSERT INTO sms_logs 
+                            (membership_number, recipient_number, reason, message_content, agent_name, status, created_at) 
+                            VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                        """, [
+                            membership_number,
+                            recipient_number,
+                            sms_reason,
+                            sms_message,
+                            request.user.username,
+                            safe_error_status
+                        ])
+                except Exception as sql_err:
+                    logger.error(f"SQL Fallback Logging Error: {sql_err}")
+
+                return JsonResponse({'status': 'error', 'error': f'WinSMS Gateway Connection Error: {str(e)}'}, status=400)
 
     # --- FETCH DATA FOR TABS ---
     claims = ClaimList.objects.filter(beneficiary__membership_number=membership_number).order_by('-date_logged')
@@ -2155,7 +2249,7 @@ def beneficiary_details_view(request, membership_number):
         'internal_notes': internal_notes,
         'pssubf_actions': pssubf_actions,
         'recent_logs': recent_logs,  
-        'sms_logs': sms_logs,           # 🟢 Inject SMS logs into context
+        'sms_logs': sms_logs,            # 🟢 Inject SMS logs into context
         'title': f"Member Profile - {membership_number}"
     }
     return render(request, 'pssubf/beneficiary_details.html', context)

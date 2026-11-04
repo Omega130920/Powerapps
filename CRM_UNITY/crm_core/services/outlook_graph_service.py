@@ -1,5 +1,3 @@
-# outlook_graph_service.py
-
 import time
 import requests
 import logging
@@ -61,9 +59,15 @@ class OutlookGraphService:
 
     @staticmethod
     def fetch_inbox_messages(top_count=500):
-        """Fetches recent emails for the live inbox."""
-        # Added &$orderby=receivedDateTime desc so it actually fetches new emails
-        endpoint = f"mailFolders/inbox/messages?$top={top_count}&$select=id,subject,from,receivedDateTime,bodyPreview&$orderby=receivedDateTime desc"
+        """
+        Fetches recent emails for the live inbox, including full HTML body, CC, and BCC.
+        """
+        # 🟢 UPDATED: Added 'ccRecipients' and 'bccRecipients' to $select
+        endpoint = (
+            f"mailFolders/inbox/messages?$top={top_count}"
+            f"&$select=id,subject,from,receivedDateTime,bodyPreview,body,hasAttachments,ccRecipients,bccRecipients"
+            f"&$orderby=receivedDateTime desc"
+        )
         return OutlookGraphService._make_graph_request(endpoint)
 
     @staticmethod
@@ -130,18 +134,15 @@ class OutlookGraphService:
             return {'success': False, 'error': result.get('error')}
         
         # 3. Retrieve the REAL ID from Sent Items
-        # We wait 1.5 seconds for Microsoft to update the Sent folder
         time.sleep(1.5) 
         
         try:
-            # We fetch the absolute latest item from the Sent Items folder
             sent_endpoint = "mailFolders/sentitems/messages?$top=1&$select=id&$orderby=receivedDateTime desc"
             sent_check = OutlookGraphService._make_graph_request(sent_endpoint, method='GET')
             
             if sent_check and 'value' in sent_check and len(sent_check['value']) > 0:
                 message_id = sent_check['value'][0]['id'] 
                 
-                # ALIGNED KEYS: Returns both 'id' and 'outlook_id' keys to safely satisfy both views modules
                 return {
                     'success': True, 
                     'id': message_id,

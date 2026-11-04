@@ -290,19 +290,25 @@ class MemberDocument(models.Model):
 
 class CrmInbox(models.Model):
     """
-    Unmanaged Model: Stores metadata for Outlook emails.
+    Unmanaged Model: Stores metadata, FULL HTML, and recipient lists for Outlook emails.
     """
     email_id = models.CharField(max_length=255, primary_key=True) 
     subject = models.CharField(max_length=512, null=True, blank=True)
     sender = models.CharField(max_length=255, null=True, blank=True)
     snippet = models.CharField(max_length=512, null=True, blank=True)
-    received_timestamp = models.DateTimeField(auto_now_add=True)
+    
+    # LOCAL RENDERING & RECIPIENT FIELDS
+    body_html = models.TextField(null=True, blank=True)
+    has_attachments = models.BooleanField(default=False)
+    cc_recipients = models.TextField(null=True, blank=True)   # 🟢 NEW: Stores CC emails
+    bcc_recipients = models.TextField(null=True, blank=True)  # 🟢 NEW: Stores BCC emails
+    
+    received_timestamp = models.DateTimeField(default=timezone.now)
     status = models.CharField(max_length=20, default='Pending') 
     delegated_by = models.CharField(max_length=100, null=True, blank=True)
     delegated_to = models.CharField(max_length=100, null=True, blank=True)
     
     work_related = models.CharField(max_length=5, default='No')
-    # SYNCED: Replaced mip_number with member_group_code pointing to correct db_column
     member_group_code = models.CharField(db_column='Member_Group_Code', max_length=255, null=True, blank=True)
     id_passport = models.CharField(max_length=50, null=True, blank=True)
     category = models.CharField(max_length=50, null=True, blank=True)

@@ -981,7 +981,7 @@
                         </div>
                     </div>
 
-<!-- SMS TAB -->
+                    <!-- SMS TAB -->
                     <div id="sms" class="tab-pane">
                         <div class="glass-card" style="background: rgba(255, 255, 255, 0.25); border: 1px solid var(--glass-border); border-radius: 16px; overflow: hidden; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);">
                             <div class="glass-header header-dark" style="padding: 16px 20px; background: rgba(33, 37, 41, 0.85); color: white; font-weight: 700; font-size: 0.95rem; display: flex; justify-content: space-between; align-items: center;">
@@ -1555,12 +1555,17 @@
                 body: formData,
                 headers: { 'X-Requested-With': 'XMLHttpRequest' }
             }).then(response => {
-                if (response.ok) {
-                    location.reload(); 
-                } else {
-                    alert('Error sending SMS.');
-                }
-            }).catch(err => console.error('SMS submission error:', err));
+                return response.json().then(data => {
+                    if (response.ok && data.status === 'success') {
+                        location.reload(); 
+                    } else {
+                        alert('WinSMS Error Response: ' + (data.error || data.message || 'Unknown error occurred.'));
+                    }
+                });
+            }).catch(err => {
+                console.error('SMS submission error:', err);
+                alert('Network error or invalid JSON response while sending SMS.');
+            });
         });
     </script>
 </body>
