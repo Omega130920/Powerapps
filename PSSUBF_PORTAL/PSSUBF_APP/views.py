@@ -10,7 +10,7 @@ from django.utils import timezone  # Ensured django timezone is used
 from django.shortcuts import render, get_object_or_404, redirect
 from django.conf import settings
 from django.contrib import messages
-from django.http import FileResponse, HttpResponse, Http404, JsonResponse, request
+from django.http import FileResponse, HttpResponse, Http404, JsonResponse, StreamingHttpResponse, request
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
 import logging
@@ -21,7 +21,7 @@ from django.db import transaction
 from dateutil.relativedelta import relativedelta
 from django.core.paginator import Paginator
 from .services.outlook_graph_service import OutlookGraphService
-from urllib.parse import unquote
+from urllib.parse import unquote, quote
 
 logger = logging.getLogger(__name__)
 
@@ -1004,19 +1004,59 @@ def pssubf_view_thread(request, email_id):
     }
     return render(request, 'pssubf/thread_history.html', context)
 
+# NEW STREAMING CODE
 @login_required
 def download_pssubf_attachment(request, message_id, attachment_id):
-    """Downloads raw file from Outlook Graph API."""
-    target_email = settings.OUTLOOK_EMAIL_ADDRESS
-    raw_data = OutlookGraphService.get_attachment_raw(target_email, message_id, attachment_id)
+    """
+    Streams raw binary attachment content directly from Graph API to user browser.
+    Peak memory utilization stays under 10 KB regardless of file size (e.g. 30 MB+).
+    """
+    access_token = OutlookGraphService.get_access_token()
+    if not access_token:
+        messages.error(request, "Failed to authenticate with Microsoft Graph API.")
+        return redirect(request.META.get('HTTP_REFERER', 'pssubf_dashboard'))
+
+    headers = {'Authorization': f'Bearer {access_token}'}
+
+    # 1. Retrieve filename and MIME type using lightweight metadata query
+    meta_url = f"https://graph.microsoft.com/v1.0/me/messages/{message_id}/attachments/{attachment_id}"
+    meta_params = {'$select': 'name,contentType'}
     
-    if not raw_data or 'contentBytes' not in raw_data:
-        raise Http404("Attachment not found.")
-    
-    file_content = base64.b64decode(raw_data['contentBytes'])
-    response = HttpResponse(file_content, content_type=raw_data.get('contentType', 'application/octet-stream'))
-    response['Content-Disposition'] = f'attachment; filename="{raw_data.get("name", "download")}"'
-    return response
+    try:
+        meta_res = requests.get(meta_url, headers=headers, params=meta_params, timeout=30)
+        if meta_res.status_code != 200:
+            logger.error(f"Graph attachment metadata failed (HTTP {meta_res.status_code}): {meta_res.text}")
+            raise Http404("Attachment metadata not found.")
+            
+        meta_data = meta_res.json()
+        raw_name = meta_data.get('name', 'attachment.bin')
+        content_type = meta_data.get('contentType', 'application/octet-stream')
+
+        # 2. Open binary connection stream to Graph /$value endpoint
+        value_url = f"https://graph.microsoft.com/v1.0/me/messages/{message_id}/attachments/{attachment_id}/$value"
+        graph_stream = requests.get(value_url, headers=headers, stream=True, timeout=30)
+
+        if graph_stream.status_code != 200:
+            logger.error(f"Graph binary stream failed (HTTP {graph_stream.status_code}): {graph_stream.text}")
+            raise Http404("Failed to retrieve attachment binary stream.")
+
+        # 3. Stream binary response in 8192-byte chunks directly to browser
+        response = StreamingHttpResponse(
+            graph_stream.iter_content(chunk_size=8192),
+            content_type=content_type
+        )
+        
+        encoded_filename = quote(raw_name)
+        response['Content-Disposition'] = f"attachment; filename*=UTF-8''{encoded_filename}"
+        return response
+
+    except requests.exceptions.Timeout:
+        logger.error(f"Timeout (30s) reached while downloading attachment {attachment_id}")
+        messages.error(request, "The attachment download timed out. Microsoft Graph API did not respond in time.")
+        return redirect(request.META.get('HTTP_REFERER', 'pssubf_dashboard'))
+    except Exception as e:
+        logger.error(f"Unhandled attachment stream error: {e}")
+        raise Http404("Error downloading attachment.")
 
 @login_required
 def sync_pssubf_inbox(request):

@@ -39,8 +39,11 @@ def get_user_email_signature(user):
 
 class OutlookGraphService:
     @staticmethod
-    def _make_graph_request(endpoint, method='GET', data=None):
-        """Unified request handler using PSSUBF Service Token."""
+    def _make_graph_request(endpoint, method='GET', data=None, params=None):
+        """
+        Unified request handler using PSSUBF Service Token.
+        Includes a mandatory 30-second timeout guardrail on all external calls.
+        """
         access_token = get_current_access_token()
         if not access_token:
             return {'error': 'Could not acquire PSSUBF access token'}
@@ -52,10 +55,11 @@ class OutlookGraphService:
         }
 
         try:
+            # 🟢 TIMEOUT GUARDRAIL: Enforces 30s connection/read timeout on all requests
             if method == 'GET':
-                response = requests.get(url, headers=headers)
+                response = requests.get(url, headers=headers, params=params, timeout=30)
             else:
-                response = requests.post(url, headers=headers, json=data)
+                response = requests.post(url, headers=headers, json=data, timeout=30)
             
             # 202 Accepted (common for sendMail) returns empty text
             if response.status_code == 202 or not response.text:
@@ -63,6 +67,10 @@ class OutlookGraphService:
 
             response.raise_for_status()
             return response.json()
+
+        except requests.exceptions.Timeout:
+            logger.error(f"PSSUBF Graph Request Timeout (30s) on endpoint: {endpoint}")
+            return {'error': 'Microsoft Graph API request timed out after 30 seconds.'}
         except Exception as e:
             logger.error(f"PSSUBF Graph Request Error: {e}")
             return {'error': str(e)}
@@ -128,19 +136,27 @@ class OutlookGraphService:
     def fetch_inbox_messages(target_email, top_count=50):
         """
         Fetches messages from the Graph API.
-        Accepts target_email as first argument to fix the 400 Bad Request error
-        caused by passing an email string into the $top parameter.
+        Selects only essential inbox header metadata.
         """
         endpoint = f"mailFolders/inbox/messages?$top={top_count}&$select=id,subject,from,receivedDateTime,bodyPreview"
         return OutlookGraphService._make_graph_request(endpoint, method='GET')
 
     @staticmethod
     def fetch_attachments(target_email, message_id):
+        """
+        Fetches attachment headers without downloading heavy base64 'contentBytes'.
+        Keeps memory utilization negligible when viewing email threads.
+        """
         endpoint = f"messages/{message_id}/attachments"
-        response = OutlookGraphService._make_graph_request(endpoint, method='GET')
+        # 🟢 MEMORY OPTIMIZATION: Excludes contentBytes payload from server RAM
+        params = {'$select': 'id,name,contentType,size,isInline'}
+        response = OutlookGraphService._make_graph_request(endpoint, method='GET', params=params)
         return response.get('value', [])
     
     @staticmethod
     def get_attachment_raw(target_email, message_id, attachment_id):
+        """
+        Retrieves raw attachment data including contentBytes (used for inline image rendering).
+        """
         endpoint = f"messages/{message_id}/attachments/{attachment_id}"
         return OutlookGraphService._make_graph_request(endpoint, method='GET')
