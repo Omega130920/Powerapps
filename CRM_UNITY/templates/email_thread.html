@@ -3,219 +3,57 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Email Thread | {{ task.subject }}</title>
+    <title>Email Thread | {{ task.subject|default:"No Subject" }}</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        body {
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f4f7f6;
-            color: #333;
-            margin: 0;
-            padding: 20px;
-        }
+        /* --- General Page Styling --- */
+        body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f7f6; color: #333; margin: 0; padding: 20px; }
+        .thread-page-wrapper { max-width: 1100px; margin: 0 auto; }
 
-        .thread-page-wrapper {
-            max-width: 1100px;
-            margin: 0 auto;
-        }
+        /* --- Action Bar --- */
+        .action-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 1px solid #ddd; }
+        .btn-group { display: flex; gap: 10px; }
+        .return-button { padding: 10px 18px; background-color: #43a047; color: white; text-decoration: none; border-radius: 6px; font-weight: 500; transition: background 0.3s; display: flex; align-items: center; gap: 8px; }
+        .return-button:hover { background-color: #2e7d32; }
+        .download-eml-button { padding: 10px 18px; background-color: #1976d2; color: white; text-decoration: none; border-radius: 6px; font-weight: 500; transition: background 0.3s; display: flex; align-items: center; gap: 8px; }
+        .download-eml-button:hover { background-color: #1565c0; }
 
-        .action-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 25px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid #ddd;
-        }
+        /* --- Original Email Card --- */
+        .email-thread-card { background: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 40px; border-left: 5px solid #1976d2; }
+        .card-header-main { padding: 20px; background-color: #fafafa; border-bottom: 1px solid #eee; border-top-right-radius: 8px; }
+        .card-header-main h3 { margin: 0 0 10px 0; color: #1976d2; }
+        .card-body-content { padding: 25px; line-height: 1.7; overflow-x: auto; }
 
-        .button-group {
-            display: flex;
-            gap: 10px;
-        }
+        /* --- HISTORICAL ATTACHMENT GALLERY --- */
+        .attachment-history-section { padding: 20px; background-color: #f1f8e9; border-top: 2px solid #aed581; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
+        .attachment-gallery { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 10px; }
+        .attachment-card { display: flex; flex-direction: column; align-items: center; width: 140px; background: #fff; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: transform 0.2s; }
+        .attachment-card:hover { transform: translateY(-3px); border-color: #43a047; }
+        .preview-container { width: 120px; height: 80px; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 4px; background: #f8f9fa; margin-bottom: 8px; border: 1px solid #eee; }
+        .preview-container img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; }
+        .file-icon { font-size: 35px; }
+        .file-name { font-size: 11px; font-weight: bold; text-align: center; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #333; margin-bottom: 5px; }
+        .btn-download-small { background-color: #43a047; color: white; text-decoration: none; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; width: 100%; text-align: center; }
 
-        .return-button {
-            padding: 10px 18px;
-            background-color: #43a047;
-            color: white;
-            text-decoration: none;
-            border-radius: 6px;
-            font-weight: 500;
-            transition: background 0.3s;
-        }
-
-        .return-button:hover {
-            background-color: #2e7d32;
-        }
-
-        .download-eml-button {
-            padding: 10px 18px;
-            background-color: #1976d2;
-            color: white;
-            text-decoration: none;
-            border-radius: 6px;
-            font-weight: 500;
-            transition: background 0.3s;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .download-eml-button:hover {
-            background-color: #1565c0;
-        }
-
-        .email-thread-card {
-            background: #ffffff;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            margin-bottom: 40px;
-            border-left: 5px solid #1976d2;
-            overflow: hidden; 
-        }
-
-        .card-header-main {
-            padding: 20px;
-            background-color: #fafafa;
-            border-bottom: 1px solid #eee;
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-start;
-        }
-
-        .card-header-main h3 {
-            margin: 0 0 10px 0;
-            color: #1976d2;
-        }
-
-        .recipient-details {
-            font-size: 14px;
-            color: #4a5568;
-            line-height: 1.6;
-        }
-
-        .card-body-content {
-            padding: 25px;
-            line-height: 1.7;
-            overflow-x: auto;
-        }
-
-        .attachment-section {
-            background-color: #f8fafc;
-            padding: 15px 25px;
-            border-top: 1px solid #edf2f7;
-        }
-
-        .attachment-pill {
-            display: inline-flex;
-            align-items: center;
-            background: #fff;
-            padding: 6px 14px;
-            border: 1px solid #e2e8f0;
-            border-radius: 200px;
-            margin-right: 10px;
-            margin-bottom: 10px;
-            color: #2d3748;
-            font-size: 13px;
-            font-weight: 500;
-        }
-
-        .att-action-btn {
-            margin-left: 6px;
-            padding: 4px 10px;
-            border-radius: 12px;
-            background-color: #edf2f7;
-            color: #2b6cb0;
-            text-decoration: none;
-            font-size: 11px;
-            transition: background 0.2s, color 0.2s;
-        }
-
-        .att-action-btn:hover {
-            background-color: #e2e8f0;
-            color: #1a365d;
-        }
-
-        .timeline-container {
-            position: relative;
-            padding-left: 50px;
-            margin-top: 20px;
-        }
-
-        .timeline-container::before {
-            content: '';
-            position: absolute;
-            left: 20px;
-            top: 0;
-            bottom: 0;
-            width: 3px;
-            background: #cbd5e0;
-        }
-
-        .timeline-event {
-            position: relative;
-            background: white;
-            padding: 18px;
-            margin-bottom: 25px;
-            border-radius: 8px;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.03);
-        }
-
-        .timeline-icon {
-            position: absolute;
-            left: -39px;
-            top: 20px;
-            width: 14px;
-            height: 14px;
-            background: #cbd5e0;
-            border: 4px solid white;
-            border-radius: 50%;
-            z-index: 2;
-            box-shadow: 0 0 0 3px #f4f7f6;
-        }
-
-        .badge-status {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 50px;
-            font-size: 11px;
-            font-weight: bold;
-            text-transform: uppercase;
-            margin-bottom: 10px;
-        }
-
+        /* --- Timeline (Audit Trail) --- */
+        .timeline-container { position: relative; padding-left: 50px; margin-top: 20px; }
+        .timeline-container::before { content: ''; position: absolute; left: 20px; top: 0; bottom: 0; width: 3px; background: #cbd5e0; }
+        .timeline-event { position: relative; background: white; padding: 18px; margin-bottom: 25px; border-radius: 8px; border: 1px solid #e2e8f0; box-shadow: 0 2px 4px rgba(0,0,0,0.03); }
+        .timeline-icon { position: absolute; left: -39px; top: 20px; width: 14px; height: 14px; background: #cbd5e0; border: 4px solid white; border-radius: 50%; z-index: 2; box-shadow: 0 0 0 3px #f4f7f6; }
+        .badge-status { display: inline-block; padding: 4px 12px; border-radius: 50px; font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 10px; }
         .bg-delegated { background-color: #ebf8ff; color: #2b6cb0; }
-        .bg-reply { background-color: #ebf8ff; color: #2b6cb0; }
-        .bg-note { background-color: #fefcbf; color: #b7791f; }
-        .bg-complete { background-color: #f0fff4; color: #2f855a; }
-        .bg-restore { background-color: #fff5f5; color: #c53030; }
-
-        .action-recipients-box {
-            background-color: #f7fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 6px;
-            padding: 8px 12px;
-            margin-bottom: 12px;
-            font-size: 13px;
-            color: #4a5568;
-            line-height: 1.5;
-        }
-
-        .event-meta {
-            display: block;
-            margin-top: 10px;
-            font-size: 12px;
-            color: #718096;
-            border-top: 1px solid #f7fafc;
-            padding-top: 8px;
-        }
-
-        .event-text {
-            font-size: 14px;
-            color: #2d3748;
-            margin: 0;
-            overflow-x: auto;
-        }
+        .bg-reply { background-color: #f3e5f5; color: #7b1fa2; }
+        .bg-direct { background-color: #fff3e0; color: #e65100; }
+        .bg-default { background-color: #f0fff4; color: #2f855a; }
+        .bg-note { background-color: #e3f2fd; color: #0d47a1; } 
+        .event-meta { display: block; margin-top: 10px; font-size: 12px; color: #718096; border-top: 1px solid #f7fafc; padding-top: 8px; }
+        .event-text { font-size: 14px; color: #2d3748; margin: 5px 0; }
+        .email-details-block { background-color: #f8f9fa; border-left: 3px solid #ccc; padding: 8px 12px; margin-top: 8px; font-size: 0.95em; color: #555; }
+        
+        /* 🚀 Stacked Email Meta Rows & Reply Box Styles */
+        .email-meta-stack { font-size: 13px; color: #4a5568; background: #f8f9fa; padding: 10px 12px; border-radius: 6px; margin-bottom: 10px; line-height: 1.6; border: 1px solid #edf2f7; }
+        .email-meta-stack div { display: block; margin-bottom: 2px; }
+        .email-reply-block { background-color: #faf5fb; border-left: 4px solid #7b1fa2; padding: 12px 15px; border-radius: 4px; margin-top: 8px; font-size: 14px; line-height: 1.6; color: #2d3748; }
     </style>
 </head>
 <body>
@@ -225,11 +63,11 @@
     <div class="action-bar">
         <div>
             <h1 style="margin:0; color: #2e7d32;">Communication History</h1>
-            <p style="margin:0; color: #666;">Ref: {{ task.member_group_code }}</p>
+            <p style="margin:0; color: #666;">Ref: {{ task.member_group_code|default:"N/A" }}</p>
         </div>
-        <div class="button-group">
+        <div class="btn-group">
             <a href="{% url 'download_actual_email' email_id=email_id %}" class="download-eml-button">
-                <i class="fas fa-envelope-open-text"></i> Download Actual Email (.eml)
+                <i class="fas fa-file-download"></i> Download Full Email (.eml)
             </a>
             <a href="javascript:history.back()" class="return-button">← Back to Email Log</a>
         </div>
@@ -237,61 +75,43 @@
 
     <div class="email-thread-card">
         <div class="card-header-main">
-            <div>
-                <h3>{{ task.subject }}</h3>
-                <div class="recipient-details">
-                    {% if is_direct %}
-                        <strong>Recipient:</strong> {{ task.recipient_email }} <br>
-                        <strong>Sent Date:</strong> {{ task.sent_at|date:"d M Y, H:i" }} <br>
-                    {% else %}
-                        <strong>Sender:</strong> {{ inbox_item.sender|default:task.sender|default:"System" }} <br>
-                        <strong>Original Arrival:</strong> {{ inbox_item.received_timestamp|default:task.received_timestamp|date:"d M Y, H:i" }} <br>
-                    {% endif %}
-
-                    {% if cc_recipients %}
-                        <strong>CC:</strong> {{ cc_recipients }} <br>
-                    {% endif %}
-
-                    {% if bcc_recipients %}
-                        <strong>BCC:</strong> {{ bcc_recipients }} <br>
-                    {% endif %}
-                </div>
+            <h3>{{ task.subject|default:"No Subject" }}</h3>
+            <div style="font-size: 14px; color: #4a5568;">
+                <strong>Identifier:</strong> {{ email_id }} <br>
+                <strong>Date:</strong> 
+                {% if is_direct %}
+                    {{ task.sent_at|date:"d M Y, H:i" }}
+                {% else %}
+                    {{ inbox_item.received_timestamp|default:task.received_timestamp|date:"d M Y, H:i" }}
+                {% endif %}
             </div>
-            <a href="{% url 'download_actual_email' email_id=email_id %}" title="Download as .eml file" style="color: #1976d2; font-size: 20px;">
-                <i class="fas fa-file-export"></i>
-            </a>
         </div>
         <div class="card-body-content">
             {{ email_body|safe }}
         </div>
 
-        {# --- ATTACHMENT SECTION --- #}
+        {# --- HISTORICAL ATTACHMENT GALLERY --- #}
         {% if attachments %}
-        <div class="attachment-section">
-            <div style="margin-bottom: 10px; font-size: 13px; font-weight: bold; color: #4a5568;">
-                <i class="fas fa-paperclip" style="color: #1976d2; margin-right: 5px;"></i> Original Attachments:
-            </div>
-            <div style="display: flex; flex-wrap: wrap;">
+        <div class="attachment-history-section">
+            <strong style="display:block; margin-bottom:10px; color:#2e7d32; font-size: 14px;">
+                <i class="fas fa-paperclip"></i> Files associated with this thread:
+            </strong>
+            <div class="attachment-gallery">
                 {% for att in attachments %}
-                <div class="attachment-pill">
-                    {% if att.contentBytes %}
-                        <img src="data:{{ att.contentType }};base64,{{ att.contentBytes }}" 
-                             style="height: 18px; width: 18px; border-radius: 2px; margin-right: 8px; object-fit: cover;">
-                    {% else %}
-                        <i class="fas fa-file-alt" style="margin-right: 8px; color: #718096;"></i>
-                    {% endif %}
-                    
-                    {{ att.name }}
-                    <span style="font-weight: normal; color: #a0aec0; margin-left: 5px;">({{ att.size|filesizeformat }})</span>
-                    
-                    <div style="margin-left: 12px; border-left: 1px solid #e2e8f0; padding-left: 8px; display: flex; gap: 4px;">
-                        <a href="{% url 'download_attachment' message_id=email_id attachment_id=att.id %}" target="_blank" class="att-action-btn" title="View in Browser">
-                            <i class="fas fa-eye"></i> View
-                        </a>
-                        <a href="{% url 'download_attachment' message_id=email_id attachment_id=att.id %}" download class="att-action-btn" title="Download File">
-                            <i class="fas fa-download"></i> Download
-                        </a>
+                <div class="attachment-card">
+                    <div class="preview-container">
+                        {% if att.contentBytes and "image" in att.contentType %}
+                            <img src="data:{{ att.contentType }};base64,{{ att.contentBytes }}" onclick="window.open(this.src)" title="Click to expand" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                            <i class="fas fa-file-image file-icon" style="color: #607d8b; display:none;"></i>
+                        {% else %}
+                            <i class="fas fa-file-alt file-icon" style="color: #607d8b;"></i>
+                        {% endif %}
                     </div>
+                    <div class="file-name" title="{{ att.name }}">{{ att.name }}</div>
+                    
+                    <a href="{% url 'download_attachment' message_id=email_id attachment_id=att.id %}" target="_blank" class="btn-download-small">
+                        <i class="fas fa-download"></i> Download
+                    </a>
                 </div>
                 {% endfor %}
             </div>
@@ -300,60 +120,87 @@
     </div>
 
     <h2 style="font-size: 1.2em; color: #4a5568; margin-bottom: 20px; padding-left: 10px;">Activity Timeline</h2>
-
     <div class="timeline-container">
+        
+        {# --- ORIGINAL DELEGATION EVENT --- #}
         {% if not is_direct and task.delegated_to %}
         <div class="timeline-event">
             <div class="timeline-icon" style="background-color: #2b6cb0;"></div>
             <span class="badge-status bg-delegated">Delegation Created</span>
-            <p class="event-text">
-                Task was delegated to <strong>{{ task.delegated_to }}</strong> by <strong>{{ task.delegated_by }}</strong>.
-            </p>
-            <span class="event-meta">
-                Date: {{ task.received_timestamp|date:"d M Y, H:i" }}
-            </span>
+            <p class="event-text">Task was delegated to <strong>{{ task.delegated_to }}</strong> by <strong>{{ task.delegated_by }}</strong>.</p>
+            <span class="event-meta">Date: {{ task.received_timestamp|date:"d M Y, H:i" }}</span>
         </div>
         {% endif %}
 
+        {# --- ITERATE THROUGH CRM_UNITY ACTIONS --- #}
         {% for action in actions %}
         <div class="timeline-event">
-            <div class="timeline-icon" 
-                 style="background-color: {% if action.action_type == 'complete' %}#2f855a{% elif action.action_type == 'REPLY_SENT' %}#2b6cb0{% else %}#b7791f{% endif %};">
-            </div>
             
-            <span class="badge-status 
-                {% if action.action_type == 'complete' %}bg-complete
-                {% elif action.action_type == 'REPLY_SENT' %}bg-reply
-                {% elif action.action_type == 'add_note' %}bg-note
-                {% else %}bg-restore{% endif %}">
-                {% if action.action_type == 'REPLY_SENT' %}Reply Sent{% else %}{{ action.action_type|title }}{% endif %}
-            </span>
-
-            {# 🟢 FIXED IF EVALUATION #}
             {% if action.action_type == 'REPLY_SENT' %}
-                {% if action.cc_recipients %}
-                <div class="action-recipients-box">
-                    <strong>CC:</strong> {{ action.cc_recipients }}
+                <div class="timeline-icon" style="background-color: #7b1fa2;"></div>
+                <span class="badge-status bg-reply">Reply Sent</span>
+                
+                <div class="email-meta-stack">
+                    {% if action.cc_recipients %}<div><strong>CC:</strong> {{ action.cc_recipients }}</div>{% endif %}
+                    {% if action.bcc_recipients %}<div><strong>BCC:</strong> {{ action.bcc_recipients }}</div>{% endif %}
+                    <div><strong>Subject:</strong> {{ action.related_subject|default:task.subject }}</div>
+                    {% if action.note_content and action.note_content != 'None' %}
+                    <div><strong>Log Type:</strong> {{ action.note_content }}</div>
+                    {% endif %}
+                </div>
+
+                <div class="email-reply-block">
+                    {% if action.body %}
+                        {{ action.body|safe }}
+                    {% elif "<" in action.note_content and ">" in action.note_content %}
+                        {{ action.note_content|safe }}
+                    {% else %}
+                        {{ action.note_content|linebreaksbr }}
+                    {% endif %}
+                </div>
+
+                {# 🚀 Render Attachment badge if an attachment was sent with this reply #}
+                {% if action.attachment_name %}
+                <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed #e2e8f0; display: flex; align-items: center; gap: 10px;">
+                    <div style="width: 36px; height: 36px; background: #e3f2fd; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
+                        <i class="fas fa-file-alt" style="color: #1976d2; font-size: 18px;"></i>
+                    </div>
+                    <div>
+                        <div style="font-size: 12px; font-weight: bold; color: #333;" title="{{ action.attachment_name }}">{{ action.attachment_name }}</div>
+                        <span style="font-size: 11px; color: #718096;">Attached to sent response</span>
+                    </div>
                 </div>
                 {% endif %}
-                {% if action.bcc_recipients %}
-                <div class="action-recipients-box">
-                    <strong>BCC:</strong> {{ action.bcc_recipients }}
+
+            {% elif action.action_type == 'add_note' %}
+                <div class="timeline-icon" style="background-color: #0d47a1;"></div>
+                <span class="badge-status bg-note">Internal Note</span>
+                
+                <div class="event-text" style="font-size: 14px; line-height: 1.6;">
+                    {{ action.note_content|linebreaksbr }}
                 </div>
-                {% endif %}
+
+            {% else %}
+                <div class="timeline-icon" style="background-color: {% if action.action_type == 'complete' %}#2f855a{% else %}#b7791f{% endif %};"></div>
+                <span class="badge-status {% if action.action_type == 'complete' %}bg-default{% else %}bg-direct{% endif %}">
+                    {% if action.action_type == 'complete' %}Completed{% else %}{{ action.action_type|title }}{% endif %}
+                </span>
+                
+                <div class="event-text" style="font-size: 14px;">
+                    <strong>Details:</strong> {{ action.note_content|safe }}
+                </div>
             {% endif %}
 
-            <div class="event-text">
-                {{ action.note_content|safe }}
-            </div>
-            
-            <span class="event-meta">
-                User: <strong>{{ action.action_user }}</strong> | {{ action.action_timestamp|date:"d M Y, H:i" }}
-            </span>
+            <span class="event-meta">User: <strong>{{ action.action_user }}</strong> | {{ action.action_timestamp|date:"d M Y, H:i" }}</span>
+        </div>
+        
+        {% empty %}
+        <div style="padding-left: 20px; color: #718096; font-style: italic;">
+            No historical actions logged for this thread.
         </div>
         {% endfor %}
+
     </div>
 </div>
-
 </body>
 </html>

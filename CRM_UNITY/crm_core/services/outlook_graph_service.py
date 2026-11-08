@@ -1,12 +1,11 @@
-import base64
-import logging
 import time
 import requests
+import logging
+import base64
 from django.conf import settings
 from .token_manager import get_current_access_token
 
 logger = logging.getLogger(__name__)
-
 
 class OutlookGraphService:
 
@@ -33,17 +32,17 @@ class OutlookGraphService:
             headers['Content-Type'] = 'application/json'
 
         try:
-            # Timeouts prevent the app from hanging indefinitely during network latency
+            # Added timeouts to prevent the app from hanging during network delays
             if method == 'GET':
                 response = requests.get(url, headers=headers, timeout=15)
             else:
                 response = requests.post(url, headers=headers, json=data, timeout=20)
             
-            # If requesting a MIME stream ($value), return the raw binary content
+            # If we requested a MIME stream ($value), return the raw content bytes
             if is_mime and response.status_code == 200:
                 return response.content
 
-            # 202 Accepted (common for sendMail) returns empty text body
+            # 202 Accepted (common for sendMail) returns empty text
             if response.status_code == 202 or not response.text:
                 return {}
 
@@ -54,7 +53,7 @@ class OutlookGraphService:
             try:
                 # Attempt to extract specific Microsoft Graph error messages
                 error_detail = response.json().get('error', {}).get('message', str(e))
-            except Exception:
+            except:
                 error_detail = str(e)
             return {'error': error_detail}
 
@@ -63,6 +62,7 @@ class OutlookGraphService:
         """
         Fetches recent emails for the live inbox, including full HTML body, CC, and BCC.
         """
+        # 🟢 UPDATED: Added 'ccRecipients' and 'bccRecipients' to $select
         endpoint = (
             f"mailFolders/inbox/messages?$top={top_count}"
             f"&$select=id,subject,from,receivedDateTime,bodyPreview,body,hasAttachments,ccRecipients,bccRecipients"
@@ -79,14 +79,14 @@ class OutlookGraphService:
         endpoint = "sendMail"
         
         # Fallback security check for overlapping parameter signatures between modules
-        final_recipient = recipient_email if recipient_email else target_email
-        final_body = body_content if body_content else ""
+        final_recipient = recipient_email if recipient_email else None
+        final_body = body_content if body_content else None
 
         # 1. Prepare the email payload
         message_dict = {
             "subject": subject,
             "body": {"contentType": content_type, "content": final_body},
-            "toRecipients": [{"emailAddress": {"address": final_recipient.strip()}}] if final_recipient else [],
+            "toRecipients": [{"emailAddress": {"address": final_recipient.strip()}}],
             "ccRecipients": [],
             "bccRecipients": [],
             "attachments": []
@@ -118,7 +118,7 @@ class OutlookGraphService:
                     encoded_content = base64.b64encode(f.read()).decode('utf-8')
                     message_dict["attachments"].append({
                         "@odata.type": "#microsoft.graph.fileAttachment",
-                        "name": getattr(f, 'name', 'attachment'),
+                        "name": f.name,
                         "contentType": getattr(f, 'content_type', 'application/octet-stream'),
                         "contentBytes": encoded_content
                     })
@@ -153,38 +153,17 @@ class OutlookGraphService:
         
         except Exception as e:
             return {'success': False, 'error': f"ID Retrieval failed: {str(e)}"}
-
+    
     @staticmethod
-    def fetch_attachments(*args, **kwargs):
-        """
-        Metadata for all attachments.
-        Supports both fetch_attachments(message_id) and fetch_attachments(target_email, message_id).
-        """
-        if len(args) == 2:
-            _, message_id = args
-        elif len(args) == 1:
-            message_id = args[0]
-        else:
-            message_id = kwargs.get('message_id')
-
+    def fetch_attachments(target_email, message_id):
+        """Metadata for all attachments."""
         endpoint = f"messages/{message_id}/attachments"
         response = OutlookGraphService._make_graph_request(endpoint, method='GET')
         return response.get('value', []) if isinstance(response, dict) else []
-
+    
     @staticmethod
-    def get_attachment_raw(*args, **kwargs):
-        """
-        Fetches raw bytes / metadata for a single attachment.
-        Supports both (message_id, attachment_id) and (target_email, message_id, attachment_id).
-        """
-        if len(args) == 3:
-            _, message_id, attachment_id = args
-        elif len(args) == 2:
-            message_id, attachment_id = args
-        else:
-            message_id = kwargs.get('message_id')
-            attachment_id = kwargs.get('attachment_id')
-
+    def get_attachment_raw(target_email, message_id, attachment_id):
+        """Raw bytes for image thumbnails."""
         endpoint = f"messages/{message_id}/attachments/{attachment_id}"
         return OutlookGraphService._make_graph_request(endpoint, method='GET')
 

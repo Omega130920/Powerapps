@@ -349,22 +349,23 @@ class CrmDelegateTo(models.Model):
         db_table = 'crm_delegate_to'
 
 class CrmDelegateAction(models.Model):
-    id = models.AutoField(primary_key=True)
-    task_email_id = models.CharField(max_length=255, db_index=True) 
-    action_type = models.CharField(max_length=50) 
-    action_user = models.CharField(max_length=100)
-    action_timestamp = models.DateTimeField(default=timezone.now)
+    task_email_id = models.CharField(max_length=255, null=True, blank=True)
+    action_type = models.CharField(max_length=50, null=True, blank=True)
+    action_user = models.CharField(max_length=100, null=True, blank=True)
+    action_timestamp = models.DateTimeField(auto_now_add=True, null=True)
     note_content = models.TextField(null=True, blank=True)
-    cc_recipients = models.TextField(null=True, blank=True)   # 🟢 NEW: Stores CC recipients for replies
-    bcc_recipients = models.TextField(null=True, blank=True)  # 🟢 NEW: Stores BCC recipients for replies
+    body = models.TextField(null=True, blank=True)
+    cc_recipients = models.TextField(null=True, blank=True)
+    bcc_recipients = models.TextField(null=True, blank=True)
     related_subject = models.CharField(max_length=255, null=True, blank=True)
-
+    
+    # 🚀 Add these attachment fields
+    attachment_name = models.CharField(max_length=255, null=True, blank=True)
+    attachment_path = models.TextField(null=True, blank=True)
+    
     class Meta:
-        managed = False  # Adjust to True if Django manages database migrations for this table
+        managed = False
         db_table = 'crm_delegate_actions'
-
-    def __str__(self):
-        return f"{self.action_type} by {self.action_user} on {self.task_email_id}"
 
 class DelegationReport(models.Model):
     email_id = models.CharField(primary_key=True, max_length=255)
