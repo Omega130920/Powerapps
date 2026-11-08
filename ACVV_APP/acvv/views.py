@@ -34,6 +34,7 @@ from openpyxl.styles import PatternFill, Border, Side, Alignment, Font
 from openpyxl.utils import get_column_letter
 from dateutil import parser
 from dateutil.relativedelta import relativedelta
+import urllib
 
 # Local Project Imports
 from .models import (
@@ -2498,7 +2499,7 @@ def download_acvv_email(request, delegation_id):
     from django.shortcuts import get_object_or_404, redirect
     from django.contrib import messages
 
-    # 1. ID RESOLUTION
+# 1. ID RESOLUTION
     try:
         if str(delegation_id).isdigit():
             task = get_object_or_404(EmailDelegation, pk=delegation_id)
@@ -2511,11 +2512,10 @@ def download_acvv_email(request, delegation_id):
         return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
 
     # 2. LOCAL GENERATION (For SENT-, REPLY-, CLAIM-, or LOCAL- IDs)
-    # 💡 Added ms_id.startswith('CLAIM-') to catch and format system-generated claim tasks locally
     if ms_id.startswith('SENT-') or ms_id.startswith('LOCAL-') or ms_id.startswith('REPLY-') or ms_id.startswith('CLAIM-'):
         msg = EmailMessage()
-        msg['Subject'] = task.subject
-        msg['From'] = task.sender_address or settings.OUTLOOK_EMAIL_ADDRESS
+        msg['Subject'] = task.subject or "No Subject"
+        msg['From'] = task.sender_address or getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', 'lorraine@futurasa.co.za')
         msg['To'] = "Recipient (Details in App Logs)"
         msg['Date'] = task.received_at.strftime('%a, %d %b %Y %H:%M:%S +0200') if task.received_at else ""
         msg['Message-ID'] = make_msgid()
@@ -2526,33 +2526,27 @@ def download_acvv_email(request, delegation_id):
         # --- MULTI-ATTACHMENT SYSTEM LOGIC ---
         attached_paths = []
 
-        # Step A: Pick up the baseline attachment path
         if task.attachment:
             try:
                 base_path = task.attachment.path
                 if os.path.exists(base_path):
                     attached_paths.append(base_path)
             except Exception as e:
-                print(f"Base file resolution error: {e}")
+                logger.error(f"Base file resolution error: {e}")
 
-        # Step B: Scan parent directory folder for files matching the timestamp prefix group
         if attached_paths:
             try:
                 parent_dir = os.path.dirname(attached_paths[0])
                 base_filename = os.path.basename(attached_paths[0])
                 
-                # Check if file has standard multi-upload variations or extensions inside directory
                 if "_" in base_filename or "-" in base_filename:
-                    # Clean lookups across files inside the exact directory path
                     for entry in os.listdir(parent_dir):
                         full_entry_path = os.path.join(parent_dir, entry)
                         if full_entry_path not in attached_paths and os.path.isfile(full_entry_path):
-                            # Ensure it belongs to the same file batch family structure
                             attached_paths.append(full_entry_path)
             except Exception as e:
-                print(f"Multi-attachment scanner error: {e}")
+                logger.error(f"Multi-attachment scanner error: {e}")
 
-        # Step C: physically write each found element down into the generated EML binary container
         for file_path in attached_paths:
             try:
                 if os.path.exists(file_path):
@@ -2567,33 +2561,31 @@ def download_acvv_email(request, delegation_id):
                         filename=file_name
                     )
             except Exception as e:
-                print(f"DEBUG DOWNLOAD ATTACHMENT ERROR for {file_path}: {e}")
+                logger.error(f"Attachment compile error for {file_path}: {e}")
 
-        # Return the generated .eml file
+        # Return the generated .eml file with encoded headers
+        eml_filename = f"CLAIM_{slugify(task.subject)[:30] or 'record'}.eml"
+        safe_filename = urllib.parse.quote(eml_filename)
+        
         response = HttpResponse(msg.as_bytes(), content_type='message/rfc822')
-        response['Content-Disposition'] = f'attachment; filename="CLAIM_{slugify(task.subject)[:30] or "record"}.eml"'
+        response['Content-Disposition'] = f"attachment; filename=\"{safe_filename}\"; filename*=UTF-8''{safe_filename}"
         return response
 
-    # 3. LIVE MICROSOFT DOWNLOAD (Keep this for real Outlook IDs)
-    target_email = settings.OUTLOOK_EMAIL_ADDRESS
-    access_token = get_current_access_token()
+    # 3. LIVE MICROSOFT DOWNLOAD (For real Outlook IDs)
+    target_email = getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', 'lorraine@futurasa.co.za')
     
-    if not access_token:
-        messages.error(request, "Authentication failed: Outlook access token missing.")
-        return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
+    raw_content = OutlookGraphService.fetch_raw_eml(target_email, ms_id)
 
-    url = f"https://graph.microsoft.com/v1.0/users/{target_email}/messages/{ms_id}/$value"
-    headers = {'Authorization': f'Bearer {access_token}'}
+    if raw_content and not (isinstance(raw_content, dict) and 'error' in raw_content):
+        eml_filename = f"{slugify(task.subject)[:50] or 'record'}.eml"
+        safe_filename = urllib.parse.quote(eml_filename)
+        
+        django_response = HttpResponse(raw_content, content_type='message/rfc822')
+        django_response['Content-Disposition'] = f"attachment; filename=\"{safe_filename}\"; filename*=UTF-8''{safe_filename}"
+        return django_response
 
-    try:
-        res = requests.get(url, headers=headers, timeout=10)
-        if res.status_code == 200:
-            django_response = HttpResponse(res.content, content_type='message/rfc822')
-            django_response['Content-Disposition'] = f'attachment; filename="{slugify(task.subject)[:50]}.eml"'
-            return django_response
-    except Exception as e:
-        messages.error(request, f"Outlook Error: {e}")
-
+    error_detail = raw_content.get('error', 'Could not download from Outlook.') if isinstance(raw_content, dict) else 'Download failed.'
+    messages.error(request, f"Outlook Error: {error_detail}")
     return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
 
 def get_branch_map_acvv(claims_queryset):
@@ -2956,28 +2948,33 @@ def send_acvv_direct_email(request, company_code):
 @login_required
 def download_outlook_attachment(request, delegation_id, attachment_id):
     """
-    Fetches the attachment from Outlook Graph API, decodes it, and serves it.
+    Fetches the attachment from Outlook Graph API, decodes it safely, and serves it.
     """
-    import base64
-    from .services.outlook_graph_service import _make_graph_request
-
     delegation = get_object_or_404(EmailDelegation, pk=delegation_id)
-    target_email = settings.OUTLOOK_EMAIL_ADDRESS
-    
-    endpoint = f"messages/{delegation.email_id}/attachments/{attachment_id}"
-    attachment_data = _make_graph_request(endpoint, target_email)
-    
-    if 'error' in attachment_data:
+    target_email = getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', 'lorraine@futurasa.co.za')
+
+    # Fetch via Service Object
+    attachment_data = OutlookGraphService.get_attachment_raw(target_email, delegation.email_id, attachment_id)
+
+    if not attachment_data or 'error' in attachment_data or 'contentBytes' not in attachment_data:
         messages.error(request, "Could not fetch attachment from Outlook.")
         return redirect(request.META.get('HTTP_REFERER', 'outlook_delegated_box'))
 
-    file_content = base64.b64decode(attachment_data.get('contentBytes'))
-    file_name = attachment_data.get('name', 'attachment')
-    content_type = attachment_data.get('contentType', 'application/octet-stream')
+    try:
+        content_bytes = attachment_data.get('contentBytes', '')
+        content_bytes += '=' * (-len(content_bytes) % 4)
+        file_content = base64.b64decode(content_bytes)
+        
+        file_name = attachment_data.get('name', 'attachment')
+        content_type = attachment_data.get('contentType', 'application/octet-stream')
 
-    response = HttpResponse(file_content, content_type=content_type)
-    response['Content-Disposition'] = f'attachment; filename="{file_name}"'
-    return response
+        response = HttpResponse(file_content, content_type=content_type)
+        safe_filename = urllib.parse.quote(file_name)
+        response['Content-Disposition'] = f"attachment; filename=\"{safe_filename}\"; filename*=UTF-8''{safe_filename}"
+        return response
+    except Exception as e:
+        messages.error(request, f"Attachment decoding error: {str(e)}")
+        return redirect(request.META.get('HTTP_REFERER', 'outlook_delegated_box'))
 
 @login_required
 def acvv_sla_report_view(request):

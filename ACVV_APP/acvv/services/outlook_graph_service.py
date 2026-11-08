@@ -1,9 +1,10 @@
-import requests
-import json
 import base64
+import json
 import logging
+import mimetypes
+import requests
+
 from django.conf import settings
-from .token_manager import get_current_access_token
 
 # Initialize logger
 logger = logging.getLogger(__name__)
@@ -20,7 +21,6 @@ def get_user_signature(user):
     username = user.username.lower()
     first_name = user.first_name.lower() if user.first_name else ""
 
-    # Replace with the direct link to the Futura logo hosted on your server
     logo_url = "https://static.futurasa.co.za/images/futura-logo.png"
 
     base_disclaimer = """
@@ -81,7 +81,6 @@ def _parse_recipients(recipient_input):
         return []
     
     if isinstance(recipient_input, str):
-        # Split by comma or semicolon
         raw_emails = [e.strip() for e in recipient_input.replace(',', ';').split(';') if e.strip()]
     elif isinstance(recipient_input, list):
         raw_emails = [e.strip() for e in recipient_input if isinstance(e, str) and e.strip()]
@@ -98,42 +97,44 @@ class OutlookGraphService:
     """
 
     @staticmethod
-    def _make_graph_request(endpoint, target_email, method='GET', data=None, is_raw=False):
+    def _make_graph_request(endpoint, target_email=None, method='GET', data=None, is_raw=False):
         """
-        Generic internal function to handle authenticated requests.
-        Supports is_raw for binary content (e.g., attachments).
+        Generic internal function to handle authenticated requests with timeout protection.
         """
+        from .token_manager import get_current_access_token
+
         access_token = get_current_access_token()
+        mailbox = target_email or getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', 'lorraine@futurasa.co.za')
 
         if not access_token:
             logger.error("Authentication failed: Missing or expired token.")
             return {'error': 'Authentication failed: Missing or expired token.'}
 
-        url = f"{GRAPH_API_URL}/users/{target_email}/{endpoint}"
+        url = f"{GRAPH_API_URL}/users/{mailbox}/{endpoint}"
         
         headers = {
             'Authorization': f'Bearer {access_token}',
-            'Content-Type': 'application/json',
             'Prefer': 'IdType="ImmutableId"'
         }
 
+        if not is_raw:
+            headers['Content-Type'] = 'application/json'
+
         try:
             if method == 'GET':
-                response = requests.get(url, headers=headers)
+                response = requests.get(url, headers=headers, timeout=(5, 25))
             elif method == 'POST':
-                response = requests.post(url, headers=headers, data=json.dumps(data))
+                response = requests.post(url, headers=headers, data=json.dumps(data) if isinstance(data, dict) else None, timeout=(5, 25))
             else:
                 return {'error': f"Unsupported HTTP method: {method}"}
 
-            response.raise_for_status()
-
-            # Return raw binary content if requested
-            if is_raw:
+            if is_raw and response.status_code == 200:
                 return response.content
 
             if response.status_code == 202 and method == 'POST':
                 return {'success': True}
 
+            response.raise_for_status()
             return response.json()
 
         except requests.exceptions.HTTPError as e:
@@ -142,7 +143,7 @@ class OutlookGraphService:
 
             try:
                 error_details = e.response.json()
-            except:
+            except Exception:
                 error_details = e.response.text if e.response.text else str(e)
 
             return {'error': f"Graph API Error: Status {status_code}", 'details': error_details}
@@ -151,14 +152,12 @@ class OutlookGraphService:
             logger.error(f"Network/Connection Error: {e}")
             return {'error': f"Network Error: {str(e)}"}
 
-    # --- Public Service Functions ---
-
     @staticmethod
-    def fetch_outlook_data(endpoint, target_email):
+    def fetch_outlook_data(endpoint, target_email=None):
         return OutlookGraphService._make_graph_request(endpoint, target_email, method='GET')
 
     @staticmethod
-    def fetch_inbox_messages(target_email, top_count=10):
+    def fetch_inbox_messages(target_email=None, top_count=10):
         endpoint = f"mailFolders/inbox/messages?$top={top_count}&$select=subject,from,receivedDateTime,isRead,body&$orderby=receivedDateTime desc"
         return OutlookGraphService._make_graph_request(endpoint, target_email)
 
@@ -168,19 +167,53 @@ class OutlookGraphService:
         return OutlookGraphService._make_graph_request(endpoint, target_email)
 
     @staticmethod
-    def fetch_attachments(target_email, message_id):
+    def fetch_attachments(*args, **kwargs):
+        if len(args) == 2:
+            target_email, message_id = args
+        elif len(args) == 1:
+            target_email, message_id = None, args[0]
+        else:
+            target_email = kwargs.get('target_email')
+            message_id = kwargs.get('message_id')
+
         endpoint = f"messages/{message_id}/attachments"
         response = OutlookGraphService._make_graph_request(endpoint, target_email)
         return response.get('value', []) if isinstance(response, dict) else []
 
     @staticmethod
-    def send_outlook_email(target_email, recipient_email, subject, body_content, content_type='HTML', attachments=None, cc=None, bcc=None, user=None):
+    def get_attachment_raw(*args, **kwargs):
+        if len(args) == 3:
+            target_email, message_id, attachment_id = args
+        elif len(args) == 2:
+            target_email, message_id, attachment_id = None, args[0], args[1]
+        else:
+            target_email = kwargs.get('target_email')
+            message_id = kwargs.get('message_id')
+            attachment_id = kwargs.get('attachment_id')
+
+        endpoint = f"messages/{message_id}/attachments/{attachment_id}"
+        return OutlookGraphService._make_graph_request(endpoint, target_email)
+
+    @staticmethod
+    def fetch_raw_eml(*args, **kwargs):
+        if len(args) == 2:
+            target_email, message_id = args
+        elif len(args) == 1:
+            target_email, message_id = None, args[0]
+        else:
+            target_email = kwargs.get('target_email')
+            message_id = kwargs.get('message_id')
+
+        endpoint = f"messages/{message_id}/$value"
+        return OutlookGraphService._make_graph_request(endpoint, target_email, is_raw=True)
+
+    @staticmethod
+    def send_outlook_email(target_email=None, recipient_email=None, subject=None, body_content=None, content_type='HTML', attachments=None, cc=None, bcc=None, user=None):
         """
         Sends an email from the target mailbox with support for multiple attachments, CC, and BCC.
-        Added: Automatic signature injection based on the active user.
         """
+        mailbox = target_email or getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', 'lorraine@futurasa.co.za')
 
-        # Inject Signature if user is provided
         if user and content_type.upper() == 'HTML':
             signature = get_user_signature(user)
             body_content += signature
@@ -190,8 +223,8 @@ class OutlookGraphService:
                 "subject": subject,
                 "body": {"contentType": content_type, "content": body_content},
                 "toRecipients": _parse_recipients(recipient_email),
-                "ccRecipients": _parse_recipients(cc),    # <--- Added CC Mapping
-                "bccRecipients": _parse_recipients(bcc),  # <--- Added BCC Mapping
+                "ccRecipients": _parse_recipients(cc),
+                "bccRecipients": _parse_recipients(bcc),
                 "attachments": []
             },
             "saveToSentItems": "true"
@@ -202,13 +235,20 @@ class OutlookGraphService:
                 try:
                     file.seek(0)
                     encoded_content = base64.b64encode(file.read()).decode('utf-8')
+                    
+                    attachment_content_type = getattr(file, 'content_type', '')
+                    if not attachment_content_type or attachment_content_type == 'application/octet-stream':
+                        attachment_content_type, _ = mimetypes.guess_type(file.name)
+                    if not attachment_content_type:
+                        attachment_content_type = 'application/octet-stream'
+
                     email_data["message"]["attachments"].append({
                         "@odata.type": "#microsoft.graph.fileAttachment",
                         "name": file.name,
-                        "contentType": getattr(file, 'content_type', 'application/octet-stream'),
+                        "contentType": attachment_content_type,
                         "contentBytes": encoded_content
                     })
                 except Exception as e:
                     logger.error(f"Failed to process attachment {getattr(file, 'name', 'unknown')}: {e}")
 
-        return OutlookGraphService._make_graph_request("sendMail", target_email, method='POST', data=email_data)
+        return OutlookGraphService._make_graph_request("sendMail", mailbox, method='POST', data=email_data)
