@@ -5678,7 +5678,7 @@ def download_attachment_view(request, message_id, attachment_id):
     """
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     
-    # 1. Fetch the metadata first to determine the attachment type
+    # 1. Fetch metadata first to determine attachment type
     attachment_data = OutlookGraphService.get_attachment_raw(target_email, message_id, attachment_id)
     
     if isinstance(attachment_data, dict) and 'error' in attachment_data:
@@ -5690,32 +5690,31 @@ def download_attachment_view(request, message_id, attachment_id):
 
     # 2. Extract content based on type
     if odata_type == '#microsoft.graph.fileAttachment':
-        # Standard file: content is already in the metadata as a base64 string
         if 'contentBytes' in attachment_data:
-            file_content = base64.b64decode(attachment_data['contentBytes'])
+            content_bytes = attachment_data['contentBytes']
+            # Safe padding adjustment
+            content_bytes += '=' * (-len(content_bytes) % 4)
+            file_content = base64.b64decode(content_bytes)
             content_type = attachment_data.get('contentType', 'application/octet-stream')
         else:
             return HttpResponse("Attachment content is missing from metadata.", status=404)
 
     elif odata_type == '#microsoft.graph.itemAttachment':
-        # Nested Email: must be fetched as raw MIME via the /$value endpoint
         file_content = OutlookGraphService.get_attachment_mime(target_email, message_id, attachment_id)
         
-        # Check if binary content was returned or an error dict
         if not file_content or (isinstance(file_content, dict) and 'error' in file_content):
             return HttpResponse("Could not retrieve nested email content from Microsoft.", status=400)
             
         content_type = 'message/rfc822'
-        # Force .eml extension so Windows/Outlook handles the file correctly
         if not file_name.lower().endswith('.eml'):
             file_name += ".eml"
     else:
-        # Fallback for reference attachments or other types
         return HttpResponse(f"Unsupported attachment type: {odata_type}", status=400)
 
-    # 3. Build and return the final response
+    # 3. Build response with encoded headers for special characters
     response = HttpResponse(file_content, content_type=content_type)
-    response['Content-Disposition'] = f'attachment; filename="{file_name}"'
+    safe_filename = urllib.parse.quote(file_name)
+    response['Content-Disposition'] = f"attachment; filename=\"{safe_filename}\"; filename*=UTF-8''{safe_filename}"
     return response
 
 @login_required
@@ -5850,23 +5849,29 @@ def download_email_file(request, email_id):
     Fetches the raw MIME (.eml) content from Microsoft Graph for a specific message.
     """
     try:
-        # Use your existing OutlookGraphService to fetch raw content via /$value
-        endpoint = f"messages/{email_id}/$value"
-        
-        raw_content = OutlookGraphService._make_graph_request(
-            endpoint, 
-            settings.OUTLOOK_EMAIL_ADDRESS, 
-            method='GET', 
-            is_raw=True 
-        )
+        target_email = getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', '')
 
-        if not raw_content:
-            messages.error(request, "Could not retrieve email content from Outlook.")
+        # 1. Fetch raw bytes using public service wrapper
+        raw_content = OutlookGraphService.fetch_raw_eml(target_email, email_id)
+
+        if not raw_content or (isinstance(raw_content, dict) and 'error' in raw_content):
+            error_msg = raw_content.get('error', 'Could not retrieve email content from Outlook.') if isinstance(raw_content, dict) else 'Could not retrieve email content.'
+            messages.error(request, error_msg)
             return redirect(request.META.get('HTTP_REFERER', 'unity_list'))
 
-        # Prepare the response as a file download
+        # 2. Build human-readable filename from local inbox subject if available
+        inbox_record = OutlookInbox.objects.filter(email_id=email_id).first()
+        filename = f"Outlook_Email_{email_id[:10]}.eml"
+
+        if inbox_record and getattr(inbox_record, 'subject', None):
+            clean_subject = "".join([c for c in inbox_record.subject if c.isalnum() or c in (' ', '-', '_')]).strip()
+            if clean_subject:
+                filename = f"{clean_subject[:50]}.eml"
+
+        # 3. Create HTTP response with safe header encoding
         response = HttpResponse(raw_content, content_type='message/rfc822')
-        response['Content-Disposition'] = f'attachment; filename="Outlook_Email_{email_id[:10]}.eml"'
+        safe_filename = urllib.parse.quote(filename)
+        response['Content-Disposition'] = f"attachment; filename=\"{safe_filename}\"; filename*=UTF-8''{safe_filename}"
         return response
 
     except Exception as e:

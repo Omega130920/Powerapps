@@ -290,19 +290,25 @@ class MemberDocument(models.Model):
 
 class CrmInbox(models.Model):
     """
-    Unmanaged Model: Stores metadata for Outlook emails.
+    Unmanaged Model: Stores metadata, FULL HTML, and recipient lists for Outlook emails.
     """
     email_id = models.CharField(max_length=255, primary_key=True) 
     subject = models.CharField(max_length=512, null=True, blank=True)
     sender = models.CharField(max_length=255, null=True, blank=True)
     snippet = models.CharField(max_length=512, null=True, blank=True)
-    received_timestamp = models.DateTimeField(auto_now_add=True)
+    
+    # LOCAL RENDERING & RECIPIENT FIELDS
+    body_html = models.TextField(null=True, blank=True)
+    has_attachments = models.BooleanField(default=False)
+    cc_recipients = models.TextField(null=True, blank=True)   # 🟢 NEW: Stores CC emails
+    bcc_recipients = models.TextField(null=True, blank=True)  # 🟢 NEW: Stores BCC emails
+    
+    received_timestamp = models.DateTimeField(default=timezone.now)
     status = models.CharField(max_length=20, default='Pending') 
     delegated_by = models.CharField(max_length=100, null=True, blank=True)
     delegated_to = models.CharField(max_length=100, null=True, blank=True)
     
     work_related = models.CharField(max_length=5, default='No')
-    # SYNCED: Replaced mip_number with member_group_code pointing to correct db_column
     member_group_code = models.CharField(db_column='Member_Group_Code', max_length=255, null=True, blank=True)
     id_passport = models.CharField(max_length=50, null=True, blank=True)
     category = models.CharField(max_length=50, null=True, blank=True)
@@ -349,11 +355,16 @@ class CrmDelegateAction(models.Model):
     action_user = models.CharField(max_length=100)
     action_timestamp = models.DateTimeField(default=timezone.now)
     note_content = models.TextField(null=True, blank=True)
+    cc_recipients = models.TextField(null=True, blank=True)   # 🟢 NEW: Stores CC recipients for replies
+    bcc_recipients = models.TextField(null=True, blank=True)  # 🟢 NEW: Stores BCC recipients for replies
     related_subject = models.CharField(max_length=255, null=True, blank=True)
-    
+
     class Meta:
-        managed = False
+        managed = False  # Adjust to True if Django manages database migrations for this table
         db_table = 'crm_delegate_actions'
+
+    def __str__(self):
+        return f"{self.action_type} by {self.action_user} on {self.task_email_id}"
 
 class DelegationReport(models.Model):
     email_id = models.CharField(primary_key=True, max_length=255)
@@ -443,11 +454,12 @@ class DirectEmailLog(models.Model):
     member_group_code = models.CharField(max_length=50)
     subject = models.CharField(max_length=255)
     recipient_email = models.CharField(max_length=255)
+    cc_recipients = models.TextField(null=True, blank=True)   # 🟢 NEW: Stores CC emails
+    bcc_recipients = models.TextField(null=True, blank=True)  # 🟢 NEW: Stores BCC emails
     body_content = models.TextField()
     sent_by_user = models.ForeignKey(User, on_delete=models.DO_NOTHING, db_column='sent_by_user_id')
     sent_at = models.DateTimeField()
     outlook_message_id = models.TextField(null=True, blank=True)
-    # New field added below
     action_type = models.CharField(max_length=100, null=True, blank=True)
 
     class Meta:
