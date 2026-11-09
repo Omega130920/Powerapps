@@ -319,7 +319,8 @@ class OutlookGraphService:
             target_email = kwargs.get('target_email')
             message_id = kwargs.get('message_id')
 
-        endpoint = f"messages/{message_id}/attachments"
+        # 🚀 OPTIMIZED: Fetch metadata only to avoid downloading heavy attachment binaries into memory
+        endpoint = f"messages/{message_id}/attachments?$select=id,name,contentType,size"
         response = OutlookGraphService._make_graph_request(endpoint, target_email)
         return response.get('value', []) if isinstance(response, dict) else []
 

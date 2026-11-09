@@ -1004,26 +1004,27 @@ def pssubf_view_thread(request, email_id):
     }
     return render(request, 'pssubf/thread_history.html', context)
 
-# NEW STREAMING CODE
+from .services.token_manager import get_current_access_token
+
 @login_required
 def download_pssubf_attachment(request, message_id, attachment_id):
     """
     Streams raw binary attachment content directly from Graph API to user browser.
     Peak memory utilization stays under 10 KB regardless of file size (e.g. 30 MB+).
     """
-    access_token = OutlookGraphService.get_access_token()
+    access_token = get_current_access_token()
     if not access_token:
         messages.error(request, "Failed to authenticate with Microsoft Graph API.")
         return redirect(request.META.get('HTTP_REFERER', 'pssubf_dashboard'))
 
     headers = {'Authorization': f'Bearer {access_token}'}
+    base_attachment_url = f"https://graph.microsoft.com/v1.0/users/{settings.OUTLOOK_EMAIL_ADDRESS}/messages/{message_id}/attachments/{attachment_id}"
 
     # 1. Retrieve filename and MIME type using lightweight metadata query
-    meta_url = f"https://graph.microsoft.com/v1.0/me/messages/{message_id}/attachments/{attachment_id}"
     meta_params = {'$select': 'name,contentType'}
     
     try:
-        meta_res = requests.get(meta_url, headers=headers, params=meta_params, timeout=30)
+        meta_res = requests.get(base_attachment_url, headers=headers, params=meta_params, timeout=30)
         if meta_res.status_code != 200:
             logger.error(f"Graph attachment metadata failed (HTTP {meta_res.status_code}): {meta_res.text}")
             raise Http404("Attachment metadata not found.")
@@ -1033,7 +1034,7 @@ def download_pssubf_attachment(request, message_id, attachment_id):
         content_type = meta_data.get('contentType', 'application/octet-stream')
 
         # 2. Open binary connection stream to Graph /$value endpoint
-        value_url = f"https://graph.microsoft.com/v1.0/me/messages/{message_id}/attachments/{attachment_id}/$value"
+        value_url = f"{base_attachment_url}/$value"
         graph_stream = requests.get(value_url, headers=headers, stream=True, timeout=30)
 
         if graph_stream.status_code != 200:

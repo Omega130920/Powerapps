@@ -5673,22 +5673,23 @@ def export_global_bank_excel(request):
 @login_required
 def download_attachment_view(request, message_id, attachment_id):
     """
-    Acts as a proxy to download files from Microsoft Graph.
-    Handles both FileAttachments (PDF, Excel, etc.) and ItemAttachments (nested emails).
+    Acts as a proxy to download files from Microsoft Graph on-demand.
+    Fetches heavy content bytes only when explicitly requested by the user.
+    Handles both FileAttachments and ItemAttachments (nested emails).
     """
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     
-    # 1. Fetch metadata first to determine attachment type
+    # 🚀 ON-DEMAND FETCH: Pull the full payload and metadata for this specific attachment ID only now
     attachment_data = OutlookGraphService.get_attachment_raw(target_email, message_id, attachment_id)
     
     if isinstance(attachment_data, dict) and 'error' in attachment_data:
-        logger.error(f"Metadata retrieval failed for {attachment_id}: {attachment_data}")
+        logger.error(f"Metadata/Content retrieval failed for {attachment_id}: {attachment_data}")
         return HttpResponse("Error retrieving attachment info from Microsoft.", status=400)
 
     odata_type = attachment_data.get('@odata.type', '')
     file_name = attachment_data.get('name', 'attachment')
 
-    # 2. Extract content based on type
+    # Extract content based on type
     if odata_type == '#microsoft.graph.fileAttachment':
         if 'contentBytes' in attachment_data:
             content_bytes = attachment_data['contentBytes']
@@ -5711,7 +5712,7 @@ def download_attachment_view(request, message_id, attachment_id):
     else:
         return HttpResponse(f"Unsupported attachment type: {odata_type}", status=400)
 
-    # 3. Build response with encoded headers for special characters
+    # Build response with encoded headers for special characters
     response = HttpResponse(file_content, content_type=content_type)
     safe_filename = urllib.parse.quote(file_name)
     response['Content-Disposition'] = f"attachment; filename=\"{safe_filename}\"; filename*=UTF-8''{safe_filename}"

@@ -15,7 +15,7 @@ def get_user_email_signature(user):
     else:
         username = user.username if hasattr(user, 'username') else str(user)
         
-        # Map your system usernames to the full name that should display in the signature
+        # Map system usernames to the full name that should display in the signature
         name_mapping = {
             'LuanovanEck': 'Luano van Eck',
             'Testuser1': 'Test Agent',
@@ -29,7 +29,7 @@ def get_user_email_signature(user):
         'agent_full_name': full_name,
     }
     
-    # Renders your signature template located at pssubf/pssubf_email_signature.html
+    # Renders signature template located at pssubf/pssubf_email_signature.html
     try:
         return render_to_string('pssubf/pssubf_email_signature.html', context)
     except Exception as e:
