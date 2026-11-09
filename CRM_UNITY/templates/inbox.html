@@ -118,6 +118,36 @@
 
     .delegate-btn { background-color: #f7931e; color: white; }
 
+    /* --- PAGINATION CONTROLS --- */
+    .pagination-container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding-top: 15px;
+        margin-top: 10px;
+        border-top: 1px solid #eee;
+        flex-shrink: 0;
+        font-size: 14px;
+        color: #555;
+    }
+    .pagination-controls {
+        display: flex;
+        gap: 8px;
+    }
+    .page-btn {
+        padding: 6px 12px;
+        background-color: #43a047;
+        color: white;
+        border-radius: 4px;
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 13px;
+    }
+    .page-btn.disabled {
+        background-color: #cccccc;
+        pointer-events: none;
+    }
+
     #hidden_refresher { display: none; }
 </style>
 </head>
@@ -125,6 +155,7 @@
 
     <div style="width: 100%; max-width: 1400px;">
         <a href="{% url 'dashboard' %}" class="btn return-button">← Back To Home Screen</a>
+        <a href="?sync=true" class="btn" style="background-color: #0288d1; color: white;">🔄 Sync with Outlook</a>
     </div>
 
 <div class="log-container">
@@ -138,7 +169,7 @@
             </select>
 
             <input type="text" id="search_input" placeholder="🔍 Search subject or sender..." autofocus>
-            <p style="margin: 0; font-size: 14px; color: #555;">Total Pending: <strong id="pending_count">{{ email_list|length }}</strong></p>
+            <p style="margin: 0; font-size: 14px; color: #555;">Total Pending: <strong id="pending_count">{{ total_pending }}</strong></p>
         </div>
     </div>
     
@@ -179,6 +210,26 @@
             </tbody>
         </table>
     </div>
+
+    <!-- 🚀 PAGINATION BUTTON BAR -->
+    <div class="pagination-container">
+        <div>
+            Page <strong>{{ email_list.number }}</strong> of <strong>{{ email_list.paginator.num_pages }}</strong>
+        </div>
+        <div class="pagination-controls">
+            {% if email_list.has_previous %}
+                <a href="?page={{ email_list.previous_page_number }}" class="page-btn">← Previous</a>
+            {% else %}
+                <span class="page-btn disabled">← Previous</span>
+            {% endif %}
+
+            {% if email_list.has_next %}
+                <a href="?page={{ email_list.next_page_number }}" class="page-btn">Next →</a>
+            {% else %}
+                <span class="page-btn disabled">Next →</span>
+            {% endif %}
+        </div>
+    </div>
 </div>
 
 <iframe id="hidden_refresher" src="{{ request.path }}"></iframe>
@@ -191,7 +242,6 @@ function sortInboxTable(n) {
     const tableBody = document.getElementById("table_body");
     const rows = Array.from(tableBody.querySelectorAll("tr:not(.no-emails)"));
     
-    // Toggle sort order
     sortOrder[n] = !sortOrder[n];
     const isAscending = sortOrder[n];
 
@@ -199,7 +249,6 @@ function sortInboxTable(n) {
         const cellA = rowA.cells[n];
         const cellB = rowB.cells[n];
         
-        // Handle Date Sorting using Unix timestamps
         const sortValA = cellA.getAttribute('data-sort');
         const sortValB = cellB.getAttribute('data-sort');
         
@@ -207,13 +256,11 @@ function sortInboxTable(n) {
             return isAscending ? sortValA - sortValB : sortValB - sortValA;
         }
 
-        // Default string sorting
         let textA = cellA.innerText.trim().toLowerCase();
         let textB = cellB.innerText.trim().toLowerCase();
         return isAscending ? textA.localeCompare(textB) : textB.localeCompare(textA);
     });
 
-    // Re-append rows in new order
     rows.forEach(row => tableBody.appendChild(row));
 }
 
@@ -240,10 +287,10 @@ document.addEventListener('DOMContentLoaded', function() {
         dateSortFilter.addEventListener('change', function() {
             const val = this.value;
             if (val === 'newest') {
-                sortOrder[2] = true; // Set to ASC then sortTable will flip to DESC (Newest)
+                sortOrder[2] = true; 
                 sortInboxTable(2);
             } else if (val === 'oldest') {
-                sortOrder[2] = false; // Set to DESC then sortTable will flip to ASC (Oldest)
+                sortOrder[2] = false; 
                 sortInboxTable(2);
             }
         });
@@ -256,11 +303,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const newRows = iframeDoc.getElementById('table_body').innerHTML;
             const newCount = iframeDoc.getElementById('pending_count').innerText;
 
-            // Preserve search and sorting order
             tableBody.innerHTML = newRows;
             totalDisplay.innerText = newCount;
 
-            // Re-apply current sort if one was selected
             const currentSortVal = dateSortFilter.value;
             if (currentSortVal === 'newest') {
                 sortOrder[2] = true; sortInboxTable(2);

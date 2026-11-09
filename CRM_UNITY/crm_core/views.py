@@ -277,63 +277,56 @@ def logout_view(request):
 @login_required
 def fetch_emails_view(request):
     """
-    MANAGER (omega) ONLY: Live Inbox shows ONLY new emails not yet in the system.
+    Loads instantly from the local database. 
+    Passes ?sync=true in the URL if the user clicks the 'Sync Now' button.
     """
     if request.user.username.lower() != 'omega' and not request.user.is_superuser:
         messages.error(request, "Access restricted.")
         return redirect('tasks')
 
-    # 1. FETCH LIVE FROM OUTLOOK
-    inbox_data = OutlookGraphService.fetch_inbox_messages(top_count=2000)
-    
-    if 'error' in inbox_data:
-        messages.error(request, f"Outlook Error: {inbox_data['error']}")
-        display_emails = CrmInbox.objects.filter(status='Pending').order_by('-received_timestamp')
-        return render(request, 'inbox.html', {'email_list': display_emails})
+    # Optional: Only fetch live from Microsoft Graph if ?sync=true is triggered
+    if request.GET.get('sync') == 'true':
+        inbox_data = OutlookGraphService.fetch_inbox_messages(top_count=100) # Keep count low (e.g., 100 recent) for speed
+        if 'error' not in inbox_data:
+            emails = inbox_data.get('value', [])
+            delegated_ids = set(CrmDelegateTo.objects.values_list('email_id', flat=True))
 
-    emails = inbox_data.get('value', [])
-    
-    # Get IDs of everything already in the delegation table to hide them from the Live Inbox
-    delegated_ids = set(CrmDelegateTo.objects.values_list('email_id', flat=True))
+            for msg in emails:
+                email_id = msg['id']
+                if email_id not in delegated_ids:
+                    raw_date = msg.get('receivedDateTime')
+                    local_date = timezone.localtime(parser.isoparse(raw_date)) if raw_date else None
 
-    # 2. SYNC TO LOCAL DATABASE
-    for msg in emails:
-        email_id = msg['id']
-        
-        # Filter: Only process if it hasn't been delegated yet
-        if email_id not in delegated_ids:
-            raw_date = msg.get('receivedDateTime')
-            
-            # Automatically convert UTC time from Microsoft Graph to local time (Africa/Johannesburg)
-            if raw_date:
-                from dateutil import parser
-                parsed_date = parser.isoparse(raw_date)
-                local_date = timezone.localtime(parsed_date)
-            else:
-                local_date = None
+                    local_entry, created = CrmInbox.objects.get_or_create(
+                        email_id=email_id,
+                        defaults={
+                            'subject': msg.get('subject', 'No Subject'),
+                            'sender': msg.get('from', {}).get('emailAddress', {}).get('address', 'Unknown'),
+                            'snippet': msg.get('bodyPreview', ''),
+                            'received_timestamp': local_date, 
+                            'status': 'Pending'
+                        }
+                    )
+                    if not created and local_date:
+                        local_entry.received_timestamp = local_date
+                        local_entry.save()
+        messages.success(request, "Inbox synchronized with Outlook.")
+        return redirect('fetch_emails')
 
-            local_entry, created = CrmInbox.objects.get_or_create(
-                email_id=email_id,
-                defaults={
-                    'subject': msg.get('subject', 'No Subject'),
-                    'sender': msg.get('from', {}).get('emailAddress', {}).get('address', 'Unknown'),
-                    'snippet': msg.get('bodyPreview', ''),
-                    'received_timestamp': local_date, # Saved with correct local time
-                    'status': 'Pending'
-                }
-            )
-            
-            # Update timestamps for existing entries if needed
-            if not created and local_date:
-                local_entry.received_timestamp = local_date
-                local_entry.save()
-
+    # Standard fast load from local database
     display_emails = CrmInbox.objects.filter(status='Pending').order_by('-received_timestamp')
-    
     for email in display_emails:
         email.received_at = email.received_timestamp
 
-    return render(request, 'inbox.html', {'email_list': display_emails})
+    from django.core.paginator import Paginator
+    paginator = Paginator(display_emails, 50) 
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    return render(request, 'inbox.html', {
+        'email_list': page_obj,
+        'total_pending': display_emails.count()
+    })
 
 @login_required
 def email_registry_view(request):
@@ -379,38 +372,29 @@ def delegate_email_view(request, email_id):
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     inbox_item = get_object_or_404(CrmInbox, email_id=email_id)
     
-    # Check if this is already delegated
     existing_delegation = CrmDelegateTo.objects.filter(email_id=email_id).first()
-    
-    # Define Manager check
     is_manager = request.user.groups.filter(name='Managers').exists() or request.user.is_superuser
     
-    # Logic: If it's delegated and the user is NOT a manager, kick them back to tasks
     if existing_delegation and not is_manager:
         messages.info(request, f"This item is already assigned to {existing_delegation.delegated_to}.")
         return redirect('tasks')
 
-    # Manager can see everyone, Agents see everyone else
-    available_agents = User.objects.filter(is_active=True)
+    available_agents = User.objects.filter(is_active=True) if 'User' in globals() else []
 
-    # ==========================================
-    # 1. HANDLE POST (DELEGATION & RE-DELEGATION)
-    # ==========================================
     if request.method == 'POST':
         agent_name = request.POST.get('agent_name')
-        work_related = request.POST.get('work_related') # 'Yes' or 'No'
+        work_related = request.POST.get('work_related') 
         member_code = request.POST.get('mip_number') 
-        membership_num = request.POST.get('membership_number') # 🟢 NEW: Extract Membership Number
+        membership_num = request.POST.get('membership_number') 
         
         form_data = {
             'member_group_code': member_code,
-            'membership_number': membership_num, # 🟢 NEW: Add to form_data dictionary
+            'membership_number': membership_num, 
             'category': request.POST.get('email_category'),
             'work_related': work_related,
             'type': request.POST.get('email_type'),
         }
 
-        # --- Scenario A: Not Work Related (Recycle Bin) ---
         if work_related == 'No':
             success, message = delegate_email_task(email_id, None, request.user, form_data, is_recycle=True)
             if success:
@@ -424,31 +408,17 @@ def delegate_email_view(request, email_id):
             else:
                 messages.error(request, f"Error: {message}")
                 return redirect('fetch_emails')
-
-        # --- Scenario B: Work Related (Delegate/Re-delegate) ---
         else:
             if not agent_name or agent_name == "__Select Agent__":
                 messages.error(request, "Please select an agent for work-related tasks.")
             else:
-                # Use the utility function to handle DB update/create
                 success, message = delegate_email_task(email_id, agent_name, request.user, form_data)
                 
                 if success:
                     try:
-                        assignee = User.objects.get(pk=agent_name) if agent_name.isdigit() else User.objects.get(username=agent_name)
-                        
-                        # ==============================================================
-                        # 🚫 DISABLED: Outlook auto-reply to the client is commented out
-                        # ==============================================================
-                        # if not existing_delegation:
-                        #     # 🟢 UPDATED: Include Membership Number in the reference
-                        #     reply_payload = {
-                        #         "comment": f"Dear Sender,\n\nThis has been delegated to: {assignee.username}.\nMG Code: {member_code}\nMem No: {membership_num if membership_num else 'N/A'}"
-                        #     }
-                        #     draft = OutlookGraphService._make_graph_request(f"messages/{email_id}/createReply", method='POST', data=reply_payload)
-                        #     if draft and isinstance(draft, dict) and 'id' in draft:
-                        #         OutlookGraphService._make_graph_request(f"messages/{draft['id']}/send", method='POST')
-                        # ==============================================================
+                        from django.contrib.auth import get_user_model
+                        User_Model = get_user_model()
+                        assignee = User_Model.objects.get(pk=agent_name) if agent_name.isdigit() else User_Model.objects.get(username=agent_name)
                         
                         messages.success(request, f"Task assigned to {assignee.username}. (Re-delegation: {'Yes' if existing_delegation else 'No'})")
                     except Exception as e:
@@ -456,9 +426,6 @@ def delegate_email_view(request, email_id):
                 
                     return redirect('fetch_emails')
 
-    # ==========================================
-    # 2. HANDLE GET (DATA FETCHING)
-    # ==========================================
     endpoint = f"messages/{email_id}" 
     email_data = OutlookGraphService._make_graph_request(endpoint, method='GET') 
 
@@ -469,15 +436,22 @@ def delegate_email_view(request, email_id):
         email_body = email_data.get('body', {}).get('content', inbox_item.snippet)
         email_subject_final = email_data.get('subject', inbox_item.subject)
 
-    attachments_list = OutlookGraphService.fetch_attachments(target_email, email_id)
-    
-    if attachments_list and isinstance(attachments_list, list):
-        for att in attachments_list:
-            content_type = att.get('contentType', '').lower()
-            if 'image' in content_type:
-                raw_att = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
-                if raw_att and isinstance(raw_att, dict) and 'contentBytes' in raw_att:
-                    att['contentBytes'] = raw_att['contentBytes']
+    # --- 🚀 FETCH ATTACHMENT METADATA LAZY LOADING ($select) ---
+    attachments_list = []
+    try:
+        meta_endpoint = f"messages/{email_id}/attachments?$select=id,name,contentType,size"
+        meta_response = OutlookGraphService._make_graph_request(meta_endpoint, target_email=target_email, method='GET')
+        attachments_list = meta_response.get('value', []) if isinstance(meta_response, dict) else []
+
+        if attachments_list and isinstance(attachments_list, list):
+            for att in attachments_list:
+                content_type = att.get('contentType', '').lower()
+                if 'image' in content_type:
+                    raw_att = OutlookGraphService.get_attachment_raw(target_email, email_id, att['id'])
+                    if raw_att and isinstance(raw_att, dict) and 'contentBytes' in raw_att:
+                        att['contentBytes'] = raw_att['contentBytes']
+    except Exception as e:
+        print(f"Error fetching CRM attachment metadata: {e}")
 
     return render(request, 'delegate_to.html', {
         'email_id': email_id, 
@@ -1124,8 +1098,6 @@ def tasks_view(request):
     Manager (omega) sees ALL delegated tasks (Delegated AND Completed).
     Agents see ONLY tasks assigned to them.
     """
-    
-    # 🟢 EXACT MAPPING APPLIED HERE
     CATEGORY_CHOICES = {
         '0': '0. No Action Required',
         '1': '1. Reconciliation',
@@ -1144,10 +1116,8 @@ def tasks_view(request):
         '14': '14. Other'
     }
 
-    # 1. Define the statuses we want to see
     VISIBLE_STATUSES = ['Delegated', 'Completed']
 
-    # 2. Fetch the tasks based on user role
     if request.user.username.lower() == 'omega':
         tasks_qs = CrmDelegateTo.objects.filter(status__in=VISIBLE_STATUSES).order_by('-received_timestamp')
     else:
@@ -1156,23 +1126,13 @@ def tasks_view(request):
             status__in=VISIBLE_STATUSES
         ).order_by('-received_timestamp')
     
-    # 3. Get list of related Email IDs for the Lookup Map
     related_email_ids = [t.email_id for t in tasks_qs]
-    
-    # 4. Fetch the original Inbox records (Map both Timestamp AND Sender)
     inbox_records = CrmInbox.objects.filter(email_id__in=related_email_ids)
-    
-    # We create a dictionary where the key is the email_id and the value is the whole record
     inbox_map = {email.email_id: email for email in inbox_records}
 
-    # 5. Build the display list
     display_tasks = []
     for t in tasks_qs:
-        # Get the corresponding inbox record if it exists
         inbox_item = inbox_map.get(t.email_id)
-        
-        # Convert the raw category to a string, then look it up in our dictionary.
-        # If it's not found in the dictionary, it safely falls back to the original value.
         raw_cat = str(t.category).strip() if t.category else ""
         display_category = CATEGORY_CHOICES.get(raw_cat, t.category)
         
@@ -1180,19 +1140,10 @@ def tasks_view(request):
             'subject': t.subject,
             'email_id': t.email_id,
             'member_group_code': t.member_group_code,
-            
-            # Timestamp A: When it originally arrived (from Inbox)
             'arrival_timestamp': inbox_item.received_timestamp if inbox_item else None,
-            
-            # Sender Email Address (from Inbox)
             'sender': inbox_item.sender if inbox_item else "Unknown Sender",
-            
-            # Timestamp B: When it was delegated (from DelegateTo table)
             'delegation_timestamp': t.received_timestamp,
-            
-            # 🟢 Inject the mapped category text here
             'category': display_category,
-            
             'enquiry_type': t.type, 
             'status': t.status,
             'delegated_to': t.delegated_to
@@ -1210,28 +1161,24 @@ def delegate_action_view(request, email_id):
     task = get_object_or_404(CrmDelegateTo, email_id=email_id)
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     
-    # --- 🟢 CAPTURE SOURCE FOR CONDITIONAL BACK BUTTON ---
     source = request.GET.get('from') 
-    
     action_history = CrmDelegateAction.objects.filter(task_email_id=email_id).order_by('-action_timestamp')
 
-    # ==========================================
-    # 🚀 UNIFIED: FETCH FULL TRAIL FROM OUTLOOK LIVE
-    # ==========================================
     endpoint = f"messages/{email_id}"
     email_data = OutlookGraphService._make_graph_request(endpoint, method='GET')
 
     if not isinstance(email_data, dict) or 'error' in email_data:
-        # Fallback to local task data if API call returns an error or fails
         email_body = task.email_body_html if hasattr(task, 'email_body_html') and task.email_body_html else task.snippet
     else:
-        # Pull rich HTML content value straight from the live outlook data map stream
         email_body = email_data.get('body', {}).get('content', task.snippet)
 
-    # --- 🚀 FETCH ATTACHMENT METADATA & IMAGE BYTES ---
+    # --- 🚀 FETCH ATTACHMENT METADATA LAZY LOADING ($select) ---
     attachments_list = []
     try:
-        attachments_list = OutlookGraphService.fetch_attachments(target_email, email_id)
+        meta_endpoint = f"messages/{email_id}/attachments?$select=id,name,contentType,size"
+        meta_response = OutlookGraphService._make_graph_request(meta_endpoint, target_email=target_email, method='GET')
+        attachments_list = meta_response.get('value', []) if isinstance(meta_response, dict) else []
+
         if attachments_list and isinstance(attachments_list, list):
             for att in attachments_list:
                 content_type = att.get('contentType', '').lower()
@@ -1240,14 +1187,13 @@ def delegate_action_view(request, email_id):
                     if raw_att and isinstance(raw_att, dict) and 'contentBytes' in raw_att:
                         att['contentBytes'] = raw_att['contentBytes']
     except Exception as e:
-        print(f"Error fetching CRM attachment data: {e}")
+        print(f"Error fetching CRM attachment metadata: {e}")
 
     if request.method == 'POST':
         action_type = request.POST.get('action_type')
         user_display = request.user.username
         
         with transaction.atomic():
-            # --- 1. RESTORE TO MAIN INBOX LOGIC ---
             if action_type == 'restore_to_inbox':
                 restore_note = request.POST.get('restore_note', 'Restored from Recycle Bin to Main Inbox.')
                 is_from_recycle_bin = (task.status == 'Recycled')
@@ -1275,7 +1221,6 @@ def delegate_action_view(request, email_id):
                     return redirect('recycle_bin')
                 return redirect('fetch_emails') 
 
-            # --- 2. UPDATE METADATA ---
             elif action_type == 'update_metadata':
                 form_mip = request.POST.get('mip_number')
                 task.member_group_code = form_mip  
@@ -1293,7 +1238,6 @@ def delegate_action_view(request, email_id):
                 )
                 messages.success(request, "Task metadata updated successfully.")
 
-            # --- 3. ADD INTERNAL NOTE (MANUAL NOTE SECTION) ---
             elif action_type == 'add_note':
                 note_text = request.POST.get('internal_note')
                 comm_type = request.POST.get('communication_type') 
@@ -1319,7 +1263,6 @@ def delegate_action_view(request, email_id):
                 task.internal_notes = json.dumps(current_notes)
                 task.save()
                 
-                # Posts directly to ClientNotes ONLY when manually added here
                 ClientNotes.objects.create(
                     related_member_group_code=task.member_group_code,
                     notes=note_text,
@@ -1337,7 +1280,6 @@ def delegate_action_view(request, email_id):
                 )
                 messages.success(request, "Internal note saved and logged to SLA.")
 
-            # --- 4. FINALIZE / COMPLETE ---
             elif action_type == 'complete':
                 final_note = request.POST.get('completion_notes', 'Task completed.')
                 task.status = 'Completed'
@@ -1361,7 +1303,6 @@ def delegate_action_view(request, email_id):
                 messages.success(request, "Task marked as Completed.")
                 return redirect('tasks')
 
-            # --- 5. 🚀 SEND RESPONSE (EMAIL REPLY ONLY) ---
             elif action_type == 'send_response':
                 recipient = request.POST.get('recipient')
                 subject = request.POST.get('subject')
@@ -1372,14 +1313,10 @@ def delegate_action_view(request, email_id):
                 bcc_recipients = request.POST.get('member_bcc_email', '')
                 uploaded_files = request.FILES.getlist('attachments')
                 
-                # Convert newlines to HTML breaks (in case it's a standard textarea)
                 body_html = raw_body_html.replace('\r\n', '<br>').replace('\n', '<br>')
 
                 if recipient and subject and body_html:
-                    # 🚀 DYNAMIC SIGNATURE INJECTION 🚀
                     logo_url = "https://static.futurasa.co.za/images/futura-logo.png"
-                    
-                    # Fetch dynamic name and title using the helper
                     agent_name, agent_title = get_crm_signature_details(request.user)
 
                     signature_html = render_to_string('email_signature.html', {
@@ -1390,9 +1327,7 @@ def delegate_action_view(request, email_id):
                         'agent_title': agent_title
                     })
                     
-                    # 🚀 --- FETCH ORIGINAL EMAIL FOR THREAD HISTORY --- 🚀
                     try:
-                        from dateutil import parser
                         original_email = OutlookGraphService._make_graph_request(f"messages/{email_id}", method='GET')
                         
                         if isinstance(original_email, dict) and 'body' in original_email:
@@ -1421,13 +1356,10 @@ def delegate_action_view(request, email_id):
                             <br>
                             {orig_body}
                             """
-                            
-                            # Combine: New Body -> Signature -> Thread History
                             full_body_html = f"<div>{body_html}</div><br><br>{signature_html}{thread_history}"
                         else:
                             full_body_html = f"<div>{body_html}</div><br><br>{signature_html}"
                     except Exception as e:
-                        # Safe fallback if API fetch fails
                         full_body_html = f"<div>{body_html}</div><br><br>{signature_html}"
 
                     result = OutlookGraphService.send_outlook_email(
@@ -1442,7 +1374,6 @@ def delegate_action_view(request, email_id):
                     )
                     
                     if result.get('success') or result == {}:
-                        # 🚀 Capture attachment names if any were uploaded
                         att_names = ", ".join([f.name for f in uploaded_files]) if uploaded_files else None
 
                         CrmDelegateAction.objects.create(
@@ -1454,9 +1385,8 @@ def delegate_action_view(request, email_id):
                             cc_recipients=cc_recipients,
                             bcc_recipients=bcc_recipients,
                             related_subject=subject,
-                            attachment_name=att_names  # 👈 Saved attachment name(s)
+                            attachment_name=att_names 
                         )
-                        
                         messages.success(request, f"Reply Sent successfully.")
                     else:
                         messages.error(request, f"Email failed: {result.get('error')}")
@@ -1743,20 +1673,25 @@ def delete_recycled_tasks_view(request):
 
 @login_required
 def download_attachment_view(request, message_id, attachment_id):
-    """Securely downloads email attachments via Microsoft Graph."""
-    endpoint = f"messages/{message_id}/attachments/{attachment_id}"
-    attachment_data = OutlookGraphService._make_graph_request(endpoint, method='GET')
+    """Securely downloads email attachments on-demand using Microsoft Graph /$value stream."""
+    target_email = settings.OUTLOOK_EMAIL_ADDRESS
     
-    if 'error' in attachment_data:
-        messages.error(request, f"Microsoft Error: {attachment_data['error']}")
+    # Stream raw bytes on-demand without loading full base64 payloads into memory upfront
+    file_bytes = OutlookGraphService.get_attachment_mime(target_email, message_id, attachment_id)
+    
+    if isinstance(file_bytes, dict) and 'error' in file_bytes:
+        messages.error(request, f"Microsoft Error: {file_bytes['error']}")
         return redirect('delegate_action', email_id=message_id)
 
     try:
-        file_content = base64.b64decode(attachment_data.get('contentBytes', ''))
-        filename = attachment_data.get('name', 'attachment')
-        content_type = attachment_data.get('contentType', 'application/octet-stream')
+        # Fetch lightweight metadata for filename and content type headers
+        meta_endpoint = f"messages/{message_id}/attachments/{attachment_id}?$select=name,contentType"
+        meta_data = OutlookGraphService._make_graph_request(meta_endpoint, target_email=target_email, method='GET')
         
-        response = HttpResponse(file_content, content_type=content_type)
+        filename = meta_data.get('name', 'attachment') if isinstance(meta_data, dict) else 'attachment'
+        content_type = meta_data.get('contentType', 'application/octet-stream') if isinstance(meta_data, dict) else 'application/octet-stream'
+        
+        response = HttpResponse(file_bytes, content_type=content_type)
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
     except Exception as e:
@@ -1829,27 +1764,30 @@ def view_email_thread(request, email_id):
 
 @login_required
 def download_attachment_view(request, message_id, attachment_id):
-    """
-    Fetches the raw attachment from Microsoft Graph and serves it as a download.
-    """
+    """Securely downloads email attachments on-demand using Microsoft Graph /$value stream."""
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     
-    # 1. Fetch raw data from your service
-    raw_data = OutlookGraphService.get_attachment_raw(target_email, message_id, attachment_id)
+    # Stream raw bytes on-demand without loading full base64 payloads into memory upfront
+    file_bytes = OutlookGraphService.get_attachment_mime(target_email, message_id, attachment_id)
     
-    if 'error' in raw_data or 'contentBytes' not in raw_data:
-        return HttpResponse("Error: Could not retrieve attachment.", status=404)
+    if isinstance(file_bytes, dict) and 'error' in file_bytes:
+        messages.error(request, f"Microsoft Error: {file_bytes['error']}")
+        return redirect('delegate_action', email_id=message_id)
 
-    # 2. Decode the Base64 content
-    file_content = base64.b64decode(raw_data['contentBytes'])
-    file_name = raw_data.get('name', 'attachment')
-    content_type = raw_data.get('contentType', 'application/octet-stream')
-
-    # 3. Create the HTTP response with file headers
-    response = HttpResponse(file_content, content_type=content_type)
-    response['Content-Disposition'] = f'attachment; filename="{file_name}"'
-    
-    return response
+    try:
+        # Fetch lightweight metadata for filename and content type headers
+        meta_endpoint = f"messages/{message_id}/attachments/{attachment_id}?$select=name,contentType"
+        meta_data = OutlookGraphService._make_graph_request(meta_endpoint, target_email=target_email, method='GET')
+        
+        filename = meta_data.get('name', 'attachment') if isinstance(meta_data, dict) else 'attachment'
+        content_type = meta_data.get('contentType', 'application/octet-stream') if isinstance(meta_data, dict) else 'application/octet-stream'
+        
+        response = HttpResponse(file_bytes, content_type=content_type)
+        response['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return response
+    except Exception as e:
+        messages.error(request, f"Download failed: {str(e)}")
+        return redirect('delegate_action', email_id=message_id)
 
 @login_required
 def export_delegation_report_excel(request):
