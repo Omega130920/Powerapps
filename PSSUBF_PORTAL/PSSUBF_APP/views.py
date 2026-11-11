@@ -580,12 +580,12 @@ def pssubf_action_view(request, email_id):
         target_email = settings.OUTLOOK_EMAIL_ADDRESS 
 
     # 🟢 TERMINAL DEBUGGER: View this in your VS Code terminal when reloading the page
-    print(f"--- DEBUG VANESSA ACCESS ---")
-    print(f"Cleaned Username: '{current_user_clean}'")
-    print(f"is_vanessa Evaluated To: {is_vanessa}")
-    print(f"is_system_log Evaluated To: {is_system_log}")
-    print(f"Task ID Clicked: {email_id}")
-    print(f"-----------------------------")
+    #print(f"--- DEBUG VANESSA ACCESS ---")
+    #print(f"Cleaned Username: '{current_user_clean}'")
+    #print(f"is_vanessa Evaluated To: {is_vanessa}")
+    #print(f"is_system_log Evaluated To: {is_system_log}")
+    #print(f"Task ID Clicked: {email_id}")
+    #print(f"-----------------------------")
 
     # --- POST Logic ---
     if request.method == 'POST':
@@ -2103,13 +2103,13 @@ def beneficiary_details_view(request, membership_number):
                 response = requests.post(winsms_url, json=payload, headers=headers, timeout=15)
                 
                 # ------------------ WINSMS REST API DEBUG BLOCK ------------------
-                masked_key = f"{api_key[:4]}***" if api_key else "EMPTY"
-                print("\n" + "=" * 60)
-                print(f"[WinSMS REST v1 DEBUG] Destination     : {formatted_number}")
-                print(f"[WinSMS REST v1 DEBUG] HTTP Status Code: {response.status_code}")
-                print(f"[WinSMS REST v1 DEBUG] API Key Loaded  : {masked_key} (Length: {len(api_key)})")
-                print(f"[WinSMS REST v1 DEBUG] Raw JSON Response:\n{response.text}")
-                print("=" * 60 + "\n")
+                #masked_key = f"{api_key[:4]}***" if api_key else "EMPTY"
+                #print("\n" + "=" * 60)
+                #print(f"[WinSMS REST v1 DEBUG] Destination     : {formatted_number}")
+                #print(f"[WinSMS REST v1 DEBUG] HTTP Status Code: {response.status_code}")
+                #print(f"[WinSMS REST v1 DEBUG] API Key Loaded  : {masked_key} (Length: {len(api_key)})")
+                #print(f"[WinSMS REST v1 DEBUG] Raw JSON Response:\n{response.text}")
+                #print("=" * 60 + "\n")
                 # -----------------------------------------------------------------
 
                 is_success = False

@@ -81,8 +81,10 @@
                 <strong>Date:</strong> 
                 {% if is_direct %}
                     {{ task.sent_at|date:"d M Y, H:i" }}
+                {% elif inbox_item and inbox_item.received_timestamp %}
+                    {{ inbox_item.received_timestamp|date:"d M Y, H:i" }}
                 {% else %}
-                    {{ inbox_item.received_timestamp|default:task.received_timestamp|date:"d M Y, H:i" }}
+                    {{ task.received_timestamp|date:"d M Y, H:i" }}
                 {% endif %}
             </div>
         </div>

@@ -15,7 +15,7 @@ from openpyxl.styles import Font, Alignment, PatternFill
 from datetime import timedelta
 from django.utils.dateparse import parse_datetime
 from django.template.loader import render_to_string
-
+from django.http import StreamingHttpResponse, Http404, HttpResponse
 from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout, get_user_model
@@ -32,6 +32,8 @@ from django.db import connection, transaction
 from django.forms.models import model_to_dict
 from django.urls import reverse
 import base64
+import logging
+logger = logging.getLogger(__name__)
 
 # Model Imports
 from .models import (
@@ -347,12 +349,27 @@ def recycle_bin_view(request):
 
 @login_required
 def get_email_content_view(request, email_id):
-    """Fetches raw HTML email content via Service Account."""
+    """Fetches raw HTML email content via Service Account. Removes task if deleted on Graph."""
     endpoint = f"messages/{email_id}"
     email_data = OutlookGraphService._make_graph_request(endpoint, method='GET')
     
-    if 'error' in email_data:
-        return HttpResponse(f"<h1>Outlook Error</h1><p>{email_data['error']}</p>", status=1000)
+    if isinstance(email_data, dict) and 'error' in email_data:
+        # Check if the error is a 404 Not Found / ItemNotFound
+        error_code = str(email_data.get('error', '')).lower()
+        if 'itemnotfound' in error_code or '404' in error_code:
+            logger.warning(f"Email {email_id} deleted on Graph. Removing from local DB.")
+            
+            # Remove from local database to stop repeated lookups
+            CrmDelegateTo.objects.filter(email_id=email_id).delete()
+            CrmInbox.objects.filter(email_id=email_id).delete()
+            
+            return HttpResponse(
+                "<h1>Email Deleted</h1><p>This email no longer exists in Microsoft Outlook and has been cleared from the system.</p>", 
+                status=404
+            )
+            
+        # Return a safe error response for other Microsoft Graph errors
+        return HttpResponse(f"<h1>Outlook Error</h1><p>{email_data['error']}</p>", status=500)
 
     body_data = email_data.get('body', {})
     content = body_data.get('content', 'No content found.')
@@ -1704,10 +1721,13 @@ def view_email_thread(request, email_id):
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     
     # 1. Try to get the delegation record first. If not found, try the DirectEmailLog.
+    is_direct = False
     task = CrmDelegateTo.objects.filter(email_id=email_id).first()
     if not task:
         # Fallback to DirectEmailLog if it's a direct email
         task = DirectEmailLog.objects.filter(outlook_message_id=email_id).first()
+        if task:
+            is_direct = True
     
     # If it's still not found in either table, then 404
     if not task:
@@ -1754,6 +1774,7 @@ def view_email_thread(request, email_id):
 
     context = {
         'task': task,
+        'is_direct': is_direct,
         'inbox_item': inbox_item,
         'actions': actions,
         'email_body': email_body,
@@ -1764,28 +1785,36 @@ def view_email_thread(request, email_id):
 
 @login_required
 def download_attachment_view(request, message_id, attachment_id):
-    """Securely downloads email attachments on-demand using Microsoft Graph /$value stream."""
+    """Securely streams email attachments on-demand using Microsoft Graph /$value in chunks."""
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     
-    # Stream raw bytes on-demand without loading full base64 payloads into memory upfront
-    file_bytes = OutlookGraphService.get_attachment_mime(target_email, message_id, attachment_id)
-    
-    if isinstance(file_bytes, dict) and 'error' in file_bytes:
-        messages.error(request, f"Microsoft Error: {file_bytes['error']}")
-        return redirect('delegate_action', email_id=message_id)
-
     try:
-        # Fetch lightweight metadata for filename and content type headers
+        # 1. Fetch lightweight metadata for filename and content type headers
         meta_endpoint = f"messages/{message_id}/attachments/{attachment_id}?$select=name,contentType"
         meta_data = OutlookGraphService._make_graph_request(meta_endpoint, target_email=target_email, method='GET')
         
+        if isinstance(meta_data, dict) and 'error' in meta_data:
+            messages.error(request, f"Microsoft Error: {meta_data['error']}")
+            return redirect('delegate_action', email_id=message_id)
+
         filename = meta_data.get('name', 'attachment') if isinstance(meta_data, dict) else 'attachment'
         content_type = meta_data.get('contentType', 'application/octet-stream') if isinstance(meta_data, dict) else 'application/octet-stream'
+
+        # 2. Get the stream generator from the Outlook Service
+        file_stream = OutlookGraphService.stream_attachment_mime(target_email, message_id, attachment_id)
         
-        response = HttpResponse(file_bytes, content_type=content_type)
+        if not file_stream:
+            messages.error(request, "Failed to open file stream from Microsoft Graph.")
+            return redirect('delegate_action', email_id=message_id)
+
+        # 3. Stream the file directly to the user in 8 KB chunks
+        response = StreamingHttpResponse(file_stream, content_type=content_type)
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
+        
     except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"Streaming download failed: {str(e)}")
         messages.error(request, f"Download failed: {str(e)}")
         return redirect('delegate_action', email_id=message_id)
 

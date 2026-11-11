@@ -112,7 +112,7 @@ class OutlookGraphService:
         
         headers = {
             'Authorization': f'Bearer {access_token}',
-            'Prefer': 'outlook.timezone="South Africa Standard Time"'  # Forces Microsoft Graph to return SAST
+            'Prefer': 'outlook.timezone="South Africa Standard Time"'
         }
         
         # Only add JSON content-type if we aren't requesting a raw value stream
@@ -120,17 +120,17 @@ class OutlookGraphService:
             headers['Content-Type'] = 'application/json'
 
         try:
-            # Added timeouts to prevent the app from hanging during network delays
             if method == 'GET':
-                response = requests.get(url, headers=headers, timeout=(5, 25))
+                # stream=is_mime prevents loading massive binaries into RAM immediately
+                response = requests.get(url, headers=headers, timeout=(5, 25), stream=is_mime)
             elif method == 'POST':
                 response = requests.post(url, headers=headers, json=data if isinstance(data, dict) else None, timeout=(5, 25))
             else:
                 return {'error': f"Unsupported HTTP method: {method}"}
             
-            # If we requested a MIME stream ($value), return the raw content bytes
+            # If we requested a MIME stream ($value), return the active request response
             if is_mime and response.status_code == 200:
-                return response.content
+                return response
 
             # 202 Accepted (common for sendMail) returns empty text
             if response.status_code == 202 or not response.text:
@@ -145,6 +145,29 @@ class OutlookGraphService:
             except Exception:
                 error_detail = str(e)
             return {'error': error_detail}
+
+    @staticmethod
+    def stream_attachment_mime(target_email, message_id, attachment_id, chunk_size=8192):
+        """
+        Streams the raw binary content of an attachment in chunks directly 
+        from the /$value endpoint to prevent RAM exhaustion.
+        """
+        endpoint = f"messages/{message_id}/attachments/{attachment_id}/$value"
+        response = OutlookGraphService._make_graph_request(
+            endpoint, target_email=target_email, method='GET', is_mime=True
+        )
+
+        if isinstance(response, dict) and 'error' in response:
+            logger.error(f"Error initiating stream for attachment {attachment_id}: {response['error']}")
+            return None
+
+        # Yield chunks of data as they arrive
+        def file_iterator():
+            for chunk in response.iter_content(chunk_size=chunk_size):
+                if chunk:
+                    yield chunk
+                    
+        return file_iterator()
 
     @staticmethod
     def fetch_inbox_messages(target_email=None, top_count=500):
@@ -306,7 +329,8 @@ class OutlookGraphService:
             attachment_id = kwargs.get('attachment_id')
 
         endpoint = f"messages/{message_id}/attachments/{attachment_id}/$value"
-        return OutlookGraphService._make_graph_request(endpoint, target_email=target_email, method='GET', is_mime=True)
+        response = OutlookGraphService._make_graph_request(endpoint, target_email=target_email, method='GET', is_mime=True)
+        return response.content if hasattr(response, 'content') else response
 
     @staticmethod
     def get_email_mime_content(*args, **kwargs):
@@ -323,4 +347,5 @@ class OutlookGraphService:
             message_id = kwargs.get('message_id')
 
         endpoint = f"messages/{message_id}/$value"
-        return OutlookGraphService._make_graph_request(endpoint, target_email=target_email, method='GET', is_mime=True)
+        response = OutlookGraphService._make_graph_request(endpoint, target_email=target_email, method='GET', is_mime=True)
+        return response.content if hasattr(response, 'content') else response

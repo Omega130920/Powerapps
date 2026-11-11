@@ -1,19 +1,23 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = 'django-insecure-eqv3)lf)ob3%mvhf8$h#ow+7ya3zzq0$2c4lkl=yh9)jdixt-q'
+# Load environment variables from a local .env file
+load_dotenv(os.path.join(BASE_DIR, '.env'))
 
-DEBUG = True
+# --- Secure API Integrations & Core Settings ---
+SECRET_KEY = os.environ.get('SECRET_KEY', 'django-insecure-eqv3)lf)ob3%mvhf8$h#ow+7ya3zzq0$2c4lkl=yh9)jdixt-q')
 
-ALLOWED_HOSTS = ['*','pssubf.futurasa.co.za','pssubf.futura.co.za']
-# Modified for development flexibility
+DEBUG = False
+
+ALLOWED_HOSTS = ['*', 'pssubf.futurasa.co.za', 'pssubf.futura.co.za']
 
 # 1. Trust the secure domain for form submissions
 CSRF_TRUSTED_ORIGINS = [
     'https://pssubf.futurasa.co.za',
-    'https://pssubf.futura.co.za', # Added both variants just in case
+    'https://pssubf.futura.co.za', 
 ]
 
 # 2. Handle the Proxy headers from your hoster (Critical for SSL)
@@ -22,8 +26,8 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 # 3. Security tweaks for HTTPS
 SESSION_COOKIE_SECURE = True
 CSRF_COOKIE_SECURE = True
-# --- Application definition ---
 
+# --- Application definition ---
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -40,7 +44,7 @@ MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',  # Re-enable this
+    'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -51,7 +55,6 @@ ROOT_URLCONF = 'PSSUBF_PORTAL.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        # Change DIRS to this to be 100% sure:
         'DIRS': [os.path.join(BASE_DIR, 'templates')], 
         'APP_DIRS': True,
         'OPTIONS': {
@@ -68,14 +71,12 @@ WSGI_APPLICATION = 'PSSUBF_PORTAL.wsgi.application'
 
 
 # --- Database Configuration (MySQL for Unmanaged Models) ---
-# Ensure you have 'mysqlclient' or 'django-mysql' installed
-
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
         'NAME': 'pssubf_db',
-        'USER': 'root',
-        'PASSWORD': '13Sept2020@',
+        'USER': os.environ.get('DB_USER', 'pssubf_user'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', ''),
         'HOST': '127.0.0.1',
         'PORT': '3306',
         'OPTIONS': {
@@ -85,22 +86,21 @@ DATABASES = {
     }
 }
 
-
 # --- Microsoft Graph API Settings (Outlook) ---
-
-MSGRAPH_CLIENT_ID = 'your-client-id-here'
-MSGRAPH_CLIENT_SECRET = 'your-client-secret-here'
-MSGRAPH_TENANT_ID = 'your-tenant-id-here'
+MSGRAPH_CLIENT_ID = os.environ.get('MSGRAPH_CLIENT_ID', '')
+MSGRAPH_CLIENT_SECRET = os.environ.get('MSGRAPH_CLIENT_SECRET', '')
+MSGRAPH_TENANT_ID = os.environ.get('MSGRAPH_TENANT_ID', '')
 
 # The service account email specifically for PSSUBF
-OUTLOOK_EMAIL_ADDRESS = 'pssubf_service@futurasa.co.za'
+OUTLOOK_EMAIL_ADDRESS = 'pssbf@futurasa.co.za'
 
 # Required for the service layer logic
 GRAPH_SCOPES = ['https://graph.microsoft.com/.default']
 
+WINSMS_API_KEY = os.environ.get('WINSMS_API_KEY', '')
+
 
 # --- Password validation ---
-
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
     {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
@@ -110,22 +110,19 @@ AUTH_PASSWORD_VALIDATORS = [
 
 
 # --- Internationalization ---
-
 LANGUAGE_CODE = 'en-us'
-TIME_ZONE = 'Africa/Johannesburg' # Updated to local time
+TIME_ZONE = 'Africa/Johannesburg' 
 USE_I18N = True
 USE_TZ = True
 
 
 # --- Static & Media Files ---
-
 STATIC_URL = 'static/'
 STATICFILES_DIRS = [os.path.join(BASE_DIR, 'static')]
 STATIC_ROOT = os.path.join(BASE_DIR, 'assets')
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -134,10 +131,3 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_REDIRECT_URL = 'pssubf_switchboard'
 LOGIN_URL = 'login'
 LOGOUT_REDIRECT_URL = 'login'
-
-MSGRAPH_CLIENT_ID = '9f82e57d-45a4-4b66-ab29-8a9b381a082a'
-MSGRAPH_CLIENT_SECRET = 'PA38Q~14Js~5d7juZm6HjhK8bSOyXDg6ZtdVFdg~'
-MSGRAPH_TENANT_ID = '7bcfc080-e1f1-4f99-b4ed-e1a96eda89ce'
-OUTLOOK_EMAIL_ADDRESS = 'pssbf@futurasa.co.za'
-
-WINSMS_API_KEY = 'B3DE8A26-093E-4F11-A976-5D139AD38A04'
