@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 from .models import (
     ComplaintLog, CrmUnityOutlookToken, DirectEmail, DirectEmailLog, GlobalFundContact, Cbc, CbcAdminPerson, CbcConsultancyPerson,
     Cfa, CfaAdminPerson, Cfa2, Cfa3, CommunicationsPerson,
-    HumanResources, Section13a, ClientNotes,
+    HumanResources, Section13a, MedicalCorrespondence, ClientNotes,
     MemberDocument, CrmInbox, CrmDelegateTo, CrmDelegateAction, DelegationReport
 )
 
@@ -1003,11 +1003,24 @@ def add_member(request):
 # EXCEL IMPORT (RESTORED)
 # ==============================================================================
 
+from .models import (
+    ComplaintLog, CrmUnityOutlookToken, DirectEmail, DirectEmailLog, GlobalFundContact, Cbc, CbcAdminPerson, CbcConsultancyPerson,
+    Cfa, CfaAdminPerson, Cfa2, Cfa3, CommunicationsPerson,
+    HumanResources, Section13a, MedicalCorrespondence, ClientNotes,
+    MemberDocument, CrmInbox, CrmDelegateTo, CrmDelegateAction, DelegationReport
+)
+
 @login_required
 def import_global_data(request):
+    import datetime
+    import zipfile
+    import openpyxl
+    from django.db import transaction
+
     if request.method == 'POST' and 'master_file' in request.FILES:
         master_file = request.FILES['master_file']
-        
+        has_header = 'header_row' in request.POST
+
         stats = {
             'total_created': 0,
             'total_updated': 0,
@@ -1018,85 +1031,232 @@ def import_global_data(request):
         if not master_file.name.lower().endswith('.xlsx'):
             return render(request, 'import_global_data.html', {'error_message': "Only '.xlsx' files are supported."})
 
-        import zipfile
         if not zipfile.is_zipfile(master_file):
             return render(request, 'import_global_data.html', {'error_message': "File Structure Error."})
 
-        try:
-            workbook = openpyxl.load_workbook(master_file, data_only=True)
-            
-            sheet_model_map = {
-                'global_fund_contact_list': GlobalFundContact,
-                'cbc': Cbc,
-                'cbc_admin_person': CbcAdminPerson,
-                'cbc_consultancy_person': CbcConsultancyPerson,
-                'cfa': Cfa,
-                'cfa_admin_person': CfaAdminPerson,
-                'cfa2': Cfa2,
-                'cfa3': Cfa3,
-                'communications_person': CommunicationsPerson,
-                'human_resources': HumanResources,
-                'section13a': Section13a,
-            }
+        def clean_val(val, is_date=False):
+            if val is None:
+                return None
+            if is_date:
+                if isinstance(val, datetime.datetime):
+                    return val.date()
+                if isinstance(val, datetime.date):
+                    return val
+                val_str = str(val).strip()
+                if not val_str or val_str.lower() in ('<none>', 'none', 'null', 'nan'):
+                    return None
+                for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%d.%m.%Y', '%Y/%m/%d'):
+                    try:
+                        return datetime.datetime.strptime(val_str[:10], fmt).date()
+                    except ValueError:
+                        continue
+                return None
+            val_str = str(val).strip()
+            if val_str == '' or val_str.lower() in ('<none>', 'none', 'null', 'nan'):
+                return None
+            # Strip trailing .0 from numeric strings read from Excel
+            if val_str.endswith('.0') and val_str[:-2].isdigit():
+                val_str = val_str[:-2]
+            return val_str
 
-            for sheet_name, model_class in sheet_model_map.items():
-                if sheet_name in workbook.sheetnames:
-                    sheet = workbook[sheet_name]
-                    stats['sheets_processed'] += 1
-                    
-                    rows = list(sheet.rows)
-                    if len(rows) < 2:
+        try:
+            master_file.seek(0)
+            workbook = openpyxl.load_workbook(master_file, data_only=True)
+
+            # =========================================================================
+            # MODE 1: Single Horizontal Master Sheet ('Global Funds')
+            # =========================================================================
+            if 'Global Funds' in workbook.sheetnames:
+                sheet = workbook['Global Funds']
+                stats['sheets_processed'] += 1
+                rows = list(sheet.iter_rows(values_only=True))
+                start_idx = 1 if has_header else 0
+
+                CONTACT_10 = [
+                    'title', 'first_name', 'surname', 'id_number', 'email_address',
+                    'work_dial_code', 'work_contact_number', 'fax_dial_code', 'fax_number', 'mobile_number'
+                ]
+                CONTACT_11_IND = [
+                    'title', 'first_name', 'surname', 'id_number', 'email_address', 'indemnity',
+                    'work_dial_code', 'work_contact_number', 'fax_dial_code', 'fax_number', 'mobile_number'
+                ]
+                CONTACT_14_ADDR = CONTACT_10 + [
+                    'business_postal_address', 'post_code', 'business_physical_address', 'post_code2'
+                ]
+                CONTACT_15_IND_ADDR = CONTACT_11_IND + [
+                    'business_postal_address', 'post_code', 'business_physical_address', 'post_code2'
+                ]
+
+                HORIZONTAL_BLOCKS = [
+                    (CommunicationsPerson, 8, CONTACT_10),
+                    (HumanResources, 18, CONTACT_11_IND),
+                    (Section13a, 29, CONTACT_11_IND),
+                    (Cbc, 40, CONTACT_15_IND_ADDR),
+                    (CbcAdminPerson, 55, CONTACT_10),
+                    (CbcConsultancyPerson, 65, CONTACT_10),
+                    (Cfa, 75, CONTACT_14_ADDR),
+                    (Cfa2, 89, CONTACT_14_ADDR),
+                    (Cfa3, 103, CONTACT_14_ADDR),
+                    (CfaAdminPerson, 117, CONTACT_10),
+                    (MedicalCorrespondence, 127, CONTACT_10),
+                ]
+
+                for row_idx, row in enumerate(rows[start_idx:], start=start_idx + 1):
+                    if not row or len(row) < 8:
                         continue
 
-                    header = []
-                    for cell in rows[0]:
-                        if cell.value:
-                            header.append(str(cell.value).strip().lower().replace(' ', '_'))
-                        else:
-                            header.append(None)
-                    
-                    for row_idx, row in enumerate(rows[1:], start=2):
-                        row_values = [cell.value for cell in row]
-                        row_data = dict(zip(header, row_values))
+                    mg_code = clean_val(row[0])
+                    if not mg_code:
+                        continue
 
-                        clean_data = {}
-                        for k, v in row_data.items():
-                            if k and v is not None and str(v).strip() != '':
-                                clean_data[k] = v
+                    # 1. Update/Create Core GlobalFundContact (Cols 1-8)
+                    fund_defaults = {
+                        'member_group_name': clean_val(row[1]),
+                        'commencement_date': clean_val(row[2], is_date=True),
+                        'fund_status': clean_val(row[3]),
+                        'business_postal_address': clean_val(row[4]),
+                        'business_postal_address_post_code': clean_val(row[5]),
+                        'business_physical_address2': clean_val(row[6]),
+                        'business_physical_address_post_code2': clean_val(row[7]),
+                    }
+                    fund_clean = {k: v for k, v in fund_defaults.items() if v is not None}
 
-                        # 🟢 FIX: Check multiple common header names for the code column
-                        mg_code = (
-                            clean_data.pop('member_group_code', None) or 
-                            clean_data.pop('group_code', None) or 
-                            clean_data.pop('code', None)
-                        )
+                    try:
+                        with transaction.atomic():
+                            _, created = GlobalFundContact.objects.update_or_create(
+                                member_group_code=mg_code,
+                                defaults=fund_clean
+                            )
+                            if created:
+                                stats['total_created'] += 1
+                            else:
+                                stats['total_updated'] += 1
+                    except Exception as e:
+                        stats['errors'].append(f"Row {row_idx} [GlobalFundContact] (Code: {mg_code}): {str(e)}")
 
-                        if mg_code:
-                            mg_code_str = str(mg_code).strip()
-                            
-                            # 🟢 FIX: Catch row-level database errors so one bad row doesn't skip silently
+                    # 2. Update/Create Each of the 11 Related Contact Models
+                    for model_cls, col_start, field_names in HORIZONTAL_BLOCKS:
+                        block_data = {}
+                        for offset, field_name in enumerate(field_names):
+                            col_pos = col_start + offset
+                            if col_pos < len(row):
+                                val = clean_val(row[col_pos])
+                                if val is not None:
+                                    # Truncate dial/post codes to 10 chars to prevent MySQL DataError
+                                    if field_name in ('work_dial_code', 'fax_dial_code', 'post_code', 'post_code2'):
+                                        val = val[:10]
+                                    block_data[field_name] = val
+
+                        if block_data:
                             try:
                                 with transaction.atomic():
-                                    obj, created = model_class.objects.update_or_create(
-                                        member_group_code=mg_code_str,
-                                        defaults=clean_data
+                                    _, created = model_cls.objects.update_or_create(
+                                        member_group_code=mg_code,
+                                        defaults=block_data
                                     )
                                     if created:
                                         stats['total_created'] += 1
                                     else:
                                         stats['total_updated'] += 1
                             except Exception as e:
-                                stats['errors'].append(f"Sheet '{sheet_name}', Row {row_idx} (Code: {mg_code_str}): {str(e)}")
+                                stats['errors'].append(
+                                    f"Row {row_idx} [{model_cls.__name__}] (Code: {mg_code}): {str(e)}"
+                                )
+
+            # =========================================================================
+            # MODE 2: Legacy Multi-Sheet Format (if uploaded with individual tabs)
+            # =========================================================================
+            else:
+                sheet_model_map = {
+                    'global_fund_contact_list': GlobalFundContact,
+                    'cbc': Cbc,
+                    'cbc_admin_person': CbcAdminPerson,
+                    'cbc_consultancy_person': CbcConsultancyPerson,
+                    'cfa': Cfa,
+                    'cfa_admin_person': CfaAdminPerson,
+                    'cfa2': Cfa2,
+                    'cfa3': Cfa3,
+                    'communications_person': CommunicationsPerson,
+                    'human_resources': HumanResources,
+                    'section13a': Section13a,
+                    'section_13a': Section13a,
+                    'medical_correspondence': MedicalCorrespondence,
+                }
+
+                HEADER_ALIASES = {
+                    'e-mail_address': 'email_address',
+                    'e_mail_address': 'email_address',
+                    'email': 'email_address',
+                    'business_physical_address': 'business_physical_address2',
+                    'business_physical_address_post_code': 'business_physical_address_post_code2',
+                }
+
+                for sheet_name in workbook.sheetnames:
+                    norm_sheet = sheet_name.strip().lower().replace(' ', '_')
+                    model_class = sheet_model_map.get(norm_sheet)
+                    if not model_class:
+                        continue
+
+                    sheet = workbook[sheet_name]
+                    stats['sheets_processed'] += 1
+                    rows = list(sheet.iter_rows(values_only=True))
+                    if len(rows) < 2:
+                        continue
+
+                    valid_fields = {f.name for f in model_class._meta.get_fields()}
+                    header = []
+                    for cell_val in rows[0]:
+                        if cell_val:
+                            h = str(cell_val).strip().lower().replace(' ', '_')
+                            h = HEADER_ALIASES.get(h, h)
+                            header.append(h)
+                        else:
+                            header.append(None)
+
+                    for row_idx, row in enumerate(rows[1:], start=2):
+                        row_data = dict(zip(header, row))
+                        mg_code = clean_val(
+                            row_data.pop('member_group_code', None) or
+                            row_data.pop('group_code', None) or
+                            row_data.pop('code', None)
+                        )
+                        if not mg_code:
+                            continue
+
+                        clean_data = {}
+                        for k, v in row_data.items():
+                            if k and k in valid_fields:
+                                cleaned = clean_val(v, is_date=(k == 'commencement_date'))
+                                if cleaned is not None:
+                                    clean_data[k] = cleaned
+
+                        try:
+                            with transaction.atomic():
+                                _, created = model_class.objects.update_or_create(
+                                    member_group_code=mg_code,
+                                    defaults=clean_data
+                                )
+                                if created:
+                                    stats['total_created'] += 1
+                                else:
+                                    stats['total_updated'] += 1
+                        except Exception as e:
+                            stats['errors'].append(f"Sheet '{sheet_name}', Row {row_idx} (Code: {mg_code}): {str(e)}")
+
+            if stats['sheets_processed'] == 0:
+                return render(request, 'import_global_data.html', {
+                    'error_message': f"No matching sheets found. Workbook tabs: {', '.join(workbook.sheetnames)}"
+                })
 
             summary_msg = (
-                f"Processed {stats['sheets_processed']} sheets. "
-                f"{stats['total_updated']} updated, "
-                f"{stats['total_created']} created."
+                f"Processed {stats['sheets_processed']} sheet(s). "
+                f"{stats['total_updated']} records updated, "
+                f"{stats['total_created']} records created."
             )
-            
+
             return render(request, 'import_global_data.html', {
                 'success_message': summary_msg,
-                'import_errors': stats['errors'] # 🟢 Pass the errors to the HTML
+                'import_errors': stats['errors']  # 🟢 Pass the errors to the HTML
             })
 
         except Exception as e:
