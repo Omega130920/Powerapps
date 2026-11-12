@@ -1025,7 +1025,7 @@ def import_global_data(request):
             'total_created': 0,
             'total_updated': 0,
             'sheets_processed': 0,
-            'errors': []  # 🟢 NEW: Track specific row errors
+            'errors': []
         }
 
         if not master_file.name.lower().endswith('.xlsx'):
@@ -1054,14 +1054,14 @@ def import_global_data(request):
             val_str = str(val).strip()
             if val_str == '' or val_str.lower() in ('<none>', 'none', 'null', 'nan'):
                 return None
-            # Strip trailing .0 from numeric strings read from Excel
             if val_str.endswith('.0') and val_str[:-2].isdigit():
                 val_str = val_str[:-2]
             return val_str
 
         try:
             master_file.seek(0)
-            workbook = openpyxl.load_workbook(master_file, data_only=True)
+            # 🟢 FIX: Added read_only=True to prevent memory spikes on large files
+            workbook = openpyxl.load_workbook(master_file, data_only=True, read_only=True)
 
             # =========================================================================
             # MODE 1: Single Horizontal Master Sheet ('Global Funds')
@@ -1069,17 +1069,18 @@ def import_global_data(request):
             if 'Global Funds' in workbook.sheetnames:
                 sheet = workbook['Global Funds']
                 stats['sheets_processed'] += 1
-                rows = list(sheet.iter_rows(values_only=True))
-                start_idx = 1 if has_header else 0
+                
+                # 🟢 FIX: Stream rows as an iterator instead of loading into a list
+                row_iterator = sheet.iter_rows(values_only=True)
+                
+                if has_header:
+                    next(row_iterator, None)  # Skip the header row efficiently
 
                 CONTACT_10 = [
                     'title', 'first_name', 'surname', 'id_number', 'email_address',
                     'work_dial_code', 'work_contact_number', 'fax_dial_code', 'fax_number', 'mobile_number'
                 ]
-                CONTACT_11_IND = [
-                    'title', 'first_name', 'surname', 'id_number', 'email_address', 'indemnity',
-                    'work_dial_code', 'work_contact_number', 'fax_dial_code', 'fax_number', 'mobile_number'
-                ]
+                CONTACT_11_IND = CONTACT_10 + ['indemnity']
                 CONTACT_14_ADDR = CONTACT_10 + [
                     'business_postal_address', 'post_code', 'business_physical_address', 'post_code2'
                 ]
@@ -1101,7 +1102,17 @@ def import_global_data(request):
                     (MedicalCorrespondence, 127, CONTACT_10),
                 ]
 
-                for row_idx, row in enumerate(rows[start_idx:], start=start_idx + 1):
+                # Pre-fetch existing primary keys to bulk determine created vs updated
+                existing_codes = {model: set(model.objects.values_list('pk', flat=True)) 
+                                  for model, _, _ in HORIZONTAL_BLOCKS}
+                existing_codes[GlobalFundContact] = set(GlobalFundContact.objects.values_list('pk', flat=True))
+
+                bulk_lists = {model: {'creates': [], 'updates': []} for model, _, _ in HORIZONTAL_BLOCKS}
+                global_fund_creates = []
+                global_fund_updates = []
+
+                # Iterate one row at a time from the stream
+                for row_idx, row in enumerate(row_iterator, start=2 if has_header else 1):
                     if not row or len(row) < 8:
                         continue
 
@@ -1109,7 +1120,7 @@ def import_global_data(request):
                     if not mg_code:
                         continue
 
-                    # 1. Update/Create Core GlobalFundContact (Cols 1-8)
+                    # 1. Core GlobalFundContact
                     fund_defaults = {
                         'member_group_name': clean_val(row[1]),
                         'commencement_date': clean_val(row[2], is_date=True),
@@ -1121,20 +1132,16 @@ def import_global_data(request):
                     }
                     fund_clean = {k: v for k, v in fund_defaults.items() if v is not None}
 
-                    try:
-                        with transaction.atomic():
-                            _, created = GlobalFundContact.objects.update_or_create(
-                                member_group_code=mg_code,
-                                defaults=fund_clean
-                            )
-                            if created:
-                                stats['total_created'] += 1
-                            else:
-                                stats['total_updated'] += 1
-                    except Exception as e:
-                        stats['errors'].append(f"Row {row_idx} [GlobalFundContact] (Code: {mg_code}): {str(e)}")
+                    if mg_code in existing_codes[GlobalFundContact]:
+                        GlobalFundContact.objects.filter(pk=mg_code).update(**fund_clean)
+                        stats['total_updated'] += 1
+                    else:
+                        obj = GlobalFundContact(member_group_code=mg_code, **fund_clean)
+                        global_fund_creates.append(obj)
+                        existing_codes[GlobalFundContact].add(mg_code)
+                        stats['total_created'] += 1
 
-                    # 2. Update/Create Each of the 11 Related Contact Models
+                    # 2. Contact Models
                     for model_cls, col_start, field_names in HORIZONTAL_BLOCKS:
                         block_data = {}
                         for offset, field_name in enumerate(field_names):
@@ -1142,29 +1149,30 @@ def import_global_data(request):
                             if col_pos < len(row):
                                 val = clean_val(row[col_pos])
                                 if val is not None:
-                                    # Truncate dial/post codes to 10 chars to prevent MySQL DataError
                                     if field_name in ('work_dial_code', 'fax_dial_code', 'post_code', 'post_code2'):
                                         val = val[:10]
                                     block_data[field_name] = val
 
                         if block_data:
-                            try:
-                                with transaction.atomic():
-                                    _, created = model_cls.objects.update_or_create(
-                                        member_group_code=mg_code,
-                                        defaults=block_data
-                                    )
-                                    if created:
-                                        stats['total_created'] += 1
-                                    else:
-                                        stats['total_updated'] += 1
-                            except Exception as e:
-                                stats['errors'].append(
-                                    f"Row {row_idx} [{model_cls.__name__}] (Code: {mg_code}): {str(e)}"
-                                )
+                            if mg_code in existing_codes[model_cls]:
+                                model_cls.objects.filter(pk=mg_code).update(**block_data)
+                                stats['total_updated'] += 1
+                            else:
+                                obj = model_cls(member_group_code=mg_code, **block_data)
+                                bulk_lists[model_cls]['creates'].append(obj)
+                                existing_codes[model_cls].add(mg_code)
+                                stats['total_created'] += 1
+
+                # Execute bulk creates efficiently inside a single transaction
+                with transaction.atomic():
+                    if global_fund_creates:
+                        GlobalFundContact.objects.bulk_create(global_fund_creates, batch_size=500)
+                    for model_cls, data in bulk_lists.items():
+                        if data['creates']:
+                            model_cls.objects.bulk_create(data['creates'], batch_size=500)
 
             # =========================================================================
-            # MODE 2: Legacy Multi-Sheet Format (if uploaded with individual tabs)
+            # MODE 2: Legacy Multi-Sheet Format
             # =========================================================================
             else:
                 sheet_model_map = {
@@ -1199,13 +1207,17 @@ def import_global_data(request):
 
                     sheet = workbook[sheet_name]
                     stats['sheets_processed'] += 1
-                    rows = list(sheet.iter_rows(values_only=True))
-                    if len(rows) < 2:
+                    
+                    # 🟢 FIX: Iterator for legacy sheets too
+                    row_iterator = sheet.iter_rows(values_only=True)
+                    header_row = next(row_iterator, None)
+                    
+                    if not header_row:
                         continue
 
                     valid_fields = {f.name for f in model_class._meta.get_fields()}
                     header = []
-                    for cell_val in rows[0]:
+                    for cell_val in header_row:
                         if cell_val:
                             h = str(cell_val).strip().lower().replace(' ', '_')
                             h = HEADER_ALIASES.get(h, h)
@@ -1213,7 +1225,7 @@ def import_global_data(request):
                         else:
                             header.append(None)
 
-                    for row_idx, row in enumerate(rows[1:], start=2):
+                    for row_idx, row in enumerate(row_iterator, start=2):
                         row_data = dict(zip(header, row))
                         mg_code = clean_val(
                             row_data.pop('member_group_code', None) or
@@ -1243,20 +1255,22 @@ def import_global_data(request):
                         except Exception as e:
                             stats['errors'].append(f"Sheet '{sheet_name}', Row {row_idx} (Code: {mg_code}): {str(e)}")
 
+            # Always clean up the workbook memory safely when done
+            workbook.close()
+
             if stats['sheets_processed'] == 0:
                 return render(request, 'import_global_data.html', {
                     'error_message': f"No matching sheets found. Workbook tabs: {', '.join(workbook.sheetnames)}"
                 })
 
             summary_msg = (
-                f"Processed {stats['sheets_processed']} sheet(s). "
+                f"Successfully processed {stats['sheets_processed']} sheet(s). "
                 f"{stats['total_updated']} records updated, "
                 f"{stats['total_created']} records created."
             )
-
             return render(request, 'import_global_data.html', {
                 'success_message': summary_msg,
-                'import_errors': stats['errors']  # 🟢 Pass the errors to the HTML
+                'import_errors': stats['errors']
             })
 
         except Exception as e:

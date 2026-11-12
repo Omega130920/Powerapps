@@ -65,7 +65,7 @@ def request_new_client_token(token_obj):
 
     try:
         # Added timeout=30 to prevent the application from hanging if Microsoft Graph is slow
-        response = requests.post(token_url, data=data, timeout=300)
+        response = requests.post(token_url, data=data, timeout=60)
         response.raise_for_status()
         new_tokens = response.json()
         

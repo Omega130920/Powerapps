@@ -43,8 +43,8 @@
 
         .button-container {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            grid-template-rows: repeat(3, minmax(0, 1fr));
+            grid-template-columns: repeat(5, 1fr);
+            grid-template-rows: repeat(2, minmax(0, 1fr));
             gap: 15px;
             width: 100%;
             max-width: 1250px;
@@ -173,8 +173,8 @@
         </form>
     </div>
 
-    <h1>PSSUBF <strong>Home Screen</strong> <span style="font-size: 0.8rem; opacity: 0.75; font-weight: normal;">| Welcome, {{ user.username }}</span></h1>
-
+    <h1>PSSUBF <strong>Home Screen</strong> <span style="font-size: 1rem; opacity: 0.75; font-weight: normal;">| Welcome, {{ user.username }}</span></h1>
+    <br>
     <div class="button-container">
         <a href="{% url 'pssubf_dashboard' %}" class="button-block">
             <i class="fas fa-envelope-open-text"></i>
@@ -239,32 +239,6 @@
             <span id="badge-sms" class="badge dark-badge" {% if not sms_count %}style="display:none;"{% endif %}>{{ sms_count }}</span>
         </a>
     </div>
-
-    
-    <script>
-        function refreshDashboardStats() {
-            fetch('/dashboard-stats/') 
-                .then(response => {
-                    if (!response.ok) throw new Error('Network response was not ok');
-                    return response.json();
-                })
-                .then(data => {
-                    updateBadge('badge-new-emails', data.new_emails_count);
-                    updateBadge('badge-recycled', data.recycled_count);
-                    updateBadge('badge-my-delegations', data.my_pending_delegations_count);
-                })
-                .catch(error => console.error('Dashboard Stats Error:', error));
-        }
-
-        function updateBadge(id, count) {
-            const badge = document.getElementById(id);
-            if (!badge) return;
-            badge.innerText = count;
-            badge.style.display = count > 0 ? 'flex' : 'none';
-        }
-        
-        refreshDashboardStats();
-        setInterval(refreshDashboardStats, 30000);
-    </script>
+    <br>
 </body>
 </html>

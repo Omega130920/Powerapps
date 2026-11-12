@@ -131,7 +131,12 @@
     .attachment-badge { 
         display: inline-flex; align-items: center; background: white; border: 1px solid #aed581; 
         padding: 0; border-radius: 20px; margin-right: 10px; margin-bottom: 8px;
-        font-size: 13px; overflow: hidden;
+        font-size: 13px; overflow: hidden; text-decoration: none; color: inherit;
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .attachment-badge:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
     }
     .attachment-preview-trigger {
         padding: 6px 15px;
@@ -140,7 +145,7 @@
         display: flex;
         align-items: center;
     }
-    .attachment-preview-trigger:hover { 
+    .attachment-badge:hover .attachment-preview-trigger { 
         background-color: #e8f5e9;
     }
     .attachment-download-btn {
@@ -151,26 +156,9 @@
         border-left: 1px solid #aed581;
         transition: background-color 0.2s ease;
     }
-    .attachment-download-btn:hover {
+    .attachment-badge:hover .attachment-download-btn {
         background-color: #2e7d32;
     }
-
-    /* --- PREVIEW MODAL STYLES --- */
-    #previewModal { 
-        display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; 
-        background-color: rgba(0,0,0,0.85); 
-    }
-    .modal-wrapper { 
-        position: relative; margin: 2% auto; padding: 20px; width: 90%; height: 90%; 
-        background: #fff; border-radius: 8px; display: flex; flex-direction: column; 
-    }
-    .modal-wrapper p { white-space: pre-line; }
-    .close-preview { 
-        position: absolute; top: 10px; right: 20px; font-size: 30px; font-weight: bold; 
-        cursor: pointer; color: #333; z-index: 10001; 
-    }
-    #previewTitle { margin: 0 0 10px 0; font-size: 18px; color: #1976d2; border-bottom: 1px solid #eee; padding-bottom: 5px; }
-    #previewContent { flex: 1; width: 100%; height: 100%; border: none; overflow: auto; }
 
     /* --- Collapsible Functionality --- */
     .collapse-toggle {
@@ -281,22 +269,31 @@
                         <pre class="email-body-pre" style="white-space: pre-wrap; word-wrap: break-word; font-family: inherit;">{{ email.body.content }}</pre>
                     {% endif %}
 
-                    {# INCOMING ATTACHMENTS SECTION #}
+                    {# INCOMING ATTACHMENTS SECTION - UPDATED FOR STREAMING DOWNLOAD #}
                     {% if attachments %}
                     <div class="attachment-list">
                         <div style="margin-bottom: 8px; color: #2e7d32; font-weight: bold; font-size: 13px;">
                             📎 Attachments ({{ attachments|length }}):
                         </div>
                         {% for att in attachments %}
-                        <div class="attachment-badge">
-                            <div class="attachment-preview-trigger" onclick="openPreview('{{ att.contentBytes }}', '{{ att.contentType }}', '{{ att.name|escapejs }}')" title="Preview File">
-                                <span>📄 {{ att.name }}</span>
-                                <span style="margin-left: 8px; font-size: 10px; color: #666;">({{ att.size|filesizeformat }})</span>
-                            </div>
-                            <div class="attachment-download-btn" onclick="downloadAttachment('{{ att.contentBytes }}', '{{ att.contentType }}', '{{ att.name|escapejs }}')" title="Download File">
-                                <i class="fas fa-download"></i>
-                            </div>
-                        </div>
+                        {% if att.is_local %}
+                            <!-- Local fallback attachment -->
+                            <a href="{{ att.url }}" download class="attachment-badge" title="Download File">
+                                <div class="attachment-preview-trigger">
+                                    <span>📄 {{ att.name }}</span>
+                                </div>
+                                <div class="attachment-download-btn"><i class="fas fa-download"></i></div>
+                            </a>
+                        {% else %}
+                            <!-- Live Outlook streaming download -->
+                            <a href="{% url 'download_outlook_attachment' delegation.pk att.id %}" class="attachment-badge" title="Download File">
+                                <div class="attachment-preview-trigger">
+                                    <span>📄 {{ att.name }}</span>
+                                    <span style="margin-left: 8px; font-size: 10px; color: #666;">({{ att.size|filesizeformat }})</span>
+                                </div>
+                                <div class="attachment-download-btn"><i class="fas fa-download"></i></div>
+                            </a>
+                        {% endif %}
                         {% endfor %}
                     </div>
                     {% endif %}
@@ -424,15 +421,6 @@
     </div>
 </div>
 
-{# --- PREVIEW MODAL HTML --- #}
-<div id="previewModal">
-    <div class="modal-wrapper">
-        <span class="close-preview" onclick="closePreview()">&times;</span>
-        <h3 id="previewTitle">File Preview</h3>
-        <div id="previewContent"></div>
-    </div>
-</div>
-
 <script>
     // Auto-translates textual breaks to HTML paragraphs before posting to Microsoft Graph API channels
     function prepareEmailHtmlPayload(formInstance) {
@@ -454,42 +442,6 @@
         textarea.value = htmlPayload;
     }
 
-    // --- DOWNLOAD LOGIC ---
-    function downloadAttachment(base64, contentType, fileName) {
-        const linkSource = `data:${contentType};base64,${base64}`;
-        const downloadLink = document.createElement("a");
-        downloadLink.href = linkSource;
-        downloadLink.download = fileName;
-        downloadLink.click();
-    }
-
-    // --- PREVIEW LOGIC ---
-    function openPreview(base64, contentType, fileName) {
-        const modal = document.getElementById('previewModal');
-        const content = document.getElementById('previewContent');
-        const title = document.getElementById('previewTitle');
-        title.innerText = "Previewing: " + fileName;
-        content.innerHTML = "";
-        const dataUrl = `data:${contentType};base64,${base64}`;
-        
-        if (contentType.includes('pdf')) {
-            content.innerHTML = `<embed src="${dataUrl}" type="application/pdf" width="100%" height="100%" />`;
-        } else if (contentType.includes('image')) {
-            content.innerHTML = `<div style="text-align:center; height:100%; overflow:auto;"><img src="${dataUrl}" style="max-width:100%; border:1px solid #ccc;" /></div>`;
-        } else {
-            content.innerHTML = `<div style="padding:40px; text-align:center; color:#666;">
-                <p>Preview not available for this file type (<b>${contentType}</b>).</p>
-                <p><button onclick="downloadAttachment('${base64}', '${contentType}', '${fileName}')" class="custom-btn btn-primary" style="font-size:14px; display:inline-flex;">Download File</button></p>
-            </div>`;
-        }
-        modal.style.display = 'block';
-    }
-
-    function closePreview() {
-        document.getElementById('previewModal').style.display = 'none';
-        document.getElementById('previewContent').innerHTML = "";
-    }
-
     // --- COLLAPSE LOGIC ---
     document.addEventListener('DOMContentLoaded', function () {
         document.querySelectorAll('.collapse-toggle').forEach(button => {
@@ -501,8 +453,5 @@
             });
         });
     });
-
-    window.onclick = (e) => { if (e.target.id == 'previewModal') closePreview(); }
-    document.onkeydown = (e) => { if (e.key === "Escape") closePreview(); };
 </script>
 {% endblock %}

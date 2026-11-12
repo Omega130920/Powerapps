@@ -1,6 +1,7 @@
 import requests
 from django.conf import settings
-from datetime import datetime, timedelta
+from django.utils import timezone
+from datetime import timedelta
 
 from acvv.models import OutlookToken 
 
@@ -25,11 +26,11 @@ def get_current_access_token():
     """
     token_obj = get_outlook_token_object()
     
-    # Calculate when the token actually expires (in UTC)
-    expiry_time_utc = token_obj.updated_at + timedelta(seconds=token_obj.expires_in_seconds)
+    # Calculate when the token actually expires
+    expiry_time = token_obj.updated_at + timedelta(seconds=token_obj.expires_in_seconds)
     
     # Check if we have less than 5 minutes (300 seconds) left or if it's the first run
-    if expiry_time_utc < datetime.utcnow().replace(tzinfo=token_obj.updated_at.tzinfo) + timedelta(seconds=300):
+    if token_obj.access_token == "initial" or expiry_time < timezone.now() + timedelta(seconds=300):
         print("Access Token is near expiry or missing. Requesting new token using Client Credentials...")
         return request_new_client_token(token_obj)
     
@@ -53,7 +54,8 @@ def request_new_client_token(token_obj):
 
     response = None
     try:
-        response = requests.post(token_url, data=data)
+        # ADDED: timeout=30 to prevent the worker from hanging indefinitely
+        response = requests.post(token_url, data=data, timeout=30)
         response.raise_for_status() # Raise HTTPError for bad status codes
         
         new_tokens = response.json()

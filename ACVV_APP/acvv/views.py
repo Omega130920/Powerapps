@@ -6,7 +6,7 @@ import logging
 from itertools import count
 from datetime import datetime, timedelta
 import traceback
-
+from django.http import HttpResponse, StreamingHttpResponse, Http404
 # Django Imports
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth import authenticate, login, logout
@@ -110,27 +110,27 @@ def dashboard(request):
     username = request.user.username
     is_outlook_admin = request.user.username.lower() == 'omega' or request.user.is_superuser
     
-    # 1. Fetch current IDs from the Live API to ensure the count is accurate
+    # 1. Fetch current IDs from the Live API (lightweight IDs only) to ensure the count is accurate
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
-    inbox_data = OutlookGraphService._make_graph_request(target_email, 1000) # Fetch a reasonable amount
+    inbox_data = OutlookGraphService._make_graph_request(
+        "mailFolders/inbox/messages?$top=200&$select=id",
+        target_email
+    )
     
-    if 'error' not in inbox_data:
-        live_ids = [msg['id'] for msg in inbox_data.get('value', [])]
+    if isinstance(inbox_data, dict) and 'error' not in inbox_data:
+        live_ids = [msg['id'] for msg in inbox_data.get('value', []) if 'id' in msg]
         
         # 2. Only count records that are NEW, Work Related AND still exist in the Live Inbox
         undelegated_count = EmailDelegation.objects.filter(
             status='NEW', 
             work_related=True,
-            email_id__in=live_ids  # <--- This is the crucial filter
+            email_id__in=live_ids
         ).count()
-        
-        # OPTIONAL: Mark old database entries that are no longer in the Live Inbox as 'LOST' or 'ARCHIVED'
-        # to stop them from haunting your counts in other places.
     else:
         # Fallback if API is down
         undelegated_count = EmailDelegation.objects.filter(status='NEW', work_related=True).count()
 
-    # Recycle Bin and My Tasks are purely database-driven, so these are fine as is
+    # Recycle Bin and My Tasks are purely database-driven
     recycled_count = EmailDelegation.objects.filter(status='DLT').count()
     my_tasks_count = EmailDelegation.objects.filter(assigned_user=request.user, status='DEL').count()
         
@@ -155,7 +155,8 @@ def index(request):
     """
     Handles the root URL, redirecting to the login page.
     """
-    return redirect('login') 
+    return redirect('login')
+
 
 @login_required
 def outlook_dashboard_view(request):
@@ -166,54 +167,84 @@ def outlook_dashboard_view(request):
     target_email = request.GET.get('email', settings.OUTLOOK_EMAIL_ADDRESS)
     context = {'target_email': target_email, 'messages': []}
     
-    # Use Service class
-    inbox_data = OutlookGraphService.fetch_inbox_messages(target_email, 1000) 
+    # Fetch top 200 inbox messages (headers only, no heavy body payload)
+    inbox_data = OutlookGraphService.fetch_inbox_messages(target_email, top_count=200)
     
-    if 'error' not in inbox_data:
+    if isinstance(inbox_data, dict) and 'error' not in inbox_data:
         emails = inbox_data.get('value', [])
-        email_ids = [email['id'] for email in emails]
+        email_ids = [email['id'] for email in emails if 'id' in email]
         
-        processed_ids = EmailDelegation.objects.filter(
-            email_id__in=email_ids
-        ).exclude(status='NEW', work_related=True).values_list('email_id', flat=True)
+        # 1. Fetch all existing EmailDelegation rows in ONE query instead of 1,000 queries
+        existing_delegations = {
+            d.email_id: d
+            for d in EmailDelegation.objects.filter(email_id__in=email_ids).select_related('assigned_user')
+        }
 
+        # 2. Bulk-create any brand-new emails in a single query
+        new_records = []
+        for email in emails:
+            email_id = email['id']
+            if email_id not in existing_delegations:
+                received_date_str = email.get('receivedDateTime')
+                sender_email = email.get('from', {}).get('emailAddress', {}).get('address', '')
+                parsed_dt = None
+                if received_date_str:
+                    try:
+                        parsed_dt = parser.isoparse(received_date_str)
+                    except Exception:
+                        pass
+                new_records.append(
+                    EmailDelegation(
+                        email_id=email_id,
+                        received_at=parsed_dt,
+                        status='NEW',
+                        work_related=True,
+                        sender_address=sender_email,
+                        subject=(email.get('subject') or '(No Subject)')[:255]
+                    )
+                )
+
+        if new_records:
+            EmailDelegation.objects.bulk_create(new_records, ignore_conflicts=True)
+            existing_delegations = {
+                d.email_id: d
+                for d in EmailDelegation.objects.filter(email_id__in=email_ids).select_related('assigned_user')
+            }
+
+        # 3. Build display list from memory
         display_emails = []
         for email in emails:
             email_id = email['id']
-            if email_id in processed_ids:
+            delegation = existing_delegations.get(email_id)
+            if not delegation:
                 continue
 
-            received_date_str = email.get('receivedDateTime') 
+            # Backfill missing sender_address if needed
             sender_email = email.get('from', {}).get('emailAddress', {}).get('address', '')
-            
-            delegation, created = EmailDelegation.objects.get_or_create(
-                email_id=email_id,
-                defaults={
-                    'received_at': parser.isoparse(received_date_str) if received_date_str else None,
-                    'status': 'NEW',
-                    'work_related': True,
-                    'sender_address': sender_email,
-                    'subject': email.get('subject', '(No Subject)')
-                }
-            )
-            
-            if not created and not delegation.sender_address:
+            if not delegation.sender_address and sender_email:
                 delegation.sender_address = sender_email
-                delegation.save()
+                delegation.save(update_fields=['sender_address'])
 
-            try:
-                if received_date_str:
+            # Skip emails already processed/delegated/deleted
+            if not (delegation.status == 'NEW' and delegation.work_related):
+                continue
+
+            received_date_str = email.get('receivedDateTime')
+            if received_date_str:
+                try:
                     email['receivedDateTime'] = parser.isoparse(received_date_str)
-            except Exception: pass
+                except Exception:
+                    pass
 
             email['delegation_status'] = delegation.get_status_display()
             email['assigned_user'] = delegation.assigned_user.username if delegation.assigned_user else None
-            email['delegation_id'] = delegation.pk 
+            email['delegation_id'] = delegation.pk
             display_emails.append(email)
 
         context['messages'] = display_emails
     else:
-        context['error'] = f"Error: {inbox_data['error']}"
+        err_msg = inbox_data.get('error', 'Unknown Error') if isinstance(inbox_data, dict) else 'Unknown Error'
+        context['error'] = f"Error: {err_msg}"
 
     return render(request, 'acvv_app/outlook_dashboard.html', context)
 
@@ -355,7 +386,7 @@ def outlook_delegated_action(request, delegation_id):
             delegation.email_category = request.POST.get('email_category')
             delegation.communication_type = request.POST.get('communication_type')
             delegation.save()
-            log_delegation_transaction(delegation_id, request.user, f"Metadata Updated", "System", action_type='METADATA_UPDATE')
+            log_delegation_transaction(delegation_id, request.user, "Metadata Updated", "System", action_type='METADATA_UPDATE')
             messages.success(request, "Task metadata updated.")
             return redirect('outlook_delegated_action', delegation_id=delegation_id)
 
@@ -365,7 +396,6 @@ def outlook_delegated_action(request, delegation_id):
             success, message = add_delegation_note(delegation_id, request.user, note_content)
             
             if success:
-                # 🟢 CRITICAL SYSTEM ADDITION: Write manual internal note entry straight to ClientNotes 
                 ClientNotes.objects.create(
                     acvv_record=Globalacvv.objects.filter(Q(mip_names=delegation.mip_names) | Q(branch_code=delegation.mip_names)).first(),
                     notes=note_content,
@@ -380,23 +410,20 @@ def outlook_delegated_action(request, delegation_id):
         # 4. Handle Reply
         elif action_type == 'send_reply':
             recipient = request.POST.get('reply_recipient')
-            reply_cc = request.POST.get('reply_cc', '')    # <--- Captured CC
-            reply_bcc = request.POST.get('reply_bcc', '')  # <--- Captured BCC
+            reply_cc = request.POST.get('reply_cc', '')
+            reply_bcc = request.POST.get('reply_bcc', '')
             subject = request.POST.get('reply_subject')
             
-            # 🚀 Convert textarea newlines to HTML <br> tags
             raw_body = request.POST.get('reply_body', '')
             formatted_body = raw_body.replace('\r\n', '<br>').replace('\n', '<br>')
             
-            # --- NEW: GENERATE AND APPEND SIGNATURE ---
+            # --- GENERATE AND APPEND SIGNATURE ---
             current_username = request.user.username.lower()
             current_firstname = request.user.first_name.lower() if request.user.first_name else ""
             
-            # Default fallback
             agent_name = request.user.get_full_name() or request.user.username.replace('_', ' ').title()
             agent_title = "Administrator"
 
-            # Match Specific Agents
             if 'timothy' in current_username or 'timothy' in current_firstname:
                 agent_name = "Timothy Davids"
                 agent_title = "Indexing Specialist"
@@ -420,9 +447,11 @@ def outlook_delegated_action(request, delegation_id):
             from django.template.loader import render_to_string
             signature_html = render_to_string('acvv_app/acvv_email_signature.html', signature_context)
             
-            # 🚀 --- FETCH ORIGINAL EMAIL FOR THREAD HISTORY --- 🚀
+            # Clean reply body (without quoted thread history) for clean database display
+            reply_only_body = f"<div>{formatted_body}</div><br><br>{signature_html}"
+
+            # --- FETCH ORIGINAL EMAIL FOR OUTLOOK THREAD HISTORY ---
             try:
-                from dateutil import parser
                 original_email = OutlookGraphService.fetch_outlook_data(f"messages/{delegation.email_id}", target_email)
                 
                 if isinstance(original_email, dict) and 'body' in original_email:
@@ -452,13 +481,11 @@ def outlook_delegated_action(request, delegation_id):
                     {orig_body}
                     """
                     
-                    full_html_body = f"<div>{formatted_body}</div><br><br>{signature_html}{thread_history}"
+                    full_html_body = f"{reply_only_body}{thread_history}"
                 else:
-                    full_html_body = f"<div>{formatted_body}</div><br><br>{signature_html}"
-            except Exception as e:
-                # Safe fallback if API fetch fails
-                full_html_body = f"<div>{formatted_body}</div><br><br>{signature_html}"
-            # ------------------------------------------
+                    full_html_body = reply_only_body
+            except Exception:
+                full_html_body = reply_only_body
             
             # --- MULTI-ATTACHMENT UPDATE ---
             attachments_list = request.FILES.getlist('email_attachments')
@@ -466,7 +493,6 @@ def outlook_delegated_action(request, delegation_id):
             
             selected_action_type = request.POST.get('action_log_type') or "Correspondence"
             
-            # Pass CC and BCC down to the service call
             result = OutlookGraphService.send_outlook_email(
                 target_email, 
                 recipient, 
@@ -474,40 +500,40 @@ def outlook_delegated_action(request, delegation_id):
                 full_html_body, 
                 content_type='Html', 
                 attachments=attachments_list,
-                cc=reply_cc,       # <--- Passed CC to service
-                bcc=reply_bcc,     # <--- Passed BCC to service
-                user=None  # 🚀 explicitly pass None so services doesn't duplicate the signature
+                cc=reply_cc,
+                bcc=reply_bcc,
+                user=None
             )
             
             if result.get('success'):
-                # 🚀 FIX: Passed full_html_body to the transaction logger
+                # Save ONLY the clean reply body (not the quoted original email) in the transaction log
                 log_delegation_transaction(
                     delegation_id, 
                     request.user, 
                     subject, 
                     recipient, 
                     action_type='EMAIL_REPLY',
-                    body=full_html_body 
+                    body=reply_only_body 
                 )
                 
-                new_ms_id = result.get('message_id') or f"REPLY-{timezone.now().timestamp()}"
+                new_ms_id = result.get('message_id') or result.get('id') or f"REPLY-{timezone.now().timestamp()}"
                 
                 EmailDelegation.objects.create(
                     email_id=new_ms_id,
                     subject=subject,
-                    body=full_html_body, # Saved the signature format to the DB as well
+                    body=reply_only_body,
                     attachment=fallback_single_attachment,
                     sender_address=target_email,
                     assigned_user=request.user,
                     status='SENT',
                     mip_names=delegation.mip_names,
+                    email_category=f"PARENT:{delegation.pk}",  # Links this REPLY row back to the ORIGINAL task
                     received_at=timezone.now(),
                     delegated_at=timezone.now(),
                     work_related=True,
                     communication_type='Reply'
                 )
                 
-                # Include CC details in client note history if available
                 cc_note_segment = f"\nCC: {reply_cc}" if reply_cc else ""
                 bcc_note_segment = f"\nBCC: {reply_bcc}" if reply_bcc else ""
                 
@@ -528,7 +554,7 @@ def outlook_delegated_action(request, delegation_id):
     # --- FETCH Data for GET ---
     acvv_records = Globalacvv.objects.all().only('mip_names', 'branch_code')
     
-    if delegation.email_id.startswith('SENT-') or delegation.email_id.startswith('REPLY-') or delegation.email_id.startswith('LOCAL-'):
+    if delegation.email_id.startswith(('SENT-', 'REPLY-', 'LOCAL-', 'CLAIM-')):
         email_data = {
             'subject': delegation.subject,
             'body': {'content': delegation.body or "Local preview content not found."},
@@ -543,7 +569,6 @@ def outlook_delegated_action(request, delegation_id):
                 'is_local': True
             }]
     else:
-        # 🔑 SAFELY WRAP OUTLOOK MICROSOFT LIVE API CALLS IN EXCEPTION TRY BLOCKS
         try:
             email_data = OutlookGraphService.fetch_outlook_data(f"messages/{delegation.email_id}", target_email)
             
@@ -552,7 +577,7 @@ def outlook_delegated_action(request, delegation_id):
                 error_value = str(email_data.get('error', ''))
                 details_value = str(email_data.get('details', ''))
                 
-                if "Status 404" in error_value or "ErrorItemNotFound" in details_value:
+                if "Status 404" in error_value or "ErrorItemNotFound" in details_value or "itemnotfound" in error_value.lower():
                     is_404_error = True
             elif isinstance(email_data, str) and "ErrorItemNotFound" in email_data:
                 is_404_error = True
@@ -560,14 +585,11 @@ def outlook_delegated_action(request, delegation_id):
             if is_404_error:
                 raise Exception("ErrorItemNotFound")
 
-            # FIX: Used new fetch_outlook_data for attachment retrieval
-            attachment_endpoint = f"messages/{delegation.email_id}/attachments"
-            attachment_data = OutlookGraphService.fetch_outlook_data(attachment_endpoint, target_email)
-            attachments = attachment_data.get('value', []) if isinstance(attachment_data, dict) and 'error' not in attachment_data else []
+            # Fetch attachment metadata only ($select=id,name,contentType,size)
+            attachments = OutlookGraphService.fetch_attachments(target_email, delegation.email_id)
 
         except Exception as graph_error:
             if "ErrorItemNotFound" in str(graph_error) or "404" in str(graph_error):
-                # 🚀 ADDED: PURGE THE BROKEN RECORD TO STOP THE REDIRECT LOOP
                 delegation.delete()
                 messages.warning(request, "This email could not be found (moved or deleted). Task removed from your list.")
                 return redirect('outlook_delegated_box')
@@ -916,32 +938,29 @@ def outlook_delegate_to(request, email_id):
         email_data = OutlookGraphService._make_graph_request(endpoint, target_email) 
 
         if not email_data or 'error' in email_data:
-            error_details = email_data.get('error', {})
-            error_code = error_details.get('code')
+            error_details = email_data.get('details', {}) if isinstance(email_data, dict) else {}
+            error_str = str(email_data.get('error', '')) if isinstance(email_data, dict) else ''
             
-            # 🛑 HANDLE 404: If email is deleted/moved in Outlook, clean up local DB
-            if error_code == 'ErrorItemNotFound':
+            # HANDLE 404: If email is deleted/moved in Outlook, clean up local DB
+            if 'ErrorItemNotFound' in str(error_details) or 'ErrorItemNotFound' in error_str or '404' in error_str:
                 logger.warning(f"Email {email_id} not found in Outlook. Deleting local record.")
                 EmailDelegation.objects.filter(email_id=email_id).delete()
                 messages.warning(request, "This email was moved or deleted in Outlook and has been removed from your list.")
                 return redirect('outlook_dashboard')
 
-            logger.error(f"Graph API Error for ID {email_id}: {error_code}")
+            logger.error(f"Graph API Error for ID {email_id}: {error_str}")
             messages.error(request, "Could not fetch email content from Outlook.")
             return redirect('outlook_dashboard')
             
-    except Exception as e:
+    except Exception:
         logger.exception(f"Unexpected crash fetching email {email_id}")
         messages.error(request, "A critical error occurred while contacting the mail server.")
         return redirect('outlook_dashboard')
 
-    # 2. Fetch Attachments (Non-critical)
+    # 2. Fetch Attachments Metadata Only (Non-critical)
     attachments = []
     try:
-        attachment_endpoint = f"messages/{email_id}/attachments"
-        attachment_data = OutlookGraphService._make_graph_request(attachment_endpoint, target_email)
-        if attachment_data and 'value' in attachment_data:
-            attachments = attachment_data['value']
+        attachments = OutlookGraphService.fetch_attachments(target_email, email_id)
     except Exception as e:
         logger.warning(f"Failed to fetch attachments for {email_id}: {str(e)}")
 
@@ -955,7 +974,6 @@ def outlook_delegate_to(request, email_id):
                 is_work_related = (work_related_raw == 'Yes')
                 assignee_pk = request.POST.get('agent_name')
                 mip_names_value = request.POST.get('mip_names')
-                # Capture the log type
                 action_log_type_value = request.POST.get('action_log_type', 'General')
                 
                 if not is_work_related:
@@ -987,11 +1005,11 @@ def outlook_delegate_to(request, email_id):
                                 'email_category': request.POST.get('email_category'),
                                 'work_related': True, 
                                 'status': 'DEL',
-                                'comm_type': request.POST.get('email_method', 'Email'),
+                                'delegated_at': timezone.now(),
+                                'communication_type': request.POST.get('email_method', 'Email'),
                             }
                         )
 
-                        # Create the log entry to persist the Action Log Type
                         ClientNotes.objects.create(
                             acvv_record=Globalacvv.objects.filter(Q(mip_names=mip_names_value) | Q(branch_code=mip_names_value)).first(),
                             notes=f"Email delegated to {target_assignee.username}",
@@ -1700,168 +1718,331 @@ def bulk_delete_recycled(request):
 @login_required
 def outlook_view_thread(request, delegation_id):
     """
-    Displays the email content, conversation stream, attachments, and audit trail 
-    formatted for the ACVV Unity layout.
+    Displays the email thread according to row type:
+    - Clicking View on DELEGATED (Original): Shows ONLY the original incoming email (no Reply Sent in timeline).
+    - Clicking View on REPLY: Shows the original incoming email at the top, and the clean REPLY SENT underneath in the timeline.
+    - Clicking View on DIRECT / CLAIM SENT: Shows the outgoing direct email at the top.
     """
-    import os
-    import re
-    from django.conf import settings
-    from django.utils.safestring import mark_safe
-    from django.shortcuts import get_object_or_404
-    from django.db.models import Q
-    from django.utils import timezone
-    from acvv.models import DelegationTransactionLog, EmailDelegation, DelegationNote
-    from acvv.services.outlook_graph_service import OutlookGraphService
-
     # 1. Flexible Lookup (Handles both primary key ID and Microsoft email_id)
     if str(delegation_id).isdigit():
-        task = get_object_or_404(EmailDelegation, Q(id=delegation_id) | Q(email_id=delegation_id))
+        clicked_task = get_object_or_404(EmailDelegation, Q(id=delegation_id) | Q(email_id=delegation_id))
     else:
-        task = get_object_or_404(EmailDelegation, email_id=delegation_id)
+        clicked_task = get_object_or_404(EmailDelegation, email_id=delegation_id)
 
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
-    email_data = {}
-    email_content = ""
-    attachments = []
 
     def is_visually_empty(html_string):
-        if not html_string: 
+        if not html_string:
             return True
         clean_text = re.sub(r'<[^>]+>', '', str(html_string)).replace('&nbsp;', '').strip()
         return len(clean_text) == 0
 
-    # 2. Evaluate if it's purely a local placeholder ID
-    is_local_only = False
-    if not task.email_id or str(task.email_id).strip().lower() == 'none':
-        is_local_only = True
-    elif any(str(task.email_id).startswith(prefix) for prefix in ['SENT-', 'LOCAL-', 'REPLY-', 'CLAIM-']):
-        is_local_only = True
+    def strip_quoted_thread(html_string):
+        """Removes the appended Outlook quoted thread history from a reply body so only the reply itself is shown."""
+        if not html_string:
+            return ""
+        # Strip everything from the custom border-top #B5C4DF divider onwards
+        parts = re.split(r'<div[^>]*border-top:\s*solid\s*#B5C4DF[^>]*>', str(html_string), maxsplit=1, flags=re.IGNORECASE)
+        cleaned = parts[0]
+        # Remove trailing <br> tags left right before the divider
+        cleaned = re.sub(r'(\s*<br\s*/?>\s*)+$', '', cleaned, flags=re.IGNORECASE)
+        return cleaned
 
-    # 3. Try fetching live content from Microsoft Graph if it has a real remote ID
-    if not is_local_only:
+    def parse_any_date(dt_val, fallback=None):
+        if not dt_val:
+            return fallback
+        if hasattr(dt_val, 'strftime'):
+            return dt_val
         try:
-            endpoint = f"messages/{task.email_id}"
-            email_data = OutlookGraphService._make_graph_request(endpoint, target_email)
-            
-            attachment_endpoint = f"messages/{task.email_id}/attachments"
-            attachment_data = OutlookGraphService._make_graph_request(attachment_endpoint, target_email)
-            
-            attachments = attachment_data.get('value', []) if isinstance(attachment_data, dict) else []
-            email_content = email_data.get('body', {}).get('content', "")
+            return parser.isoparse(str(dt_val))
         except Exception:
-            pass 
+            return fallback
 
-    # 4. Master Local Fallback if Graph returned empty content
+    def format_graph_recipients(recip_list):
+        if not isinstance(recip_list, list):
+            return ""
+        addrs = [
+            r.get('emailAddress', {}).get('address', '').strip()
+            for r in recip_list
+            if isinstance(r, dict) and r.get('emailAddress', {}).get('address')
+        ]
+        return ", ".join([a for a in addrs if a])
+
+    def build_task_attachments(del_obj, graph_att_list=None):
+        """Builds downloadable attachment dicts for a specific EmailDelegation record."""
+        built = []
+        if getattr(del_obj, 'attachment', None) and del_obj.attachment:
+            try:
+                built.append({
+                    'name': os.path.basename(del_obj.attachment.name),
+                    'size': None,
+                    'contentType': 'application/octet-stream',
+                    'url': del_obj.attachment.url,
+                    'is_local': True,
+                })
+            except Exception:
+                pass
+
+        if graph_att_list:
+            existing_names = {b['name'].lower() for b in built}
+            for att in graph_att_list:
+                att_id = att.get('id')
+                att_name = att.get('name', 'Attachment')
+                if not att_id or att_name.lower() in existing_names:
+                    continue
+                built.append({
+                    'name': att_name,
+                    'size': att.get('size'),
+                    'contentType': att.get('contentType', 'application/octet-stream'),
+                    'url': reverse('download_outlook_attachment', args=[del_obj.pk, att_id]),
+                    'is_local': False,
+                })
+        return built
+
+    # 2. Identify whether the user clicked on a REPLY row, a DIRECT outgoing row, or an ORIGINAL (DELEGATED) row
+    comm_type_lower = (clicked_task.communication_type or '').strip().lower()
+    is_reply_row = (
+        comm_type_lower == 'reply'
+        or str(clicked_task.email_id).startswith('REPLY-')
+    )
+    is_local_id = (
+        not clicked_task.email_id
+        or str(clicked_task.email_id).strip().lower() == 'none'
+        or any(str(clicked_task.email_id).startswith(p) for p in ['SENT-', 'LOCAL-', 'REPLY-', 'CLAIM-'])
+    )
+    is_direct_outgoing_row = (not is_reply_row) and (is_local_id or clicked_task.status == 'SENT')
+
+    # 3. If the user clicked View on a REPLY row, resolve its parent ORIGINAL incoming email for the top card!
+    parent_task = None
+    if is_reply_row:
+        # A) Check explicit PARENT:<id> link in email_category
+        if clicked_task.email_category and str(clicked_task.email_category).startswith('PARENT:'):
+            parent_pk = str(clicked_task.email_category).replace('PARENT:', '').strip()
+            if parent_pk.isdigit():
+                parent_task = EmailDelegation.objects.filter(pk=int(parent_pk)).first()
+
+        # B) Fallback for existing replies: match the DelegationTransactionLog created at the same time/subject
+        if not parent_task:
+            tx_qs = DelegationTransactionLog.objects.filter(
+                action_type='EMAIL_REPLY',
+                subject=clicked_task.subject
+            ).select_related('delegation').order_by('-transaction_time')
+            for tx_cand in tx_qs:
+                if tx_cand.delegation and tx_cand.delegation.status != 'SENT':
+                    if clicked_task.received_at and tx_cand.transaction_time:
+                        if abs((clicked_task.received_at - tx_cand.transaction_time).total_seconds()) <= 300:
+                            parent_task = tx_cand.delegation
+                            break
+                    if not parent_task:
+                        parent_task = tx_cand.delegation
+
+        # C) Second fallback: match original incoming task in the same Member Group (mip_names)
+        if not parent_task and clicked_task.mip_names:
+            parent_task = EmailDelegation.objects.filter(
+                mip_names=clicked_task.mip_names
+            ).exclude(status='SENT').order_by('-received_at').first()
+
+    # The top card always displays `main_task` (the parent incoming email if found, otherwise `clicked_task`)
+    main_task = parent_task if (is_reply_row and parent_task) else clicked_task
+    main_is_local = (
+        not main_task.email_id
+        or str(main_task.email_id).strip().lower() == 'none'
+        or any(str(main_task.email_id).startswith(p) for p in ['SENT-', 'LOCAL-', 'REPLY-', 'CLAIM-'])
+    )
+    main_is_outgoing = (main_task.status == 'SENT') or main_is_local
+
+    # 4. Fetch live content from Microsoft Graph for `main_task`
+    email_data = {}
+    email_content = ""
+    raw_attachments = []
+
+    if not main_is_local:
+        try:
+            endpoint = f"messages/{main_task.email_id}"
+            fetched_data = OutlookGraphService._make_graph_request(endpoint, target_email)
+            if isinstance(fetched_data, dict) and 'error' not in fetched_data:
+                graph_subj = (fetched_data.get('subject') or '').strip().lower()
+                task_subj = (main_task.subject or '').strip().lower()
+                if main_is_outgoing and task_subj and graph_subj and task_subj != graph_subj:
+                    email_data = {}
+                else:
+                    email_data = fetched_data
+                    raw_attachments = OutlookGraphService.fetch_attachments(target_email, main_task.email_id)
+        except Exception:
+            email_data = {}
+
+    if main_is_outgoing and not is_visually_empty(getattr(main_task, 'body', None)):
+        email_content = strip_quoted_thread(main_task.body) if is_reply_row else main_task.body
+    elif isinstance(email_data, dict) and not is_visually_empty(email_data.get('body', {}).get('content', '')):
+        email_content = email_data.get('body', {}).get('content', '')
+    elif not is_visually_empty(getattr(main_task, 'body', None)):
+        email_content = main_task.body
+
     if is_visually_empty(email_content):
-        # A) Check the direct task body
-        if not is_visually_empty(getattr(task, 'body', None)):
-            email_content = task.body
-        else:
-            # B) Check attached transaction logs
-            log_attached = DelegationTransactionLog.objects.filter(delegation=task).exclude(body__isnull=True).first()
-            if log_attached and not is_visually_empty(log_attached.body):
-                email_content = log_attached.body
-            else:
-                # C) Fallback global search for the same email_id
-                if task.email_id and str(task.email_id).strip().lower() != 'none':
-                    global_log = DelegationTransactionLog.objects.filter(email_id=task.email_id).exclude(body__isnull=True).first()
-                    if global_log and not is_visually_empty(global_log.body):
-                        email_content = global_log.body
-                        if not attachments and getattr(global_log, 'attachment', None):
-                            attachments = [{
-                                'name': os.path.basename(global_log.attachment.name),
-                                'url': global_log.attachment.url,
-                                'contentType': 'application/octet-stream', 
-                                'is_local': True 
-                            }]
+        email_content = (
+            "<div style='padding: 15px; background-color: #fff3cd; color: #856404; "
+            "border: 1px solid #ffeeba; border-radius: 6px;'><strong>No Content Found:</strong> "
+            "The email body could not be fetched from Microsoft, and no local backup was found in the logs.</div>"
+        )
 
-        # D) Final failsafe if entirely empty
-        if is_visually_empty(email_content):
-            email_content = "<div style='padding: 15px; background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; border-radius: 6px;'><strong>No Content Found:</strong> The email body could not be fetched from Microsoft, and no local backup was found in the logs.</div>"
+    attachments = build_task_attachments(main_task, raw_attachments if not main_is_outgoing else None)
+    if main_is_outgoing and not attachments and raw_attachments:
+        attachments = build_task_attachments(main_task, raw_attachments)
 
-    # 5. Local Attachment Fallback for direct task attachments
-    if not attachments and getattr(task, 'attachment', None) and task.attachment:
-        attachments = [{
-            'name': os.path.basename(task.attachment.name),
-            'url': task.attachment.url,
-            'contentType': 'application/octet-stream', 
-            'is_local': True 
-        }]
+    # 5. Extract Header Metadata (From, To, CC, BCC, Date) for the top card (`main_task`)
+    subject = main_task.subject or (email_data.get('subject', 'No Subject') if isinstance(email_data, dict) else 'No Subject')
+    sender_info = email_data.get('from', {}).get('emailAddress', {}) if isinstance(email_data, dict) else {}
 
-    # 6. Build Conversation Stream & Chronological Timeline
-    subject = task.subject or email_data.get('subject', 'No Subject')
-    clean_subject = subject.replace("RE: ", "").replace("Re: ", "").replace("FW: ", "").replace("Fw: ", "").strip()
+    if main_is_outgoing:
+        primary_sender_name = main_task.assigned_user.username if main_task.assigned_user else (sender_info.get('name') or 'ACVV Futura')
+        primary_sender_email = main_task.sender_address or target_email
+    else:
+        primary_sender_name = sender_info.get('name') or main_task.sender_address or 'Unknown Sender'
+        primary_sender_email = sender_info.get('address') or main_task.sender_address or ''
 
-    related_transactions = DelegationTransactionLog.objects.filter(
-        Q(delegation=task) | Q(subject__icontains=clean_subject)
-    ).distinct().order_by('transaction_time')
+    to_str = format_graph_recipients(email_data.get('toRecipients', [])) if isinstance(email_data, dict) else ""
+    cc_str = format_graph_recipients(email_data.get('ccRecipients', [])) if isinstance(email_data, dict) else ""
+    bcc_str = format_graph_recipients(email_data.get('bccRecipients', [])) if isinstance(email_data, dict) else ""
 
-    conversation_stream = []
+    if main_is_outgoing:
+        note_qs = ClientNotes.objects.filter(notes__icontains=subject)
+        if main_task.mip_names:
+            note_qs = note_qs.filter(
+                Q(acvv_record__mip_names=main_task.mip_names) | Q(acvv_record__branch_code=main_task.mip_names)
+            )
+        matched_note = note_qs.order_by('-date').first()
+        if matched_note and matched_note.notes:
+            for line in matched_note.notes.splitlines():
+                line_s = line.strip()
+                if line_s.startswith("Recipient:"):
+                    to_str = line_s.replace("Recipient:", "").strip()
+                elif line_s.startswith("CC:"):
+                    cc_str = line_s.replace("CC:", "").strip()
+                elif line_s.startswith("BCC:"):
+                    bcc_str = line_s.replace("BCC:", "").strip()
 
-    sender_info = email_data.get('from', {}).get('emailAddress', {})
-    conversation_stream.append({
-        'sender_name': sender_info.get('name', 'Unknown Sender'),
-        'sender_email': sender_info.get('address', task.sender_address or ''),
-        'recipient': target_email,
+    if not to_str:
+        to_str = target_email if not main_is_outgoing else "Recipient"
+
+    primary_date = (
+        (main_task.received_at or main_task.delegated_at)
+        if main_is_outgoing
+        else parse_any_date(
+            email_data.get('receivedDateTime') if isinstance(email_data, dict) else None,
+            fallback=main_task.received_at or main_task.delegated_at
+        )
+    )
+
+    conversation_stream = [{
+        'sender_name': primary_sender_name,
+        'sender_email': primary_sender_email,
+        'recipient': to_str,
+        'cc': cc_str or '-',
+        'bcc': bcc_str or '-',
         'subject': subject,
         'body': mark_safe(email_content),
-        'date': email_data.get('receivedDateTime') or task.received_at,
-        'type': 'INCOMING' if not is_local_only else 'OUTGOING',
-        'attachment_url': attachments[0].get('url') if attachments and attachments[0].get('is_local') else None
-    })
+        'date': primary_date,
+        'type': 'OUTGOING' if main_is_outgoing else 'INCOMING',
+        'attachments': attachments,
+    }]
 
-    for tx in related_transactions:
-        if tx.delegation_id == task.pk and tx.body:
-            continue
-        
-        tx_body = getattr(tx, 'body', '') or f"Action Performed: {tx.action_type}"
-        formatted_tx_body = mark_safe(tx_body.replace('\r\n', '<br>').replace('\n', '<br>'))
-        
-        conversation_stream.append({
-            'sender_name': tx.user.username if tx.user else 'System Agent',
-            'sender_email': target_email,
-            'recipient': tx.recipient_email,
-            'subject': tx.subject,
-            'body': formatted_tx_body,
-            'date': tx.transaction_time,
-            'type': 'OUTGOING',
-            'attachment_url': None
-        })
-
-    # 7. Audit Trail Integration (Actions & Notes)
-    actions = DelegationTransactionLog.objects.filter(delegation=task).order_by('-transaction_time')
-    notes = DelegationNote.objects.filter(delegation=task).order_by('-created_at')
-    
+    # 6. Build the Activity Timeline:
+    # - If viewing the REPLY row (`is_reply_row == True`): Show the REPLY SENT card in the timeline underneath the original email!
+    # - If viewing the DELEGATED row (`is_reply_row == False`): Do NOT show EMAIL_REPLY in the timeline (keep DELEGATED strictly to the original email + internal notes).
     timeline = []
-    for action in actions:
+
+    if is_reply_row:
+        # Build the clean REPLY SENT timeline entry from `clicked_task`
+        reply_to = "-"
+        reply_cc = "-"
+        reply_bcc = "-"
+
+        reply_note_qs = ClientNotes.objects.filter(notes__icontains=clicked_task.subject)
+        if clicked_task.mip_names:
+            reply_note_qs = reply_note_qs.filter(
+                Q(acvv_record__mip_names=clicked_task.mip_names) | Q(acvv_record__branch_code=clicked_task.mip_names)
+            )
+        reply_note = reply_note_qs.order_by('-date').first()
+        if reply_note and reply_note.notes:
+            for line in reply_note.notes.splitlines():
+                line_s = line.strip()
+                if line_s.startswith("Recipient:"):
+                    reply_to = line_s.replace("Recipient:", "").strip() or "-"
+                elif line_s.startswith("CC:"):
+                    reply_cc = line_s.replace("CC:", "").strip() or "-"
+                elif line_s.startswith("BCC:"):
+                    reply_bcc = line_s.replace("BCC:", "").strip() or "-"
+
+        # Fallback to DelegationTransactionLog for recipient or body if needed
+        matched_tx = DelegationTransactionLog.objects.filter(
+            action_type='EMAIL_REPLY',
+            subject=clicked_task.subject
+        ).order_by('-transaction_time').first()
+
+        if reply_to == "-" and matched_tx and matched_tx.recipient_email:
+            reply_to = matched_tx.recipient_email
+
+        raw_reply_html = clicked_task.body or (matched_tx.body if matched_tx else "")
+        clean_reply_html = strip_quoted_thread(raw_reply_html)
+        reply_attachments = build_task_attachments(clicked_task)
+
+        # Create a lightweight object matching what outlook_view_thread.html expects for `item.obj`
+        reply_action_obj = {
+            'action_type': 'EMAIL_REPLY',
+            'recipient_email': reply_to,
+            'subject': clicked_task.subject,
+            'body': mark_safe(clean_reply_html),
+            'user': clicked_task.assigned_user,
+        }
+
         timeline.append({
-            'type': 'action', 
-            'obj': action, 
-            'date': action.transaction_time
+            'type': 'action',
+            'obj': reply_action_obj,
+            'cc': reply_cc,
+            'bcc': reply_bcc,
+            'date': clicked_task.received_at or clicked_task.delegated_at or timezone.now(),
+            'attachments': reply_attachments,
         })
-        
+    else:
+        # Viewing DELEGATED or DIRECT row: exclude EMAIL_REPLY so replies only appear under the REPLY row
+        actions = DelegationTransactionLog.objects.filter(
+            delegation=main_task
+        ).exclude(action_type='EMAIL_REPLY').select_related('user').order_by('-transaction_time')
+
+        for action in actions:
+            timeline.append({
+                'type': 'action',
+                'obj': action,
+                'cc': '-',
+                'bcc': '-',
+                'date': action.transaction_time,
+                'attachments': [],
+            })
+
+    # Include Internal Notes for the main task
+    notes = DelegationNote.objects.filter(delegation=main_task).select_related('user').order_by('-created_at')
     for note in notes:
         note_date = getattr(note, 'created_at', timezone.now())
         timeline.append({
-            'type': 'del_note', 
-            'obj': note, 
-            'date': note_date
+            'type': 'del_note',
+            'obj': note,
+            'date': note_date,
+            'attachments': [],
         })
-    
+
     combined_timeline = sorted(timeline, key=lambda x: x['date'] if x['date'] else timezone.now(), reverse=True)
 
-    # 8. Render Context
     context = {
-        'task': task,
+        'task': main_task,
+        'clicked_task': clicked_task,
         'email': email_data,
-        'email_body': mark_safe(email_content), 
+        'email_body': mark_safe(email_content),
         'attachments': attachments,
         'conversation_stream': conversation_stream,
         'combined_timeline': combined_timeline,
-        'actions': actions,
         'notes': notes,
     }
-    
+
     return render(request, 'acvv_app/outlook_view_thread.html', context)
 
 @login_required
@@ -2314,173 +2495,6 @@ def temp_exists_list(request):
     # Display existing entries
     exits = TempExit.objects.all().order_by('-created_at')
     return render(request, 'acvv_app/temp_exists.html', {'exits': exits})
-
-@login_required
-def outlook_view_thread(request, delegation_id):
-    """
-    Displays the email content, conversation stream, attachments, and audit trail 
-    formatted for the ACVV Unity layout.
-    """
-    import os
-    import re
-    from django.conf import settings
-    from django.utils.safestring import mark_safe
-    from django.shortcuts import get_object_or_404
-    from django.db.models import Q
-    from django.utils import timezone
-    from acvv.models import DelegationTransactionLog, EmailDelegation, DelegationNote
-    from acvv.services.outlook_graph_service import OutlookGraphService
-
-    # 1. Flexible Lookup (Handles both primary key ID and Microsoft email_id)
-    if str(delegation_id).isdigit():
-        task = get_object_or_404(EmailDelegation, Q(id=delegation_id) | Q(email_id=delegation_id))
-    else:
-        task = get_object_or_404(EmailDelegation, email_id=delegation_id)
-
-    target_email = settings.OUTLOOK_EMAIL_ADDRESS
-    email_data = {}
-    email_content = ""
-    attachments = []
-
-    def is_visually_empty(html_string):
-        if not html_string: 
-            return True
-        clean_text = re.sub(r'<[^>]+>', '', str(html_string)).replace('&nbsp;', '').strip()
-        return len(clean_text) == 0
-
-    # 2. Evaluate if it's purely a local placeholder ID
-    is_local_only = False
-    if not task.email_id or str(task.email_id).strip().lower() == 'none':
-        is_local_only = True
-    elif any(str(task.email_id).startswith(prefix) for prefix in ['SENT-', 'LOCAL-', 'REPLY-', 'CLAIM-']):
-        is_local_only = True
-
-    # 3. Try fetching live content from Microsoft Graph if it has a real remote ID
-    if not is_local_only:
-        try:
-            endpoint = f"messages/{task.email_id}"
-            email_data = OutlookGraphService._make_graph_request(endpoint, target_email)
-            
-            attachment_endpoint = f"messages/{task.email_id}/attachments"
-            attachment_data = OutlookGraphService._make_graph_request(attachment_endpoint, target_email)
-            
-            attachments = attachment_data.get('value', []) if isinstance(attachment_data, dict) else []
-            email_content = email_data.get('body', {}).get('content', "")
-        except Exception:
-            pass 
-
-    # 4. Master Local Fallback if Graph returned empty content
-    if is_visually_empty(email_content):
-        # A) Check the direct task body
-        if not is_visually_empty(getattr(task, 'body', None)):
-            email_content = task.body
-        else:
-            # B) Check attached transaction logs
-            log_attached = DelegationTransactionLog.objects.filter(delegation=task).exclude(body__isnull=True).first()
-            if log_attached and not is_visually_empty(log_attached.body):
-                email_content = log_attached.body
-            else:
-                # C) Fallback global search for the same email_id
-                if task.email_id and str(task.email_id).strip().lower() != 'none':
-                    global_log = DelegationTransactionLog.objects.filter(email_id=task.email_id).exclude(body__isnull=True).first()
-                    if global_log and not is_visually_empty(global_log.body):
-                        email_content = global_log.body
-                        if not attachments and getattr(global_log, 'attachment', None):
-                            attachments = [{
-                                'name': os.path.basename(global_log.attachment.name),
-                                'url': global_log.attachment.url,
-                                'contentType': 'application/octet-stream', 
-                                'is_local': True 
-                            }]
-
-        # D) Final failsafe if entirely empty
-        if is_visually_empty(email_content):
-            email_content = "<div style='padding: 15px; background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; border-radius: 6px;'><strong>No Content Found:</strong> The email body could not be fetched from Microsoft, and no local backup was found in the logs.</div>"
-
-    # 5. Local Attachment Fallback for direct task attachments
-    if not attachments and getattr(task, 'attachment', None) and task.attachment:
-        attachments = [{
-            'name': os.path.basename(task.attachment.name),
-            'url': task.attachment.url,
-            'contentType': 'application/octet-stream', 
-            'is_local': True 
-        }]
-
-    # 6. Build Conversation Stream & Chronological Timeline
-    subject = task.subject or email_data.get('subject', 'No Subject')
-    clean_subject = subject.replace("RE: ", "").replace("Re: ", "").replace("FW: ", "").replace("Fw: ", "").strip()
-
-    related_transactions = DelegationTransactionLog.objects.filter(
-        Q(delegation=task) | Q(subject__icontains=clean_subject)
-    ).distinct().order_by('transaction_time')
-
-    conversation_stream = []
-
-    sender_info = email_data.get('from', {}).get('emailAddress', {})
-    conversation_stream.append({
-        'sender_name': sender_info.get('name', 'Unknown Sender'),
-        'sender_email': sender_info.get('address', task.sender_address or ''),
-        'recipient': target_email,
-        'subject': subject,
-        'body': mark_safe(email_content),
-        'date': email_data.get('receivedDateTime') or task.received_at,
-        'type': 'INCOMING' if not is_local_only else 'OUTGOING',
-        'attachment_url': attachments[0].get('url') if attachments and attachments[0].get('is_local') else None
-    })
-
-    for tx in related_transactions:
-        if tx.delegation_id == task.pk and tx.body:
-            continue
-        
-        tx_body = getattr(tx, 'body', '') or f"Action Performed: {tx.action_type}"
-        formatted_tx_body = mark_safe(tx_body.replace('\r\n', '<br>').replace('\n', '<br>'))
-        
-        conversation_stream.append({
-            'sender_name': tx.user.username if tx.user else 'System Agent',
-            'sender_email': target_email,
-            'recipient': tx.recipient_email,
-            'subject': tx.subject,
-            'body': formatted_tx_body,
-            'date': tx.transaction_time,
-            'type': 'OUTGOING',
-            'attachment_url': None
-        })
-
-    # 7. Audit Trail Integration (Actions & Notes)
-    actions = DelegationTransactionLog.objects.filter(delegation=task).order_by('-transaction_time')
-    notes = DelegationNote.objects.filter(delegation=task).order_by('-created_at')
-    
-    timeline = []
-    for action in actions:
-        timeline.append({
-            'type': 'action', 
-            'obj': action, 
-            'date': action.transaction_time
-        })
-        
-    for note in notes:
-        note_date = getattr(note, 'created_at', timezone.now())
-        timeline.append({
-            'type': 'del_note', 
-            'obj': note, 
-            'date': note_date
-        })
-    
-    combined_timeline = sorted(timeline, key=lambda x: x['date'] if x['date'] else timezone.now(), reverse=True)
-
-    # 8. Render Context
-    context = {
-        'task': task,
-        'email': email_data,
-        'email_body': mark_safe(email_content), 
-        'attachments': attachments,
-        'conversation_stream': conversation_stream,
-        'combined_timeline': combined_timeline,
-        'actions': actions,
-        'notes': notes,
-    }
-    
-    return render(request, 'acvv_app/outlook_view_thread.html', context)
 
 @login_required
 def download_acvv_email(request, delegation_id):
@@ -2948,33 +2962,32 @@ def send_acvv_direct_email(request, company_code):
 @login_required
 def download_outlook_attachment(request, delegation_id, attachment_id):
     """
-    Fetches the attachment from Outlook Graph API, decodes it safely, and serves it.
+    Streams the attachment from Outlook Graph API /$value in 8 KB chunks to prevent RAM spikes and 502 errors.
     """
     delegation = get_object_or_404(EmailDelegation, pk=delegation_id)
     target_email = getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', 'lorraine@futurasa.co.za')
 
-    # Fetch via Service Object
-    attachment_data = OutlookGraphService.get_attachment_raw(target_email, delegation.email_id, attachment_id)
+    # 1. Fetch lightweight metadata only (name and contentType)
+    meta_endpoint = f"messages/{delegation.email_id}/attachments/{attachment_id}?$select=name,contentType"
+    meta_data = OutlookGraphService._make_graph_request(meta_endpoint, target_email)
 
-    if not attachment_data or 'error' in attachment_data or 'contentBytes' not in attachment_data:
-        messages.error(request, "Could not fetch attachment from Outlook.")
+    if not isinstance(meta_data, dict) or 'error' in meta_data:
+        messages.error(request, "Could not fetch attachment metadata from Outlook.")
         return redirect(request.META.get('HTTP_REFERER', 'outlook_delegated_box'))
 
-    try:
-        content_bytes = attachment_data.get('contentBytes', '')
-        content_bytes += '=' * (-len(content_bytes) % 4)
-        file_content = base64.b64decode(content_bytes)
-        
-        file_name = attachment_data.get('name', 'attachment')
-        content_type = attachment_data.get('contentType', 'application/octet-stream')
+    file_name = meta_data.get('name', 'attachment')
+    content_type = meta_data.get('contentType', 'application/octet-stream')
 
-        response = HttpResponse(file_content, content_type=content_type)
-        safe_filename = urllib.parse.quote(file_name)
-        response['Content-Disposition'] = f"attachment; filename=\"{safe_filename}\"; filename*=UTF-8''{safe_filename}"
-        return response
-    except Exception as e:
-        messages.error(request, f"Attachment decoding error: {str(e)}")
+    # 2. Stream raw binary chunks from /$value
+    file_stream = OutlookGraphService.stream_attachment_mime(target_email, delegation.email_id, attachment_id)
+    if not file_stream:
+        messages.error(request, "Could not open attachment stream from Outlook.")
         return redirect(request.META.get('HTTP_REFERER', 'outlook_delegated_box'))
+
+    safe_filename = urllib.parse.quote(file_name)
+    response = StreamingHttpResponse(file_stream, content_type=content_type)
+    response['Content-Disposition'] = f"attachment; filename=\"{safe_filename}\"; filename*=UTF-8''{safe_filename}"
+    return response
 
 @login_required
 def acvv_sla_report_view(request):

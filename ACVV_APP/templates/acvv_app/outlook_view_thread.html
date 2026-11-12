@@ -71,7 +71,7 @@
             border-radius: 8px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
             margin-bottom: 30px;
-            overflow: hidden; 
+            overflow: hidden;
         }
 
         .email-thread-card.incoming {
@@ -93,17 +93,24 @@
         }
 
         .card-header-main h3 {
-            margin: 0 0 8px 0;
+            margin: 0 0 10px 0;
             color: #2d3748;
             font-size: 16px;
         }
 
-        /* --- FIX: Extracted Message Badges to Classes --- */
+        .email-meta-grid {
+            font-size: 13px;
+            color: #4a5568;
+            line-height: 1.65;
+        }
+
+        /* --- Message Badges --- */
         .msg-badge {
             font-size: 11px;
             font-weight: bold;
-            padding: 4px 8px;
+            padding: 4px 10px;
             border-radius: 4px;
+            white-space: nowrap;
         }
         .msg-badge-outgoing { background: #c6f6d5; color: #22543d; }
         .msg-badge-incoming { background: #bee3f8; color: #2a4365; }
@@ -114,41 +121,71 @@
             overflow-x: auto;
         }
 
-        /* --- ATTACHMENT SECTION --- */
+        /* --- ATTACHMENT SECTION (Unity Internal Style) --- */
         .attachment-section {
             background-color: #f8fafc;
-            padding: 12px 25px;
+            padding: 14px 25px;
             border-top: 1px solid #edf2f7;
         }
 
-        .attachment-pill {
+        .attachment-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            align-items: center;
+        }
+
+        .attachment-box {
             display: inline-flex;
             align-items: center;
-            background: #fff;
-            padding: 6px 14px;
+            gap: 10px;
+            background: #ffffff;
             border: 1px solid #e2e8f0;
-            border-radius: 200px;
-            margin-right: 10px;
-            margin-bottom: 10px;
-            color: #2d3748;
+            border-radius: 8px;
+            padding: 8px 14px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+        }
+
+        .attachment-icon-wrap {
+            width: 36px;
+            height: 36px;
+            background: #e3f2fd;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .attachment-icon-wrap i {
+            color: #1976d2;
+            font-size: 18px;
+        }
+
+        .attachment-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .attachment-filename {
             font-size: 13px;
-            font-weight: 500;
+            font-weight: 600;
+            color: #1a202c;
         }
 
-        .att-action-btn {
-            margin-left: 6px;
-            padding: 4px 10px;
-            border-radius: 12px;
-            background-color: #edf2f7;
-            color: #2b6cb0;
+        .attachment-download-link {
+            font-size: 12px;
+            font-weight: 600;
+            color: #1976d2;
             text-decoration: none;
-            font-size: 11px;
-            transition: background 0.2s, color 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            margin-top: 2px;
         }
 
-        .att-action-btn:hover {
-            background-color: #e2e8f0;
-            color: #1a365d;
+        .attachment-download-link:hover {
+            text-decoration: underline;
+            color: #0d47a1;
         }
 
         /* --- Timeline (Audit Trail) --- */
@@ -191,8 +228,7 @@
             box-shadow: 0 0 0 3px #f4f7f6;
         }
         
-        /* --- FIX: Extracted Timeline Icon Colors to Classes --- */
-        .icon-action { background-color: #2f855a; }
+        .icon-action { background-color: #7b1fa2; }
         .icon-note { background-color: #b7791f; }
         .icon-primary { background-color: #2b6cb0; }
 
@@ -208,11 +244,34 @@
 
         .bg-delegated { background-color: #ebf8ff; color: #2b6cb0; }
         .bg-note { background-color: #fefcbf; color: #b7791f; }
-        .bg-complete { background-color: #f0fff4; color: #2f855a; }
+        .bg-complete { background-color: #f3e5f5; color: #7b1fa2; }
+
+        .email-meta-stack {
+            font-size: 13px;
+            color: #4a5568;
+            background: #f8f9fa;
+            padding: 10px 14px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            line-height: 1.6;
+            border: 1px solid #edf2f7;
+        }
+
+        .email-reply-block {
+            background-color: #faf5fb;
+            border-left: 4px solid #7b1fa2;
+            padding: 12px 15px;
+            border-radius: 4px;
+            margin-top: 8px;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #2d3748;
+            overflow-x: auto;
+        }
 
         .event-meta {
             display: block;
-            margin-top: 10px;
+            margin-top: 12px;
             font-size: 12px;
             color: #718096;
             border-top: 1px solid #f7fafc;
@@ -250,57 +309,115 @@
         <div class="card-header-main">
             <div>
                 <h3>{{ msg.subject }}</h3>
-                <div style="font-size: 13px; color: #4a5568;">
+                <div class="email-meta-grid">
                     <strong>From:</strong> {{ msg.sender_name }} &lt;{{ msg.sender_email }}&gt;<br>
-                    <strong>To:</strong> {{ msg.recipient }}<br>
-                    <strong>Date:</strong> {{ msg.date|date:"d M Y, H:i" }}
+                    <strong>To:</strong> {{ msg.recipient|default:"-" }}<br>
+                    <strong>CC:</strong> {{ msg.cc|default:"-" }}<br>
+                    <strong>BCC:</strong> {{ msg.bcc|default:"-" }}<br>
+                    {% if msg.type == 'OUTGOING' %}
+                        <strong>Date Sent:</strong> {{ msg.date|date:"d M Y, H:i"|default:"N/A" }}
+                    {% else %}
+                        <strong>Date Received:</strong> {{ msg.date|date:"d M Y, H:i"|default:"N/A" }}
+                    {% endif %}
                 </div>
             </div>
-            <!-- FIX: Applied class logic instead of inline style -->
             <span class="msg-badge {% if msg.type == 'OUTGOING' %}msg-badge-outgoing{% else %}msg-badge-incoming{% endif %}">
                 {{ msg.type }}
             </span>
         </div>
+
         <div class="card-body-content">
             {{ msg.body|safe }}
         </div>
 
-        {% if msg.attachment_url %}
+        {% if msg.attachments %}
         <div class="attachment-section">
-            <div class="attachment-pill">
-                <i class="fas fa-paperclip" style="margin-right: 8px; color: #1976d2;"></i>
-                Attached File
-                <a href="{{ msg.attachment_url }}" target="_blank" class="att-action-btn">
-                    <i class="fas fa-download"></i> Download
-                </a>
+            <div class="attachment-row">
+                {% for att in msg.attachments %}
+                <div class="attachment-box">
+                    <div class="attachment-icon-wrap">
+                        <i class="fas fa-file-alt"></i>
+                    </div>
+                    <div class="attachment-info">
+                        <span class="attachment-filename" title="{{ att.name }}">
+                            {{ att.name }}
+                            {% if att.size %}<span style="font-weight: normal; font-size: 11px; color: #718096;">({{ att.size|filesizeformat }})</span>{% endif %}
+                        </span>
+                        <a href="{{ att.url }}" class="attachment-download-link" download>
+                            <i class="fas fa-download"></i> Download Attachment
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
             </div>
         </div>
         {% endif %}
     </div>
     {% endfor %}
 
-    <!-- Standard Attachments block if present -->
-    {% if attachments and not conversation_stream %}
-    <div class="email-thread-card">
-        <div class="attachment-section">
-            <div style="margin-bottom: 10px; font-weight: bold; color: #4a5568;">Attachments:</div>
-            {% for att in attachments %}
-            <div class="attachment-pill">
-                <i class="fas fa-file-alt" style="margin-right: 8px; color: #718096;"></i>
-                {{ att.name|default:"Attachment" }}
-                {% if att.url %}
-                <a href="{{ att.url }}" target="_blank" class="att-action-btn"><i class="fas fa-download"></i> Download</a>
-                {% endif %}
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-    {% endif %}
-
     <!-- Audit Timeline Section -->
-    <h2 style="font-size: 1.2em; color: #4a5568; margin: 30px 0 20px 10px;">Activity Timeline & Notes</h2>
+    <h2 style="font-size: 1.2em; color: #4a5568; margin: 30px 0 20px 10px;">Activity Timeline (Newest First)</h2>
 
     <div class="timeline-container">
+        <!-- Combined Timeline Loop (Actions & Notes) -->
+        {% for item in combined_timeline %}
+        <div class="timeline-event">
+            <div class="timeline-icon {% if item.type == 'action' %}icon-action{% else %}icon-note{% endif %}"></div>
+            
+            <span class="badge-status {% if item.type == 'action' %}bg-complete{% else %}bg-note{% endif %}">
+                {% if item.type == 'action' %}
+                    {% if item.obj.action_type == 'EMAIL_REPLY' %}REPLY SENT{% else %}Action: {{ item.obj.action_type }}{% endif %}
+                {% else %}
+                    Internal Note
+                {% endif %}
+            </span>
+
+            {% if item.type == 'action' %}
+                <div class="email-meta-stack">
+                    <div><strong>To:</strong> {{ item.obj.recipient_email|default:"-" }}</div>
+                    {% if item.obj.action_type == 'EMAIL_REPLY' %}
+                        <div><strong>CC:</strong> {{ item.cc|default:"-" }}</div>
+                        <div><strong>BCC:</strong> {{ item.bcc|default:"-" }}</div>
+                    {% endif %}
+                    <div><strong>Subject:</strong> {{ item.obj.subject }}</div>
+                </div>
+                {% if item.obj.body %}
+                <div class="email-reply-block">
+                    {{ item.obj.body|safe }}
+                </div>
+                {% endif %}
+                {% if item.attachments %}
+                <div style="margin-top: 12px;">
+                    <div class="attachment-row">
+                        {% for att in item.attachments %}
+                        <div class="attachment-box">
+                            <div class="attachment-icon-wrap">
+                                <i class="fas fa-file-alt"></i>
+                            </div>
+                            <div class="attachment-info">
+                                <span class="attachment-filename">{{ att.name }}</span>
+                                <a href="{{ att.url }}" class="attachment-download-link" download>
+                                    <i class="fas fa-download"></i> Download Attachment
+                                </a>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            {% else %}
+                <p class="event-text">
+                    {{ item.obj.content|safe }}
+                </p>
+            {% endif %}
+            
+            <span class="event-meta">
+                {% if item.type == 'action' %}Sent by:{% else %}User:{% endif %}
+                <strong>{{ item.obj.user.username|default:"System" }}</strong> | {{ item.date|date:"d M Y, H:i" }}
+            </span>
+        </div>
+        {% endfor %}
+
         <!-- Initial Task Creation Event -->
         <div class="timeline-event">
             <div class="timeline-icon icon-primary"></div>
@@ -309,34 +426,13 @@
                 Task assigned to <strong>{{ task.assigned_user.username|default:"Unassigned" }}</strong>.
             </p>
             <span class="event-meta">
-                Date: {{ task.received_at|date:"d M Y, H:i" }}
-            </span>
-        </div>
-
-        <!-- Combined Timeline Loop (Actions & Notes) -->
-        {% for item in combined_timeline %}
-        <div class="timeline-event">
-            <!-- FIX: Applied class logic instead of inline style -->
-            <div class="timeline-icon {% if item.type == 'action' %}icon-action{% else %}icon-note{% endif %}"></div>
-            
-            <span class="badge-status {% if item.type == 'action' %}bg-complete{% else %}bg-note{% endif %}">
-                {% if item.type == 'action' %}Action: {{ item.obj.action_type }}{% else %}Internal Note{% endif %}
-            </span>
-
-            <p class="event-text">
-                {% if item.type == 'action' %}
-                    <strong>Subject:</strong> {{ item.obj.subject }}<br>
-                    <strong>Recipient:</strong> {{ item.obj.recipient_email }}
+                {% if task.status == 'SENT' %}
+                    Date Sent: {{ task.received_at|default:task.delegated_at|date:"d M Y, H:i" }}
                 {% else %}
-                    {{ item.obj.content|safe }}
+                    Date Received: {{ task.received_at|default:task.delegated_at|date:"d M Y, H:i" }}
                 {% endif %}
-            </p>
-            
-            <span class="event-meta">
-                User: <strong>{{ item.obj.user.username|default:"System" }}</strong> | {{ item.date|date:"d M Y, H:i" }}
             </span>
         </div>
-        {% endfor %}
     </div>
 </div>
 
