@@ -1,0 +1,44 @@
+beneficiary_membership_number,guardian_name,beneficiary_name,beneficiary_dob,reference_no,claim_type,status,agent_username,created_at,portfolio_value,portfolio_date,amount_requested,age_at_claim,termination_date,supporting_docs_attached,monthly_income_payment
+54659630,Emelia Ngwenya,Florence Ngwenya,2005-12-31,,Terminations,Pending,omega,2026-08-18,72109.99,2026-08-18,72109.99,20.63,2023-12-31,Yes,0
+56617887,Gugu Langa,Yandani Langa,2006-11-01,,Terminations,Pending,omega,2026-07-01,86836.92,2026-07-01,86836.92,19.66,2024-11-01,Yes,0
+54724032,Dzulani Munzhelele,Steven Munzhelele,2005-12-07,,Terminations,Pending,omega,2026-07-15,132702.18,2026-07-15,132702.18,20.6,2023-12-07,Yes,0
+54726747,Bonisile Mntungwana ,Melokuhle Mntungwana,2006-11-03,,Terminations,Pending,omega,2026-07-20,171414.6,2026-07-20,171414.6,19.71,2024-11-03,Yes,0
+55651823,Nomaswazi Kumalo,Sinenhlanhla Kumalo,2007-08-24,,Terminations,Pending,omega,2026-07-21,32993.96,2026-07-21,32993.96,18.91,2025-08-24,Yes,800
+54734717,Ntmbifuthi Mbhele,Lindelwa Mbhele,2008-05-29,,Terminations,Pending,omega,2026-08-19,30939.96,2026-08-19,30939.96,18.22,2026-05-29,Yes,0
+57743284,Nelisiwe Masina,Musa Masina,2008-08-05,,Terminations,Pending,omega,2026-08-25,45848.68,2026-08-25,45848.68,18.05,2026-08-05,Yes,0
+57743057,Zinhle Ramodike,Slindile Molimi,2007-03-08,,Terminations,Pending,omega,2026-09-01,96140.06,2026-09-01,96140.06,19.49,2025-03-08,Yes,0
+54725361,Malepe Caron,Amaze Shai,2008-04-07,,Terminations,Pending,omega,2026-09-04,85334.46,2026-09-04,85334.46,18.41,2026-04-07,Yes,0
+55816326,Masibulele Sidoyi,Esethu Sidoyi,2005-08-17,,Terminations,Pending,omega,2026-09-04,65766.75,2026-09-04,65766.75,21.05,2023-08-17,Yes,1000
+56674302,Avela Valiphathwa,Silindile Valiphathwa,2014-11-07,,Terminations,Pending,omega,2026-09-04,9728.04,2026-09-04,9728.04,11.82,2032-11-07,Yes,800
+56674310,Avela Valiphathwa,Rosion Valiphathwa,2013-02-07,,Terminations,Pending,omega,2026-09-04,5823.18,2026-09-04,5823.18,13.57,2031-02-07,Yes,800
+56627225,Sebongile Maja,Reneilwe Maja,2012-10-16,,Terminations,Pending,omega,2026-09-07,2591.84,2026-09-07,2591.84,13.89,2030-10-16,Yes,800
+56627217,Sebongile Maja,Rethabile Maja,2014-10-14,,Terminations,Pending,omega,2026-09-07,5231.53,2026-09-07,5231.53,11.9,2032-10-14,Yes,800
+54668995,Tsebadi Moraba,Atlegang Moraba,2007-04-09,,Terminations,Pending,omega,2026-09-07,63439.2,2026-09-07,63439.2,19.41,2025-04-09,Yes,0
+54746098,Khabo Ngwenya,Lindani Gama,2011-04-02,,Terminations,Pending,omega,2026-09-07,1271.91,2026-09-07,1271.91,15.43,2029-04-02,Yes,800
+57968821,Jabu Khoza,Kwenzokuhle Nzimande,2008-08-25,,Terminations,Pending,omega,2026-09-08,86873.7,2026-09-08,86873.7,18.04,2026-08-25,Yes,0
+55857248,Nomakhwezi Dlamini,Nokwanda Dlamini,2010-04-18,,Terminations,Pending,omega,2026-09-08,5945.74,2026-09-08,5945.74,16.39,2028-04-18,Yes,0
+54741431,Nomveliso Sikoti,Siyazingca Sikoti,2015-04-15,,Terminations,Pending,omega,2026-09-10,8726.69,2026-09-10,8726.69,11.41,2033-04-15,Yes,800
+57741534,Philile Hlongwane,Linda Hlongwane,2008-08-09,,Terminations,Pending,omega,2026-09-11,81128.83,2026-09-11,81128.83,18.09,2026-08-09,Yes,0
+57861633,Unathi Langa,Siyolise Langa,2008-05-16,,Terminations,Pending,omega,2026-09-11,247937.44,2026-09-14,247937.44,18.32,2026-05-16,Yes,0
+54641883,Nomusa Mkhize,Sabelo Mkhize,2007-08-09,,Terminations,Pending,omega,2026-09-15,84696.17,2026-09-15,84696.17,19.1,2025-08-09,Yes,0
+57426193,Potso Motaung,Tshepo Motaung,2015-01-11,,Terminations,Pending,omega,2026-09-16,5720.49,2026-09-15,5720.49,11.68,2033-01-11,Yes,800
+55733017,Akhona Madikazi,Avela Dubuleka,2007-05-25,,Terminations,Pending,omega,2026-09-16,146767.09,2026-09-15,146767.09,19.31,2025-05-25,Yes,0
+54643154,Beauty Hlopoyi,Amahle Kalamshe,2008-09-15,,Terminations,Pending,omega,2026-09-17,100602.51,2026-09-16,100602.51,18,2026-09-15,Yes,0
+56369184,Neziswa Bobi,Aluthando Bobi,2007-02-21,,Terminations,Pending,omega,2026-09-18,12604.4,2026-09-18,12604.4,19.57,2025-02-21,Yes,0
+55807602,Nokutula Msizi,Khanyisa Bonga,2008-08-15,,Terminations,Pending,omega,2026-09-18,253624.39,2026-09-18,253624.39,18.09,2026-08-15,Yes,0
+54670710,Sophy Selepe,Nqobile Selepe,2007-08-30,,Monthly Income,Pending,omega,2026-08-27,83873.74,2026-08-27,2500,18.99,2025-08-30,Yes,0
+57750833,Hlengiwe Mazibuko,Banele Mazibuko,2008-02-28,,Monthly Income,Pending,omega,2026-07-29,58251.91,2026-07-29,800,18.41,2026-02-28,Yes,800
+54740273,Nosakhe Jajimani,Lusekho Jajimani,2006-08-31,,Monthly Income,Pending,omega,2026-08-12,77534.43,2026-08-12,20000,19.95,2024-08-31,Yes,0
+57796445,Ntombosindiso Dlali,Axolisiwe Dlali,2014-06-03,,Monthly Income,Pending,omega,2026-08-24,182730.17,2026-08-24,800,12.22,2032-06-03,Yes,0
+57796437,Ntombosindiso Dlali,Saxola Dlali,2010-03-05,,Monthly Income,Pending,omega,2026-08-24,112631.44,2026-08-24,800,16.47,2028-03-05,Yes,0
+55756524,Felicty Tshipinyane,Temontle Tshipinyane,2017-04-24,,Monthly Income,Pending,omega,2026-08-24,173505.87,2026-08-24,800,9.33,2035-04-24,Yes,0
+57843246,Sisinda Ngqakamba,Ahluma Ngqakamba,2008-06-09,,Monthly Income,Pending,omega,2026-08-26,174139.44,2026-08-26,1500,18.21,2026-06-09,Yes,800
+55732856,Shato Mafologela,Thato Mafologela,2014-01-20,,Monthly Income,Pending,omega,2026-09-01,62861.61,2026-09-01,800,12.61,2032-01-20,Yes,0
+56582051,Slindile Nqoko,Nonhlanhla Nqoko,2008-07-16,,Monthly Income,Pending,omega,2026-09-01,100003.93,2026-09-01,8000,18.13,2026-07-16,Yes,0
+56598285,Violet Dyosibo,Enhle Daweti,2010-02-04,,Monthly Income,Pending,omega,2026-09-03,95894.8,2026-09-03,800,16.58,2028-02-04,Yes,0
+54744291,Motsatsi Matlou,Maruping Raganya,2011-01-22,,Monthly Income,Pending,omega,2026-09-08,130628.75,2026-09-08,800,15.63,2029-01-22,Yes,0
+54712733,Nosiniya Mququ,Zama Mququ,2007-08-23,,Monthly Income,Pending,omega,2026-09-11,129452.11,2026-09-14,1000,19.05,2025-08-23,Yes,0
+57483306,Padi Maphalle,Jasneth Maphalle,2011-07-23,,Monthly Income,Pending,omega,2026-09-14,36954.82,2026-09-14,800,15.15,2029-07-23,Yes,0
+54723506,Khurase Mere,Keitumetse Mere,2008-06-29,,Monthly Income,Pending,omega,2026-09-16,116817.84,2026-09-15,5000,18.21,2026-06-29,Yes,0
+54714491,Slindile Gansa,Thandolwethu Gansa,2008-08-28,,Death Terminations,Pending,omega,2026-06-23,52096.15,2026-06-23,52096.15,17.82,2026-08-28,Yes,0
+54668987,Tsebadi Moraba,Mighty Moraba,2005-07-10,,Death Terminations,Pending,omega,2026-09-04,52249.69,2026-09-04,52249.69,21.15,2023-07-10,Yes,0
