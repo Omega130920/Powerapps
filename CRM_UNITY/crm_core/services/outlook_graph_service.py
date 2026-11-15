@@ -3,6 +3,7 @@ import json
 import logging
 import mimetypes
 import time
+import uuid
 import requests
 from dateutil import parser
 
@@ -24,7 +25,7 @@ def get_user_signature(user):
     team = {
         'jesica': ('Jesica Haynes', 'Reconciliations Specialist', ''),
         'timothy': ('Timothy Davids', 'Indexing Specialist', ''),
-        'mymoena': ('Mymoena Kariem', 'Senior Administrator', '066 192 7247'), 
+        'mymoena': ('Mymoena Kariem', 'Senior Administrator', '066 192 7247'),
         'chantal': ('Chantal Roux', 'Reconciliations Specialist', ''),
         'samantha': ('Samantha', 'Job Title', ''),
         'lorraine': ('Lorraine', 'Job Title', ''),
@@ -45,7 +46,7 @@ def get_user_signature(user):
         full_name = found_user[0]
         title = found_user[1]
         mobile = found_user[2] if len(found_user) > 2 else ""
-        
+
         mobile_html = (
             f'<div style="margin: 0 0 4px 0; font-size: 12px;"><strong style="color: #4CAF50;">mobile:</strong> {mobile}</div>'
             if mobile
@@ -101,7 +102,7 @@ class OutlookGraphService:
     def _make_graph_request(endpoint, target_email=None, method='GET', data=None, is_mime=False):
         """
         Unified request handler using System Service Token with dynamic target_email fallback.
-        Handles both JSON responses and raw MIME streams ($value).
+        Uses ImmutableId so an email's ID never changes even if moved between folders or from Drafts to Sent Items.
         """
         access_token = get_current_access_token()
         if not access_token:
@@ -109,16 +110,17 @@ class OutlookGraphService:
 
         mailbox = target_email or getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', '')
         url = f"{GRAPH_API_URL}/users/{mailbox}/{endpoint}"
-        
+
         headers = {
             'Authorization': f'Bearer {access_token}',
-            'Prefer': 'outlook.timezone="South Africa Standard Time"'
+            'Prefer': 'IdType="ImmutableId", outlook.timezone="South Africa Standard Time"'
         }
-        
+
         # Only add JSON content-type if we aren't requesting a raw value stream
         if not is_mime:
             headers['Content-Type'] = 'application/json'
 
+        response = None
         try:
             if method == 'GET':
                 # stream=is_mime prevents loading massive binaries into RAM immediately
@@ -127,12 +129,12 @@ class OutlookGraphService:
                 response = requests.post(url, headers=headers, json=data if isinstance(data, dict) else None, timeout=(5, 25))
             else:
                 return {'error': f"Unsupported HTTP method: {method}"}
-            
+
             # If we requested a MIME stream ($value), return the active request response
             if is_mime and response.status_code == 200:
                 return response
 
-            # 202 Accepted (common for sendMail) returns empty text
+            # 202 Accepted (common for sendMail / send) returns empty text
             if response.status_code == 202 or not response.text:
                 return {}
 
@@ -141,7 +143,7 @@ class OutlookGraphService:
         except Exception as e:
             logger.error(f"Graph Request Error: {e}")
             try:
-                error_detail = response.json().get('error', {}).get('message', str(e))
+                error_detail = response.json().get('error', {}).get('message', str(e)) if response is not None else str(e)
             except Exception:
                 error_detail = str(e)
             return {'error': error_detail}
@@ -149,7 +151,7 @@ class OutlookGraphService:
     @staticmethod
     def stream_attachment_mime(target_email, message_id, attachment_id, chunk_size=8192):
         """
-        Streams the raw binary content of an attachment in chunks directly 
+        Streams the raw binary content of an attachment in chunks directly
         from the /$value endpoint to prevent RAM exhaustion.
         """
         endpoint = f"messages/{message_id}/attachments/{attachment_id}/$value"
@@ -157,26 +159,30 @@ class OutlookGraphService:
             endpoint, target_email=target_email, method='GET', is_mime=True
         )
 
-        if isinstance(response, dict) and 'error' in response:
-            logger.error(f"Error initiating stream for attachment {attachment_id}: {response['error']}")
+        if not response or (isinstance(response, dict) and 'error' in response):
+            err = response.get('error', 'Unknown error') if isinstance(response, dict) else 'No response'
+            logger.error(f"Error initiating stream for attachment {attachment_id}: {err}")
             return None
 
-        # Yield chunks of data as they arrive
+        # Yield chunks of data as they arrive and close connection cleanly when finished
         def file_iterator():
-            for chunk in response.iter_content(chunk_size=chunk_size):
-                if chunk:
-                    yield chunk
-                    
+            try:
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    if chunk:
+                        yield chunk
+            finally:
+                response.close()
+
         return file_iterator()
 
     @staticmethod
-    def fetch_inbox_messages(target_email=None, top_count=500):
+    def fetch_inbox_messages(target_email=None, top_count=100):
         """
-        Fetches recent emails for the live inbox, including full HTML body, CC, and BCC.
+        Fetches recent emails for ingestion, including full HTML body, From, To, CC, and BCC.
         """
         endpoint = (
             f"mailFolders/inbox/messages?$top={top_count}"
-            f"&$select=id,subject,from,receivedDateTime,bodyPreview,body,hasAttachments,ccRecipients,bccRecipients"
+            f"&$select=id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,bodyPreview,body,hasAttachments"
             f"&$orderby=receivedDateTime desc"
         )
         return OutlookGraphService._make_graph_request(endpoint, target_email=target_email)
@@ -184,26 +190,32 @@ class OutlookGraphService:
     @staticmethod
     def send_outlook_email(target_email=None, recipient_email=None, subject=None, body_content=None, content_type='HTML', attachments=None, cc_email=None, bcc_email=None, user=None):
         """
-        CRM_UNITY: Sends directly and MUST return the real Microsoft Message ID.
-        Fully updated to handle positional/keyword variables, multi-recipient arrays, and multi-file mapping arrays.
+        CRM_UNITY: Sends an email and guarantees a unique, collision-free Message ID
+        even when multiple incoming/outgoing emails share the exact same subject.
         """
-        endpoint = "sendMail"
         mailbox = target_email or getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', '')
-        
         final_recipient = recipient_email if recipient_email else None
         final_body = body_content if body_content else ""
 
         if user and content_type.upper() == 'HTML':
             final_body += get_user_signature(user)
 
-        # 1. Prepare the email payload
+        # Generate a unique correlation UUID so this specific outgoing email is 100% unique
+        correlation_id = f"CRM-UNITY-{uuid.uuid4().hex}"
+
         message_dict = {
             "subject": subject,
             "body": {"contentType": content_type, "content": final_body},
             "toRecipients": [],
             "ccRecipients": [],
             "bccRecipients": [],
-            "attachments": []
+            "attachments": [],
+            "internetMessageHeaders": [
+                {
+                    "name": "x-crm-unity-correlation-id",
+                    "value": correlation_id
+                }
+            ]
         }
 
         if final_recipient:
@@ -211,7 +223,6 @@ class OutlookGraphService:
             to_addr_list = [addr.strip() for addr in normalized_to.split(';') if addr.strip()]
             message_dict["toRecipients"] = [{"emailAddress": {"address": addr}} for addr in to_addr_list]
 
-        # ROBUST PARSING SAFETY GUARD FOR CC RECIPIENTS
         if cc_email:
             normalized_cc = str(cc_email).replace(',', ';')
             cc_list = [addr.strip() for addr in normalized_cc.split(';') if addr.strip()]
@@ -220,7 +231,6 @@ class OutlookGraphService:
                     "emailAddress": {"address": address}
                 })
 
-        # ROBUST PARSING SAFETY GUARD FOR BCC RECIPIENTS
         if bcc_email:
             normalized_bcc = str(bcc_email).replace(',', ';')
             bcc_list = [addr.strip() for addr in normalized_bcc.split(';') if addr.strip()]
@@ -229,16 +239,15 @@ class OutlookGraphService:
                     "emailAddress": {"address": address}
                 })
 
-        # Handle Attachments
         if attachments:
             for f in attachments:
                 try:
                     f.seek(0)
                     attachment_content_type = getattr(f, 'content_type', '')
-                    
+
                     if not attachment_content_type or attachment_content_type == 'application/octet-stream':
                         attachment_content_type, _ = mimetypes.guess_type(f.name)
-                        
+
                     if not attachment_content_type:
                         if f.name.lower().endswith('.eml'):
                             attachment_content_type = 'message/rfc822'
@@ -257,38 +266,59 @@ class OutlookGraphService:
                 except Exception as attachment_err:
                     logger.error(f"Failed to encode file for Microsoft transmission array payload: {attachment_err}")
 
-        payload = {"message": message_dict, "saveToSentItems": "true"}
+        # STRATEGY 1: Create Draft with ImmutableId + Send (returns the exact Graph ID immediately, zero collisions)
+        draft_res = OutlookGraphService._make_graph_request("messages", target_email=mailbox, method='POST', data=message_dict)
+        if isinstance(draft_res, dict) and 'id' in draft_res and 'error' not in draft_res:
+            exact_message_id = draft_res['id']
+            send_res = OutlookGraphService._make_graph_request(f"messages/{exact_message_id}/send", target_email=mailbox, method='POST')
+            if not (isinstance(send_res, dict) and 'error' in send_res):
+                return {
+                    'success': True,
+                    'id': exact_message_id,
+                    'outlook_id': exact_message_id
+                }
 
-        # 2. Send the email (Requires Mail.Send permission)
-        result = OutlookGraphService._make_graph_request(endpoint, target_email=mailbox, method='POST', data=payload)
+        # STRATEGY 2: Fallback to /sendMail (if service account only has Mail.Send and not Mail.ReadWrite)
+        payload = {"message": message_dict, "saveToSentItems": "true"}
+        result = OutlookGraphService._make_graph_request("sendMail", target_email=mailbox, method='POST', data=payload)
 
         if isinstance(result, dict) and 'error' in result:
             return {'success': False, 'error': result.get('error')}
-        
-        # 3. Retrieve the REAL ID from Sent Items
-        time.sleep(1.5) 
-        
+
+        # Match the exact correlation header in Sent Items (never collides on identical subjects)
+        time.sleep(1.5)
         try:
-            sent_endpoint = "mailFolders/sentitems/messages?$top=1&$select=id&$orderby=receivedDateTime desc"
+            sent_endpoint = (
+                "mailFolders/sentitems/messages?$top=10"
+                "&$select=id,subject,internetMessageHeaders"
+                "&$orderby=sentDateTime desc"
+            )
             sent_check = OutlookGraphService._make_graph_request(sent_endpoint, target_email=mailbox, method='GET')
-            
-            if sent_check and 'value' in sent_check and len(sent_check['value']) > 0:
-                message_id = sent_check['value'][0]['id'] 
-                
-                return {
-                    'success': True, 
-                    'id': message_id,
-                    'outlook_id': message_id
-                }
-            else:
-                return {'success': False, 'error': 'Email sent but could not locate ID in Sent Items.'}
-        
+
+            if isinstance(sent_check, dict) and 'value' in sent_check:
+                for msg in sent_check['value']:
+                    headers_list = msg.get('internetMessageHeaders') or []
+                    for h in headers_list:
+                        if (h.get('name') or '').lower() == 'x-crm-unity-correlation-id' and h.get('value') == correlation_id:
+                            message_id = msg['id']
+                            return {
+                                'success': True,
+                                'id': message_id,
+                                'outlook_id': message_id
+                            }
         except Exception as e:
-            return {'success': False, 'error': f"ID Retrieval failed: {str(e)}"}
-    
+            logger.warning(f"Sent item correlation lookup fallback used: {e}")
+
+        # Guaranteed unique fallback ID so two outgoing emails with the same subject never overwrite each other locally
+        return {
+            'success': True,
+            'id': correlation_id,
+            'outlook_id': correlation_id
+        }
+
     @staticmethod
     def fetch_attachments(*args, **kwargs):
-        """Metadata for all attachments with flexible argument parsing."""
+        """Metadata for all attachments with flexible argument parsing ($select prevents loading binaries into RAM)."""
         if len(args) == 2:
             target_email, message_id = args
         elif len(args) == 1:
@@ -297,10 +327,10 @@ class OutlookGraphService:
             target_email = kwargs.get('target_email')
             message_id = kwargs.get('message_id')
 
-        endpoint = f"messages/{message_id}/attachments"
+        endpoint = f"messages/{message_id}/attachments?$select=id,name,contentType,size,isInline,contentId"
         response = OutlookGraphService._make_graph_request(endpoint, target_email=target_email, method='GET')
         return response.get('value', []) if isinstance(response, dict) else []
-    
+
     @staticmethod
     def get_attachment_raw(*args, **kwargs):
         """Raw bytes/metadata for attachments with flexible argument parsing."""

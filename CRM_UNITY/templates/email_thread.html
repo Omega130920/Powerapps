@@ -33,7 +33,7 @@
         .preview-container img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; }
         .file-icon { font-size: 35px; }
         .file-name { font-size: 11px; font-weight: bold; text-align: center; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #333; margin-bottom: 5px; }
-        .btn-download-small { background-color: #43a047; color: white; text-decoration: none; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; width: 100%; text-align: center; }
+        .btn-download-small { background-color: #43a047; color: white; text-decoration: none; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; width: 100%; text-align: center; box-sizing: border-box; }
 
         /* --- Timeline (Audit Trail) --- */
         .timeline-container { position: relative; padding-left: 50px; margin-top: 20px; }
@@ -45,46 +45,63 @@
         .bg-reply { background-color: #f3e5f5; color: #7b1fa2; }
         .bg-direct { background-color: #fff3e0; color: #e65100; }
         .bg-default { background-color: #f0fff4; color: #2f855a; }
-        .bg-note { background-color: #e3f2fd; color: #0d47a1; } 
+        .bg-note { background-color: #e3f2fd; color: #0d47a1; }
         .event-meta { display: block; margin-top: 10px; font-size: 12px; color: #718096; border-top: 1px solid #f7fafc; padding-top: 8px; }
         .event-text { font-size: 14px; color: #2d3748; margin: 5px 0; }
         .email-details-block { background-color: #f8f9fa; border-left: 3px solid #ccc; padding: 8px 12px; margin-top: 8px; font-size: 0.95em; color: #555; }
-        
-        /* 🚀 Stacked Email Meta Rows & Reply Box Styles */
+
+        /* Stacked Email Meta Rows & Reply Box Styles */
         .email-meta-stack { font-size: 13px; color: #4a5568; background: #f8f9fa; padding: 10px 12px; border-radius: 6px; margin-bottom: 10px; line-height: 1.6; border: 1px solid #edf2f7; }
         .email-meta-stack div { display: block; margin-bottom: 2px; }
-        .email-reply-block { background-color: #faf5fb; border-left: 4px solid #7b1fa2; padding: 12px 15px; border-radius: 4px; margin-top: 8px; font-size: 14px; line-height: 1.6; color: #2d3748; }
+        .email-reply-block { background-color: #faf5fb; border-left: 4px solid #7b1fa2; padding: 12px 15px; border-radius: 4px; margin-top: 8px; font-size: 14px; line-height: 1.6; color: #2d3748; overflow-x: auto; }
     </style>
 </head>
 <body>
 
 <div class="thread-page-wrapper">
-    
+
     <div class="action-bar">
         <div>
             <h1 style="margin:0; color: #2e7d32;">Communication History</h1>
             <p style="margin:0; color: #666;">Ref: {{ task.member_group_code|default:"N/A" }}</p>
         </div>
         <div class="btn-group">
-            <a href="{% url 'download_actual_email' email_id=email_id %}" class="download-eml-button">
+            <a href="{% url 'download_actual_email' email_id=email_id %}{% if action_id %}?action_id={{ action_id }}{% endif %}" class="download-eml-button">
                 <i class="fas fa-file-download"></i> Download Full Email (.eml)
             </a>
             <a href="javascript:history.back()" class="return-button">← Back to Email Log</a>
         </div>
     </div>
 
+    {% if view_mode != 'reply' %}
+    {# --- INCOMING / DIRECT EMAIL CARD (ONLY SHOWN WHEN VIEWING THE ORIGINAL EMAIL) --- #}
     <div class="email-thread-card">
         <div class="card-header-main">
             <h3>{{ task.subject|default:"No Subject" }}</h3>
-            <div style="font-size: 14px; color: #4a5568;">
-                <strong>Identifier:</strong> {{ email_id }} <br>
-                <strong>Date:</strong> 
+            <div style="font-size: 14px; color: #4a5568; line-height: 1.65;">
+                <strong>Identifier:</strong> {{ email_id }}<br>
                 {% if is_direct %}
-                    {{ task.sent_at|date:"d M Y, H:i" }}
-                {% elif inbox_item and inbox_item.received_timestamp %}
-                    {{ inbox_item.received_timestamp|date:"d M Y, H:i" }}
+                    <strong>Date Sent:</strong> {{ task.sent_at|date:"d M Y, H:i" }}<br>
+                    <strong>To:</strong> {{ task.recipient_email|default:"-" }}<br>
                 {% else %}
-                    {{ task.received_timestamp|date:"d M Y, H:i" }}
+                    <strong>Date Received:</strong>
+                    {% if inbox_item and inbox_item.received_timestamp %}
+                        {{ inbox_item.received_timestamp|date:"d M Y, H:i" }}
+                    {% else %}
+                        {{ task.received_timestamp|date:"d M Y, H:i" }}
+                    {% endif %}<br>
+                    <strong>From:</strong>
+                    {% if sender_name and sender_name != sender_email %}
+                        {{ sender_name }} &lt;{{ sender_email }}&gt;
+                    {% else %}
+                        {{ sender_email }}
+                    {% endif %}<br>
+                {% endif %}
+                {% if cc_recipients %}
+                    <strong>CC:</strong> {{ cc_recipients }}<br>
+                {% endif %}
+                {% if bcc_recipients %}
+                    <strong>BCC:</strong> {{ bcc_recipients }}<br>
                 {% endif %}
             </div>
         </div>
@@ -92,11 +109,11 @@
             {{ email_body|safe }}
         </div>
 
-        {# --- HISTORICAL ATTACHMENT GALLERY --- #}
+        {# --- INCOMING EMAIL ATTACHMENT GALLERY --- #}
         {% if attachments %}
         <div class="attachment-history-section">
             <strong style="display:block; margin-bottom:10px; color:#2e7d32; font-size: 14px;">
-                <i class="fas fa-paperclip"></i> Files associated with this thread:
+                <i class="fas fa-paperclip"></i> Files associated with this email:
             </strong>
             <div class="attachment-gallery">
                 {% for att in attachments %}
@@ -110,7 +127,7 @@
                         {% endif %}
                     </div>
                     <div class="file-name" title="{{ att.name }}">{{ att.name }}</div>
-                    
+
                     <a href="{% url 'download_attachment' message_id=email_id attachment_id=att.id %}" target="_blank" class="btn-download-small">
                         <i class="fas fa-download"></i> Download
                     </a>
@@ -120,12 +137,13 @@
         </div>
         {% endif %}
     </div>
+    {% endif %}
 
     <h2 style="font-size: 1.2em; color: #4a5568; margin-bottom: 20px; padding-left: 10px;">Activity Timeline</h2>
     <div class="timeline-container">
-        
-        {# --- ORIGINAL DELEGATION EVENT --- #}
-        {% if not is_direct and task.delegated_to %}
+
+        {# --- ORIGINAL DELEGATION EVENT (ONLY IN INCOMING VIEW MODE) --- #}
+        {% if view_mode != 'reply' and not is_direct and task.delegated_to %}
         <div class="timeline-event">
             <div class="timeline-icon" style="background-color: #2b6cb0;"></div>
             <span class="badge-status bg-delegated">Delegation Created</span>
@@ -137,16 +155,16 @@
         {# --- ITERATE THROUGH CRM_UNITY ACTIONS --- #}
         {% for action in actions %}
         <div class="timeline-event">
-            
+
             {% if action.action_type == 'REPLY_SENT' %}
                 <div class="timeline-icon" style="background-color: #7b1fa2;"></div>
                 <span class="badge-status bg-reply">Reply Sent</span>
-                
+
                 <div class="email-meta-stack">
                     {% if action.cc_recipients %}<div><strong>CC:</strong> {{ action.cc_recipients }}</div>{% endif %}
                     {% if action.bcc_recipients %}<div><strong>BCC:</strong> {{ action.bcc_recipients }}</div>{% endif %}
                     <div><strong>Subject:</strong> {{ action.related_subject|default:task.subject }}</div>
-                    {% if action.note_content and action.note_content != 'None' %}
+                    {% if action.note_content and action.note_content != 'None' and "<div" not in action.note_content %}
                     <div><strong>Log Type:</strong> {{ action.note_content }}</div>
                     {% endif %}
                 </div>
@@ -161,8 +179,28 @@
                     {% endif %}
                 </div>
 
-                {# 🚀 Render Attachment badge if an attachment was sent with this reply #}
-                {% if action.attachment_name %}
+                {# Render Downloadable Attachment badge if an attachment was sent with this reply #}
+                {% if action.downloadable_files %}
+                <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed #e2e8f0; display: flex; flex-wrap: wrap; gap: 12px;">
+                    {% for file_item in action.downloadable_files %}
+                    <div style="display: flex; align-items: center; gap: 10px; background: #f8fafc; padding: 6px 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                        <div style="width: 36px; height: 36px; background: #e3f2fd; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-file-alt" style="color: #1976d2; font-size: 18px;"></i>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; font-weight: bold; color: #333;" title="{{ file_item.name }}">{{ file_item.name }}</div>
+                            {% if file_item.url %}
+                                <a href="{{ file_item.url }}" style="font-size: 11px; font-weight: 600; color: #1976d2; text-decoration: none;">
+                                    <i class="fas fa-download"></i> Download Attachment
+                                </a>
+                            {% else %}
+                                <span style="font-size: 11px; color: #718096;">Attached to sent response</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% elif action.attachment_name %}
                 <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed #e2e8f0; display: flex; align-items: center; gap: 10px;">
                     <div style="width: 36px; height: 36px; background: #e3f2fd; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
                         <i class="fas fa-file-alt" style="color: #1976d2; font-size: 18px;"></i>
@@ -177,7 +215,7 @@
             {% elif action.action_type == 'add_note' %}
                 <div class="timeline-icon" style="background-color: #0d47a1;"></div>
                 <span class="badge-status bg-note">Internal Note</span>
-                
+
                 <div class="event-text" style="font-size: 14px; line-height: 1.6;">
                     {{ action.note_content|linebreaksbr }}
                 </div>
@@ -187,7 +225,7 @@
                 <span class="badge-status {% if action.action_type == 'complete' %}bg-default{% else %}bg-direct{% endif %}">
                     {% if action.action_type == 'complete' %}Completed{% else %}{{ action.action_type|title }}{% endif %}
                 </span>
-                
+
                 <div class="event-text" style="font-size: 14px;">
                     <strong>Details:</strong> {{ action.note_content|safe }}
                 </div>
@@ -195,7 +233,7 @@
 
             <span class="event-meta">User: <strong>{{ action.action_user }}</strong> | {{ action.action_timestamp|date:"d M Y, H:i" }}</span>
         </div>
-        
+
         {% empty %}
         <div style="padding-left: 20px; color: #718096; font-style: italic;">
             No historical actions logged for this thread.

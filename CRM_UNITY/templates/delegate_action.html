@@ -356,9 +356,34 @@
             <div class="email-thread-card">
                 <div class="card-header-main">
                     <h3>Original Communication Content</h3>
-                    <div style="font-size: 13px; color: #666;">
-                        <strong>Sender:</strong> {{ task.sender_email|default:task.sender }} <br>
-                        <strong>Arrival:</strong> {{ task.received_timestamp|date:"d M Y, H:i" }}
+                    <div style="font-size: 13px; color: #555; line-height: 1.6;">
+                        <strong>From:</strong>
+                        {% if task.sender_name and task.sender_name != task.sender %}
+                            {{ task.sender_name }} &lt;{{ task.sender }}&gt;
+                        {% elif inbox_item and inbox_item.sender_name and inbox_item.sender_name != inbox_item.sender %}
+                            {{ inbox_item.sender_name }} &lt;{{ inbox_item.sender }}&gt;
+                        {% else %}
+                            {{ task.sender|default:inbox_item.sender|default:"Unknown" }}
+                        {% endif %}<br>
+
+                        {% if task.to_recipients or inbox_item.to_recipients %}
+                            <strong>To:</strong> {{ task.to_recipients|default:inbox_item.to_recipients }}<br>
+                        {% endif %}
+
+                        {% if task.cc_recipients or inbox_item.cc_recipients %}
+                            <strong>CC:</strong> {{ task.cc_recipients|default:inbox_item.cc_recipients }}<br>
+                        {% endif %}
+
+                        {% if task.bcc_recipients or inbox_item.bcc_recipients %}
+                            <strong>BCC:</strong> {{ task.bcc_recipients|default:inbox_item.bcc_recipients }}<br>
+                        {% endif %}
+
+                        <strong>Date Received:</strong>
+                        {% if inbox_item and inbox_item.received_timestamp %}
+                            {{ inbox_item.received_timestamp|date:"d M Y, H:i" }}
+                        {% else %}
+                            {{ task.received_timestamp|date:"d M Y, H:i" }}
+                        {% endif %}
                     </div>
                 </div>
                 
@@ -375,14 +400,9 @@
                         {% for att in attachments %}
                         <div class="attachment-item">
                             <a href="{% url 'download_attachment' message_id=email_id attachment_id=att.id %}" class="attachment-link" target="_blank">
-                                {% if att.contentBytes %}
-                                    <img src="data:{{ att.contentType }};base64,{{ att.contentBytes }}" 
-                                         style="height: 20px; width: 20px; border-radius: 3px; margin-right: 5px; object-fit: cover; vertical-align: middle;">
-                                {% else %}
-                                    <i class="fas fa-file-download"></i>
-                                {% endif %}
+                                <i class="fas fa-file-download"></i>
                                 {{ att.name }} 
-                                <small style="color: #666; font-weight: normal;">({{ att.size|filesizeformat }})</small>
+                                {% if att.size %}<small style="color: #666; font-weight: normal;">({{ att.size|filesizeformat }})</small>{% endif %}
                             </a>
                         </div>
                         {% endfor %}

@@ -130,9 +130,23 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
         <div class="email-thread-card">
             <div class="card-header-main">
                 <h3>Original Communication Content</h3>
-                <div style="font-size: 13px; color: #666;">
-                    <strong>Sender:</strong> {{ inbox_item.sender|default:"Unknown" }} <br>
-                    <strong>Arrival:</strong> {{ inbox_item.received_timestamp|date:"d M Y, H:i" }}
+                <div style="font-size: 13px; color: #555; line-height: 1.6;">
+                    <strong>From:</strong>
+                    {% if inbox_item.sender_name and inbox_item.sender_name != inbox_item.sender %}
+                        {{ inbox_item.sender_name }} &lt;{{ inbox_item.sender }}&gt;
+                    {% else %}
+                        {{ inbox_item.sender|default:"Unknown" }}
+                    {% endif %}<br>
+                    {% if inbox_item.to_recipients %}
+                        <strong>To:</strong> {{ inbox_item.to_recipients }}<br>
+                    {% endif %}
+                    {% if inbox_item.cc_recipients %}
+                        <strong>CC:</strong> {{ inbox_item.cc_recipients }}<br>
+                    {% endif %}
+                    {% if inbox_item.bcc_recipients %}
+                        <strong>BCC:</strong> {{ inbox_item.bcc_recipients }}<br>
+                    {% endif %}
+                    <strong>Date Received:</strong> {{ inbox_item.received_timestamp|date:"d M Y, H:i" }}
                 </div>
             </div>
             
@@ -143,13 +157,14 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
             {% if attachments %}
             <div class="attachment-list">
                 <strong style="display:block; margin-bottom:10px; color:#2e7d32; font-size: 14px;">
-                    <i class="fas fa-paperclip"></i> Attachments Detected:
+                    <i class="fas fa-paperclip"></i> Attachments Detected ({{ attachments|length }}):
                 </strong>
                 <div style="display: flex; flex-wrap: wrap; gap: 10px;">
                     {% for att in attachments %}
                     <div class="attachment-item">
                         <a href="{% url 'download_attachment' message_id=email_id attachment_id=att.id %}" class="attachment-link" target="_blank">
-                            <i class="fas fa-file-download"></i> {{ att.name }} 
+                            <i class="fas fa-file-download"></i> {{ att.name }}
+                            {% if att.size %}<small style="color: #666; font-weight: normal;">({{ att.size|filesizeformat }})</small>{% endif %}
                         </a>
                     </div>
                     {% endfor %}

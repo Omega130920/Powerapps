@@ -290,63 +290,95 @@ class MemberDocument(models.Model):
 
 class CrmInbox(models.Model):
     """
-    Unmanaged Model: Stores metadata, FULL HTML, and recipient lists for Outlook emails.
+    Unmanaged Model: Stores metadata, FULL HTML, recipient lists, and local sync state for Outlook emails.
     """
-    email_id = models.CharField(max_length=255, primary_key=True) 
+    email_id = models.CharField(max_length=255, primary_key=True)
     subject = models.CharField(max_length=512, null=True, blank=True)
     sender = models.CharField(max_length=255, null=True, blank=True)
+    sender_name = models.CharField(max_length=255, null=True, blank=True)
     snippet = models.CharField(max_length=512, null=True, blank=True)
-    
+
     # LOCAL RENDERING & RECIPIENT FIELDS
     body_html = models.TextField(null=True, blank=True)
     has_attachments = models.BooleanField(default=False)
-    cc_recipients = models.TextField(null=True, blank=True)   # 🟢 NEW: Stores CC emails
-    bcc_recipients = models.TextField(null=True, blank=True)  # 🟢 NEW: Stores BCC emails
-    
+    to_recipients = models.TextField(null=True, blank=True)
+    cc_recipients = models.TextField(null=True, blank=True)
+    bcc_recipients = models.TextField(null=True, blank=True)
+    eml_file_path = models.CharField(max_length=500, null=True, blank=True)
+    is_fully_synced = models.BooleanField(default=False)
+
     received_timestamp = models.DateTimeField(default=timezone.now)
-    status = models.CharField(max_length=20, default='Pending') 
+    status = models.CharField(max_length=20, default='Pending')
     delegated_by = models.CharField(max_length=100, null=True, blank=True)
     delegated_to = models.CharField(max_length=100, null=True, blank=True)
-    
+
     work_related = models.CharField(max_length=5, default='No')
     member_group_code = models.CharField(db_column='Member_Group_Code', max_length=255, null=True, blank=True)
     id_passport = models.CharField(max_length=50, null=True, blank=True)
     category = models.CharField(max_length=50, null=True, blank=True)
     type = models.CharField(max_length=50, null=True, blank=True)
     method = models.CharField(max_length=50, default='Email')
-    
+
     class Meta:
         managed = False
         db_table = 'crm_inbox' 
 
 class CrmDelegateTo(models.Model):
     """
-    Unmanaged Model: Full detailed delegation log for Microsoft Graph tasks.
+    Unmanaged Model: Full detailed delegation log for tasks (100% locally renderable).
     """
-    id = models.AutoField(primary_key=True) 
-    email_id = models.CharField(max_length=255, unique=True, db_index=True) 
+    id = models.AutoField(primary_key=True)
+    email_id = models.CharField(max_length=255, unique=True, db_index=True)
     subject = models.CharField(max_length=512, null=True, blank=True)
     sender = models.CharField(max_length=255, null=True, blank=True)
+    sender_name = models.CharField(max_length=255, null=True, blank=True)
     snippet = models.CharField(max_length=512, null=True, blank=True)
+
+    # LOCAL RENDERING & RECIPIENT FIELDS
+    body_html = models.TextField(null=True, blank=True)
+    has_attachments = models.BooleanField(default=False)
+    to_recipients = models.TextField(null=True, blank=True)
+    cc_recipients = models.TextField(null=True, blank=True)
+    bcc_recipients = models.TextField(null=True, blank=True)
+    eml_file_path = models.CharField(max_length=500, null=True, blank=True)
+
     received_timestamp = models.DateTimeField(default=timezone.now)
-    status = models.CharField(max_length=20, default='Delegated') 
+    status = models.CharField(max_length=20, default='Delegated')
     delegated_by = models.CharField(max_length=100, null=True, blank=True)
     delegated_to = models.CharField(max_length=100, null=True, blank=True)
     work_related = models.CharField(max_length=5, default='Yes')
     membership_number = models.CharField(db_column='membership_number', max_length=100, blank=True, null=True)
-    
-    # SYNCED: Replaced mip_number with member_group_code pointing to correct db_column
+
     member_group_code = models.CharField(db_column='Member_Group_Code', max_length=255, null=True, blank=True)
     id_passport = models.CharField(max_length=50, null=True, blank=True)
     category = models.CharField(max_length=50, null=True, blank=True)
     type = models.CharField(max_length=255, null=True, blank=True)
     method = models.CharField(max_length=50, default='Email')
-    delegated_attachments = models.TextField(null=True, blank=True) 
-    internal_notes = models.TextField(null=True, blank=True)       
-    
+    delegated_attachments = models.TextField(null=True, blank=True)
+    internal_notes = models.TextField(null=True, blank=True)
+
     class Meta:
         managed = False
         db_table = 'crm_delegate_to'
+        
+class CrmEmailAttachment(models.Model):
+    """
+    Unmanaged Model: Stores locally downloaded email attachments and inline CID images on disk.
+    """
+    id = models.AutoField(primary_key=True)
+    email_id = models.CharField(max_length=255, db_index=True)
+    attachment_id = models.CharField(max_length=255, null=True, blank=True)
+    name = models.CharField(max_length=255)
+    content_type = models.CharField(max_length=150, null=True, blank=True)
+    size = models.IntegerField(default=0)
+    is_inline = models.BooleanField(default=False)
+    content_id = models.CharField(max_length=255, null=True, blank=True)
+    file_path = models.CharField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = 'crm_email_attachments'
 
 class CrmDelegateAction(models.Model):
     task_email_id = models.CharField(max_length=255, null=True, blank=True)

@@ -1382,14 +1382,14 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {# 1. DELEGATED LOG (ORIGINAL & REPLIES) #}
+                    {# 1. DELEGATED LOG (ORIGINAL FOLLOWED CHRONOLOGICALLY BY ITS REPLIES) #}
                     {% for email in combined_email_log %}
-                    <tr style="border-bottom: 1px solid #eee; transition: background-color 0.2s; {% if email.status == 'Completed' %}background-color: #f9f9f9; color: #888;{% endif %}">
+                    <tr style="border-bottom: 1px solid #eee; transition: background-color 0.2s; {% if email.status == 'Completed' %}background-color: #f9f9f9; color: #888;{% elif email.type == 'Reply' %}background-color: #fcfaff;{% endif %}">
                         <td style="padding: 10px;">
                             {% if email.type == 'Original' %}
                                 <span style="font-weight: bold; color: #1976d2;">📥 ORIGINAL</span>
                             {% else %}
-                                <span style="font-weight: bold; color: #673ab7;">📤 REPLY</span>
+                                <span style="font-weight: bold; color: #673ab7; padding-left: 12px;">↳ 📤 REPLY</span>
                             {% endif %}
                         </td>
                         <td style="padding: 10px;">
@@ -1404,13 +1404,12 @@
                             {% endif %}
                         </td>
                         <td style="padding: 10px;">{{ email.arrival_timestamp|date:"Y-m-d H:i"|default:"-" }}</td>
-                        
-                        <!-- 🟢 FIXED: Simplified the filter to explicitly format the delegation_timestamp with hours and minutes -->
                         <td style="padding: 10px;">{{ email.delegation_timestamp|date:"Y-m-d H:i"|default:"-" }}</td>
-                        
                         <td style="padding: 10px;">{{ email.assigned_to }}</td>
                         <td style="padding: 10px;">
-                            {% if email.status == 'Completed' %}
+                            {% if email.type == 'Reply' or email.status == 'Sent' %}
+                                <span style="color: #673ab7; font-weight: bold;">Sent</span>
+                            {% elif email.status == 'Completed' %}
                                 <span style="color: #388e3c; font-weight: bold;"><i class="fas fa-check-circle"></i> Actioned</span>
                             {% elif email.status == 'Delegated' %}
                                 <span style="color: #1976d2; font-weight: bold;">Delegated</span>
@@ -1419,28 +1418,32 @@
                             {% endif %}
                         </td>
                         <td style="padding: 10px;">
-                            {% if email.status == 'Completed' %}
-                                {{ email.timestamp|date:"Y-m-d H:i" }}
-                            {% else %}-{% endif %}
+                            {% if email.type == 'Reply' %}
+                                {{ email.actioned_timestamp|default:email.timestamp|date:"Y-m-d H:i" }}
+                            {% elif email.status == 'Completed' %}
+                                {{ email.actioned_timestamp|default:email.timestamp|date:"Y-m-d H:i" }}
+                            {% else %}
+                                -
+                            {% endif %}
                         </td>
                         <td style="padding: 10px; text-align: center;">
                             <div class="email-log-actions" style="display: flex; gap: 5px; justify-content: center;">
                                 {# View Thread Button #}
                                 {% if email.email_id %}
-                                    <a href="{% url 'view_email_thread' email_id=email.email_id %}" class="action-btn bg-view" title="View Full Thread" style="background-color: #43a047; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 0.85em;">
+                                    <a href="{% url 'view_email_thread' email_id=email.email_id %}{% if email.action_id %}?action_id={{ email.action_id }}{% endif %}" class="action-btn bg-view" title="View Email" style="background-color: #43a047; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 0.85em;">
                                         <i class="fas fa-eye"></i> View
                                     </a>
                                 {% endif %}
 
-                                {# DOWNLOAD BUTTON FOR ORIGINAL LOG - Uses email_id from the context map #}
+                                {# Download .eml Button #}
                                 {% if email.email_id %}
-                                    <a href="?download_email_id={{ email.email_id }}" 
+                                    <a href="?download_email_id={{ email.email_id }}{% if email.action_id %}&action_id={{ email.action_id }}{% endif %}" 
                                     class="action-btn bg-download" 
-                                    title="Download Sent .eml">
+                                    title="Download .eml">
                                         <i class="fas fa-download"></i> Download
                                     </a>
                                 {% else %}
-                                    <span style="color: #999; font-size: 0.85em; cursor: help;" title="Directly sent emails do not support downloads.">
+                                    <span style="color: #999; font-size: 0.85em; cursor: help;" title="No download available.">
                                         <i class="fas fa-ban"></i> No Download
                                     </span>
                                 {% endif %}
@@ -1461,11 +1464,10 @@
                         <td style="padding: 10px;">-</td>
                         <td style="padding: 10px;">-</td>
                         <td style="padding: 10px;">{{ email.recipient_email }}</td>
-                        <td style="padding: 10px;"><span style="color: #e91e63; font-weight: bold;">SENT</span></td>
+                        <td style="padding: 10px;"><span style="color: #e91e63; font-weight: bold;">Sent</span></td>
                         <td style="padding: 10px;">{{ email.sent_at|date:"Y-m-d H:i" }}</td>
                         <td style="padding: 10px; text-align: center;">
                             <div class="email-log-actions" style="display: flex; gap: 5px; justify-content: center;">
-                                {# View Thread Button #}
                                 {% if email.outlook_message_id and email.outlook_message_id != "MANUAL_SEND_SUCCESS" %}
                                     <a href="{% url 'view_email_thread' email_id=email.outlook_message_id %}" class="action-btn bg-view" title="View Full Thread" style="background-color: #43a047; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 0.85em;">
                                         <i class="fas fa-eye"></i> View
@@ -1600,7 +1602,6 @@
         </div>
     </form>
 </section>
-                <!-- END NEW SECTION -->
 
 
 <section id="notes" class="tab-pane">
@@ -1922,10 +1923,7 @@
         tabs.forEach(tab => {
             tab.addEventListener('click', () => {
                 activateTab(tab);
-                // This updates the URL so if the user hits 'Refresh' or 'Submit', 
-                // the server knows which tab to stay on.
                 const targetHash = tab.dataset.tabTarget;
-                // 
                 window.history.replaceState(null, null, targetHash);
             });
         });
@@ -1988,19 +1986,16 @@
         } else if (activateEditMode === 'section13a') {
             initialTab = document.querySelector('.tab-nav li[data-tab-target="#section13a"]');
             editDivId = 'section13a-edit';
-        // 🟢 FIXED: MATCHED SELECTORS TO THE NEW ID "medical-correspondence"
         } else if (activateEditMode === 'medical') {
             initialTab = document.querySelector('.tab-nav li[data-tab-target="#medical-correspondence"]');
             editDivId = 'medical-correspondence-edit';
         } else if (hash) {
-            // Prioritize hash (e.g., #pdf-documents) for form redirects
             initialTab = document.querySelector(`.tab-nav li[data-tab-target="${hash}"]`);
         }
         
         if (initialTab) {
             activateTab(initialTab);
 
-            // Added: Forces page to stay at the top after tab activation
             if (hash) {
                 setTimeout(() => {
                     window.scrollTo(0, 0); 
@@ -2024,15 +2019,12 @@
             link.addEventListener('click', function() {
                 const originalContent = this.innerHTML;
                 this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Downloading...';
-                
-                // We no longer set pointerEvents to 'none' because it can interfere 
-                // with the browser initiating the download stream from Django.
                 this.style.opacity = '0.7';
                 
                 setTimeout(() => {
                     this.innerHTML = originalContent;
                     this.style.opacity = '1';
-                }, 3000); // Extended slightly to allow the download to start
+                }, 3000);
             });
         });
 
