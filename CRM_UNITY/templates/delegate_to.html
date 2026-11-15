@@ -223,6 +223,7 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
                         <option value="12" {% if existing_delegation.category == "12" %}selected{% endif %}>12. Broker Investigations and Rebrokes</option>
                         <option value="13" {% if existing_delegation.category == "13" %}selected{% endif %}>13. General</option>
                         <option value="14" {% if existing_delegation.category == "14" %}selected{% endif %}>14. Other</option>
+                        <option value="15" {% if existing_delegation.category == "14" %}selected{% endif %}>15. FICA and DD</option>
                     </select>
                 </div>
             </div>
@@ -360,7 +361,8 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
                     <option value="13.14 Disability Outstanding Reports" data-category="13" class="hidden">13.14 Disability Outstanding Reports</option>
                     <option value="13.15 Disability Approval" data-category="13" class="hidden">13.15 Disability Approval</option>
                     <option value="13.16 Disability Declined" data-category="13" class="hidden">13.16 Disability Declined</option>
-                    
+                    <option value="13.17 FSCA Enquiry from Sanlam" data-category="13">13.17 FSCA Enquiry from Sanlam</option>
+
                     <option value="14.1 Bulk SMS to Members for documents, tax numbers" data-category="14" class="hidden">14.1 Bulk SMS to Members for documents, tax numbers</option>
                     <option value="14.2 Investment Reports for Brokers" data-category="14" class="hidden">14.2 Investment Reports for Brokers</option>
                     <option value="14.3 Joint Forum Client Reports for PE and CBC" data-category="14" class="hidden">14.3 Joint Forum Client Reports for PE and CBC</option>
@@ -375,6 +377,10 @@ body { font-family: sans-serif; margin: 0; color: #333; line-height: 1.6; backgr
                     <option value="14.13 0101 Account Monthly Checks and Action" data-category="14" class="hidden">14.13 0101 Account Monthly Checks and Action</option>
                     <option value="14.14 Benefit Statement Query (member/employer)" data-category="14" class="hidden">14.14 Benefit Statement Query (member/employer)</option>
                     <option value="14.15 Bulk Benefit Statements (employer/member) ad-hoc" data-category="14" class="hidden">14.15 Bulk Benefit Statements (employer/member) ad-hoc</option>
+
+                    <option value="15.1 Enquiry from Sanlam" data-category="15" class="hidden">15.1 Enquiry from Sanlam</option>
+                    <option value="15.2 Feedback from Employer" data-category="15" class="hidden">15.2 Feedback from Employer;</option>
+                    <option value="15.3 Feedback from Broker." data-category="15" class="hidden">15.3 Feedback from Broker.</option>
                 </select>
             </div>
         </div> 

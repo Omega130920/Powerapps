@@ -412,7 +412,20 @@ def _ensure_local_email_data(email_id):
         )
         body_html = f"<p>{fallback_snippet}</p>"
 
-    # 4. Load non-inline incoming attachments (excluding 'local_reply_' attachments)
+    # 3b. Backfill attachments for older Direct Emails that have a real Graph ID but no local CrmEmailAttachment rows yet
+    if direct_item and not (inbox_item or delegate_item):
+        if (
+            email_id
+            and not str(email_id).startswith(('DIRECT-', 'MANUAL_', 'DIRECT_', 'CRM-UNITY-'))
+            and not CrmEmailAttachment.objects.filter(email_id=email_id).exists()
+        ):
+            try:
+                from .management.commands.sync_outlook_emails import download_and_link_attachments
+                download_and_link_attachments(email_id, body_html, received_dt=direct_item.sent_at)
+            except Exception as e:
+                logger.warning(f"Direct email attachment backfill skipped for {email_id}: {e}")
+
+    # 4. Load non-inline incoming/direct attachments (excluding 'local_reply_' attachments)
     local_atts = (
         CrmEmailAttachment.objects
         .filter(email_id=email_id, is_inline=False)
@@ -560,6 +573,8 @@ def get_email_content_view(request, email_id):
 def delegate_email_view(request, email_id):
     """
     Handles classification and delegation for CRM_UNITY using locally stored email & attachment data.
+    - 'Assign Task' (new delegation) redirects to tasks.html ('tasks').
+    - 'Update Assignment' (re-delegating an existing task) redirects to email_workflow_log.html ('email_workflow_log').
     """
     inbox_item = get_object_or_404(CrmInbox, email_id=email_id)
     existing_delegation = CrmDelegateTo.objects.filter(email_id=email_id).first()
@@ -572,6 +587,7 @@ def delegate_email_view(request, email_id):
     available_agents = User.objects.filter(is_active=True)
 
     if request.method == 'POST':
+        is_redelegation = existing_delegation is not None
         agent_name = request.POST.get('agent_name')
         work_related = request.POST.get('work_related')
         member_code = request.POST.get('mip_number')
@@ -589,7 +605,7 @@ def delegate_email_view(request, email_id):
             success, message = delegate_email_task(email_id, None, request.user, form_data, is_recycle=True)
             if success:
                 messages.info(request, "Email moved to CRM Recycle Bin (preserved locally).")
-                return redirect('fetch_emails')
+                return redirect('email_workflow_log' if is_redelegation else 'fetch_emails')
             else:
                 messages.error(request, f"Error: {message}")
                 return redirect('fetch_emails')
@@ -601,10 +617,14 @@ def delegate_email_view(request, email_id):
                 if success:
                     try:
                         assignee = User.objects.get(pk=agent_name) if agent_name.isdigit() else User.objects.get(username=agent_name)
-                        messages.success(request, f"Task assigned to {assignee.username}. (Re-delegation: {'Yes' if existing_delegation else 'No'})")
+                        messages.success(request, f"Task assigned to {assignee.username}. (Re-delegation: {'Yes' if is_redelegation else 'No'})")
                     except Exception:
                         messages.success(request, f"Task assigned to {agent_name}.")
-                    return redirect('fetch_emails')
+
+                    # Redirect Update Assignment -> email_workflow_log.html, Assign Task -> tasks.html
+                    if is_redelegation:
+                        return redirect('email_workflow_log')
+                    return redirect('tasks')
 
     _, _, _, email_body, attachments_list = _ensure_local_email_data(email_id)
 
@@ -932,7 +952,7 @@ def member_information(request, member_group_code):
                 'agent_title': agent_title
             })
             
-            full_body_content = f"{body_content}<br>{signature_html}"
+            full_body_content = f"<div>{body_content}</div><br>{signature_html}"
 
             response = OutlookGraphService.send_outlook_email(
                 target_email=settings.OUTLOOK_EMAIL_ADDRESS,
@@ -946,7 +966,7 @@ def member_information(request, member_group_code):
             )
 
             if response.get('success'):
-                real_outlook_id = response.get('id', 'MANUAL_SEND_SUCCESS')
+                real_outlook_id = response.get('id') or f"DIRECT-{int(timezone.now().timestamp())}"
                 
                 DirectEmailLog.objects.create(
                     member_group_code=member_group_code,
@@ -960,6 +980,29 @@ def member_information(request, member_group_code):
                     sent_at=timezone.now(),
                     action_type=action_log_type
                 )
+
+                # Save uploaded Direct Email attachments to local disk and CrmEmailAttachment
+                if attachments:
+                    from .management.commands.sync_outlook_emails import _get_email_storage_dir
+                    from django.utils.text import get_valid_filename
+                    rel_dir, _ = _get_email_storage_dir(real_outlook_id)
+                    for idx, uf in enumerate(attachments, start=1):
+                        safe_uf = get_valid_filename(uf.name) or f"attachment_{idx}"
+                        rel_p = os.path.join(rel_dir, f"direct_{idx}_{safe_uf}").replace('\\', '/')
+                        abs_p = os.path.join(settings.MEDIA_ROOT, rel_p)
+                        uf.seek(0)
+                        with open(abs_p, 'wb') as out_f:
+                            for chunk in uf.chunks():
+                                out_f.write(chunk)
+                        CrmEmailAttachment.objects.create(
+                            email_id=real_outlook_id,
+                            attachment_id=f"local_direct_{int(timezone.now().timestamp())}_{idx}_{safe_uf}",
+                            name=uf.name,
+                            content_type=getattr(uf, 'content_type', 'application/octet-stream'),
+                            size=uf.size,
+                            is_inline=False,
+                            file_path=rel_p
+                        )
                 
                 attachment_count = len(attachments)
                 attach_string = f" ({attachment_count} files)" if attachment_count > 0 else ""
@@ -975,7 +1018,7 @@ def member_information(request, member_group_code):
                 messages.success(request, f"Email sent successfully with signature and logged as {action_log_type}.")
             else:
                 messages.error(request, f"Microsoft Error: {response.get('error')}")
-            return redirect(f"/global-members/{member_group_code}/#communications")
+            return redirect(f"/global-members/{member_group_code}/#email-log")
 
         elif action == 'save_member_note':
             attached_filename = None
@@ -2705,15 +2748,38 @@ def export_email_workflow_csv(request):
 def download_actual_email(request, email_id):
     """
     Downloads either:
-    - The specific Reply (.eml) when ?action_id=<id> is provided (with its reply body, CC/BCC, and reply attachments).
-    - The Original Incoming Email (.eml) from local disk (or synthesized from local DB) when no action_id is provided.
+    - The specific Reply (.eml) when ?action_id=<id> is provided.
+    - The Original Incoming or Direct Sent Email (.eml) from local disk (or synthesized with exact Outlook-compatible MIME headers).
     """
+    import re
     from email.message import EmailMessage as PyEmailMessage
-    from email.utils import format_datetime
+    from email.policy import SMTP as SMTP_POLICY
+    from email.utils import format_datetime, make_msgid
 
     action_id = request.GET.get('action_id')
     inbox_item, delegate_item, direct_item, body_html, _ = _ensure_local_email_data(email_id)
     source_obj = delegate_item or inbox_item or direct_item
+
+    # Use a policy with unlimited line length on headers so long MIME types (.xlsx/.docx) are NEVER RFC2047-encoded
+    clean_mime_policy = SMTP_POLICY.clone(max_line_length=0)
+
+    def _set_outlook_html_body(msg_obj, raw_html):
+        """
+        Sets a direct text/html body (matching the working Reply .eml format)
+        and strips HTML comments so Outlook never renders raw tags.
+        """
+        cleaned_html = re.sub(r'<!--.*?-->', '', raw_html or '', flags=re.DOTALL).strip()
+        msg_obj.set_content(cleaned_html, subtype='html', charset='utf-8', cte='quoted-printable')
+
+    def _safe_mime_type(filename_str, fallback_ctype=None):
+        """
+        Returns a clean (maintype, subtype) tuple that never triggers header folding in Outlook.
+        """
+        ctype = fallback_ctype or mimetypes.guess_type(filename_str)[0] or 'application/octet-stream'
+        if '/' not in ctype:
+            return 'application', 'octet-stream'
+        maintype, subtype = ctype.split('/', 1)
+        return maintype.strip(), subtype.strip()
 
     # CASE 1: Downloading a specific REPLY (.eml)
     if action_id and str(action_id).isdigit():
@@ -2722,9 +2788,9 @@ def download_actual_email(request, email_id):
         clean_subject = "".join([c for c in reply_subject if c.isalnum() or c in (' ', '-', '_', ':')]).replace(':', '_').strip()
         filename = f"{clean_subject[:60] or 'reply_record'}.eml"
 
-        msg = PyEmailMessage()
+        msg = PyEmailMessage(policy=clean_mime_policy)
         msg['Subject'] = reply_subject
-        msg['From'] = getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', 'unityeb@futurasa.co.za')
+        msg['From'] = getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', 'Unity@futurasa.co.za')
         msg['To'] = getattr(source_obj, 'sender', '') or ''
         if reply_action.cc_recipients:
             msg['Cc'] = reply_action.cc_recipients
@@ -2733,9 +2799,10 @@ def download_actual_email(request, email_id):
 
         dt = reply_action.action_timestamp or timezone.now()
         msg['Date'] = format_datetime(timezone.localtime(dt) if timezone.is_aware(dt) else dt)
+        msg['Message-ID'] = make_msgid(domain='futurasa.co.za')
 
         reply_html = reply_action.body or reply_action.note_content or ""
-        msg.set_content(reply_html, subtype='html')
+        _set_outlook_html_body(msg, reply_html)
 
         # Attach any files that were sent with this reply
         if reply_action.attachment_path:
@@ -2743,11 +2810,11 @@ def download_actual_email(request, email_id):
             for rel_p in paths:
                 abs_p = os.path.join(settings.MEDIA_ROOT, rel_p)
                 if os.path.exists(abs_p):
-                    ctype, _ = mimetypes.guess_type(abs_p)
-                    maintype, subtype = (ctype or 'application/octet-stream').split('/', 1)
                     orig_name = os.path.basename(abs_p)
                     if orig_name.startswith('reply_'):
-                        orig_name = orig_name[len('reply_'):]
+                        parts = orig_name.split('_', 2)
+                        orig_name = parts[2] if len(parts) == 3 and parts[1].isdigit() else orig_name[len('reply_'):]
+                    maintype, subtype = _safe_mime_type(orig_name)
                     with open(abs_p, 'rb') as f:
                         msg.add_attachment(f.read(), maintype=maintype, subtype=subtype, filename=orig_name)
         elif reply_action.attachment_name:
@@ -2758,40 +2825,65 @@ def download_actual_email(request, email_id):
                 if matched:
                     abs_p = os.path.join(settings.MEDIA_ROOT, matched.file_path)
                     if os.path.exists(abs_p):
-                        ctype = matched.content_type or mimetypes.guess_type(matched.name)[0] or 'application/octet-stream'
-                        maintype, subtype = ctype.split('/', 1)
+                        maintype, subtype = _safe_mime_type(matched.name, matched.content_type)
                         with open(abs_p, 'rb') as f:
                             msg.add_attachment(f.read(), maintype=maintype, subtype=subtype, filename=matched.name)
 
-        response = HttpResponse(msg.as_bytes(), content_type='message/rfc822')
+        response = HttpResponse(msg.as_bytes(policy=clean_mime_policy), content_type='message/rfc822')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
 
-    # CASE 2: Downloading the ORIGINAL INCOMING (or Direct) Email (.eml)
+    # CASE 2: Downloading the ORIGINAL INCOMING or DIRECT SENT Email (.eml)
     filename = "email_record.eml"
     if source_obj and getattr(source_obj, 'subject', None):
         clean_subject = "".join([c for c in source_obj.subject if c.isalnum() or c in (' ', '-', '_')]).strip()
         if clean_subject:
             filename = f"{clean_subject[:50]}.eml"
 
+    # 1. Check if the raw .eml file is already saved on local disk
     eml_rel_path = getattr(delegate_item, 'eml_file_path', None) or getattr(inbox_item, 'eml_file_path', None)
     if eml_rel_path:
         abs_eml_path = os.path.join(settings.MEDIA_ROOT, eml_rel_path)
         if os.path.exists(abs_eml_path):
             return FileResponse(open(abs_eml_path, 'rb'), as_attachment=True, filename=filename, content_type='message/rfc822')
 
+    # 2. Synthesize a clean Outlook-compatible .eml file from local database + local CrmEmailAttachment files
     if source_obj:
-        msg = PyEmailMessage()
+        msg = PyEmailMessage(policy=clean_mime_policy)
         msg['Subject'] = getattr(source_obj, 'subject', 'No Subject') or 'No Subject'
-        msg['From'] = getattr(source_obj, 'sender', '') or getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', 'unityeb@futurasa.co.za')
-        msg['To'] = getattr(source_obj, 'to_recipients', '') or getattr(source_obj, 'recipient_email', '')
+        if direct_item and not (inbox_item or delegate_item):
+            msg['From'] = getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', 'Unity@futurasa.co.za')
+            msg['To'] = getattr(direct_item, 'recipient_email', '') or ''
+        else:
+            msg['From'] = getattr(source_obj, 'sender', '') or getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', 'Unity@futurasa.co.za')
+            msg['To'] = getattr(source_obj, 'to_recipients', '') or getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', 'Unity@futurasa.co.za')
+
         if getattr(source_obj, 'cc_recipients', None):
             msg['Cc'] = source_obj.cc_recipients
+        if getattr(source_obj, 'bcc_recipients', None):
+            msg['Bcc'] = source_obj.bcc_recipients
+
         dt = getattr(source_obj, 'received_timestamp', None) or getattr(source_obj, 'sent_at', None) or timezone.now()
         msg['Date'] = format_datetime(timezone.localtime(dt) if timezone.is_aware(dt) else dt)
-        msg.set_content(body_html or "", subtype='html')
+        msg['Message-ID'] = make_msgid(domain='futurasa.co.za')
 
-        response = HttpResponse(msg.as_bytes(), content_type='message/rfc822')
+        _set_outlook_html_body(msg, body_html or "")
+
+        # Attach all local non-inline attachments belonging to this email (including local_direct_ attachments)
+        local_atts = (
+            CrmEmailAttachment.objects
+            .filter(email_id=email_id, is_inline=False)
+            .exclude(attachment_id__startswith='local_reply_')
+            .order_by('id')
+        )
+        for att in local_atts:
+            abs_p = os.path.join(settings.MEDIA_ROOT, att.file_path)
+            if os.path.exists(abs_p):
+                maintype, subtype = _safe_mime_type(att.name, att.content_type)
+                with open(abs_p, 'rb') as f:
+                    msg.add_attachment(f.read(), maintype=maintype, subtype=subtype, filename=att.name)
+
+        response = HttpResponse(msg.as_bytes(policy=clean_mime_policy), content_type='message/rfc822')
         response['Content-Disposition'] = f'attachment; filename="{filename}"'
         return response
 
