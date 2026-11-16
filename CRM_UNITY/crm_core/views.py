@@ -1004,12 +1004,20 @@ def member_information(request, member_group_code):
                             file_path=rel_p
                         )
                 
-                attachment_count = len(attachments)
-                attach_string = f" ({attachment_count} files)" if attachment_count > 0 else ""
-                
+                att_names = ", ".join([f.name for f in attachments]) if attachments else "None"
+                sent_now = timezone.localtime(timezone.now()) if timezone.is_aware(timezone.now()) else timezone.now()
+                note_summary = (
+                    f"To: {recipient}\n"
+                    f"CC: {cc_recipients or '-'}\n"
+                    f"BCC: {bcc_recipients or '-'}\n"
+                    f"Subject: {subject}\n"
+                    f"Date & Time Sent: {sent_now.strftime('%Y-%m-%d %H:%M')}\n"
+                    f"Attachments: {att_names}"
+                )
+
                 ClientNotes.objects.create(
                     related_member_group_code=member_group_code,
-                    notes=f"To: {recipient}\nCC: {cc_recipients}\nBCC: {bcc_recipients}\nSubject: {subject}\nAttachments: {attach_string}\n{body_content}",
+                    notes=note_summary,
                     communication_type='Sent E-mail',
                     action_notes=action_log_type,
                     user=user_display,
@@ -1118,7 +1126,12 @@ def member_information(request, member_group_code):
                 'action_user': reply.action_user
             })
 
-    notes = ClientNotes.objects.filter(related_member_group_code=member_group_code).order_by('-date')
+    import re
+    notes = list(ClientNotes.objects.filter(related_member_group_code=member_group_code).order_by('-date'))
+    for n in notes:
+        if n.communication_type == 'Sent E-mail' and n.notes and ('<' in n.notes):
+            # Strip any legacy HTML body appended after the Attachments: line on older notes
+            n.notes = re.sub(r'(Attachments:[^\n<]*)\s*<.*', r'\1', n.notes, flags=re.DOTALL).strip()
     direct_emails = DirectEmailLog.objects.filter(member_group_code=member_group_code).order_by('-sent_at')
     documents = MemberDocument.objects.filter(related_member_group_code=member_group_code).order_by('-uploaded_at')
 
@@ -1713,9 +1726,19 @@ def delegate_action_view(request, email_id):
                             attachment_path=", ".join(saved_paths) if saved_paths else None
                         )
 
+                        reply_now = timezone.localtime(timezone.now()) if timezone.is_aware(timezone.now()) else timezone.now()
+                        note_summary = (
+                            f"To: {recipient}\n"
+                            f"CC: {cc_recipients or '-'}\n"
+                            f"BCC: {bcc_recipients or '-'}\n"
+                            f"Subject: {subject}\n"
+                            f"Date & Time Replied: {reply_now.strftime('%Y-%m-%d %H:%M')}\n"
+                            f"Attachments: {att_names or 'None'}"
+                        )
+
                         ClientNotes.objects.create(
                             related_member_group_code=task.member_group_code,
-                            notes=f"Email Sent (Delegated): {subject}",
+                            notes=note_summary,
                             communication_type='Sent E-mail',
                             action_notes=action_log_type,
                             user=user_display,

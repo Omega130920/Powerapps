@@ -1784,7 +1784,7 @@
                                 Posted by: <strong>{{ note.user }}</strong> on {{ note.date|date:"Y-m-d H:i" }}
                                 <small style="display: block; color: #555;">{{ note.communication_type }} | {{ note.action_notes }}</small>
                             </div>
-                            <p class="note-content" style="margin-top: 5px; margin-bottom: 0;">{{ note.notes }}</p>
+                            <p class="note-content" style="margin-top: 5px; margin-bottom: 0; line-height: 1.5;">{{ note.notes|linebreaksbr }}</p>
                             
                             {# Check for the filename field added to the ClientNotes model #}
                             {% if note.attached_file_name %}
