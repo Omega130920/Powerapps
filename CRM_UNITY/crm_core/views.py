@@ -573,7 +573,7 @@ def get_email_content_view(request, email_id):
 def delegate_email_view(request, email_id):
     """
     Handles classification and delegation for CRM_UNITY using locally stored email & attachment data.
-    - 'Assign Task' (new delegation) redirects to tasks.html ('tasks').
+    - 'Assign Task' (new delegation) redirects to inbox.html ('fetch_emails' -> /emails/).
     - 'Update Assignment' (re-delegating an existing task) redirects to email_workflow_log.html ('email_workflow_log').
     """
     inbox_item = get_object_or_404(CrmInbox, email_id=email_id)
@@ -621,10 +621,10 @@ def delegate_email_view(request, email_id):
                     except Exception:
                         messages.success(request, f"Task assigned to {agent_name}.")
 
-                    # Redirect Update Assignment -> email_workflow_log.html, Assign Task -> tasks.html
+                    # Redirect Update Assignment -> email_workflow_log.html, Assign Task -> inbox.html ('fetch_emails')
                     if is_redelegation:
                         return redirect('email_workflow_log')
-                    return redirect('tasks')
+                    return redirect('fetch_emails')
 
     _, _, _, email_body, attachments_list = _ensure_local_email_data(email_id)
 
