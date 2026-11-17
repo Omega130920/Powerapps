@@ -232,7 +232,8 @@
     </div>
 </div>
 
-<iframe id="hidden_refresher" src="{{ request.path }}"></iframe>
+
+<iframe id="hidden_refresher" src="{{ request.path }}{% if request.GET.page %}?page={{ request.GET.page }}{% endif %}"></iframe>
 
 <script>
 let sortOrder = {}; // Tracks ASC/DESC for each column

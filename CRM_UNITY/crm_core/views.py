@@ -482,25 +482,30 @@ def _build_local_reply_thread_html(email_id, inbox_item=None, delegate_item=None
 def dashboard(request):
     """Displays the CRM dashboard with notification badges for all users."""
     username = request.user.username
-    
-    # All users can now see these counts
-    # New emails in CrmInbox that haven't been processed yet
-    new_emails_count = CrmInbox.objects.filter(status='Pending').count()
-    
+
+    # Exclude any email_id that already exists in CrmDelegateTo so the badge count always matches Live Inbox
+    already_delegated_ids = CrmDelegateTo.objects.values_list('email_id', flat=True)
+    new_emails_count = (
+        CrmInbox.objects
+        .filter(status='Pending')
+        .exclude(email_id__in=already_delegated_ids)
+        .count()
+    )
+
     # Recycle Bin
     recycled_count = CrmDelegateTo.objects.filter(status='Recycled').count()
 
     # Agent Logic: My Assigned Tasks
     my_pending_tasks_count = CrmDelegateTo.objects.filter(
-        delegated_to=request.user.username, 
+        delegated_to=request.user.username,
         status='Delegated'
     ).count()
 
     context = {
         'username': username,
-        'new_emails_count': new_emails_count,           # For 'Delegations' button
+        'new_emails_count': new_emails_count,               # For 'CRM_Delegations' button
         'my_pending_delegations_count': my_pending_tasks_count, # For 'Dashboard' button
-        'recycled_count': recycled_count,               # For 'Recycle Bin' button
+        'recycled_count': recycled_count,                   # For 'Recycle Bin' button
     }
     return render(request, 'dashboard.html', context)
 
@@ -518,10 +523,23 @@ def fetch_emails_view(request):
     """
     Loads instantly from the local database.
     When ?sync=true is passed, uses Graph ONLY to check for new emails and fully download them locally.
+    Strictly excludes any email that already exists in CrmDelegateTo so delegated emails never reappear.
     """
     if request.user.username.lower() != 'omega' and not request.user.is_superuser:
         messages.error(request, "Access restricted.")
         return redirect('tasks')
+
+    # Always get the master set of already-delegated/recycled/completed email IDs
+    already_delegated_ids = set(
+        CrmDelegateTo.objects.values_list('email_id', flat=True)
+    )
+
+    # Self-heal any CrmInbox row that is still marked 'Pending' despite already being in CrmDelegateTo
+    if already_delegated_ids:
+        CrmInbox.objects.filter(
+            email_id__in=already_delegated_ids,
+            status='Pending'
+        ).update(status='Delegated')
 
     if request.GET.get('sync') == 'true':
         inbox_data = OutlookGraphService.fetch_inbox_messages(top_count=100)
@@ -533,7 +551,8 @@ def fetch_emails_view(request):
             synced_count = 0
             for msg in emails:
                 email_id = msg.get('id')
-                if email_id and email_id not in fully_synced_ids:
+                # Never re-ingest as a new pending email if it's already synced or already delegated
+                if email_id and email_id not in fully_synced_ids and email_id not in already_delegated_ids:
                     if ingest_single_email_from_graph(msg):
                         synced_count += 1
             messages.success(request, f"Inbox synchronized ({synced_count} new emails downloaded locally).")
@@ -542,7 +561,13 @@ def fetch_emails_view(request):
             messages.warning(request, f"Showing local emails. Outlook sync notice: {err}")
         return redirect('fetch_emails')
 
-    display_emails = CrmInbox.objects.filter(status='Pending').order_by('-received_timestamp')
+    # Strictly filter to Pending emails AND exclude any email_id present in CrmDelegateTo
+    display_emails = (
+        CrmInbox.objects
+        .filter(status='Pending')
+        .exclude(email_id__in=already_delegated_ids)
+        .order_by('-received_timestamp')
+    )
     for email in display_emails:
         email.received_at = email.received_timestamp
 
@@ -1717,7 +1742,7 @@ def delegate_action_view(request, email_id):
                             task_email_id=email_id,
                             action_type='REPLY_SENT',
                             action_user=user_display,
-                            note_content=action_log_type,
+                            note_content=f"{action_log_type} || TO:{recipient}",
                             body=full_body_html,
                             cc_recipients=cc_recipients,
                             bcc_recipients=bcc_recipients,
@@ -1753,6 +1778,11 @@ def delegate_action_view(request, email_id):
             redirect_url += f"?from={source}"
         return redirect(redirect_url)
 
+    # Clean up note_content display on delegate_action.html if it contains "|| TO:"
+    for act in action_history:
+        if act.action_type == 'REPLY_SENT' and act.note_content and "|| TO:" in act.note_content:
+            act.note_content = act.note_content.split("|| TO:", 1)[0].strip()
+
     return render(request, 'delegate_action.html', {
         'task': task,
         'inbox_item': inbox_item,
@@ -1762,6 +1792,48 @@ def delegate_action_view(request, email_id):
         'source': source,
         'email_body': email_body,
     })
+
+
+def _resolve_reply_recipient(reply_action, source_obj=None):
+    """
+    Returns (recipient_to, clean_log_type) for a REPLY_SENT CrmDelegateAction.
+    Works for both newly sent replies and existing historical replies.
+    """
+    raw_note = (reply_action.note_content or '').strip()
+    recipient_to = ""
+    clean_log_type = raw_note
+
+    # 1. Check if stored directly in note_content as "Log Type || TO:email@..."
+    if "|| TO:" in raw_note:
+        parts = raw_note.split("|| TO:", 1)
+        clean_log_type = parts[0].strip()
+        recipient_to = parts[1].strip()
+
+    # 2. Check the matching ClientNotes entry created when this reply was sent
+    if not recipient_to:
+        member_code = getattr(source_obj, 'member_group_code', None)
+        notes_qs = ClientNotes.objects.filter(communication_type='Sent E-mail')
+        if member_code:
+            notes_qs = notes_qs.filter(related_member_group_code=member_code)
+        if reply_action.related_subject:
+            notes_qs = notes_qs.filter(notes__icontains=f"Subject: {reply_action.related_subject}")
+
+        for cn in notes_qs.order_by('-date')[:10]:
+            for line in (cn.notes or '').splitlines():
+                line_s = line.strip()
+                if line_s.lower().startswith('to:'):
+                    cand = line_s[3:].strip()
+                    if cand:
+                        recipient_to = cand
+                        break
+            if recipient_to:
+                break
+
+    # 3. Final fallback to original sender
+    if not recipient_to and source_obj:
+        recipient_to = getattr(source_obj, 'sender', '') or ''
+
+    return recipient_to, clean_log_type
 
 from django.db.models import Count
 
@@ -2811,10 +2883,12 @@ def download_actual_email(request, email_id):
         clean_subject = "".join([c for c in reply_subject if c.isalnum() or c in (' ', '-', '_', ':')]).replace(':', '_').strip()
         filename = f"{clean_subject[:60] or 'reply_record'}.eml"
 
+        actual_to, clean_log_note = _resolve_reply_recipient(reply_action, source_obj)
+
         msg = PyEmailMessage(policy=clean_mime_policy)
         msg['Subject'] = reply_subject
         msg['From'] = getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', 'Unity@futurasa.co.za')
-        msg['To'] = getattr(source_obj, 'sender', '') or ''
+        msg['To'] = actual_to
         if reply_action.cc_recipients:
             msg['Cc'] = reply_action.cc_recipients
         if reply_action.bcc_recipients:
@@ -2824,7 +2898,7 @@ def download_actual_email(request, email_id):
         msg['Date'] = format_datetime(timezone.localtime(dt) if timezone.is_aware(dt) else dt)
         msg['Message-ID'] = make_msgid(domain='futurasa.co.za')
 
-        reply_html = reply_action.body or reply_action.note_content or ""
+        reply_html = reply_action.body or clean_log_note or ""
         _set_outlook_html_body(msg, reply_html)
 
         # Attach any files that were sent with this reply
@@ -2912,30 +2986,32 @@ def download_actual_email(request, email_id):
 
     messages.error(request, "Email record not found.")
     return redirect(request.META.get('HTTP_REFERER', 'dashboard'))
-    
+
+
 def download_member_note_file(request, member_group_code):
     raw_filename = request.GET.get('file')
     if not raw_filename:
         raise Http404("No file specified")
 
     target_filename = urllib.parse.unquote(raw_filename)
-    
+
     # Precise lookup
     document = MemberDocument.objects.filter(
-        related_member_group_code=member_group_code, 
+        related_member_group_code=member_group_code,
         document_file__icontains=target_filename
     ).first()
-    
+
     if document and document.document_file:
         file_path = document.document_file.path
         if os.path.exists(file_path):
             # Stream the file
             return FileResponse(open(file_path, 'rb'), as_attachment=True, filename=target_filename)
-    
-    # If we get here, the file doesn't exist. 
+
+    # If we get here, the file doesn't exist.
     # Instead of a silent 302, we show an error.
     messages.error(request, f"Attachment '{target_filename}' could not be found.")
     return redirect('member_information', member_group_code=member_group_code)
+
 
 def far_inbox_view(request):
     """
@@ -2944,3 +3020,100 @@ def far_inbox_view(request):
     """
     messages.info(request, "FAR Delegations feature is under development.")
     return render(request, 'far_inbox.html', {})
+
+
+@login_required
+def view_email_thread(request, email_id):
+    """
+    Renders either:
+    - 'incoming' mode (when clicking View on an ORIGINAL/Incoming email): shows ONLY the incoming email & its attachments.
+    - 'reply' mode (when clicking View on a REPLY row with ?action_id=<id>): shows ONLY that specific Reply Sent section.
+    """
+    action_id = request.GET.get('action_id')
+    inbox_item, delegate_item, direct_item, email_body, attachments_list = _ensure_local_email_data(email_id)
+
+    is_direct = bool(direct_item and not delegate_item)
+    task = delegate_item or direct_item or inbox_item
+    if not task:
+        raise Http404("No email record found for this ID.")
+
+    # Resolve sender, To, CC, BCC, and Received Date for the incoming email header
+    sender_email = (
+        getattr(inbox_item, 'sender', None)
+        or getattr(delegate_item, 'sender', None)
+        or getattr(direct_item, 'sender_email', None)
+        or 'Unknown'
+    )
+    sender_name = (
+        getattr(inbox_item, 'sender_name', None)
+        or getattr(delegate_item, 'sender_name', None)
+        or sender_email
+    )
+    cc_recipients = (
+        getattr(inbox_item, 'cc_recipients', None)
+        or getattr(delegate_item, 'cc_recipients', None)
+        or getattr(direct_item, 'cc_recipients', None)
+        or ''
+    )
+    bcc_recipients = (
+        getattr(inbox_item, 'bcc_recipients', None)
+        or getattr(delegate_item, 'bcc_recipients', None)
+        or getattr(direct_item, 'bcc_recipients', None)
+        or ''
+    )
+
+    # Map reply attachments stored locally so they can be downloaded from the Reply card
+    reply_atts_qs = CrmEmailAttachment.objects.filter(
+        email_id=email_id,
+        attachment_id__startswith='local_reply_'
+    ).order_by('id')
+
+    if action_id and str(action_id).isdigit():
+        view_mode = 'reply'
+        actions = list(CrmDelegateAction.objects.filter(pk=int(action_id), task_email_id=email_id))
+    else:
+        view_mode = 'incoming'
+        actions = list(
+            CrmDelegateAction.objects
+            .filter(task_email_id=email_id)
+            .exclude(action_type='REPLY_SENT')
+            .order_by('action_timestamp')
+        )
+
+    # Attach downloadable file objects and resolved To/Log Type to each REPLY_SENT action
+    for act in actions:
+        act.downloadable_files = []
+        if act.action_type == 'REPLY_SENT':
+            act.to_recipients, act.clean_log_type = _resolve_reply_recipient(act, task)
+
+            if act.attachment_name:
+                names = [n.strip() for n in act.attachment_name.split(',') if n.strip()]
+                for name in names:
+                    matched_att = next((a for a in reply_atts_qs if a.name == name), None)
+                    if matched_att:
+                        act.downloadable_files.append({
+                            'name': matched_att.name,
+                            'url': reverse('serve_local_attachment', kwargs={'att_pk': matched_att.id})
+                        })
+                    else:
+                        act.downloadable_files.append({
+                            'name': name,
+                            'url': None
+                        })
+
+    context = {
+        'task': task,
+        'is_direct': is_direct,
+        'inbox_item': inbox_item,
+        'actions': actions,
+        'email_body': email_body,
+        'attachments': attachments_list,
+        'email_id': email_id,
+        'view_mode': view_mode,
+        'action_id': action_id,
+        'sender_name': sender_name,
+        'sender_email': sender_email,
+        'cc_recipients': cc_recipients,
+        'bcc_recipients': bcc_recipients,
+    }
+    return render(request, 'email_thread.html', context)

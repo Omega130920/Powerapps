@@ -142,6 +142,7 @@ def ingest_single_email_from_graph(msg_or_id, target_email=None):
     """
     Ingests or backfills a single email (either from a Graph message dict or by email_id string)
     into CrmInbox (and CrmDelegateTo if already delegated), downloading all attachments and .eml locally.
+    Never resets an already-delegated or recycled email back to 'Pending'.
     """
     if isinstance(msg_or_id, str):
         email_id = msg_or_id
@@ -194,34 +195,49 @@ def ingest_single_email_from_graph(msg_or_id, target_email=None):
     # Download raw .eml backup to local disk
     eml_path = download_raw_eml_to_disk(email_id, received_dt=local_date, target_email=target_email)
 
+    # Check if this email has already been delegated/recycled/completed so we NEVER reset its status to 'Pending'
+    existing_delegation = CrmDelegateTo.objects.filter(email_id=email_id).first()
+    existing_inbox = CrmInbox.objects.filter(email_id=email_id).first()
+
+    inbox_defaults = {
+        'subject': msg.get('subject') or 'No Subject',
+        'sender': sender_address,
+        'sender_name': sender_name,
+        'snippet': (msg.get('bodyPreview') or '')[:500],
+        'body_html': body_content,
+        'has_attachments': has_att_flag,
+        'to_recipients': to_str,
+        'cc_recipients': cc_str,
+        'bcc_recipients': bcc_str,
+        'eml_file_path': eml_path,
+        'is_fully_synced': True,
+        'received_timestamp': local_date,
+    }
+
+    if existing_delegation:
+        inbox_defaults['status'] = existing_delegation.status or 'Delegated'
+        inbox_defaults['delegated_to'] = existing_delegation.delegated_to
+        inbox_defaults['delegated_by'] = existing_delegation.delegated_by
+        inbox_defaults['member_group_code'] = existing_delegation.member_group_code
+    elif existing_inbox and existing_inbox.status and existing_inbox.status != 'Pending':
+        inbox_defaults['status'] = existing_inbox.status
+
     inbox_entry, _ = CrmInbox.objects.update_or_create(
         email_id=email_id,
-        defaults={
-            'subject': msg.get('subject') or 'No Subject',
-            'sender': sender_address,
-            'sender_name': sender_name,
-            'snippet': (msg.get('bodyPreview') or '')[:500],
-            'body_html': body_content,
-            'has_attachments': has_att_flag,
-            'to_recipients': to_str,
-            'cc_recipients': cc_str,
-            'bcc_recipients': bcc_str,
-            'eml_file_path': eml_path,
-            'is_fully_synced': True,
-            'received_timestamp': local_date,
-        }
+        defaults=inbox_defaults
     )
 
     # Also update CrmDelegateTo if this email was already delegated
-    CrmDelegateTo.objects.filter(email_id=email_id).update(
-        sender_name=sender_name,
-        body_html=body_content,
-        has_attachments=has_att_flag,
-        to_recipients=to_str,
-        cc_recipients=cc_str,
-        bcc_recipients=bcc_str,
-        eml_file_path=eml_path,
-    )
+    if existing_delegation:
+        CrmDelegateTo.objects.filter(email_id=email_id).update(
+            sender_name=sender_name,
+            body_html=body_content,
+            has_attachments=has_att_flag,
+            to_recipients=to_str,
+            cc_recipients=cc_str,
+            bcc_recipients=bcc_str,
+            eml_file_path=eml_path,
+        )
 
     return inbox_entry
 
@@ -241,15 +257,22 @@ class Command(BaseCommand):
 
         emails = inbox_data.get('value', [])
 
-        # Identify which emails are already fully synced locally
+        # Identify which emails are already fully synced OR already delegated/processed
         fully_synced_ids = set(
             CrmInbox.objects.filter(is_fully_synced=True).values_list('email_id', flat=True)
         )
+        already_delegated_ids = set(
+            CrmDelegateTo.objects.values_list('email_id', flat=True)
+        )
+
+        # Ensure any CrmInbox row that is already in CrmDelegateTo is not stuck on 'Pending'
+        if already_delegated_ids:
+            CrmInbox.objects.filter(email_id__in=already_delegated_ids, status='Pending').update(status='Delegated')
 
         new_count = 0
         for msg in emails:
             email_id = msg.get('id')
-            if not email_id or email_id in fully_synced_ids:
+            if not email_id or email_id in fully_synced_ids or email_id in already_delegated_ids:
                 continue
 
             entry = ingest_single_email_from_graph(msg)

@@ -96,6 +96,11 @@
                     {% else %}
                         {{ sender_email }}
                     {% endif %}<br>
+                    {% if inbox_item and inbox_item.to_recipients %}
+                        <strong>To:</strong> {{ inbox_item.to_recipients }}<br>
+                    {% elif task.to_recipients %}
+                        <strong>To:</strong> {{ task.to_recipients }}<br>
+                    {% endif %}
                 {% endif %}
                 {% if cc_recipients %}
                     <strong>CC:</strong> {{ cc_recipients }}<br>
@@ -161,10 +166,14 @@
                 <span class="badge-status bg-reply">Reply Sent</span>
 
                 <div class="email-meta-stack">
+                    <div><strong>Date Sent:</strong> {{ action.action_timestamp|date:"d M Y, H:i" }}</div>
+                    <div><strong>To:</strong> {{ action.to_recipients|default:task.sender|default:"-" }}</div>
                     {% if action.cc_recipients %}<div><strong>CC:</strong> {{ action.cc_recipients }}</div>{% endif %}
                     {% if action.bcc_recipients %}<div><strong>BCC:</strong> {{ action.bcc_recipients }}</div>{% endif %}
                     <div><strong>Subject:</strong> {{ action.related_subject|default:task.subject }}</div>
-                    {% if action.note_content and action.note_content != 'None' and "<div" not in action.note_content %}
+                    {% if action.clean_log_type and action.clean_log_type != 'None' and "<div" not in action.clean_log_type %}
+                    <div><strong>Log Type:</strong> {{ action.clean_log_type }}</div>
+                    {% elif action.note_content and action.note_content != 'None' and "<div" not in action.note_content %}
                     <div><strong>Log Type:</strong> {{ action.note_content }}</div>
                     {% endif %}
                 </div>
