@@ -1590,27 +1590,23 @@
             </thead>
             <tbody id="emailLogTableBody">
                 {% for email in combined_email_log %}
-                <tr style="border-bottom: 1px solid #eee; transition: background-color 0.2s; {% if email.status == 'COMP' or email.status == 'DONE' or email.status == 'CLS' %}background-color: #f9f9f9; color: #888;{% endif %}">
+                <tr style="border-bottom: 1px solid #eee; transition: background-color 0.2s; {% if email.status == 'COM' or email.status == 'COMP' or email.status == 'DONE' or email.status == 'CLS' %}background-color: #f9f9f9; color: #555;{% endif %}">
                     
                     <td style="padding: 10px;">
                         {% if email.type == 'Original' %}
                             <span style="font-weight: bold; color: #1976d2;">📥 ORIGINAL</span>
                         {% elif email.type == 'Reply' %}
-                            <span style="font-weight: bold; color: #673ab7;">📤 REPLY</span>
+                            <span style="font-weight: bold; color: #673ab7; padding-left: 12px;">↳ 📤 REPLY</span>
                         {% elif email.type == 'Direct' %}
                             <span style="font-weight: bold; color: #e91e63;">📨 DIRECT</span>
                         {% endif %}
                     </td>
 
                     <td style="padding: 10px;">
-                        {% if email.status == 'COMP' or email.status == 'DONE' or email.status == 'CLS' %}
-                            <span style="color: #666; font-weight: 500; cursor: not-allowed;" title="Thread is completed and locked">
-                                <i class="fas fa-lock" style="font-size: 0.8em; margin-right: 5px; color: #999;"></i> {{ email.subject|truncatechars:45 }}
-                            </span>
-                        {% elif not email.email_id or email.email_id == "MANUAL_SEND_SUCCESS" %}
-                             <span style="color: #666;">{{ email.subject|truncatechars:45 }}</span>
+                        {% if not email.email_id or email.email_id == "MANUAL_SEND_SUCCESS" %}
+                            <span style="color: #666;">{{ email.subject|truncatechars:45 }}</span>
                         {% else %}
-                            <a href="{% url 'view_email_thread' email_id=email.email_id %}" style="color: #2e7d32; text-decoration: none; font-weight: 500;">
+                            <a href="{% url 'view_email_thread' email_id=email.email_id %}{% if email.action_id %}?action_id={{ email.action_id }}{% endif %}" style="color: #2e7d32; text-decoration: none; font-weight: 500;">
                                 {{ email.subject|truncatechars:45 }}
                             </a>
                         {% endif %}
@@ -1627,7 +1623,7 @@
                             <span style="color: #e91e63; font-weight: bold;">SENT</span>
                         {% elif email.type == 'Reply' %}
                             <span style="color: #673ab7; font-weight: bold;">REPLIED</span>
-                        {% elif email.status == 'COMP' or email.status == 'DONE' or email.status == 'CLS' %}
+                        {% elif email.status == 'COM' or email.status == 'COMP' or email.status == 'DONE' or email.status == 'CLS' %}
                             <span style="color: #388e3c; font-weight: bold;"><i class="fas fa-check-circle"></i> Actioned</span>
                         {% else %}
                             <span style="color: #f57c00; font-weight: bold;">{{ email.status }}</span>
@@ -1647,15 +1643,15 @@
                     <td style="padding: 10px; text-align: center;">
                         <div class="email-log-actions" style="display: flex; gap: 5px; justify-content: center;">
                             {% if email.email_id and email.email_id != "MANUAL_SEND_SUCCESS" %}
-                                <a href="{% url 'view_email_thread' email_id=email.email_id %}" 
+                                <a href="{% url 'view_email_thread' email_id=email.email_id %}{% if email.action_id %}?action_id={{ email.action_id }}{% endif %}" 
                                    class="action-btn" 
-                                   title="View Full Thread" 
+                                   title="View Email" 
                                    style="background-color: #43a047; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 0.85em;">
                                    <i class="fas fa-eye"></i> View
                                 </a>
-                                <a href="{% url 'download_email_file' email_id=email.email_id %}" 
+                                <a href="{% url 'download_email_file' email_id=email.email_id %}{% if email.action_id %}?action_id={{ email.action_id }}{% endif %}" 
                                    class="action-btn" 
-                                   title="Download Sent .eml"
+                                   title="Download .eml"
                                    style="background-color: #0277bd; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 0.85em;">
                                    <i class="fas fa-download"></i> Download
                                 </a>

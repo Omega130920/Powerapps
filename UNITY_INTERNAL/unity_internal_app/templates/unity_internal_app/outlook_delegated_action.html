@@ -9,10 +9,11 @@
     .main-grid { display: flex; flex-wrap: wrap; gap: 20px; }
     .left-column { flex: 2; min-width: 300px; }
     .right-column { flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 15px; }
-    .custom-card { border: 1px solid #ddd; border-radius: 6px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05); overflow: hidden; margin-bottom: 5px; }
+    .custom-card { border: 1px solid #ddd; border-radius: 6px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05); overflow: hidden; margin-bottom: 15px; }
     .card-header-primary { background-color: rgb(105, 187, 85); color: white; padding: 15px; font-weight: bold; display: flex; align-items: center; }
     .card-header-dark { background-color: #343a40; color: white; padding: 15px; font-weight: bold; display: flex; align-items: center; }
     .card-body-content { padding: 20px; }
+    .card-body-content img { max-width: 100%; height: auto; }
     .task-header h1 { font-size: 28px; margin-bottom: 5px; color: #333; }
     .task-header .status-badge { display: inline-block; padding: 5px 12px; border-radius: 50px; font-weight: bold; font-size: 14px; margin-left: 10px; }
     .badge-dlt { background-color: #d32f2f; color: white; }
@@ -20,11 +21,9 @@
     .badge-default { background-color: #ffc107; color: #212529; }
     .form-label { font-weight: bold; display: block; margin-bottom: 5px; margin-top: 10px; }
     .form-control { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; margin-bottom: 10px; }
-    .notes-history-container { border: 1px solid #eee; background-color: #f8f9fa; padding: 10px; max-height: 380px; overflow-y: auto; border-radius: 4px; margin-bottom: 20px; }
-    .note-item { border-left: 5px solid #28a745; padding: 10px; background: #ffffff; margin-bottom: 8px; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05); border-radius: 0 4px 4px 0; }
     .collapse-toggle { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 15px; background: #f8f9fa; border: none; text-align: left; font-size: 16px; font-weight: bold; cursor: pointer; border-bottom: 3px solid rgb(105, 187, 85); color: #333; }
     .collapse-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
-    .collapse-content.show { max-height: 1000px; padding: 20px; }
+    .collapse-content.show { max-height: 1200px; padding: 20px; }
     .custom-btn { padding: 12px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: background-color 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; width: 100%; box-sizing: border-box; }
     .btn-primary { background-color: rgb(105, 187, 85); color: white; }
     .btn-success { background-color: #28a745; color: white; }
@@ -63,7 +62,7 @@
 
 <div class="task-container">
     <div class="task-header">
-        <h1><i class="fas fa-tasks"></i> Task Action: # {{ email.subject }}</h1>
+        <h1><i class="fas fa-tasks"></i> Task Action: # {{ email.subject|default:"(No Subject)" }}</h1>
         <p>
             Status: 
             <span class="status-badge 
@@ -99,11 +98,18 @@
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; align-items: end;">
                     <div class="form-group">
                         <label for="company_code" class="form-label">Member Group Code:</label>
-                        <input type="text" id="company_code" name="company_code" value="{{ delegation.company_code|default:'' }}" class="form-control">
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <input type="text" id="company_code" name="company_code" value="{{ delegation.company_code|default:'' }}" class="form-control" style="margin-bottom: 0;">
+                            {% if delegation.company_code %}
+                            <a href="{% url 'unity_information' company_code=delegation.company_code %}" class="custom-btn" style="width: auto; white-space: nowrap; background-color: #17a2b8; color: white; padding: 10px 12px;">
+                                👁️ View Info
+                            </a>
+                            {% endif %}
+                        </div>
                     </div>
                     <div class="form-group">
                         <label for="email_category" class="form-label">Email Type:</label>
-                        <select id="email_category" name="email_category" class="form-control">
+                        <select id="email_category" name="email_category" class="form-control" style="margin-bottom: 0;">
                             <option value="">-- Select Type --</option>
                             <option value="Schedule" {% if delegation.email_category == 'Schedule' %}selected{% endif %}>Schedule</option>
                             <option value="Claim" {% if delegation.email_category == 'Claim' %}selected{% endif %}>Claim</option>
@@ -115,9 +121,9 @@
                     </div>
                     <div class="form-group">
                         <label for="status" class="form-label">Email Status:</label>
-                        <select id="status" name="status" class="form-control">
+                        <select id="status" name="status" class="form-control" style="margin-bottom: 0;">
                             <option value="DEL" {% if delegation.status == 'DEL' %}selected{% endif %}>Delegated</option>
-                            <option value="NEW" {% if delegation.status == 'NEW' %}selected{% endif %}>New / In Progress</option>
+                            <option value="NEW" {% if delegation.status == 'NEW' or delegation.status == 'PEN' %}selected{% endif %}>New / In Progress</option>
                             <option value="COM" {% if delegation.status == 'COM' %}selected{% endif %}>Completed / Actioned</option>
                         </select>
                     </div>
@@ -133,7 +139,7 @@
 
     <div class="custom-card">
         <div class="card-header-dark" style="background-color: rgb(105, 187, 85)">
-            <i class="fas fa-info-circle" style="margin-right: 10px;"></i>
+            <i class="fas fa-envelope-open-text" style="margin-right: 10px;"></i>
             <h5 style="margin: 0;">Email Information</h5>
         </div>
         <div class="card-body-content">
@@ -148,42 +154,48 @@
                 <div class="info-group">
                     <span class="form-label" style="margin-top: 0;">Date Received:</span>
                     <div class="form-control" style="background-color: #f8f9fa; border: 1px solid #eee; min-height: 40px; display: flex; align-items: center;">
-                        {{ local_inbox.received_at|date:"M. d, Y, g:i a"|default:delegation.received_at }}
+                        {% if local_inbox and local_inbox.received_at %}
+                            {{ local_inbox.received_at|date:"d M Y, H:i" }}
+                        {% else %}
+                            {{ delegation.received_at|date:"d M Y, H:i" }}
+                        {% endif %}
                     </div>
                 </div>
                 
                 <div class="info-group">
                     <span class="form-label" style="margin-top: 0;">From Email Address:</span>
                     <div class="form-control" style="background-color: #f8f9fa; border: 1px solid #eee; min-height: 40px; display: flex; align-items: center; color: #2e7d32; font-weight: bold;">
-                        {{ local_inbox.sender_address|default:email.from.emailAddress.address }}
+                        {% if local_inbox and local_inbox.sender_name and local_inbox.sender_name != local_inbox.sender_address %}
+                            {{ local_inbox.sender_name }} &lt;{{ local_inbox.sender_address }}&gt;
+                        {% else %}
+                            {{ local_inbox.sender_address|default:email.from.emailAddress.address }}
+                        {% endif %}
                     </div>
                 </div>
 
-                {# 🚀 NEW: DISPLAY TO FIELDS 🚀 #}
-                {% if local_inbox.to_addresses %}
+                {% if local_inbox.to_addresses or email.to_addresses %}
                 <div class="info-group" style="grid-column: 1 / -1;">
                     <span class="form-label" style="margin-top: 0;">To Address(es):</span>
                     <div class="form-control" style="background-color: #e3f2fd; border: 1px solid #90caf9; min-height: 40px; display: flex; align-items: center; color: #1565c0; font-weight: bold;">
-                        {{ local_inbox.to_addresses }}
+                        {{ local_inbox.to_addresses|default:email.to_addresses }}
                     </div>
                 </div>
                 {% endif %}
 
-                {# DISPLAY CC AND BCC FIELDS #}
-                {% if local_inbox.cc_addresses %}
+                {% if local_inbox.cc_addresses or email.cc_addresses %}
                 <div class="info-group">
                     <span class="form-label" style="margin-top: 0;">Cc Address(es):</span>
                     <div class="form-control" style="background-color: #fff9c4; border: 1px solid #fff59d; min-height: 40px; display: flex; align-items: center; color: #f57f17; font-weight: bold;">
-                        {{ local_inbox.cc_addresses }}
+                        {{ local_inbox.cc_addresses|default:email.cc_addresses }}
                     </div>
                 </div>
                 {% endif %}
                 
-                {% if local_inbox.bcc_addresses %}
+                {% if local_inbox.bcc_addresses or email.bcc_addresses %}
                 <div class="info-group">
                     <span class="form-label" style="margin-top: 0;">Bcc Address(es):</span>
                     <div class="form-control" style="background-color: #ffcdd2; border: 1px solid #ef9a9a; min-height: 40px; display: flex; align-items: center; color: #c62828; font-weight: bold;">
-                        {{ local_inbox.bcc_addresses }}
+                        {{ local_inbox.bcc_addresses|default:email.bcc_addresses }}
                     </div>
                 </div>
                 {% endif %}
@@ -196,28 +208,25 @@
             <div class="custom-card">
                 <div class="card-header-primary">
                     <i class="fas fa-inbox" style="margin-right: 10px;"></i> 
-                    <h5 style="margin: 0;">Subject Line: {{ email.subject|default:"(No Subject)" }}</h5>
+                    <h5 style="margin: 0;">Original Communication Content</h5>
                 </div>
                 <div class="card-body-content" style="padding: 0;">
                     <div style="padding: 20px; max-height: 500px; overflow-y: auto;">
-                        {% if email.body.contentType == 'html' %}
-                            {{ email.body.content|safe }}
-                        {% else %}
-                            <pre style="white-space: pre-wrap;">{{ email.body.content }}</pre>
-                        {% endif %}
+                        {{ email.body.content|safe }}
                     </div>
 
                     {# --- ATTACHMENT SECTION --- #}
                     {% if attachments %}
                     <div class="attachment-section">
                         <strong style="display:block; margin-bottom:10px; color:#2e7d32; font-size: 14px;">
-                            <i class="fas fa-paperclip"></i> Task Attachments:
+                            <i class="fas fa-paperclip"></i> Task Attachments ({{ attachments|length }}):
                         </strong>
                         <div style="display: flex; flex-wrap: wrap;">
                             {% for att in attachments %}
-                            <a href="{% url 'download_attachment' message_id=delegation.email_id attachment_id=att.id %}" class="attachment-pill">
+                            <a href="{% if att.local_url %}{{ att.local_url }}{% else %}{% url 'download_attachment' message_id=delegation.email_id attachment_id=att.id %}{% endif %}" class="attachment-pill">
                                 <i class="fas fa-file-download"></i> 
-                                <strong>{{ att.name }}</strong>&nbsp;<small>({{ att.size|filesizeformat }})</small>
+                                <strong>{{ att.name }}</strong>
+                                {% if att.size %}&nbsp;<small>({{ att.size|filesizeformat }})</small>{% endif %}
                             </a>
                             {% endfor %}
                         </div>
@@ -252,13 +261,11 @@
                                 <option value="Enquiry to Employer">Enquiry to Employer</option>
                                 <option value="Enquiry to FO">Enquiry to FO</option>
                                 <option value="Enquiry to CBC">Enquiry to CBC</option>
-                                <option value="Sent to Employer">Sent to Employer</option>
-
                             </select>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Recipient:</label>
-                            <input type="email" class="form-control" name="reply_recipient" value="{{ email.from.emailAddress.address }}" required>
+                            <input type="email" class="form-control" name="reply_recipient" value="{{ local_inbox.sender_address|default:email.from.emailAddress.address }}" required>
                         </div>
                         
                         <div class="form-group">
@@ -329,7 +336,6 @@
                                 <option value="Enquiry to Employer">Enquiry to Employer</option>
                                 <option value="Enquiry to FO">Enquiry to FO</option>
                                 <option value="Enquiry to CBC">Enquiry to CBC</option>
-                                <option value="Sent to Employer">Sent to Employer</option>
                             </select>
                         </div>
 

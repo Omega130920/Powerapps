@@ -2,15 +2,11 @@ import base64
 import json
 import logging
 import mimetypes
+import time
 import requests
 from dateutil import parser
 
 from django.conf import settings
-from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse
-
 from .token_manager import get_current_access_token
 
 logger = logging.getLogger(__name__)
@@ -28,7 +24,7 @@ def get_user_signature(user):
     team = {
         'jesica': ('Jesica Haynes', 'Reconciliations Specialist', ''),
         'timothy': ('Timothy Davids', 'Indexing Specialist', ''),
-        'mymoena': ('Mymoena Kariem', 'Senior Administrator', '066 192 7247'), 
+        'mymoena': ('Mymoena Kariem', 'Senior Administrator', '066 192 7247'),
         'chantal': ('Chantal Roux', 'Reconciliations Specialist', ''),
         'samantha': ('Samantha', 'Job Title', ''),
         'lorraine': ('Lorraine', 'Job Title', ''),
@@ -49,7 +45,7 @@ def get_user_signature(user):
         full_name = found_user[0]
         title = found_user[1]
         mobile = found_user[2] if len(found_user) > 2 else ""
-        
+
         mobile_html = (
             f'<div style="margin: 0 0 4px 0; font-size: 12px;"><strong style="color: #4CAF50;">mobile:</strong> {mobile}</div>'
             if mobile
@@ -99,12 +95,26 @@ def get_user_signature(user):
     """
 
 
+def _parse_recipients(recipient_input):
+    """Helper function to parse strings or lists of email addresses into Microsoft Graph format."""
+    if not recipient_input:
+        return []
+    if isinstance(recipient_input, str):
+        raw_emails = [e.strip() for e in recipient_input.replace(',', ';').split(';') if e.strip()]
+    elif isinstance(recipient_input, list):
+        raw_emails = [e.strip() for e in recipient_input if isinstance(e, str) and e.strip()]
+    else:
+        raw_emails = []
+    return [{"emailAddress": {"address": email}} for email in raw_emails]
+
+
 class OutlookGraphService:
 
     @staticmethod
-    def _make_graph_request(endpoint, target_email=None, method='GET', data=None, is_raw=False):
+    def _make_graph_request(endpoint, target_email=None, method='GET', data=None, is_raw=False, is_mime=False):
         """
-        Generic internal function to handle authenticated requests with timeout protection.
+        Generic internal function to handle authenticated requests with timeout protection
+        and ImmutableId support. When is_mime=True, returns the streaming response object.
         """
         access_token = get_current_access_token()
         mailbox = target_email or getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', '')
@@ -117,20 +127,22 @@ class OutlookGraphService:
 
         headers = {
             'Authorization': f'Bearer {access_token}',
-            'Prefer': 'outlook.timezone="South Africa Standard Time"'
+            'Prefer': 'IdType="ImmutableId", outlook.timezone="South Africa Standard Time"'
         }
 
-        if not is_raw:
+        if not is_raw and not is_mime:
             headers['Content-Type'] = 'application/json'
 
         try:
-            # 🟢 TIMEOUT GUARD ADDED TO PREVENT WORKER UNRESPONSIVENESS
             if method == 'GET':
-                response = requests.get(url, headers=headers, timeout=(5, 25))
+                response = requests.get(url, headers=headers, timeout=(5, 30), stream=is_mime)
             elif method == 'POST':
-                response = requests.post(url, headers=headers, json=data if isinstance(data, dict) else None, timeout=(5, 25))
+                response = requests.post(url, headers=headers, json=data if isinstance(data, dict) else None, timeout=(5, 30))
             else:
                 return {'error': f"Unsupported HTTP method: {method}"}
+
+            if is_mime and response.status_code == 200:
+                return response
 
             if is_raw and response.status_code == 200:
                 return response.content
@@ -138,16 +150,19 @@ class OutlookGraphService:
             if response.status_code == 202 and method == 'POST':
                 return {'success': True}
 
+            if not response.text:
+                return {'success': True}
+
             response.raise_for_status()
             return response.json()
 
         except requests.exceptions.HTTPError as e:
-            status_code = e.response.status_code
-            logger.error(f"Graph API HTTP Error {status_code}: {e.response.text}")
+            status_code = e.response.status_code if e.response is not None else 'Unknown'
+            logger.error(f"Graph API HTTP Error {status_code}: {getattr(e.response, 'text', str(e))}")
             try:
                 error_details = e.response.json()
             except Exception:
-                error_details = e.response.text if e.response.text else str(e)
+                error_details = getattr(e.response, 'text', str(e))
 
             return {'error': f"Graph API Error: Status {status_code}", 'details': error_details}
 
@@ -156,121 +171,127 @@ class OutlookGraphService:
             return {'error': f"Network Error: {str(e)}"}
 
     @staticmethod
-    def sync_to_local_inbox(messages_data):
+    def fetch_inbox_messages(target_email=None, top_count=100):
         """
-        Saves or updates emails into local unmanaged MySQL table 'unity_internal_inbox'.
-        """
-        from ..models import OutlookInbox 
-
-        sync_count = 0
-        for msg in messages_data:
-            try:
-                email_id = msg.get('id')
-                subject = msg.get('subject')
-                sender_name = msg.get('from', {}).get('emailAddress', {}).get('name')
-                sender_addr = msg.get('from', {}).get('emailAddress', {}).get('address')
-                body = msg.get('body', {}).get('content')
-                received_str = msg.get('receivedDateTime')
-
-                to_list = [
-                    recip.get('emailAddress', {}).get('address', '') 
-                    for recip in msg.get('toRecipients', []) 
-                    if recip.get('emailAddress', {}).get('address')
-                ]
-                cc_list = [
-                    recip.get('emailAddress', {}).get('address', '') 
-                    for recip in msg.get('ccRecipients', []) 
-                    if recip.get('emailAddress', {}).get('address')
-                ]
-                bcc_list = [
-                    recip.get('emailAddress', {}).get('address', '') 
-                    for recip in msg.get('bccRecipients', []) 
-                    if recip.get('emailAddress', {}).get('address')
-                ]
-
-                OutlookInbox.objects.update_or_create(
-                    email_id=email_id,
-                    defaults={
-                        'subject': subject,
-                        'sender_name': sender_name,
-                        'sender_address': sender_addr,
-                        'to_addresses': ", ".join(to_list),
-                        'cc_addresses': ", ".join(cc_list),
-                        'bcc_addresses': ", ".join(bcc_list),
-                        'body_content': body,
-                        'received_at': parser.isoparse(received_str) if received_str else None
-                    }
-                )
-                sync_count += 1
-            except Exception as e:
-                logger.error(f"Failed to sync email {msg.get('id')}: {e}")
-
-        return sync_count
-
-    @staticmethod
-    def fetch_inbox_messages(target_email=None, top_count=10):
-        """
-        🟢 OPTIMIZED: Uses $select metadata filtering to reduce RAM payload footprint.
+        Fetches recent inbox messages for ingestion into local storage.
+        Includes id, subject, from, toRecipients, ccRecipients, bccRecipients,
+        receivedDateTime, bodyPreview, body, and hasAttachments.
         """
         endpoint = (
             f"mailFolders/inbox/messages?$top={top_count}"
-            "&$select=id,subject,from,receivedDateTime,isRead,hasAttachments,toRecipients,ccRecipients,bccRecipients"
+            "&$select=id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview,body"
             "&$orderby=receivedDateTime desc"
         )
+        return OutlookGraphService._make_graph_request(endpoint, target_email)
 
+    @staticmethod
+    def fetch_message_details(target_email, message_id):
+        """Fetches a single message's full metadata and HTML body for one-time local ingestion."""
+        endpoint = (
+            f"messages/{message_id}"
+            "?$select=id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,hasAttachments,bodyPreview,body"
+        )
+        return OutlookGraphService._make_graph_request(endpoint, target_email)
+
+    @staticmethod
+    def fetch_attachments(*args, **kwargs):
+        """
+        Fetches ONLY attachment metadata (including isInline and contentId for CID images)
+        so binary payloads are never pulled into RAM as JSON base64 strings.
+        """
+        if len(args) == 2:
+            target_email, message_id = args
+        elif len(args) == 1:
+            target_email, message_id = None, args[0]
+        else:
+            target_email = kwargs.get('target_email')
+            message_id = kwargs.get('message_id')
+
+        endpoint = f"messages/{message_id}/attachments?$select=id,name,contentType,size,isInline,contentId"
         response = OutlookGraphService._make_graph_request(endpoint, target_email)
+        return response.get('value', []) if isinstance(response, dict) else []
 
-        if isinstance(response, dict) and 'value' in response:
-            OutlookGraphService.sync_to_local_inbox(response['value'])
+    @staticmethod
+    def stream_attachment_mime(target_email, message_id, attachment_id, chunk_size=8192):
+        """
+        Streams the raw binary content of an attachment in 8 KB chunks directly
+        from Graph's /$value endpoint to prevent RAM spikes.
+        """
+        endpoint = f"messages/{message_id}/attachments/{attachment_id}/$value"
+        response = OutlookGraphService._make_graph_request(endpoint, target_email, method='GET', is_mime=True)
 
-        return response
+        if not response or (isinstance(response, dict) and 'error' in response):
+            logger.error(f"Error initiating stream for attachment {attachment_id}: {response}")
+            return None
+
+        def file_iterator():
+            try:
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    if chunk:
+                        yield chunk
+            finally:
+                response.close()
+
+        return file_iterator()
+
+    @staticmethod
+    def stream_raw_eml(target_email, message_id, chunk_size=8192):
+        """
+        Streams the raw RFC822 MIME (.eml) content of an email in 8 KB chunks
+        directly from Graph's /$value endpoint to disk without loading into RAM.
+        """
+        endpoint = f"messages/{message_id}/$value"
+        response = OutlookGraphService._make_graph_request(endpoint, target_email, method='GET', is_mime=True)
+
+        if not response or (isinstance(response, dict) and 'error' in response):
+            logger.error(f"Error initiating EML stream for message {message_id}: {response}")
+            return None
+
+        def eml_iterator():
+            try:
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    if chunk:
+                        yield chunk
+            finally:
+                response.close()
+
+        return eml_iterator()
 
     @staticmethod
     def send_outlook_email(target_email=None, recipient_email=None, subject=None, body_content=None, content_type='HTML', attachments=None, cc_email=None, bcc_email=None, user=None):
         """
-        Sends an email via Microsoft Graph and retrieves newly created item ID from Sent Items.
+        Sends an email via Microsoft Graph and retrieves the matching item ID from Sent Items.
         """
         mailbox = target_email or getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', '')
-        
+        final_body = body_content or ""
+
         if user and content_type.upper() == 'HTML':
-            body_content += get_user_signature(user)
+            final_body += get_user_signature(user)
 
         email_data = {
             "message": {
                 "subject": subject,
                 "body": {
-                    "contentType": content_type, 
-                    "content": body_content
+                    "contentType": content_type,
+                    "content": final_body
                 },
-                "toRecipients": [{"emailAddress": {"address": recipient_email.strip()}}] if recipient_email else [],
-                "ccRecipients": [], 
-                "bccRecipients": [], 
-                "attachments": [] 
+                "toRecipients": _parse_recipients(recipient_email),
+                "ccRecipients": _parse_recipients(cc_email),
+                "bccRecipients": _parse_recipients(bcc_email),
+                "attachments": []
             },
-            "saveToSentItems": "true" 
+            "saveToSentItems": "true"
         }
-
-        if recipient_email and (',' in recipient_email or ';' in recipient_email):
-            normalized_to = str(recipient_email).replace(',', ';')
-            to_addr_list = [addr.strip() for addr in normalized_to.split(';') if addr.strip()]
-            email_data["message"]["toRecipients"] = [{"emailAddress": {"address": addr}} for addr in to_addr_list]
-
-        for field, key in [(cc_email, "ccRecipients"), (bcc_email, "bccRecipients")]:
-            if field:
-                normalized = str(field).replace(',', ';')
-                addr_list = [addr.strip() for addr in normalized.split(';') if addr.strip()]
-                for address in addr_list:
-                    email_data["message"][key].append({"emailAddress": {"address": address}})
 
         if attachments:
             for file in attachments:
                 try:
                     file.seek(0)
                     attachment_content_type = getattr(file, 'content_type', '')
-                    
+
                     if not attachment_content_type or attachment_content_type == 'application/octet-stream':
                         attachment_content_type, _ = mimetypes.guess_type(file.name)
-                        
+
                     if not attachment_content_type:
                         if file.name.lower().endswith('.eml'):
                             attachment_content_type = 'message/rfc822'
@@ -280,7 +301,7 @@ class OutlookGraphService:
                             attachment_content_type = 'application/octet-stream'
 
                     encoded_string = base64.b64encode(file.read()).decode('utf-8')
-                    
+
                     email_data["message"]["attachments"].append({
                         "@odata.type": "#microsoft.graph.fileAttachment",
                         "name": file.name,
@@ -290,39 +311,35 @@ class OutlookGraphService:
                 except Exception as e:
                     logger.error(f"Failed to package attachment: {e}")
 
-        endpoint = "sendMail"
-        send_res = OutlookGraphService._make_graph_request(endpoint, mailbox, method='POST', data=email_data)
+        send_res = OutlookGraphService._make_graph_request("sendMail", mailbox, method='POST', data=email_data)
 
-        if isinstance(send_res, dict) and send_res.get('success') is True:
-            try:
-                sent_endpoint = "mailFolders/sentitems/messages?$top=1&$select=id,subject&$orderby=receivedDateTime desc"
-                sent_check = OutlookGraphService._make_graph_request(sent_endpoint, mailbox)
+        if isinstance(send_res, dict) and 'error' in send_res:
+            return {'success': False, 'error': send_res.get('error'), 'details': send_res.get('details')}
 
-                if sent_check and 'value' in sent_check and len(sent_check['value']) > 0:
+        # Retrieve the matching message ID from Sent Items by matching the subject
+        time.sleep(1.5)
+        try:
+            sent_endpoint = "mailFolders/sentitems/messages?$top=5&$select=id,subject&$orderby=sentDateTime desc"
+            sent_check = OutlookGraphService._make_graph_request(sent_endpoint, mailbox, method='GET')
+
+            if isinstance(sent_check, dict) and 'value' in sent_check:
+                for msg in sent_check['value']:
+                    if (msg.get('subject') or '').strip() == (subject or '').strip():
+                        return {
+                            'success': True,
+                            'id': msg['id'],
+                            'message': 'Email sent and ID retrieved.'
+                        }
+                if len(sent_check['value']) > 0:
                     return {
-                        'success': True, 
+                        'success': True,
                         'id': sent_check['value'][0]['id'],
-                        'message': 'Email sent and ID retrieved.'
+                        'message': 'Email sent and fallback ID retrieved.'
                     }
-            except Exception as e:
-                logger.error(f"Sent Items ID retrieval failed: {e}")
+        except Exception as e:
+            logger.error(f"Sent Items ID retrieval failed: {e}")
 
-        return send_res
-
-    @staticmethod
-    def fetch_attachments(*args, **kwargs):
-        if len(args) == 2:
-            target_email, message_id = args
-        elif len(args) == 1:
-            target_email, message_id = None, args[0]
-        else:
-            target_email = kwargs.get('target_email')
-            message_id = kwargs.get('message_id')
-
-        # 🚀 OPTIMIZED: Fetch metadata only to avoid downloading heavy attachment binaries into memory
-        endpoint = f"messages/{message_id}/attachments?$select=id,name,contentType,size"
-        response = OutlookGraphService._make_graph_request(endpoint, target_email)
-        return response.get('value', []) if isinstance(response, dict) else []
+        return {'success': True, 'id': None}
 
     @staticmethod
     def get_attachment_raw(*args, **kwargs):

@@ -638,40 +638,44 @@ class Unity_Internal_DelegateAction(models.Model):
         verbose_name = 'Internal Task Audit (OBSOLETE)'
         
 # --- UNMANAGED EXTERNAL TABLE MODEL ---
+# --- UNMANAGED EXTERNAL TABLE MODEL ---
 class UnityNotes(models.Model):
     """
     Model for the UNMANAGED external 'unity_notes' table.
-    Updated to include dedicated columns for Outlook ID and attachments.
+    Updated to include dedicated columns for Outlook ID, recipients, and local .eml/attachments.
     """
-    ID = models.AutoField(primary_key=True) 
+    ID = models.AutoField(primary_key=True)
     member_group_code = models.TextField(db_column='Member Group Code')
     date = models.DateTimeField()
     user = models.TextField(db_column='User')
     notes = models.TextField()
     communication_type = models.CharField(max_length=90, db_column='Communication_Type')
     action_notes = models.CharField(max_length=90, db_column='Action_Notes')
-    
-    # --- NEW COLUMNS FROM YOUR DB SCHEMA ---
+
     attached_email_id = models.CharField(
-        max_length=255, 
-        db_column='attached_email_id', 
-        null=True, 
+        max_length=255,
+        db_column='attached_email_id',
+        null=True,
         blank=True
     )
     attached_file_name = models.CharField(
-        max_length=255, 
-        db_column='attached_file_name', 
-        null=True, 
+        max_length=255,
+        db_column='attached_file_name',
+        null=True,
+        blank=True
+    )
+    attached_file = models.FileField(
+        upload_to='unity_notes_attachments/',
+        db_column='attached_file',
+        null=True,
         blank=True
     )
 
-    # ADDED THIS FIELD TO FIX THE TYPEERROR:
-    attached_file = models.FileField(
-        upload_to='unity_notes_attachments/', 
-        db_column='attached_file', # This must exist in your MySQL table
-        null=True, 
-        blank=True
-    )
+    # --- LOCAL SYNC & RECIPIENT METADATA FIELDS ---
+    recipient_email = models.CharField(max_length=500, null=True, blank=True, db_column='recipient_email')
+    cc_recipients = models.TextField(null=True, blank=True, db_column='cc_recipients')
+    bcc_recipients = models.TextField(null=True, blank=True, db_column='bcc_recipients')
+    eml_file_path = models.CharField(max_length=500, null=True, blank=True, db_column='eml_file_path')
 
     class Meta:
         db_table = 'unity_notes'
@@ -822,50 +826,55 @@ class OutlookToken(models.Model):
         verbose_name = 'Graph Access Token'
 
 # 2. Email Delegation Status (Required by delegation_service.py)
+# 2. Email Delegation Status (Required by delegation_service.py)
 class EmailDelegation(models.Model):
     """The master status table for an email task."""
     email_id = models.CharField(max_length=255, db_collation='utf8mb4_bin')
-    
+
     # ForeignKey links to the standard Django User table
     assigned_user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='delegated_tasks')
-    
+
     # Status and Date Fields
     STATUS_CHOICES = [
         ('NEW', 'Undelegated - New'),
         ('DEL', 'Delegated'),
+        ('PEN', 'In Progress'),
         ('COM', 'Completed'),
         ('RED', 'Re-delegated'),
         ('DLT', 'Deleted/Recycled'),
+        ('ARC', 'Archived'),
     ]
     status = models.CharField(max_length=3, choices=STATUS_CHOICES, default='NEW')
     delegated_at = models.DateTimeField(null=True, blank=True)
     received_at = models.DateTimeField(null=True, blank=True)
-    
-    # Classification Fields (from ACVV logic)
-    company_code = models.CharField(max_length=255, null=True, blank=True) # <-- CORRECTED FIELD NAME
+
+    # Classification Fields
+    company_code = models.CharField(max_length=255, null=True, blank=True)
     email_category = models.CharField(max_length=50, null=True, blank=True)
     work_related = models.BooleanField(default=True)
     communication_type = models.CharField(max_length=50, null=True, blank=True)
-    
+
     def get_status_display(self):
         return dict(self.STATUS_CHOICES).get(self.status, self.status)
 
     class Meta:
-        # Django will automatically name this table 'unity_internal_emaildelegation'
+        managed = False
+        db_table = 'unity_internal_emaildelegation'
         app_label = 'unity_internal'
         verbose_name = 'Delegation Task'
+
 
 # 3. Delegation Note (Required by delegation_service.py)
 class DelegationNote(models.Model):
     """Internal notes against a delegated task."""
-    # ForeignKey uses the new EmailDelegation model
     delegation = models.ForeignKey(EmailDelegation, on_delete=models.CASCADE, related_name='notes')
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        # Django will automatically name this table 'unity_internal_delegationnote'
+        managed = False
+        db_table = 'unity_internal_delegationnote'
         app_label = 'unity_internal'
         verbose_name = 'Delegation Note'
         ordering = ['-created_at']
@@ -876,37 +885,42 @@ class DelegationTransactionLog(models.Model):
     """Audit log for actions taken on a delegated task (e.g., email reply)."""
     delegation = models.ForeignKey(EmailDelegation, on_delete=models.CASCADE, related_name='transactions')
     user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
-    action_type = models.CharField(max_length=50) # e.g., 'EMAIL_REPLY', 'TASK_COMPLETE'
+    action_type = models.CharField(max_length=50)  # e.g., 'REPLIED', 'EMAIL_REPLY', 'TASK_COMPLETE'
     subject = models.CharField(max_length=255)
     recipient_email = models.EmailField()
-    body = models.TextField(null=True, blank=True) # <--- ADD THIS LINE
+    cc_recipients = models.TextField(null=True, blank=True, db_column='cc_recipients')
+    bcc_recipients = models.TextField(null=True, blank=True, db_column='bcc_recipients')
+    body = models.TextField(null=True, blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
     attached_file = models.FileField(upload_to='reply_attachments/', blank=True, null=True)
+    eml_file_path = models.CharField(max_length=500, null=True, blank=True, db_column='eml_file_path')
 
     class Meta:
-        managed = False # Ensure this remains False
+        managed = False
         db_table = 'unity_internal_delegationtransactionlog'
         app_label = 'unity_internal'
         verbose_name = 'Delegation Transaction Log'
         ordering = ['-timestamp']
-        
+
+
 class OutlookInbox(models.Model):
     """
     Unmanaged model to store a local copy of every email fetched from Graph API.
-    Ensures subjects and bodies are permanently available for the Master Archive.
+    Ensures subjects, bodies, recipients, and .eml paths are permanently available locally.
     """
     email_id = models.CharField(max_length=255, primary_key=True, db_collation='utf8mb4_bin')
     subject = models.CharField(max_length=512, null=True, blank=True, db_column='subject')
     sender_name = models.CharField(max_length=255, null=True, blank=True, db_column='sender_name')
     sender_address = models.CharField(max_length=255, null=True, blank=True, db_column='sender_address')
-    
-    # 🚀 ADDED TO FIELD 🚀
+    snippet = models.CharField(max_length=512, null=True, blank=True, db_column='snippet')
     to_addresses = models.TextField(blank=True, null=True)
-    
     body_content = models.TextField(null=True, blank=True, db_column='body_content')
+    has_attachments = models.BooleanField(default=False, db_column='has_attachments')
     received_at = models.DateTimeField(null=True, blank=True, db_column='received_at')
     cc_addresses = models.TextField(blank=True, null=True)
     bcc_addresses = models.TextField(blank=True, null=True)
+    eml_file_path = models.CharField(max_length=500, null=True, blank=True, db_column='eml_file_path')
+    is_fully_synced = models.BooleanField(default=False, db_column='is_fully_synced')
 
     class Meta:
         managed = False
@@ -915,6 +929,30 @@ class OutlookInbox(models.Model):
 
     def __str__(self):
         return f"{self.subject} (From: {self.sender_address})"
+
+
+class UnityInternalEmailAttachment(models.Model):
+    """
+    Stores local disk paths and metadata for all incoming, inline CID, reply, and direct email attachments.
+    """
+    id = models.AutoField(primary_key=True)
+    email_id = models.CharField(max_length=255, db_index=True, db_collation='utf8mb4_bin')
+    attachment_id = models.CharField(max_length=255, null=True, blank=True)
+    name = models.CharField(max_length=255)
+    content_type = models.CharField(max_length=150, null=True, blank=True)
+    size = models.IntegerField(default=0)
+    is_inline = models.BooleanField(default=False)
+    content_id = models.CharField(max_length=255, null=True, blank=True)
+    file_path = models.CharField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = 'unity_internal_email_attachments'
+        verbose_name = 'Email Attachment'
+
+    def __str__(self):
+        return f"{self.name} ({self.email_id})"
     
 class BankLineNote(models.Model):
     # Ensure the db_column matches the one we just created in SQL

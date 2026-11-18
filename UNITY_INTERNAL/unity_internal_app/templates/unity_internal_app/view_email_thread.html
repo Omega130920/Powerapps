@@ -18,22 +18,23 @@
         .download-eml-button { padding: 10px 18px; background-color: #1976d2; color: white; text-decoration: none; border-radius: 6px; font-weight: 500; transition: background 0.3s; display: flex; align-items: center; gap: 8px; }
         .download-eml-button:hover { background-color: #1565c0; }
 
-        /* --- Original Email Card --- */
+        /* --- Original / Direct Email Card --- */
         .email-thread-card { background: #ffffff; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 40px; border-left: 5px solid #1976d2; }
         .card-header-main { padding: 20px; background-color: #fafafa; border-bottom: 1px solid #eee; border-top-right-radius: 8px; }
         .card-header-main h3 { margin: 0 0 10px 0; color: #1976d2; }
         .card-body-content { padding: 25px; line-height: 1.7; overflow-x: auto; }
+        .card-body-content img { max-width: 100%; height: auto; }
 
         /* --- HISTORICAL ATTACHMENT GALLERY --- */
         .attachment-history-section { padding: 20px; background-color: #f1f8e9; border-top: 2px solid #aed581; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px; }
         .attachment-gallery { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 10px; }
-        .attachment-card { display: flex; flex-direction: column; align-items: center; width: 140px; background: #fff; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: transform 0.2s; }
+        .attachment-card { display: flex; flex-direction: column; align-items: center; width: 150px; background: #fff; padding: 10px; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: transform 0.2s; }
         .attachment-card:hover { transform: translateY(-3px); border-color: #43a047; }
-        .preview-container { width: 120px; height: 80px; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 4px; background: #f8f9fa; margin-bottom: 8px; border: 1px solid #eee; }
-        .preview-container img { width: 100%; height: 100%; object-fit: cover; cursor: zoom-in; }
+        .preview-container { width: 130px; height: 80px; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 4px; background: #f8f9fa; margin-bottom: 8px; border: 1px solid #eee; }
         .file-icon { font-size: 35px; }
         .file-name { font-size: 11px; font-weight: bold; text-align: center; width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #333; margin-bottom: 5px; }
-        .btn-download-small { background-color: #43a047; color: white; text-decoration: none; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; width: 100%; text-align: center; }
+        .btn-download-small { background-color: #43a047; color: white; text-decoration: none; padding: 5px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; width: 100%; text-align: center; box-sizing: border-box; }
+        .btn-download-small:hover { background-color: #2e7d32; }
 
         /* --- Timeline (Audit Trail) --- */
         .timeline-container { position: relative; padding-left: 50px; margin-top: 20px; }
@@ -45,15 +46,16 @@
         .bg-reply { background-color: #f3e5f5; color: #7b1fa2; }
         .bg-direct { background-color: #fff3e0; color: #e65100; }
         .bg-default { background-color: #f0fff4; color: #2f855a; }
-        .bg-note { background-color: #e3f2fd; color: #0d47a1; } 
+        .bg-note { background-color: #e3f2fd; color: #0d47a1; }
         .event-meta { display: block; margin-top: 10px; font-size: 12px; color: #718096; border-top: 1px solid #f7fafc; padding-top: 8px; }
         .event-text { font-size: 14px; color: #2d3748; margin: 5px 0; }
         .email-details-block { background-color: #f8f9fa; border-left: 3px solid #ccc; padding: 8px 12px; margin-top: 8px; font-size: 0.95em; color: #555; }
-        
-        /* 🚀 Stacked Email Meta Rows & Reply Box Styles */
-        .email-meta-stack { font-size: 13px; color: #4a5568; background: #f8f9fa; padding: 10px 12px; border-radius: 6px; margin-bottom: 10px; line-height: 1.6; border: 1px solid #edf2f7; }
+
+        /* Stacked Email Meta Rows & Reply Box Styles */
+        .email-meta-stack { font-size: 13px; color: #4a5568; background: #f8f9fa; padding: 12px 14px; border-radius: 6px; margin-bottom: 10px; line-height: 1.65; border: 1px solid #edf2f7; }
         .email-meta-stack div { display: block; margin-bottom: 2px; }
-        .email-reply-block { background-color: #faf5fb; border-left: 4px solid #7b1fa2; padding: 12px 15px; border-radius: 4px; margin-top: 8px; font-size: 14px; line-height: 1.6; color: #2d3748; }
+        .email-reply-block { background-color: #faf5fb; border-left: 4px solid #7b1fa2; padding: 15px 18px; border-radius: 4px; margin-top: 8px; font-size: 14px; line-height: 1.6; color: #2d3748; overflow-x: auto; }
+        .email-reply-block img { max-width: 100%; height: auto; }
     </style>
 </head>
 <body>
@@ -61,32 +63,72 @@
 <div class="thread-page-wrapper">
     <div class="action-bar">
         <div>
-            <h1 style="margin:0; color: #2e7d32;">Communication History</h1>
-            <p style="margin:0; color: #666;">Ref: {% if task and task.company_code %}{{ task.company_code }}{% elif inbox_item and inbox_item.company_code %}{{ inbox_item.company_code }}{% else %}Direct Email{% endif %}</p>
+            <h1 style="margin:0; color: #2e7d32;">
+                {% if view_mode == 'reply' %}
+                    Sent Reply Details
+                {% elif view_mode == 'direct' %}
+                    Direct Sent Email Details
+                {% else %}
+                    Incoming Email Details
+                {% endif %}
+            </h1>
+            <p style="margin:0; color: #666;">
+                Ref: {% if task and task.company_code %}{{ task.company_code }}{% elif task and task.member_group_code %}{{ task.member_group_code }}{% elif inbox_item and inbox_item.company_code %}{{ inbox_item.company_code }}{% else %}Direct Email{% endif %}
+            </p>
         </div>
         <div class="btn-group">
-            {% if not is_direct %}
-            <a href="{% url 'download_actual_email' email_id=email.id %}" class="download-eml-button">
+            <a href="{% url 'download_actual_email' email_id=email_id %}{% if action_id %}?action_id={{ action_id }}{% endif %}" class="download-eml-button">
                 <i class="fas fa-file-download"></i> Download Full Email (.eml)
             </a>
-            {% endif %}
             <a href="javascript:history.back()" class="return-button">← Back to Email Log</a>
         </div>
     </div>
 
+    {# --- TOP CARD: SHOWN FOR ORIGINAL INCOMING EMAIL OR DIRECT SENT EMAIL --- #}
+    {% if view_mode != 'reply' %}
     <div class="email-thread-card">
         <div class="card-header-main">
-            <h3>{% if email.subject %}{{ email.subject }}{% elif task and task.subject %}{{ task.subject }}{% else %}No Subject{% endif %}</h3>
-            <div style="font-size: 14px; color: #4a5568;">
-                <strong>Identifier:</strong> {{ email.id }} <br>
-                <strong>Date:</strong> {% if email.receivedDateTime %}{{ email.receivedDateTime|date:"d M Y, H:i" }}{% elif task %}{{ task.received_at|date:"d M Y, H:i" }}{% endif %}
+            <h3>{% if email.subject %}{{ email.subject }}{% elif task and task.subject %}{{ task.subject }}{% else %}(No Subject){% endif %}</h3>
+            <div class="email-meta-stack" style="margin-bottom: 0;">
+                <div>
+                    <strong>From:</strong>
+                    {% if sender_name and sender_name != sender_email %}
+                        {{ sender_name }} &lt;{{ sender_email }}&gt;
+                    {% else %}
+                        {{ sender_email|default:"Unknown" }}
+                    {% endif %}
+                </div>
+                {% if to_recipients %}
+                <div><strong>To:</strong> {{ to_recipients }}</div>
+                {% endif %}
+                {% if cc_recipients %}
+                <div><strong>CC:</strong> {{ cc_recipients }}</div>
+                {% endif %}
+                {% if bcc_recipients %}
+                <div><strong>BCC:</strong> {{ bcc_recipients }}</div>
+                {% endif %}
+                <div>
+                    <strong>{% if is_direct %}Date Sent:{% else %}Date Received:{% endif %}</strong>
+                    {% if email.receivedDateTime %}
+                        {{ email.receivedDateTime|date:"d M Y, H:i" }}
+                    {% elif inbox_item and inbox_item.received_at %}
+                        {{ inbox_item.received_at|date:"d M Y, H:i" }}
+                    {% elif task and task.received_at %}
+                        {{ task.received_at|date:"d M Y, H:i" }}
+                    {% elif task and task.date %}
+                        {{ task.date|date:"d M Y, H:i" }}
+                    {% endif %}
+                </div>
             </div>
         </div>
+
         <div class="card-body-content">{{ email_body|safe }}</div>
 
         {% if attachments %}
         <div class="attachment-history-section">
-            <strong style="display:block; margin-bottom:10px; color:#2e7d32; font-size: 14px;"><i class="fas fa-paperclip"></i> Files associated with this thread:</strong>
+            <strong style="display:block; margin-bottom:10px; color:#2e7d32; font-size: 14px;">
+                <i class="fas fa-paperclip"></i> Attachments ({{ attachments|length }}):
+            </strong>
             <div class="attachment-gallery">
                 {% for att in attachments %}
                 <div class="attachment-card">
@@ -95,21 +137,17 @@
                             <a href="{{ att.local_url }}" target="_blank">
                                 <i class="fas fa-file-alt file-icon" style="color: #43a047;"></i>
                             </a>
-                        {% elif att.contentBytes and "image" in att.contentType %}
-                            <img src="data:{{ att.contentType }};base64,{{ att.contentBytes }}" onclick="window.open(this.src)" title="Click to expand" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
-                            <i class="fas fa-file-image file-icon" style="color: #607d8b; display:none;"></i>
                         {% else %}
                             <i class="fas fa-file-alt file-icon" style="color: #607d8b;"></i>
                         {% endif %}
                     </div>
                     <div class="file-name" title="{{ att.name }}">{{ att.name }}</div>
-                    
                     {% if att.local_url %}
-                    <a href="{{ att.local_url }}" target="_blank" class="btn-download-small">
+                    <a href="{{ att.local_url }}" class="btn-download-small">
                         <i class="fas fa-download"></i> Download
                     </a>
                     {% else %}
-                    <a href="{% url 'download_attachment' message_id=email.id attachment_id=att.id %}" target="_blank" class="btn-download-small">
+                    <a href="{% url 'download_attachment' message_id=email.id attachment_id=att.id %}" class="btn-download-small">
                         <i class="fas fa-download"></i> Download
                     </a>
                     {% endif %}
@@ -119,43 +157,67 @@
         </div>
         {% endif %}
     </div>
+    {% endif %}
 
-    <h2 style="font-size: 1.2em; color: #4a5568; margin-bottom: 20px; padding-left: 10px;">Activity Timeline (Newest First)</h2>
+    {# --- TIMELINE SECTION: SHOWN FOR ISOLATED REPLY MODE OR INTERNAL AUDIT TRAIL --- #}
+    {% if combined_timeline %}
+    <h2 style="font-size: 1.2em; color: #4a5568; margin-bottom: 20px; padding-left: 10px;">
+        {% if view_mode == 'reply' %}Sent Reply Record{% else %}Activity Timeline (Newest First){% endif %}
+    </h2>
     <div class="timeline-container">
         {% for item in combined_timeline %}
         <div class="timeline-event">
             {% if item.type == 'action' %}
                 <div class="timeline-icon" style="background-color: #2f855a;"></div>
                 <span class="badge-status bg-default">{{ item.obj.action_type|default:"Action Log" }}</span>
-                <p class="event-text"><strong>Details:</strong> {{ item.obj.note_content|safe }}</p>
-                <span class="event-meta">User: <strong>{{ item.obj.user.username }}</strong> | {{ item.date|date:"d M Y, H:i" }}</span>
-            
+                <p class="event-text"><strong>Details:</strong> {{ item.obj.subject }}</p>
+                <span class="event-meta">User: <strong>{{ item.obj.user.username|default:"System" }}</strong> | {{ item.date|date:"d M Y, H:i" }}</span>
+
             {% elif item.type == 'reply' %}
                 <div class="timeline-icon" style="background-color: #7b1fa2;"></div>
                 <span class="badge-status bg-reply">Reply Sent</span>
-                
-                <!-- Stacked Header Layout for To, CC, BCC, Subject -->
+
                 <div class="email-meta-stack">
+                    <div><strong>From:</strong> {{ item.full_name }} &lt;{{ item.sender_email }}&gt;</div>
                     <div><strong>To:</strong> {{ item.reply_to }}</div>
+                    {% if item.reply_cc and item.reply_cc != '-' %}
                     <div><strong>CC:</strong> {{ item.reply_cc }}</div>
+                    {% endif %}
+                    {% if item.reply_bcc and item.reply_bcc != '-' %}
                     <div><strong>BCC:</strong> {{ item.reply_bcc }}</div>
+                    {% endif %}
+                    <div><strong>Date Sent:</strong> {{ item.date|date:"d M Y, H:i" }}</div>
                     <div><strong>Subject:</strong> {{ item.reply_subject }}</div>
                 </div>
 
-                <!-- Reply Body Content -->
                 <div class="email-reply-block">
                     {{ item.formatted_body|safe }}
                 </div>
-                
-                <!-- Reply Attachment Display -->
-                {% if item.attachment_url %}
+
+                {% if item.downloadable_files %}
+                <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed #e2e8f0; display: flex; flex-wrap: wrap; gap: 12px;">
+                    {% for file_item in item.downloadable_files %}
+                    <div style="display: flex; align-items: center; gap: 10px; background: #f8fafc; padding: 6px 12px; border-radius: 6px; border: 1px solid #e2e8f0;">
+                        <div style="width: 36px; height: 36px; background: #e3f2fd; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
+                            <i class="fas fa-file-alt" style="color: #1976d2; font-size: 18px;"></i>
+                        </div>
+                        <div>
+                            <div style="font-size: 12px; font-weight: bold; color: #333; max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ file_item.name }}">{{ file_item.name }}</div>
+                            <a href="{{ file_item.url }}" style="font-size: 11px; color: #1976d2; text-decoration: none; font-weight: 600;">
+                                <i class="fas fa-download"></i> Download Attachment
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% elif item.attachment_url %}
                 <div style="margin-top: 12px; padding-top: 10px; border-top: 1px dashed #e2e8f0; display: flex; align-items: center; gap: 10px;">
                     <div style="width: 36px; height: 36px; background: #e3f2fd; border-radius: 4px; display: flex; align-items: center; justify-content: center;">
                         <i class="fas fa-file-alt" style="color: #1976d2; font-size: 18px;"></i>
                     </div>
                     <div>
                         <div style="font-size: 12px; font-weight: bold; color: #333; max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ item.attachment_name }}">{{ item.attachment_name }}</div>
-                        <a href="{{ item.attachment_url }}" target="_blank" style="font-size: 11px; color: #1976d2; text-decoration: none; font-weight: 600;">
+                        <a href="{{ item.attachment_url }}" style="font-size: 11px; color: #1976d2; text-decoration: none; font-weight: 600;">
                             <i class="fas fa-download"></i> Download Attachment
                         </a>
                     </div>
@@ -164,34 +226,16 @@
 
                 <span class="event-meta">Sent by: <strong>{{ item.full_name }}</strong> | {{ item.date|date:"d M Y, H:i" }}</span>
 
-            {% elif item.type == 'unity_note' %}
-                <div class="timeline-icon" style="background-color: #0d47a1;"></div>
-                <span class="badge-status bg-note">Unity Management Note</span>
-                
-                <div class="event-text" style="font-size: 14px; line-height: 1.6;">
-                    {{ item.obj.notes|safe }}
-                </div>
-                <div class="email-details-block" style="border-left-color: #0d47a1;"><strong>Action/Ref:</strong> {{ item.obj.action_notes|default:"General Note" }}</div>
-                <span class="event-meta">Logged by: <strong>{{ item.obj.user }}</strong> | {{ item.date|date:"d M Y, H:i" }}</span>
-
             {% elif item.type == 'del_note' %}
                 <div class="timeline-icon" style="background-color: #4a5568;"></div>
                 <span class="badge-status" style="background-color: #edf2f7; color: #4a5568;">Internal Task Note</span>
                 <p class="event-text">{{ item.obj.content }}</p>
-                <span class="event-meta">User: <strong>{{ item.obj.user.username }}</strong> | {{ item.date|date:"d M Y, H:i" }}</span>
+                <span class="event-meta">User: <strong>{{ item.obj.user.username|default:"System" }}</strong> | {{ item.date|date:"d M Y, H:i" }}</span>
             {% endif %}
         </div>
         {% endfor %}
-
-        {% if task %}
-        <div class="timeline-event">
-            <div class="timeline-icon" style="background-color: #2b6cb0;"></div>
-            <span class="badge-status bg-delegated">Delegation Created (Original)</span>
-            <p class="event-text">Task was delegated to <strong>{{ task.assigned_user.username|default:"Unassigned" }}</strong>.</p>
-            <span class="event-meta">Date: {{ task.received_at|date:"d M Y, H:i" }}</span>
-        </div>
-        {% endif %}
     </div>
+    {% endif %}
 </div>
 </body>
 </html>

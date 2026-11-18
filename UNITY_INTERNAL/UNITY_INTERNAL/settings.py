@@ -12,52 +12,45 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 
 import os
 from pathlib import Path
-# --- NEW IMPORT: For loading environment variables from .env ---
 from dotenv import load_dotenv
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# --- UPDATED: Load environment variables without specifying a path (Step 2 fix) ---
-# This makes python-dotenv look for the .env file in the current working directory 
-# and up the directory tree, which is often more reliable than a calculated path.
-load_dotenv() 
+# Load environment variables from .env file
+load_dotenv(BASE_DIR / '.env')
+load_dotenv()
 
-
-# *******************************************************************
-# ADDED: Explicitly set OAUTHLIB_INSECURE_TRANSPORT for local HTTP testing
-# This is required because the client is configured as a Web App but runs on HTTP.
-# This must be set before Google libraries are initialized.
-if os.getenv('DJANGO_ENV', 'development') == 'development':
+# Environment detection ('development' locally by default, 'production' on live server)
+DJANGO_ENV = os.getenv('DJANGO_ENV', 'development').strip().lower()
+if DJANGO_ENV == 'development':
     os.environ['OAUTHLIB_INSECURE_TRANSPORT'] = '1'
-# *******************************************************************
-
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-# --- UPDATED: Load SECRET_KEY from environment variables ---
 SECRET_KEY = os.getenv('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Defaults to False for production security; can be overridden via DJANGO_DEBUG=True in local .env if ever needed
+DEBUG = os.getenv('DJANGO_DEBUG', 'False').strip().lower() in ('true', '1', 'yes')
 
-ALLOWED_HOSTS = ['*','internalunity.futura.co.za','internalunity.futurasa.co.za']
+ALLOWED_HOSTS = ['*', '127.0.0.1', 'localhost', 'internalunity.futura.co.za', 'internalunity.futurasa.co.za']
 
 CSRF_TRUSTED_ORIGINS = [
     'https://internalunity.futurasa.co.za',
-    'https://internalunity.futura.co.za', # Added both variants just in case
+    'https://internalunity.futura.co.za',
+    'http://127.0.0.1:8000',
+    'http://localhost:8000',
 ]
 
-# 2. Handle the Proxy headers from your hoster (Critical for SSL)
+# Handle the Proxy headers from your hoster (Critical for SSL)
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
-# 3. Security tweaks for HTTPS
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-# Application definition
+# Allow login cookies on local HTTP (127.0.0.1) while enforcing Secure cookies in production HTTPS
+IS_PRODUCTION = DJANGO_ENV == 'production'
+SESSION_COOKIE_SECURE = IS_PRODUCTION
+CSRF_COOKIE_SECURE = IS_PRODUCTION
 
+# Application definition
 INSTALLED_APPS = [
     'unity_internal_app',
     'django.contrib.admin',
@@ -99,17 +92,15 @@ WSGI_APPLICATION = 'UNITY_INTERNAL.wsgi.application'
 
 
 # Database
-# https://docs.djangoproject.com/en/5.2/ref/settings/#databases
-
+# https://docs.djangoproject.com/en/5.2/topics/settings/#databases
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        # --- UPDATED: Load database settings from environment variables ---
-        'NAME': os.getenv('DB_NAME'), 
-        'USER': os.getenv('DB_USER'), 
-        'PASSWORD': os.getenv('DB_PASSWORD'), 
-        'HOST': os.getenv('DB_HOST', 'localhost'),  # Use fallback for HOST
-        'PORT': os.getenv('DB_PORT', '3306'),      # Use fallback for PORT
+        'NAME': os.getenv('DB_NAME'),
+        'USER': os.getenv('DB_USER'),
+        'PASSWORD': os.getenv('DB_PASSWORD'),
+        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'PORT': os.getenv('DB_PORT', '3306'),
         'OPTIONS': {
             'charset': 'utf8mb4',
         },
@@ -119,7 +110,6 @@ DATABASES = {
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
-
 AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
@@ -138,7 +128,6 @@ AUTH_PASSWORD_VALIDATORS = [
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
-
 LANGUAGE_CODE = 'en-us'
 
 TIME_ZONE = 'Africa/Johannesburg'
@@ -150,15 +139,14 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-STATIC_URL = 'static/'
-
-MEDIA_URL = '/media/'  # This adds a /media/ prefix to your file links
+MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 LOGIN_URL = 'login'
