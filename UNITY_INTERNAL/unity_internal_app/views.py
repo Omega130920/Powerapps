@@ -4968,6 +4968,194 @@ def _parse_direct_note_metadata(direct_note):
         'subject': dir_subject,
         'body': clean_body,
     }
+    
+def _fix_none_quoted_thread(reply_html, incoming_body_html):
+    """
+    Replaces the legacy '<br>None' artifact at the bottom of historic replies
+    with the actual incoming email HTML body.
+    """
+    import re
+    if not reply_html or not incoming_body_html:
+        return reply_html or ''
+    if re.search(r'(<br\s*/?>|\s)None\s*(</body>\s*</html>)?\s*$', reply_html, flags=re.IGNORECASE):
+        return re.sub(
+            r'(<br\s*/?>\s*)None(\s*(?:</body>\s*</html>)?\s*)$',
+            lambda m: f"{m.group(1)}{incoming_body_html}{m.group(2)}",
+            reply_html,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+    return reply_html
+
+
+def _backfill_historic_sent_email(owner_key, target_email, graph_id=None, subject=None, recipient=None, sent_dt=None):
+    """
+    One-time backfill for historic Direct Sent emails (DIRECT_<pk>) and Replies (REPLY_<id>)
+    from Outlook Sent Items. Uses Graph $search by subject first, then falls back to a
+    ±3-hour sentDateTime filter. Downloads all attachments, rewrites inline CID images,
+    and saves the native .eml locally.
+    """
+    import hashlib
+    import re
+    from datetime import timedelta, timezone as dt_timezone
+    from django.utils.text import get_valid_filename
+
+    select_fields = "id,subject,toRecipients,ccRecipients,bccRecipients,sentDateTime,body,hasAttachments"
+    msg = None
+
+    clean_target_subj = re.sub(
+        r'^(re|fw|fwd)\s*:\s*', '', (subject or '').split('|')[0], flags=re.IGNORECASE
+    ).strip()
+    clean_target_subj_lower = clean_target_subj.lower()
+    target_recip = (recipient or '').strip().lower()
+
+    def _match_candidate(candidates):
+        for cand in candidates:
+            cand_subj = re.sub(
+                r'^(re|fw|fwd)\s*:\s*', '', (cand.get('subject') or ''), flags=re.IGNORECASE
+            ).strip().lower()
+            cand_to = " ".join(
+                (r.get('emailAddress', {}).get('address') or '').lower()
+                for r in cand.get('toRecipients', [])
+            )
+            subj_match = bool(
+                clean_target_subj_lower
+                and (clean_target_subj_lower in cand_subj or cand_subj in clean_target_subj_lower)
+            )
+            recip_match = bool(
+                target_recip
+                and any(p.strip() in cand_to for p in re.split(r'[;,]', target_recip) if p.strip())
+            )
+            if subj_match and (recip_match or not target_recip):
+                return cand
+        return None
+
+    # 1. Try direct lookup if a real Graph ID was stored
+    if graph_id and len(str(graph_id)) > 25 and not str(graph_id).startswith(('DIRECT_', 'MANUAL_', 'REPLY_')):
+        res = OutlookGraphService._make_graph_request(
+            f"messages/{graph_id}?$select={select_fields}",
+            target_email,
+            method='GET'
+        )
+        if isinstance(res, dict) and 'id' in res and 'error' not in res:
+            msg = res
+
+    # 2. Primary lookup: Graph $search in Sent Items by subject (unaffected by mailbox volume or timezone)
+    if not msg and clean_target_subj:
+        safe_q = clean_target_subj.replace('"', '').strip()[:120]
+        encoded_search = urllib.parse.quote(f'"{safe_q}"')
+        search_endpoint = f"mailFolders/sentItems/messages?$search={encoded_search}&$top=20&$select={select_fields}"
+        res = OutlookGraphService._make_graph_request(search_endpoint, target_email, method='GET')
+        candidates = res.get('value', []) if isinstance(res, dict) else []
+        msg = _match_candidate(candidates)
+
+    # 3. Fallback: ±3-hour sentDateTime filter
+    if not msg and sent_dt:
+        dt_utc = sent_dt.astimezone(dt_timezone.utc) if timezone.is_aware(sent_dt) else sent_dt.replace(tzinfo=dt_timezone.utc)
+        start_iso = (dt_utc - timedelta(hours=3)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        end_iso = (dt_utc + timedelta(hours=3)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        filter_endpoint = (
+            f"mailFolders/sentItems/messages?"
+            f"$filter=sentDateTime ge {start_iso} and sentDateTime le {end_iso}"
+            f"&$top=50&$select={select_fields}"
+        )
+        res = OutlookGraphService._make_graph_request(filter_endpoint, target_email, method='GET')
+        candidates = res.get('value', []) if isinstance(res, dict) else []
+        msg = _match_candidate(candidates)
+
+    if not msg or not msg.get('id'):
+        return None
+
+    real_msg_id = msg['id']
+    body_html = (msg.get('body') or {}).get('content') or ''
+    has_atts = bool(msg.get('hasAttachments', False))
+
+    to_str = ", ".join(r.get('emailAddress', {}).get('address', '') for r in msg.get('toRecipients', []) if r.get('emailAddress', {}).get('address'))
+    cc_str = ", ".join(r.get('emailAddress', {}).get('address', '') for r in msg.get('ccRecipients', []) if r.get('emailAddress', {}).get('address'))
+    bcc_str = ", ".join(r.get('emailAddress', {}).get('address', '') for r in msg.get('bccRecipients', []) if r.get('emailAddress', {}).get('address'))
+
+    dt_folder = sent_dt or timezone.now()
+    dir_hash = hashlib.sha256(owner_key.encode('utf-8')).hexdigest()[:24]
+    rel_dir = os.path.join('email_archive', dt_folder.strftime('%Y'), dt_folder.strftime('%m'), dir_hash)
+    abs_dir = os.path.join(settings.MEDIA_ROOT, rel_dir)
+    os.makedirs(abs_dir, exist_ok=True)
+
+    # 4. Download all attachments (and inline CID images) under the isolated owner_key
+    if has_atts or ('cid:' in body_html.lower()):
+        att_meta = OutlookGraphService._make_graph_request(
+            f"messages/{real_msg_id}/attachments?$select=id,name,contentType,size,isInline,contentId",
+            target_email,
+            method='GET'
+        )
+        for idx, att in enumerate(att_meta.get('value', []) if isinstance(att_meta, dict) else []):
+            att_id = att.get('id')
+            if not att_id:
+                continue
+            raw_name = att.get('name') or f"attachment_{idx}.bin"
+            safe_name = get_valid_filename(raw_name) or f"attachment_{idx}.bin"
+            content_id = (att.get('contentId') or '').strip('<> ').strip() or None
+            raw_is_inline = bool(att.get('isInline', False))
+            is_inline = bool(raw_is_inline and content_id and (content_id.lower() in body_html.lower()))
+            content_type = att.get('contentType') or 'application/octet-stream'
+            size = int(att.get('size') or 0)
+
+            existing = UnityInternalEmailAttachment.objects.filter(email_id=owner_key, attachment_id=att_id).first()
+            if not existing:
+                rel_file = os.path.join(rel_dir, f"sent_{idx}_{safe_name}").replace('\\', '/')
+                abs_file = os.path.join(settings.MEDIA_ROOT, rel_file)
+                file_stream = OutlookGraphService.stream_attachment_mime(target_email, real_msg_id, att_id)
+                if file_stream:
+                    try:
+                        with open(abs_file, 'wb') as f:
+                            for chunk in file_stream:
+                                if chunk:
+                                    f.write(chunk)
+                        existing = UnityInternalEmailAttachment.objects.create(
+                            email_id=owner_key,
+                            attachment_id=att_id,
+                            name=raw_name[:255],
+                            content_type=content_type[:150],
+                            size=size,
+                            is_inline=is_inline,
+                            content_id=content_id,
+                            file_path=rel_file,
+                        )
+                    except Exception as e:
+                        logger.warning(f"Sent attachment backfill failed for {owner_key}: {e}")
+
+            if existing and content_id and body_html:
+                local_url = reverse('serve_local_attachment', kwargs={'att_pk': existing.id})
+                body_html = re.sub(r'cid:' + re.escape(content_id), local_url, body_html, flags=re.IGNORECASE)
+
+    # 5. Stream the native Sent Items .eml to disk
+    rel_eml = os.path.join(rel_dir, f"{owner_key}.eml").replace('\\', '/')
+    abs_eml = os.path.join(settings.MEDIA_ROOT, rel_eml)
+    eml_saved = None
+    try:
+        resp = OutlookGraphService._make_graph_request(
+            f"messages/{real_msg_id}/$value", target_email, method='GET', is_mime=True
+        )
+        if resp and hasattr(resp, 'status_code') and resp.status_code == 200:
+            with open(abs_eml, 'wb') as ef:
+                if hasattr(resp, 'iter_content'):
+                    for chunk in resp.iter_content(chunk_size=8192):
+                        if chunk:
+                            ef.write(chunk)
+                else:
+                    ef.write(resp.content)
+            eml_saved = rel_eml
+    except Exception as e:
+        logger.warning(f"Sent .eml backfill failed for {owner_key}: {e}")
+
+    return {
+        'graph_id': real_msg_id,
+        'subject': msg.get('subject') or subject,
+        'to': to_str,
+        'cc': cc_str,
+        'bcc': bcc_str,
+        'body_html': body_html,
+        'eml_file_path': eml_saved or 'LOCAL_ONLY_V3',
+    }
 
 
 @login_required
@@ -5011,6 +5199,37 @@ def view_email_thread(request, email_id):
         direct_note = get_object_or_404(UnityNotes, pk=int(db_id))
         parsed_meta = _parse_direct_note_metadata(direct_note)
 
+        owner_key = f"DIRECT_{direct_note.pk}"
+        if not direct_note.eml_file_path or direct_note.eml_file_path in ('LOCAL_ONLY', 'LOCAL_ONLY_V2'):
+            try:
+                bf = _backfill_historic_sent_email(
+                    owner_key=owner_key,
+                    target_email=target_email,
+                    graph_id=getattr(direct_note, 'attached_email_id', None),
+                    subject=parsed_meta['subject'],
+                    recipient=parsed_meta['to'],
+                    sent_dt=direct_note.date,
+                )
+                if bf:
+                    direct_note.eml_file_path = bf['eml_file_path']
+                    if bf['to'] and not direct_note.recipient_email:
+                        direct_note.recipient_email = bf['to']
+                    if bf['cc'] and not direct_note.cc_recipients:
+                        direct_note.cc_recipients = bf['cc']
+                    if bf['bcc'] and not direct_note.bcc_recipients:
+                        direct_note.bcc_recipients = bf['bcc']
+                    if bf['body_html']:
+                        parsed_meta['body'] = bf['body_html']
+                    parsed_meta['to'] = direct_note.recipient_email or parsed_meta['to']
+                    parsed_meta['cc'] = direct_note.cc_recipients or parsed_meta['cc']
+                    parsed_meta['bcc'] = direct_note.bcc_recipients or parsed_meta['bcc']
+                    direct_note.save(update_fields=['eml_file_path', 'recipient_email', 'cc_recipients', 'bcc_recipients'])
+                else:
+                    direct_note.eml_file_path = 'LOCAL_ONLY_V3'
+                    direct_note.save(update_fields=['eml_file_path'])
+            except Exception as e:
+                logger.warning(f"Direct email backfill skipped for {owner_key}: {e}")
+
         agent_username = getattr(direct_note, 'user', request.user.username)
         full_name = name_mapping.get(agent_username, str(agent_username).replace('_', ' ').title())
 
@@ -5030,7 +5249,6 @@ def view_email_thread(request, email_id):
             'receivedDateTime': direct_note.date,
         }
 
-        owner_key = f"DIRECT_{direct_note.pk}"
         local_atts = UnityInternalEmailAttachment.objects.filter(email_id=owner_key, is_inline=False).order_by('id')
         for att in local_atts:
             attachments.append({
@@ -5108,6 +5326,37 @@ def view_email_thread(request, email_id):
                     reply_cc = '' if val == 'None' else val
 
         reply_owner_key = f"REPLY_{reply_obj.id}"
+        if not reply_obj.eml_file_path or reply_obj.eml_file_path in ('LOCAL_ONLY', 'LOCAL_ONLY_V2'):
+            try:
+                bf = _backfill_historic_sent_email(
+                    owner_key=reply_owner_key,
+                    target_email=target_email,
+                    graph_id=None,
+                    subject=reply_subject,
+                    recipient=reply_to,
+                    sent_dt=reply_obj.timestamp,
+                )
+                if bf:
+                    reply_obj.eml_file_path = bf['eml_file_path']
+                    if bf['cc'] and not reply_obj.cc_recipients:
+                        reply_obj.cc_recipients = bf['cc']
+                        reply_cc = bf['cc']
+                    if bf['bcc'] and not reply_obj.bcc_recipients:
+                        reply_obj.bcc_recipients = bf['bcc']
+                        reply_bcc = bf['bcc']
+                    if bf['body_html']:
+                        reply_obj.body = bf['body_html']
+                        formatted_body = bf['body_html']
+                    reply_obj.save(update_fields=['eml_file_path', 'cc_recipients', 'bcc_recipients', 'body'])
+                else:
+                    reply_obj.eml_file_path = 'LOCAL_ONLY_V3'
+                    reply_obj.save(update_fields=['eml_file_path'])
+            except Exception as e:
+                logger.warning(f"Reply backfill skipped for {reply_owner_key}: {e}")
+
+        # Heal legacy '<br>None' quoted thread using the incoming email's HTML body
+        formatted_body = _fix_none_quoted_thread(formatted_body, email_body)
+
         reply_atts = list(
             UnityInternalEmailAttachment.objects.filter(email_id=reply_owner_key, is_inline=False).order_by('id')
         )
@@ -6315,6 +6564,13 @@ def download_email_file(request, email_id):
         reply_owner_key = f"REPLY_{reply_obj.id}"
         reply_atts = list(UnityInternalEmailAttachment.objects.filter(email_id=reply_owner_key, is_inline=False).order_by('id'))
 
+        # Heal legacy '<br>None' quoted thread in downloaded .eml using the incoming email body
+        reply_html = reply_obj.body or ''
+        if reply_html and 'None' in reply_html:
+            _, _, inc_display, _ = _ensure_local_email_data(email_id, target_email=target_email)
+            inc_body = inc_display.get('body', {}).get('content', '')
+            reply_html = _fix_none_quoted_thread(reply_html, inc_body)
+
         # Always synthesize with clean_mime_policy (and update cached file on disk) so no =?utf-8?q? or text/plain artifacts remain
         eml_bytes = _build_clean_eml_bytes(
             subject=raw_subj,
@@ -6323,11 +6579,11 @@ def download_email_file(request, email_id):
             cc_addr=reply_obj.cc_recipients,
             bcc_addr=reply_obj.bcc_recipients,
             dt=reply_obj.timestamp,
-            html_body=reply_obj.body or '',
+            html_body=reply_html,
             attachment_records=reply_atts,
             fallback_file_field=reply_obj.attached_file if not reply_atts else None,
         )
-        if reply_obj.eml_file_path:
+        if reply_obj.eml_file_path and reply_obj.eml_file_path not in ('LOCAL_ONLY', 'LOCAL_ONLY_V2', 'LOCAL_ONLY_V3'):
             try:
                 abs_eml = os.path.join(settings.MEDIA_ROOT, reply_obj.eml_file_path)
                 os.makedirs(os.path.dirname(abs_eml), exist_ok=True)
@@ -6363,7 +6619,7 @@ def download_email_file(request, email_id):
             attachment_records=direct_atts,
             fallback_file_field=direct_note.attached_file if not direct_atts else None,
         )
-        if direct_note.eml_file_path:
+        if direct_note.eml_file_path and direct_note.eml_file_path not in ('LOCAL_ONLY', 'LOCAL_ONLY_V2', 'LOCAL_ONLY_V3'):
             try:
                 abs_eml = os.path.join(settings.MEDIA_ROOT, direct_note.eml_file_path)
                 os.makedirs(os.path.dirname(abs_eml), exist_ok=True)
