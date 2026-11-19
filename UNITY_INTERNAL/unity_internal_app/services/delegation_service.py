@@ -231,12 +231,22 @@ def ingest_single_email_from_graph(target_email, email_id, msg_payload=None):
     return inbox_obj
 
 
+def _email_fingerprint(subject, sender_addr, received_dt):
+    """Creates a stable (subject, sender, exact-second) key to catch Graph ID vs ImmutableId duplicates."""
+    subj = (subject or '').strip().lower()
+    sender = (sender_addr or '').strip().lower()
+    dt_str = ''
+    if received_dt:
+        dt_utc = timezone.localtime(received_dt) if timezone.is_aware(received_dt) else received_dt
+        dt_str = dt_utc.strftime('%Y-%m-%d %H:%M:%S')
+    return (subj, sender, dt_str)
+
+
 def sync_new_inbox_emails(target_email=None, top_count=50):
     """
     Fast inbox sync: makes ONE lightweight call to Microsoft Graph for the latest messages,
-    skips any email_id already in OutlookInbox/EmailDelegation, and saves new arrivals
-    immediately so /outlook/ loads in under 1 second.
-    Heavy attachments and .eml files are downloaded on-demand when an email is opened/delegated.
+    skips any email already in OutlookInbox/EmailDelegation (by email_id OR by subject+sender+received_at),
+    and saves only genuinely new arrivals.
     """
     mailbox = target_email or getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', '')
     inbox_data = OutlookGraphService.fetch_inbox_messages(mailbox, top_count=top_count)
@@ -257,6 +267,13 @@ def sync_new_inbox_emails(target_email=None, top_count=50):
         EmailDelegation.objects.filter(email_id__in=incoming_ids).values_list('email_id', flat=True)
     )
 
+    # Build fingerprint set of recent inbox records (last 400) to prevent old-ID vs ImmutableId duplicates
+    recent_inbox = OutlookInbox.objects.order_by('-received_at')[:400].values('subject', 'sender_address', 'received_at')
+    existing_fingerprints = {
+        _email_fingerprint(r['subject'], r['sender_address'], r['received_at'])
+        for r in recent_inbox
+    }
+
     new_inbox_rows = []
     new_delegation_rows = []
     synced_count = 0
@@ -276,11 +293,18 @@ def sync_new_inbox_emails(target_email=None, top_count=50):
         if not received_dt:
             received_dt = timezone.now()
 
+        subject = msg.get('subject') or '(No Subject)'
+        sender_info = msg.get('from', {}).get('emailAddress', {})
+        sender_name = sender_info.get('name') or ''
+        sender_addr = sender_info.get('address') or ''
+
+        fp = _email_fingerprint(subject, sender_addr, received_dt)
+
+        # Skip if this exact email already exists under an older Graph ID
+        if fp in existing_fingerprints and e_id not in existing_inbox_ids:
+            continue
+
         if e_id not in existing_inbox_ids:
-            subject = msg.get('subject') or '(No Subject)'
-            sender_info = msg.get('from', {}).get('emailAddress', {})
-            sender_name = sender_info.get('name') or ''
-            sender_addr = sender_info.get('address') or ''
             snippet = (msg.get('bodyPreview') or '')[:500]
             body_html = msg.get('body', {}).get('content') or ''
             has_atts = bool(msg.get('hasAttachments', False))
@@ -301,7 +325,6 @@ def sync_new_inbox_emails(target_email=None, top_count=50):
                 if r.get('emailAddress', {}).get('address')
             ]
 
-            # Only mark is_fully_synced=True right away if there are no attachments or inline cid: images to fetch
             needs_attachment_download = has_atts or ('cid:' in body_html.lower())
 
             new_inbox_rows.append(
@@ -322,6 +345,7 @@ def sync_new_inbox_emails(target_email=None, top_count=50):
                 )
             )
             existing_inbox_ids.add(e_id)
+            existing_fingerprints.add(fp)
             synced_count += 1
 
         if e_id not in existing_delegation_ids:

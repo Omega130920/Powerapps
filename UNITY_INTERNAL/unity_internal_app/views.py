@@ -4213,8 +4213,8 @@ def get_email_body_html_view(request, email_id):
 def outlook_dashboard_view(request):
     """
     Loads the Live Inbox 100% from local MySQL storage in milliseconds.
-    When ?sync=true is passed, polls Microsoft Graph for new arrivals, saves them locally,
-    and redirects back to the clean /outlook/ URL without queuing flash banners.
+    Automatically removes any duplicate 'NEW' rows that match an already-worked email
+    by either email_id OR (subject, sender_address, received_at).
     """
     if request.user.username.lower() != 'omega' and not request.user.is_superuser:
         messages.error(request, "Access restricted.")
@@ -4236,14 +4236,30 @@ def outlook_dashboard_view(request):
         'sort_order': sort_order,
     }
 
-    # 2. Prevent duplicates: find all email_ids that have already been delegated, completed, or recycled
+    # 2. Prevent duplicates by email_id
     worked_ids = set(
         EmailDelegation.objects.exclude(status='NEW').values_list('email_id', flat=True)
     )
     if worked_ids:
         EmailDelegation.objects.filter(status='NEW', email_id__in=worked_ids).delete()
 
-    # 3. Query strictly undelegated 'NEW' work-related tasks from local database
+    # 3. Prevent old-ID vs ImmutableId duplicates by (subject, sender_address, received_at)
+    def _fp(subj, sender, dt):
+        dt_str = ''
+        if dt:
+            dt_local = timezone.localtime(dt) if timezone.is_aware(dt) else dt
+            dt_str = dt_local.strftime('%Y-%m-%d %H:%M:%S')
+        return ((subj or '').strip().lower(), (sender or '').strip().lower(), dt_str)
+
+    worked_inbox = OutlookInbox.objects.filter(email_id__in=worked_ids).values(
+        'subject', 'sender_address', 'received_at'
+    )
+    worked_fingerprints = {
+        _fp(r['subject'], r['sender_address'], r['received_at'])
+        for r in worked_inbox
+    }
+
+    # 4. Query strictly undelegated 'NEW' work-related tasks from local database
     new_delegations = (
         EmailDelegation.objects.filter(
             status='NEW',
@@ -4265,6 +4281,9 @@ def outlook_dashboard_view(request):
     inbox_map = OutlookInbox.objects.filter(email_id__in=seen_email_ids).in_bulk(field_name='email_id')
 
     filtered_emails = []
+    stale_duplicate_pks = []
+    seen_new_fingerprints = set()
+
     for delegation in unique_new_delegations:
         email_id = delegation.email_id
         local_record = inbox_map.get(email_id)
@@ -4275,6 +4294,12 @@ def outlook_dashboard_view(request):
         snippet = (local_record.snippet if local_record and local_record.snippet else '')
         has_atts = bool(local_record.has_attachments) if local_record else False
         received_dt = (local_record.received_at if local_record and local_record.received_at else delegation.received_at) or timezone.now()
+
+        fp = _fp(subject, sender_addr, received_dt)
+        if fp in worked_fingerprints or fp in seen_new_fingerprints:
+            stale_duplicate_pks.append(delegation.pk)
+            continue
+        seen_new_fingerprints.add(fp)
 
         if search_query:
             if (
@@ -4301,6 +4326,9 @@ def outlook_dashboard_view(request):
             'delegation_status': delegation.get_status_display(),
             'delegation_id': delegation.pk,
         })
+
+    if stale_duplicate_pks:
+        EmailDelegation.objects.filter(pk__in=stale_duplicate_pks).delete()
 
     reverse_sort = (sort_order == 'newest')
     filtered_emails.sort(key=lambda x: x['internal_received_at'], reverse=reverse_sort)
