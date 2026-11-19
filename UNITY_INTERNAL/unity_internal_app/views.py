@@ -4085,90 +4085,193 @@ def _rewrite_cid_links_from_local_db(email_id, body_html):
     return updated_html
 
 
+def _extract_attachments_from_local_eml(email_id, eml_rel_path, body_html, received_dt=None):
+    """
+    Self-healing fallback: extracts regular attachments and inline CID images
+    directly from a locally saved .eml file if UnityInternalEmailAttachment is empty.
+    """
+    import email as py_email
+    import hashlib
+    import re
+    from email import policy as email_policy
+    from django.utils.text import get_valid_filename
+
+    abs_eml = os.path.join(settings.MEDIA_ROOT, eml_rel_path)
+    if not os.path.exists(abs_eml):
+        return body_html or "", False
+
+    try:
+        with open(abs_eml, 'rb') as f:
+            msg = py_email.message_from_bytes(f.read(), policy=email_policy.default)
+    except Exception as e:
+        logger.warning(f"Could not parse local .eml for {email_id}: {e}")
+        return body_html or "", False
+
+    dt = received_dt or timezone.now()
+    email_hash = hashlib.sha256(email_id.encode('utf-8')).hexdigest()[:24]
+    rel_dir = os.path.join('email_archive', dt.strftime('%Y'), dt.strftime('%m'), email_hash)
+    abs_dir = os.path.join(settings.MEDIA_ROOT, rel_dir)
+    os.makedirs(abs_dir, exist_ok=True)
+
+    updated_html = body_html or ""
+    found_non_inline = False
+    idx = 0
+
+    for part in msg.walk():
+        if part.is_multipart():
+            continue
+
+        disposition = str(part.get_content_disposition() or '').lower()
+        filename = part.get_filename()
+        content_id = (part.get('Content-ID') or '').strip('<> ').strip() or None
+        content_type = part.get_content_type() or 'application/octet-stream'
+
+        # Skip plain/html body parts unless they have a filename
+        if not filename and disposition != 'attachment' and not content_id:
+            continue
+
+        payload = part.get_payload(decode=True)
+        if not payload:
+            continue
+
+        idx += 1
+        raw_name = filename or (f"inline_{idx}.{content_type.split('/')[-1]}" if '/' in content_type else f"attachment_{idx}.bin")
+        safe_name = get_valid_filename(raw_name) or f"attachment_{idx}.bin"
+        is_inline = bool(
+            disposition == 'inline'
+            and content_id
+            and (content_id.lower() in updated_html.lower())
+        )
+
+        att_key = f"eml_{idx}_{safe_name[:40]}"
+        existing = UnityInternalEmailAttachment.objects.filter(email_id=email_id, name=raw_name).first()
+        if not existing:
+            rel_file_path = os.path.join(rel_dir, f"eml_{idx}_{safe_name}").replace('\\', '/')
+            abs_file_path = os.path.join(settings.MEDIA_ROOT, rel_file_path)
+            with open(abs_file_path, 'wb') as out_f:
+                out_f.write(payload)
+
+            existing = UnityInternalEmailAttachment.objects.create(
+                email_id=email_id,
+                attachment_id=att_key,
+                name=raw_name[:255],
+                content_type=content_type[:150],
+                size=len(payload),
+                is_inline=is_inline,
+                content_id=content_id,
+                file_path=rel_file_path,
+            )
+
+        if existing:
+            if not existing.is_inline:
+                found_non_inline = True
+            if content_id and updated_html:
+                local_url = reverse('serve_local_attachment', kwargs={'att_pk': existing.id})
+                pattern = re.compile(r'cid:' + re.escape(content_id), re.IGNORECASE)
+                updated_html = pattern.sub(local_url, updated_html)
+
+    return updated_html, found_non_inline
+
+
 def _ensure_local_email_data(email_id, target_email=None):
     """
-    Ensures the email and its attachments are stored locally in OutlookInbox and
-    UnityInternalEmailAttachment, then returns:
-    (inbox_item, delegation_item, email_display_dict, attachments_list)
-    from local storage without calling Graph again.
+    Returns (inbox_item, delegation_item, email_display_dict, attachments_list).
+    Reads strictly from MySQL and local disk, and automatically backfills historic
+    emails (is_fully_synced=False) from Graph or extracts attachments from the local .eml.
     """
-    mailbox = target_email or getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', '')
+    import re
+    target_email = target_email or getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', '')
     inbox_item = OutlookInbox.objects.filter(email_id=email_id).first()
+    delegation_item = EmailDelegation.objects.filter(email_id=email_id).order_by('-id').first()
 
-    if not inbox_item or not inbox_item.is_fully_synced:
-        synced_item = ingest_single_email_from_graph(mailbox, email_id)
-        if synced_item:
-            inbox_item = synced_item
+    body_html = inbox_item.body_content if inbox_item and inbox_item.body_content else ''
+    existing_atts = UnityInternalEmailAttachment.objects.filter(email_id=email_id)
+    has_unrewritten_cid = bool(body_html and ('cid:' in body_html.lower()))
+    not_fully_synced = bool(not inbox_item or not inbox_item.is_fully_synced)
+    missing_flagged_atts = bool(
+        inbox_item and inbox_item.has_attachments and not existing_atts.filter(is_inline=False).exists()
+    )
 
-    delegation_item = EmailDelegation.objects.filter(email_id=email_id).order_by('id').first()
+    # 1. One-time backfill for historic emails (is_fully_synced=False) or missing body/CID/attachments
+    if not_fully_synced or not body_html or has_unrewritten_cid or missing_flagged_atts:
+        try:
+            synced = ingest_single_email_from_graph(email_id, target_email=target_email)
+            if synced:
+                inbox_item = synced
+                body_html = synced.body_content or body_html
+        except Exception as e:
+            logger.warning(f"One-time Graph backfill skipped for {email_id}: {e}")
 
-    local_atts_qs = UnityInternalEmailAttachment.objects.filter(
+    # 2. Self-healing from local .eml file if attachments or inline CID images are still missing
+    eml_rel_path = getattr(inbox_item, 'eml_file_path', None)
+    still_has_cid = bool(body_html and ('cid:' in body_html.lower()))
+    still_no_atts = not UnityInternalEmailAttachment.objects.filter(email_id=email_id, is_inline=False).exists()
+
+    if eml_rel_path and (still_has_cid or still_no_atts):
+        rec_dt = getattr(inbox_item, 'received_at', None) or getattr(delegation_item, 'received_at', None)
+        new_html, found_non_inline = _extract_attachments_from_local_eml(
+            email_id, eml_rel_path, body_html, received_dt=rec_dt
+        )
+        if new_html != body_html or found_non_inline:
+            body_html = new_html
+            if inbox_item:
+                inbox_item.body_content = body_html
+                if found_non_inline:
+                    inbox_item.has_attachments = True
+                inbox_item.is_fully_synced = True
+                inbox_item.save(update_fields=['body_content', 'has_attachments', 'is_fully_synced'])
+
+    # 3. Rewrite any remaining cid: tags using existing DB attachment rows
+    if body_html and ('cid:' in body_html.lower()):
+        for att_row in UnityInternalEmailAttachment.objects.filter(email_id=email_id).exclude(content_id__isnull=True).exclude(content_id=''):
+            local_url = reverse('serve_local_attachment', kwargs={'att_pk': att_row.id})
+            pattern = re.compile(r'cid:' + re.escape(att_row.content_id), re.IGNORECASE)
+            body_html = pattern.sub(local_url, body_html)
+
+    if not body_html:
+        snippet = (inbox_item.snippet if inbox_item and inbox_item.snippet else '')
+        body_html = f"<p>{snippet}</p>" if snippet else "<p>No email content available.</p>"
+
+    # 4. Build non-inline attachment list from local DB
+    local_atts = UnityInternalEmailAttachment.objects.filter(
         email_id=email_id,
         is_inline=False
     ).order_by('id')
 
-    attachments_list = []
-    for att in local_atts_qs:
-        attachments_list.append({
+    attachments_list = [
+        {
             'id': att.attachment_id or str(att.id),
             'local_id': att.id,
             'name': att.name,
-            'filename': att.name,
+            'isInline': False,
             'contentType': att.content_type or 'application/octet-stream',
             'size': att.size or 0,
-            'isInline': att.is_inline,
             'local_url': reverse('serve_local_attachment', kwargs={'att_pk': att.id}),
-        })
+        }
+        for att in local_atts
+    ]
 
-    if inbox_item:
-        body_html = _rewrite_cid_links_from_local_db(email_id, inbox_item.body_content or '')
-        to_recip_list = [
-            {'emailAddress': {'address': addr.strip()}}
-            for addr in (inbox_item.to_addresses or '').split(',')
-            if addr.strip()
-        ]
-        cc_recip_list = [
-            {'emailAddress': {'address': addr.strip()}}
-            for addr in (inbox_item.cc_addresses or '').split(',')
-            if addr.strip()
-        ]
-        bcc_recip_list = [
-            {'emailAddress': {'address': addr.strip()}}
-            for addr in (inbox_item.bcc_addresses or '').split(',')
-            if addr.strip()
-        ]
-        email_display = {
-            'id': email_id,
-            'subject': inbox_item.subject or '(No Subject)',
-            'from': {
-                'emailAddress': {
-                    'name': inbox_item.sender_name or inbox_item.sender_address or 'Unknown',
-                    'address': inbox_item.sender_address or 'Unknown',
-                }
-            },
-            'toRecipients': to_recip_list,
-            'ccRecipients': cc_recip_list,
-            'bccRecipients': bcc_recip_list,
-            'to_addresses': inbox_item.to_addresses or '',
-            'cc_addresses': inbox_item.cc_addresses or '',
-            'bcc_addresses': inbox_item.bcc_addresses or '',
-            'receivedDateTime': inbox_item.received_at,
-            'body': {'content': body_html},
-        }
-    else:
-        email_display = {
-            'id': email_id,
-            'subject': (delegation_item.email_category if delegation_item else None) or '(No Subject)',
-            'from': {'emailAddress': {'name': 'Unknown', 'address': 'Unknown'}},
-            'toRecipients': [],
-            'ccRecipients': [],
-            'bccRecipients': [],
-            'to_addresses': '',
-            'cc_addresses': '',
-            'bcc_addresses': '',
-            'receivedDateTime': delegation_item.received_at if delegation_item else None,
-            'body': {'content': '<div class="alert alert-warning">Local email content is unavailable for this record.</div>'},
-        }
+    sender_addr = (inbox_item.sender_address if inbox_item and inbox_item.sender_address else 'Unknown')
+    sender_name = (inbox_item.sender_name if inbox_item and inbox_item.sender_name else sender_addr)
+
+    email_display = {
+        'id': email_id,
+        'subject': (inbox_item.subject if inbox_item and inbox_item.subject else '(No Subject)'),
+        'from': {
+            'emailAddress': {
+                'name': sender_name,
+                'address': sender_addr,
+            }
+        },
+        'to_addresses': inbox_item.to_addresses if inbox_item else '',
+        'cc_addresses': inbox_item.cc_addresses if inbox_item else '',
+        'bcc_addresses': inbox_item.bcc_addresses if inbox_item else '',
+        'receivedDateTime': (inbox_item.received_at if inbox_item else (delegation_item.received_at if delegation_item else None)),
+        'body': {
+            'contentType': 'html',
+            'content': body_html,
+        },
+    }
 
     return inbox_item, delegation_item, email_display, attachments_list
 
