@@ -4639,6 +4639,7 @@ def outlook_delegate_to(request, email_id):
     """
     Handles delegation and re-delegation of Outlook tasks.
     Renders email body, metadata, inline images, and attachments 100% locally.
+    No auto-reply emails are sent to clients upon delegation.
     """
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
     available_users = User.objects.filter(is_active=True).order_by('username')
@@ -4686,7 +4687,6 @@ def outlook_delegate_to(request, email_id):
                 email_category=data_for_delegation['email_category'],
                 communication_type=data_for_delegation['comm_type'],
             )
-            messages.info(request, "Email moved to Recycle Bin (Status: DLT).")
             return redirect('outlook_dashboard')
 
         # --- HANDLE DELEGATION / RE-DELEGATION ---
@@ -4725,7 +4725,6 @@ def outlook_delegate_to(request, email_id):
                         subject=f"Task moved from {old_agent_name} to {assignee.username}",
                         recipient_email=assignee.email or "N/A"
                     )
-                    messages.success(request, f"Task successfully re-assigned to {assignee.username}.")
                     return redirect('outlook_dashboard')
                 else:
                     success, message = delegate_email_task(
@@ -4736,25 +4735,6 @@ def outlook_delegate_to(request, email_id):
                     )
 
                     if success:
-                        reply_endpoint = f"messages/{email_id}/createReply"
-                        reply_payload = {
-                            "comment": (
-                                f"Dear Sender,\n\nThis request has been successfully received and delegated to our agent: "
-                                f"{assignee.username}.\n\nPlease use Reference: {data_for_delegation['company_code'] or 'N/A'} "
-                                f"for future queries.\n\nRegards,\nMIP Support Team"
-                            )
-                        }
-                        try:
-                            draft_res = OutlookGraphService._make_graph_request(reply_endpoint, target_email, method='POST', data=reply_payload)
-                            if isinstance(draft_res, dict) and 'id' in draft_res:
-                                send_endpoint = f"messages/{draft_res['id']}/send"
-                                OutlookGraphService._make_graph_request(send_endpoint, target_email, method='POST')
-                                messages.success(request, "Task assigned and confirmation email sent!")
-                            else:
-                                messages.success(request, f"Task assigned to {assignee.username}.")
-                        except Exception as e:
-                            messages.warning(request, f"Task assigned, but auto-reply failed: {str(e)}")
-
                         return redirect('outlook_dashboard')
                     else:
                         messages.error(request, message)
