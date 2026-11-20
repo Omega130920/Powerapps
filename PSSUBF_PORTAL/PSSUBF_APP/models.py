@@ -252,7 +252,7 @@ class AdHocList(models.Model):
     years_to_maturity = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
     
     # Changed to CharField to store the formatted "%" string from the UI logic
-    affordability_calculation = models.CharField(max_length=20, blank=True, null=True)
+    affordability_calculation = models.CharField(max_length=50, blank=True, null=True)
     
     # Dates & Processing
     claim_form_date = models.DateField(null=True, blank=True)

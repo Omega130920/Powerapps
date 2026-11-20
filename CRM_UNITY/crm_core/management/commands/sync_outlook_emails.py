@@ -39,7 +39,7 @@ def download_and_link_attachments(email_id, body_html, received_dt=None, target_
     Downloads all attachments (regular + inline CID images) to disk in 8KB chunks,
     saves CrmEmailAttachment rows, and rewrites cid: references in body_html to local URLs.
     """
-    meta_endpoint = f"messages/{email_id}/attachments?$select=id,name,contentType,size,isInline,contentId"
+    meta_endpoint = f"messages/{email_id}/attachments?$select=id,name,contentType,size,isInline,microsoft.graph.fileAttachment/contentId"
     meta_resp = OutlookGraphService._make_graph_request(meta_endpoint, target_email=target_email, method='GET')
 
     if not isinstance(meta_resp, dict) or 'error' in meta_resp:

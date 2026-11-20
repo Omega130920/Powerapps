@@ -5083,7 +5083,7 @@ def _backfill_historic_sent_email(owner_key, target_email, graph_id=None, subjec
     # 4. Download all attachments (and inline CID images) under the isolated owner_key
     if has_atts or ('cid:' in body_html.lower()):
         att_meta = OutlookGraphService._make_graph_request(
-            f"messages/{real_msg_id}/attachments?$select=id,name,contentType,size,isInline,contentId",
+            f"messages/{real_msg_id}/attachments?$select=id,name,contentType,size,isInline,microsoft.graph.fileAttachment/contentId",
             target_email,
             method='GET'
         )
