@@ -4195,7 +4195,7 @@ def _ensure_local_email_data(email_id, target_email=None):
     # 1. One-time backfill for historic emails (is_fully_synced=False) or missing body/CID/attachments
     if not_fully_synced or not body_html or has_unrewritten_cid or missing_flagged_atts:
         try:
-            synced = ingest_single_email_from_graph(email_id, target_email=target_email)
+            synced = ingest_single_email_from_graph(target_email, email_id)
             if synced:
                 inbox_item = synced
                 body_html = synced.body_content or body_html
