@@ -96,7 +96,8 @@ def _parse_recipients(recipient_input):
 class OutlookGraphService:
     """
     A service class to wrap Graph API calls, ensuring a consistent
-    API-first approach for all Outlook interactions.
+    API-first approach for all Outlook interactions with ImmutableId
+    and 8 KB chunked streaming.
     """
 
     @staticmethod
@@ -168,26 +169,32 @@ class OutlookGraphService:
     @staticmethod
     def fetch_inbox_messages(target_email=None, top_count=200):
         """
-        Fetches recent emails for the live inbox.
-        Excludes 'body' and 'bodyPreview' from $select to prevent large memory payloads on inbox load.
+        Fetches recent inbox message headers for sync checks.
+        Excludes full 'body' from $select so polling stays fast and lightweight in RAM;
+        full bodies are fetched only for brand-new emails during local ingestion.
         """
         endpoint = (
             f"mailFolders/inbox/messages?$top={top_count}"
-            f"&$select=id,subject,from,receivedDateTime,isRead,hasAttachments,ccRecipients,bccRecipients"
+            f"&$select=id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview"
             f"&$orderby=receivedDateTime desc"
         )
         return OutlookGraphService._make_graph_request(endpoint, target_email=target_email, method='GET')
 
     @staticmethod
     def fetch_message_details(target_email, message_id):
-        endpoint = f"messages/{message_id}"
+        """Fetches the full details (including HTML body and recipients) for a single message."""
+        endpoint = (
+            f"messages/{message_id}"
+            f"?$select=id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,bodyPreview,body,hasAttachments"
+        )
         return OutlookGraphService._make_graph_request(endpoint, target_email=target_email, method='GET')
 
     @staticmethod
     def fetch_attachments(*args, **kwargs):
         """
-        Fetches ONLY attachment metadata (id, name, contentType, size) so opening an email
-        never downloads full attachment binaries into server RAM.
+        Fetches ONLY attachment metadata (id, name, contentType, size, isInline, contentId)
+        using the OData type-cast for contentId so opening/syncing an email never loads
+        base64 attachment binaries into server RAM.
         """
         if len(args) == 2:
             target_email, message_id = args
@@ -197,7 +204,10 @@ class OutlookGraphService:
             target_email = kwargs.get('target_email')
             message_id = kwargs.get('message_id')
 
-        endpoint = f"messages/{message_id}/attachments?$select=id,name,contentType,size"
+        endpoint = (
+            f"messages/{message_id}/attachments"
+            f"?$select=id,name,contentType,size,isInline,microsoft.graph.fileAttachment/contentId"
+        )
         response = OutlookGraphService._make_graph_request(endpoint, target_email=target_email, method='GET')
         return response.get('value', []) if isinstance(response, dict) else []
 
@@ -241,6 +251,32 @@ class OutlookGraphService:
                 response.close()
                     
         return file_iterator()
+
+    @staticmethod
+    def stream_raw_eml(target_email, message_id, chunk_size=8192):
+        """
+        Streams the raw RFC822 MIME (.eml) content of an email in 8 KB chunks directly
+        from Graph's /$value endpoint to disk or browser without loading the file into RAM.
+        """
+        endpoint = f"messages/{message_id}/$value"
+        response = OutlookGraphService._make_graph_request(
+            endpoint, target_email=target_email, method='GET', is_mime=True
+        )
+
+        if not response or (isinstance(response, dict) and 'error' in response):
+            err = response.get('error') if isinstance(response, dict) else 'Unknown EML stream error'
+            logger.error(f"Error initiating raw EML stream for message {message_id}: {err}")
+            return None
+
+        def eml_iterator():
+            try:
+                for chunk in response.iter_content(chunk_size=chunk_size):
+                    if chunk:
+                        yield chunk
+            finally:
+                response.close()
+
+        return eml_iterator()
 
     @staticmethod
     def get_attachment_mime(*args, **kwargs):

@@ -121,6 +121,12 @@
             overflow-x: auto;
         }
 
+        .card-body-content img,
+        .email-reply-block img {
+            max-width: 100%;
+            height: auto;
+        }
+
         /* --- ATTACHMENT SECTION (Unity Internal Style) --- */
         .attachment-section {
             background-color: #f8fafc;
@@ -296,7 +302,7 @@
             <p style="margin:0; color: #666;">Ref: {{ task.mip_names|default:"N/A" }}</p>
         </div>
         <div class="button-group">
-            <a href="{% url 'download_acvv_email' delegation_id=task.email_id %}" class="download-eml-button">
+            <a href="{% url 'download_acvv_email' delegation_id=clicked_task.pk %}" class="download-eml-button">
                 <i class="fas fa-file-download"></i> Download Full Email (.eml)
             </a>
             <a href="javascript:history.back()" class="return-button">← Back to Email Log</a>
@@ -378,6 +384,7 @@
                     {% if item.obj.action_type == 'EMAIL_REPLY' %}
                         <div><strong>CC:</strong> {{ item.cc|default:"-" }}</div>
                         <div><strong>BCC:</strong> {{ item.bcc|default:"-" }}</div>
+                        <div><strong>Date Sent:</strong> {{ item.date|date:"d M Y, H:i" }}</div>
                     {% endif %}
                     <div><strong>Subject:</strong> {{ item.obj.subject }}</div>
                 </div>

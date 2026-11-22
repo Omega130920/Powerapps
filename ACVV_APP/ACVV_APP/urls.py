@@ -1,28 +1,25 @@
 """
 URL configuration for ACVV_APP project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/5.2/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.conf import settings
 from django.contrib import admin
-from django.urls import path, include
-from django.conf.urls.static import static
+from django.urls import path, include, re_path
+from django.views.static import serve
+from acvv import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', include('acvv.urls')),  # Include URLs from the acvv app
-]
+    path('', include('acvv.urls')),
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # Protect all /media/ files behind @login_required (prevents unauthenticated POPIA exposure)
+    re_path(r'^media/(?P<path>.*)$', views.protected_media_serve, name='protected_media_serve'),
+
+    # Backward-compatible @login_required routes for legacy upload paths saved before MEDIA_URL = '/media/'
+    re_path(
+        r'^(?P<path>(?:branch_docs|notes|notes_attachments|claim_attachments|email_attachments)/.*)$',
+        views.protected_media_serve,
+    ),
+
+    # Static assets (CSS/JS/images) when DEBUG = False
+    re_path(r'^static/(?P<path>.*)$', serve, {'document_root': settings.STATIC_ROOT}),
+]

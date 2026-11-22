@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import User
 
+
 class Globalacvv(models.Model):
     # Existing fields
     mip_names = models.CharField(db_column='MIP Names', max_length=255, primary_key=True)
@@ -35,10 +36,11 @@ class Globalacvv(models.Model):
 
     class Meta:
         managed = False  # Set to False because you manage the schema manually in MySQL
-        db_table = 'global acvv' # Explicitly using the name with the space
+        db_table = 'global acvv'  # Explicitly using the name with the space
 
     def __str__(self):
         return self.mip_names
+
 
 class ClientNotes(models.Model):
     id = models.AutoField(db_column='ID', primary_key=True)
@@ -78,8 +80,7 @@ class ClientNotes(models.Model):
     class Meta:
         managed = False
         db_table = 'client_notes'
-        
-from django.db import models
+
 
 class OutlookToken(models.Model):
     """
@@ -87,37 +88,28 @@ class OutlookToken(models.Model):
     This model is UNMANAGED, meaning Django will not create, modify, or delete 
     the corresponding database table.
     """
-    # The identifier for the user (can be the email address)
     user_principal_name = models.CharField(max_length=255, unique=True)
-    
-    # The actual token used to call the Graph API
     access_token = models.TextField()
-    
-    # The token used to request a new Access Token
     refresh_token = models.TextField(null=True, blank=True)
-    
-    # When the Access Token expires (in seconds, used for proactive refresh)
     expires_in_seconds = models.IntegerField(default=3600) 
-    
-    # Timestamp of when the token record was last updated
     updated_at = models.DateTimeField(auto_now=True) 
 
     class Meta:
-        # 🛑 Set managed to False so Django migrations ignore this model 🛑
         managed = False
-        db_table = 'acvv_outlook_token' # Optional: Define the exact table name for clarity
+        db_table = 'acvv_outlook_token'
 
     def __str__(self):
         return f"Token for {self.user_principal_name}"
-    
+
+
 # ----------------------------------------------------------------------
-# NEW UNMANAGED MODELS FOR DELEGATION
+# UNMANAGED MODELS FOR DELEGATION & LOCAL EMAIL STORAGE
 # ----------------------------------------------------------------------
 
 class EmailDelegation(models.Model):
-    """Tracks delegation status, assignee, notes, and classification for a specific Outlook email."""
+    """Tracks delegation status, assignee, full local email content, and classification for an Outlook email."""
     
-    email_id = models.CharField(max_length=255, unique=True)
+    email_id = models.CharField(max_length=255, unique=True, db_collation='utf8mb4_bin')
     subject = models.CharField(max_length=255, null=True, blank=True)
     assigned_user = models.ForeignKey(
         User, 
@@ -132,11 +124,11 @@ class EmailDelegation(models.Model):
         ('COM', 'Completed'),
         ('CLO', 'Closed'),
         ('DLT', 'Deleted'),
-        ('SENT', 'Sent Direct'), # 🛑 Added this choice for your direct app emails
+        ('SENT', 'Sent Direct'),
     ]
     
     status = models.CharField(
-        max_length=4, # Increased to 4 to accommodate 'SENT'
+        max_length=4,
         choices=STATUS_CHOICES,
         default='NEW'
     )
@@ -144,14 +136,22 @@ class EmailDelegation(models.Model):
     received_at = models.DateTimeField(null=True, blank=True)
     delegated_at = models.DateTimeField(null=True, blank=True)
     sender_address = models.CharField(max_length=255, null=True, blank=True)
+    sender_name = models.CharField(max_length=255, null=True, blank=True)
+    snippet = models.CharField(max_length=512, null=True, blank=True)
+    to_recipients = models.TextField(null=True, blank=True)
+    cc_recipients = models.TextField(null=True, blank=True)
+    bcc_recipients = models.TextField(null=True, blank=True)
     
     work_related = models.BooleanField(default=True)
     email_category = models.CharField(max_length=50, null=True, blank=True)
     communication_type = models.CharField(max_length=50, null=True, blank=True)
-    mip_names = models.CharField(max_length=255, null=True, blank=True) # Increased length for safety
+    mip_names = models.CharField(max_length=255, null=True, blank=True)
 
-    # 🛑 NEW FIELDS TO FIX THE TYPEERROR 🛑
-    body = models.TextField(null=True, blank=True) 
+    # Local rendering, attachment & .eml archive fields
+    body = models.TextField(null=True, blank=True)
+    has_attachments = models.BooleanField(default=False)
+    eml_file_path = models.CharField(max_length=500, null=True, blank=True)
+    is_fully_synced = models.BooleanField(default=False)
     attachment = models.FileField(
         upload_to='email_attachments/%Y/%m/', 
         max_length=255, 
@@ -166,6 +166,29 @@ class EmailDelegation(models.Model):
         managed = False
         db_table = 'email_delegation'
 
+
+class AcvvEmailAttachment(models.Model):
+    """Stores locally downloaded incoming, inline CID, reply, and direct/claim email attachments on disk."""
+    
+    id = models.AutoField(primary_key=True)
+    email_id = models.CharField(max_length=255, db_index=True, db_collation='utf8mb4_bin')
+    attachment_id = models.CharField(max_length=255, null=True, blank=True)
+    name = models.CharField(max_length=255)
+    content_type = models.CharField(max_length=150, null=True, blank=True)
+    size = models.IntegerField(default=0)
+    is_inline = models.BooleanField(default=False)
+    content_id = models.CharField(max_length=255, null=True, blank=True)
+    file_path = models.CharField(max_length=500)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        managed = False
+        db_table = 'acvv_email_attachments'
+
+    def __str__(self):
+        return f"{self.name} ({self.email_id})"
+
+
 class DelegationNote(models.Model):
     """Notes added by the assigned user against a delegated email."""
     
@@ -179,11 +202,11 @@ class DelegationNote(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        # 🛑 CRITICAL: Tell Django not to manage the schema
         managed = False
         db_table = 'delegation_note'
         ordering = ['created_at']
-        
+
+
 class DelegationTransactionLog(models.Model):
     """Logs external communication events (like email replies) against a task."""
     
@@ -196,18 +219,20 @@ class DelegationTransactionLog(models.Model):
     
     subject = models.CharField(max_length=255)
     recipient_email = models.CharField(max_length=255)
-    action_type = models.CharField(max_length=50) # Use constants like 'EMAIL_REPLY'
+    cc_recipients = models.TextField(null=True, blank=True)
+    bcc_recipients = models.TextField(null=True, blank=True)
+    action_type = models.CharField(max_length=50)
     
-    # 🛑 NEW FIELD ADDED HERE 🛑
-    body = models.TextField(null=True, blank=True) 
-    
+    body = models.TextField(null=True, blank=True)
+    eml_file_path = models.CharField(max_length=500, null=True, blank=True)
     transaction_time = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         managed = False
         db_table = 'delegation_transaction_log' 
         ordering = ['transaction_time']
-        
+
+
 class AcvvClaim(models.Model):
     id = models.AutoField(db_column='ID', primary_key=True)
     company_code = models.CharField(db_column='company_code', max_length=50) 
@@ -262,12 +287,12 @@ class AcvvClaim(models.Model):
     def submitted_by_agent(self):
         latest_note = self.notes.order_by('-created_at').first()
         if latest_note and "[Tracking Parameters Logged]" in (latest_note.note_description or ""):
-            # Simple string parsing to extract the value after the label
             import re
             match = re.search(r"- Submitted by Agent: (\w+)", latest_note.note_description)
             if match:
                 return match.group(1)
         return ""
+
 
 class ClaimNote(models.Model):
     id = models.AutoField(db_column='ID', primary_key=True)
@@ -281,7 +306,8 @@ class ClaimNote(models.Model):
     class Meta:
         managed = False
         db_table = 'acvv_claim_notes'
-        
+
+
 class ReconciliationRecord(models.Model):
     """Stores fiscal month data for branch reconciliations (8th to 7th cycle)."""
     fiscal_month = models.DateField()
@@ -302,6 +328,7 @@ class ReconciliationRecord(models.Model):
 
     def __str__(self):
         return f"{self.mip_name} - {self.fiscal_month.strftime('%B %Y')}"
+
 
 class ReconciliationWorksheet(models.Model):
     fiscal_month = models.DateField()
@@ -327,21 +354,18 @@ class ReconciliationWorksheet(models.Model):
     closed_at = models.DateTimeField(null=True, blank=True)
 
     # --- SLA & AUDIT FIELDS ---
-    # Tracks when the row was last touched
     updated_at = models.DateTimeField(auto_now=True) 
-    # Tracks which user (Jesica, Timothy, etc.) last saved the row
     updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
-    # --------------------------
 
     class Meta:
-        managed = False # Remember to update your SQL table manually if managed=False
+        managed = False
         db_table = 'reconciliation_worksheet'
-        # Ensures the database treats the combination of mg_code and fiscal_month as unique
         unique_together = (('mg_code', 'fiscal_month'),)
 
     def __str__(self):
         return f"{self.mg_code} - {self.fiscal_month}"
-        
+
+
 class BranchDocument(models.Model):
     branch_name = models.CharField(max_length=255)
     file_name = models.CharField(max_length=255)
@@ -352,7 +376,8 @@ class BranchDocument(models.Model):
     class Meta:
         managed = False
         db_table = 'branch_documents'
-        
+
+
 class TempExit(models.Model):
     mg_code = models.CharField(max_length=50)
     surname = models.CharField(max_length=255)
@@ -367,6 +392,5 @@ class TempExit(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        managed = False  # Tells Django not to touch the schema
+        managed = False
         db_table = 'temp_exit'
-        

@@ -253,6 +253,17 @@
                                 <label style="font-weight: bold; display: block; margin-bottom: 5px;">To (use ; for multiple):</label>
                                 <input type="text" name="member_recipient_email" id="standalone_recipient_input" value="{{ acvv_record.mg_email_address }}" class="form-input" required placeholder="example@mail.com; example2@mail.com">
                             </div>
+
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                                <div>
+                                    <label style="font-weight: bold; display: block; margin-bottom: 5px;">CC (optional):</label>
+                                    <input type="text" name="member_cc_email" id="standalone_cc_input" class="form-input" placeholder="cc@mail.com; cc2@mail.com">
+                                </div>
+                                <div>
+                                    <label style="font-weight: bold; display: block; margin-bottom: 5px;">BCC (optional):</label>
+                                    <input type="text" name="member_bcc_email" id="standalone_bcc_input" class="form-input" placeholder="bcc@mail.com">
+                                </div>
+                            </div>
                             
                             <div class="form-group" style="margin-bottom: 15px;">
                                 <label style="font-weight: bold; display: block; margin-bottom: 5px;">Subject:</label>
@@ -635,10 +646,12 @@
         }
         function syncStandaloneEditor() {
             const editor = document.getElementById('standalone_email_body_editor');
-            const recipientInput = document.getElementById('standalone_recipient_input');
-            if(recipientInput.value) {
-                recipientInput.value = recipientInput.value.replace(/[, ]+/g, ';').replace(/;+/g, ';');
-            }
+            ['standalone_recipient_input', 'standalone_cc_input', 'standalone_bcc_input'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el && el.value) {
+                    el.value = el.value.replace(/[, ]+/g, ';').replace(/;+/g, ';');
+                }
+            });
             document.getElementById('standalone_email_html_content').value = editor.innerHTML;
         }
         function toggleEmailForm() {

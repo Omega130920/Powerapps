@@ -3,6 +3,7 @@
 {% block title %}Task #{{ delegation.pk }}: {{ email.subject|default:"(No Subject)" }}{% endblock %}
 
 {% block content %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 <style>
     /* --- BASE STYLES --- */
     body {
@@ -113,17 +114,13 @@
         padding: 15px; 
         border: 1px solid #ddd; 
         background: #f8f9fa; 
-        max-height: 50vh; 
+        max-height: 55vh; 
         overflow-y: auto;
-        white-space: pre-line;
+        overflow-x: auto;
     }
-    
-    .email-body-pre {
-        padding: 15px; 
-        border: 1px solid #ddd; 
-        background: #f8f9fa; 
-        max-height: 50vh; 
-        overflow-y: auto;
+    .email-body-html img {
+        max-width: 100%;
+        height: auto;
     }
 
     /* --- ATTACHMENT BADGE STYLES --- */
@@ -169,12 +166,12 @@
     }
     .collapse-toggle:hover { background: #e9ecef; }
     .collapse-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out, padding 0.3s ease-out; }
-    .collapse-content.show { max-height: 900px; padding: 15px; }
+    .collapse-content.show { max-height: 1100px; padding: 15px; }
     .toggle-icon { transition: transform 0.3s ease; }
     .collapse-toggle[aria-expanded="true"] .toggle-icon { transform: rotate(180deg); }
     
     /* --- Button Styling --- */
-    .custom-btn { padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: background-color 0.2s; text-decoration: none; display: inline-block; text-align: center; }
+    .custom-btn { padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: background-color 0.2s; text-decoration: none; display: inline-block; text-align: center; box-sizing: border-box; }
     .btn-primary { background-color: #007bff; color: white; }
     .btn-success { background-color: #28a745; color: white; width: 100%; padding: 12px; }
     .btn-update { background-color: #1e88e5; color: white; width: 100%; padding: 10px; }
@@ -230,7 +227,7 @@
                             <option value="Succesfull submission" {% if delegation.email_category == "Succesfull submission" %}selected{% endif %}>Succesfull submission</option>
                             <option value="Two-Pot Application Received" {% if delegation.email_category == "Two-Pot Application Received" %}selected{% endif %}>Two-Pot Application Received</option>
                             <option value="Benefit Letter from Sanlam" {% if delegation.email_category == "Benefit Letter from Sanlam" %}selected{% endif %}>Benefit Letter from Sanlam</option>
-                            <option value="Vested Pot Letter from Sanlam" {% if delegation.email_category == "Vested Pot Letter from Sanlam" %}selected{% endif %}>Vester Pot Letter from Sanlam</option>
+                            <option value="Vested Pot Letter from Sanlam" {% if delegation.email_category == "Vested Pot Letter from Sanlam" %}selected{% endif %}>Vested Pot Letter from Sanlam</option>
                             <option value="Savings Pot Letter from Sanlam" {% if delegation.email_category == "Savings Pot Letter from Sanlam" %}selected{% endif %}>Savings Pot Letter from Sanlam</option>
                             <option value="Paid Up Certificate from Sanlam" {% if delegation.email_category == "Paid Up Certificate from Sanlam" %}selected{% endif %}>Paid Up Certificate from Sanlam</option>
                             <option value="Member Info Update Request" {% if delegation.email_category == "Member Info Update Request" %}selected{% endif %}>Member Info Update Request</option>
@@ -254,46 +251,32 @@
                     <h5 style="margin: 0; font-size: 15px;">Subject: {{ email.subject|default:"(No Subject)" }}</h5>
                 </div>
                 <div class="card-body-content">
-                    <div style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #ddd;">
-                        <small style="display: block; font-size: 12px;">
-                            From: <strong>{{ email.from.emailAddress.name }}</strong> &lt;{{ email.from.emailAddress.address }}&gt;
-                        </small>
-                        <small style="display: block; color: #6c757d; font-size: 12px;">
-                            Received: {{ delegation.received_at|date:"Y-m-d H:i:s" }}
-                        </small>
+                    <div style="margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #ddd; font-size: 13px; line-height: 1.6;">
+                        <div><strong>From:</strong> {{ email.from.emailAddress.name }} &lt;{{ email.from.emailAddress.address }}&gt;</div>
+                        <div><strong>To:</strong> {{ email.to|default:"-" }}</div>
+                        <div><strong>CC:</strong> {{ email.cc|default:"-" }}</div>
+                        <div><strong>BCC:</strong> {{ email.bcc|default:"-" }}</div>
+                        <div style="color: #6c757d;"><strong>Received:</strong> {{ delegation.received_at|date:"Y-m-d H:i:s" }}</div>
                     </div>
-                    
-                    {% if email.body.contentType == 'html' %}
-                        <div class="email-body-html">{{ email.body.content|safe }}</div>
-                    {% else %}
-                        <pre class="email-body-pre" style="white-space: pre-wrap; word-wrap: break-word; font-family: inherit;">{{ email.body.content }}</pre>
-                    {% endif %}
 
-                    {# INCOMING ATTACHMENTS SECTION - UPDATED FOR STREAMING DOWNLOAD #}
+                    <div class="email-body-html">{{ email.body.content|safe }}</div>
+
+                    {# INCOMING ATTACHMENTS SECTION - 100% LOCAL STREAMING DOWNLOAD #}
                     {% if attachments %}
                     <div class="attachment-list">
                         <div style="margin-bottom: 8px; color: #2e7d32; font-weight: bold; font-size: 13px;">
-                            📎 Attachments ({{ attachments|length }}):
+                            <i class="fas fa-paperclip"></i> Attachments ({{ attachments|length }}):
                         </div>
                         {% for att in attachments %}
-                        {% if att.is_local %}
-                            <!-- Local fallback attachment -->
-                            <a href="{{ att.url }}" download class="attachment-badge" title="Download File">
-                                <div class="attachment-preview-trigger">
-                                    <span>📄 {{ att.name }}</span>
-                                </div>
-                                <div class="attachment-download-btn"><i class="fas fa-download"></i></div>
-                            </a>
-                        {% else %}
-                            <!-- Live Outlook streaming download -->
-                            <a href="{% url 'download_outlook_attachment' delegation.pk att.id %}" class="attachment-badge" title="Download File">
-                                <div class="attachment-preview-trigger">
-                                    <span>📄 {{ att.name }}</span>
-                                    <span style="margin-left: 8px; font-size: 10px; color: #666;">({{ att.size|filesizeformat }})</span>
-                                </div>
-                                <div class="attachment-download-btn"><i class="fas fa-download"></i></div>
-                            </a>
-                        {% endif %}
+                        <a href="{{ att.url }}" download class="attachment-badge" title="Download File">
+                            <div class="attachment-preview-trigger">
+                                <span><i class="fas fa-file-alt" style="color:#1976d2; margin-right:6px;"></i> {{ att.name }}</span>
+                                {% if att.size %}
+                                <span style="margin-left: 8px; font-size: 10px; color: #666;">({{ att.size|filesizeformat }})</span>
+                                {% endif %}
+                            </div>
+                            <div class="attachment-download-btn"><i class="fas fa-download"></i></div>
+                        </a>
                         {% endfor %}
                     </div>
                     {% endif %}
