@@ -3,6 +3,8 @@ import logging
 import mimetypes
 import os
 import re
+import urllib.parse
+from datetime import timedelta, timezone as dt_timezone
 from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
@@ -81,15 +83,48 @@ def _get_local_attachment_url(att_pk):
         return f"/attachments/local/{att_pk}/"
 
 
+def _normalize_dt_utc(dt_val):
+    """Converts a datetime to timezone-aware UTC for reliable comparison (Django 5+ safe)."""
+    if not dt_val:
+        return None
+    if timezone.is_naive(dt_val):
+        return timezone.make_aware(dt_val, dt_timezone.utc)
+    return dt_val.astimezone(dt_timezone.utc)
+
+
+def _is_duplicate_worked_email(subject, sender_addr, received_dt, worked_index):
+    """
+    Returns True if (subject, sender_address) already exists in worked_index
+    with a received_at matching within ±5s OR shifted by exactly 2 hours (±5s for SAST/UTC).
+    """
+    key = ((subject or '').strip().lower(), (sender_addr or '').strip().lower())
+    worked_dates = worked_index.get(key)
+    if not worked_dates:
+        return False
+
+    target_dt = _normalize_dt_utc(received_dt)
+    if not target_dt:
+        return True
+
+    for w_dt in worked_dates:
+        w_utc = _normalize_dt_utc(w_dt)
+        if not w_utc:
+            continue
+        diff = abs((target_dt - w_utc).total_seconds())
+        if diff <= 5 or abs(diff - 7200) <= 5:
+            return True
+    return False
+
+
 # ==============================================================================
 # SYNC-ONCE LOCAL INGESTION ENGINE (8 KB STREAMING)
 # ==============================================================================
 
-def download_raw_eml_to_disk(email_id, target_email=None):
+def download_raw_eml_to_disk(email_id, target_email=None, graph_message_id=None):
     """
     Streams the raw RFC822 .eml file from Microsoft Graph in 8 KB chunks directly
     to MEDIA_ROOT/email_archive/acvv/ so server RAM stays flat.
-    Returns the relative path inside MEDIA_ROOT, or None on failure.
+    Uses `graph_message_id` (if provided) for the Graph call while storing under `email_id`.
     """
     if not email_id or str(email_id).startswith(('SENT-', 'REPLY-', 'LOCAL-', 'CLAIM-', 'DIRECT_')):
         return None
@@ -98,11 +133,11 @@ def download_raw_eml_to_disk(email_id, target_email=None):
     rel_path = f"{rel_dir}/original.eml"
     abs_path = os.path.join(abs_dir, "original.eml")
 
-    # Reuse if already downloaded and non-empty
     if os.path.exists(abs_path) and os.path.getsize(abs_path) > 0:
         return rel_path
 
-    eml_stream = OutlookGraphService.stream_raw_eml(target_email, email_id, chunk_size=8192)
+    fetch_id = graph_message_id or email_id
+    eml_stream = OutlookGraphService.stream_raw_eml(target_email, fetch_id, chunk_size=8192)
     if not eml_stream:
         return None
 
@@ -127,12 +162,11 @@ def download_raw_eml_to_disk(email_id, target_email=None):
     return None
 
 
-def download_and_link_attachments(email_id, body_html, target_email=None, has_attachments=False):
+def download_and_link_attachments(email_id, body_html, target_email=None, has_attachments=False, graph_message_id=None):
     """
-    Fetches attachment metadata from Graph (only if has_attachments is True OR 'cid:'
-    appears in the HTML body), streams each file to disk in 8 KB chunks, saves records
-    in AcvvEmailAttachment, and rewrites inline cid: references to protected local URLs.
-    Returns (rewritten_body_html, has_non_inline_attachments).
+    Fetches attachment metadata from Graph, streams each file to disk in 8 KB chunks,
+    saves records in AcvvEmailAttachment under `email_id`, and rewrites inline cid: references.
+    Uses `graph_message_id` (if provided) for the Graph API calls.
     """
     body_html = body_html or ""
     has_cid_refs = 'cid:' in body_html.lower()
@@ -140,7 +174,8 @@ def download_and_link_attachments(email_id, body_html, target_email=None, has_at
     if not has_attachments and not has_cid_refs:
         return body_html, False
 
-    att_list = OutlookGraphService.fetch_attachments(target_email, email_id)
+    fetch_id = graph_message_id or email_id
+    att_list = OutlookGraphService.fetch_attachments(target_email, fetch_id)
     if not att_list:
         return body_html, False
 
@@ -158,7 +193,7 @@ def download_and_link_attachments(email_id, body_html, target_email=None, has_at
         content_id = (att.get('contentId') or '').strip('<> ').strip() or None
         raw_is_inline = bool(att.get('isInline', False))
 
-        # Safeguard: only hide from the attachment gallery if it is genuinely embedded via cid: in body_html
+        # Safeguard: only hide from the attachment gallery if genuinely embedded via cid: in body_html
         is_inline = bool(raw_is_inline and content_id and (content_id.lower() in body_html.lower()))
 
         existing_att = AcvvEmailAttachment.objects.filter(
@@ -178,7 +213,7 @@ def download_and_link_attachments(email_id, body_html, target_email=None, has_at
             rel_file_path = f"{rel_dir}/{file_name}"
             abs_file_path = os.path.join(abs_dir, file_name)
 
-            file_stream = OutlookGraphService.stream_attachment_mime(target_email, email_id, att_id, chunk_size=8192)
+            file_stream = OutlookGraphService.stream_attachment_mime(target_email, fetch_id, att_id, chunk_size=8192)
             if not file_stream:
                 continue
 
@@ -209,7 +244,6 @@ def download_and_link_attachments(email_id, body_html, target_email=None, has_at
                 logger.error(f"Failed downloading attachment {raw_name} for {email_id}: {e}")
                 continue
         else:
-            # Keep inline flag accurate on existing records
             if existing_att.is_inline != is_inline:
                 existing_att.is_inline = is_inline
                 existing_att.save(update_fields=['is_inline'])
@@ -217,7 +251,6 @@ def download_and_link_attachments(email_id, body_html, target_email=None, has_at
         if not existing_att.is_inline:
             has_non_inline = True
 
-        # Rewrite cid:<content_id> references inside body_html to protected local URL
         if content_id and existing_att:
             local_url = _get_local_attachment_url(existing_att.id)
             pattern = re.compile(r'cid:' + re.escape(content_id), re.IGNORECASE)
@@ -225,37 +258,56 @@ def download_and_link_attachments(email_id, body_html, target_email=None, has_at
 
     return body_html, has_non_inline
 
-def _normalize_dt_utc(dt_val):
-    """Converts a datetime to timezone-aware UTC for reliable comparison."""
-    if not dt_val:
+
+def _recover_moved_or_edited_graph_message(existing, target_email):
+    """
+    Fallback for historic emails whose Graph ID returned 404 (moved, archived, or subject edited).
+    1. Queries Microsoft Graph across all folders using an exact receivedDateTime $filter
+       (checking both UTC and ±2h SAST offsets) and matches by sender/subject.
+    2. Falls back to $search if received_at is missing.
+    """
+    if not existing:
         return None
-    if timezone.is_naive(dt_val):
-        return timezone.make_aware(dt_val, timezone.utc)
-    return dt_val.astimezone(timezone.utc)
 
+    target_dt = _normalize_dt_utc(existing.received_at)
+    target_sender = (existing.sender_address or '').strip().lower()
+    select_fields = "id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,bodyPreview,body,hasAttachments"
 
-def _is_duplicate_worked_email(subject, sender_addr, received_dt, worked_index):
-    """
-    Returns True if (subject, sender_address) already exists in worked_index
-    with a received_at matching within ±5s OR shifted by exactly 2 hours (±5s for SAST/UTC).
-    """
-    key = ((subject or '').strip().lower(), (sender_addr or '').strip().lower())
-    worked_dates = worked_index.get(key)
-    if not worked_dates:
-        return False
+    # 1. Primary: Exact timestamp window filter (finds emails in any folder regardless of subject edits or volume)
+    if target_dt:
+        windows = [
+            (target_dt - timedelta(seconds=10), target_dt + timedelta(seconds=10)),
+            (target_dt - timedelta(hours=2, seconds=10), target_dt - timedelta(hours=2) + timedelta(seconds=10)),
+            (target_dt + timedelta(hours=2) - timedelta(seconds=10), target_dt + timedelta(hours=2, seconds=10)),
+        ]
+        for start_dt, end_dt in windows:
+            start_iso = start_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+            end_iso = end_dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+            filter_q = urllib.parse.quote(f"receivedDateTime ge {start_iso} and receivedDateTime le {end_iso}")
+            endpoint = f"messages?$filter={filter_q}&$top=10&$select={select_fields}"
+            res = OutlookGraphService._make_graph_request(endpoint, target_email=target_email, method='GET')
+            candidates = res.get('value', []) if isinstance(res, dict) else []
 
-    target_dt = _normalize_dt_utc(received_dt)
-    if not target_dt:
-        return True
+            for cand in candidates:
+                cand_sender = ((cand.get('from') or {}).get('emailAddress') or {}).get('address', '').strip().lower()
+                if not target_sender or not cand_sender or target_sender == cand_sender:
+                    return cand
 
-    for w_dt in worked_dates:
-        w_utc = _normalize_dt_utc(w_dt)
-        if not w_utc:
-            continue
-        diff = abs((target_dt - w_utc).total_seconds())
-        if diff <= 5 or abs(diff - 7200) <= 5:
-            return True
-    return False
+    # 2. Secondary fallback: $search by cleaned subject (if received_at was NULL)
+    if existing.subject:
+        clean_subj = re.sub(r'^(re|fw|fwd)\s*:\s*', '', existing.subject, flags=re.IGNORECASE).strip()
+        clean_subj = clean_subj.replace('"', '').strip()[:60]
+        if clean_subj:
+            search_q = urllib.parse.quote(f'"{clean_subj}"')
+            endpoint = f"messages?$search={search_q}&$top=15&$select={select_fields}"
+            res = OutlookGraphService._make_graph_request(endpoint, target_email=target_email, method='GET')
+            candidates = res.get('value', []) if isinstance(res, dict) else []
+            for cand in candidates:
+                cand_sender = ((cand.get('from') or {}).get('emailAddress') or {}).get('address', '').strip().lower()
+                if not target_sender or not cand_sender or target_sender == cand_sender:
+                    return cand
+
+    return None
 
 
 def ingest_single_email_from_graph(email_id, target_email=None, msg_header=None, force_refresh=False):
@@ -265,14 +317,13 @@ def ingest_single_email_from_graph(email_id, target_email=None, msg_header=None,
     - Full HTML body with inline cid: images rewritten to local URLs
     - All attachments streamed to disk in 8 KB chunks
     - Raw .eml archive streamed to disk in 8 KB chunks
+    Automatically recovers moved/edited historic emails via $search if the stored Graph ID returns 404.
     Never resets or overwrites an existing worked status (DEL, COM, CLO, DLT, SENT).
-    Returns the EmailDelegation instance or None if unavailable.
     """
     target_email = target_email or getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', 'lorraine@futurasa.co.za')
 
     existing = EmailDelegation.objects.filter(email_id=email_id).first()
-    if existing and existing.is_fully_synced and not force_refresh:
-        # Backfill missing .eml on disk if needed
+    if existing and existing.is_fully_synced and existing.body and not force_refresh:
         if not existing.eml_file_path or not os.path.exists(os.path.join(settings.MEDIA_ROOT, existing.eml_file_path)):
             eml_rel = download_raw_eml_to_disk(email_id, target_email=target_email)
             if eml_rel:
@@ -280,12 +331,21 @@ def ingest_single_email_from_graph(email_id, target_email=None, msg_header=None,
                 existing.save(update_fields=['eml_file_path'])
         return existing
 
-    # Fetch full message details from Graph
+    # 1. Try direct fetch by stored email_id
     msg_data = OutlookGraphService.fetch_message_details(target_email, email_id)
-    if not isinstance(msg_data, dict) or 'error' in msg_data:
-        if existing:
+    graph_msg_id = email_id
+
+    # 2. If 404 / error on an existing historic record, recover via Outlook $search (subject + received_at)
+    if (not isinstance(msg_data, dict) or 'error' in msg_data) and existing:
+        recovered = _recover_moved_or_edited_graph_message(existing, target_email)
+        if recovered and recovered.get('id'):
+            msg_data = recovered
+            graph_msg_id = recovered['id']
+        else:
             return existing
-        return None
+
+    if not isinstance(msg_data, dict) or 'error' in msg_data:
+        return existing
 
     subject = (msg_data.get('subject') or (msg_header.get('subject') if msg_header else '') or '(No Subject)')[:255]
     from_info = (msg_data.get('from') or {}).get('emailAddress') or {}
@@ -303,26 +363,21 @@ def ingest_single_email_from_graph(email_id, target_email=None, msg_header=None,
     if (body_obj.get('contentType') or '').lower() != 'html' and raw_body:
         raw_body = f"<pre style='white-space: pre-wrap; font-family: sans-serif;'>{raw_body}</pre>"
 
-    # Duplicate/re-sync prevention: if this exact email already exists as a worked task under a different ID, skip creating a NEW duplicate
-    if not existing and subject and sender_address and received_at:
-        worked_dup = EmailDelegation.objects.filter(
-            subject=subject,
-            sender_address=sender_address,
-            received_at=received_at
-        ).exclude(status='NEW').first()
-        if worked_dup:
-            return worked_dup
-
-    # Download attachments & rewrite inline cid: URLs
+    # Download attachments & rewrite inline cid: URLs (fetch via graph_msg_id, store under email_id)
     rewritten_body, has_non_inline = download_and_link_attachments(
         email_id=email_id,
         body_html=raw_body,
         target_email=target_email,
         has_attachments=raw_has_att,
+        graph_message_id=graph_msg_id,
     )
 
-    # Stream raw .eml backup to disk
-    eml_rel_path = download_raw_eml_to_disk(email_id, target_email=target_email)
+    # Stream raw .eml backup to disk (fetch via graph_msg_id, store under email_id)
+    eml_rel_path = download_raw_eml_to_disk(
+        email_id=email_id,
+        target_email=target_email,
+        graph_message_id=graph_msg_id,
+    )
 
     if existing:
         existing.subject = existing.subject or subject

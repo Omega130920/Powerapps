@@ -2452,13 +2452,22 @@ def download_acvv_email(request, delegation_id):
     response['Content-Disposition'] = f"attachment; filename=\"{safe_filename}\"; filename*=UTF-8''{safe_filename}"
     return response
 
+def get_branch_map_acvv(claims_queryset):
+    """Helper to map company codes to formal Branch names for ACVV."""
+    codes = claims_queryset.values_list('company_code', flat=True).distinct()
+    branches = Globalacvv.objects.filter(mip_names__in=codes)
+    return {b.mip_names: b.member for b in branches}
+
+
 @login_required
 def export_two_pot_invoice_cecile(request):
     """
     Report 1: Cecile Invoice Format (Grey Theme)
-    Filters records where the status is valid, qualified is 'YES', 
+    Filters records where the status is valid, qualified is 'YES',
     and a submission date exists.
     """
+    from io import BytesIO
+
     query = request.GET.get('q')
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
@@ -2472,43 +2481,48 @@ def export_two_pot_invoice_cecile(request):
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "Cecile Invoice"
+    if ws is None:
+        ws = wb.create_sheet(title="Cecile Invoice")
+    else:
+        ws.title = "Cecile Invoice"
 
     header_fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
-    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin'),
+    )
 
     headers = [
-        "Date", "Initials", "Surname", "Member nr", "ID NUMBER", "Fund", 
-        "Branch", "Admin From", "Qualified", "Date submitted online", 
+        "Date", "Initials", "Surname", "Member nr", "ID NUMBER", "Fund",
+        "Branch", "Admin From", "Qualified", "Date submitted online",
         "Successful Loaded confirmation", "Admin Fee R33 + 15% Vat", "SUBMIT ONLINE"
     ]
     ws.append(headers)
-    
+
     for cell in ws[1]:
         cell.fill = header_fill
         cell.font = Font(bold=True, size=10)
         cell.border = thin_border
         cell.alignment = Alignment(horizontal='center')
 
-    branch_map = get_branch_map_acvv(claims) 
+    branch_map = get_branch_map_acvv(claims)
 
     valid_statuses = [
         "PAID",
         "MEMBER EMERGENCY SAVINGS POT WITHDRAWAL SUBMITTED",
-        "MEMBER EMERGENCY SAVINGS POT WITHDRAWAL REQUESTED"
+        "MEMBER EMERGENCY SAVINGS POT WITHDRAWAL REQUESTED",
     ]
 
     for claim in claims:
-        # Check property and status against the valid list
-        current_status = str(claim.claim_status).upper().strip()
+        current_status = str(claim.claim_status or "").upper().strip()
         is_valid_status = current_status in valid_statuses
         is_qualified = (claim.qualified == "YES")
-        
-        # 🚀 GUARD FILTER: Only continue if status is valid AND qualified.
+
         if not (is_valid_status and is_qualified):
             continue
-            
-        # 🚀 NEW GUARD FILTER: Skip if no submission date exists
+
         if not claim.date_submitted:
             continue
 
@@ -2524,15 +2538,21 @@ def export_two_pot_invoice_cecile(request):
             branch_map.get(claim.company_code, ""),
             claim.agent or "",
             "yes",
-            claim.date_submitted.strftime('%d/%m/%Y'), # Now safe to call since we checked it above
+            claim.date_submitted.strftime('%d/%m/%Y'),
             "YES",
             "R37.95",
-            "SUBMIT ONLINE"
+            "SUBMIT ONLINE",
         ])
 
-    response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+
+    response = HttpResponse(
+        output.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
     response['Content-Disposition'] = f'attachment; filename="Cecile_Invoice_{timezone.now().strftime("%Y%m%d")}.xlsx"'
-    wb.save(response)
     return response
 
 @login_required
