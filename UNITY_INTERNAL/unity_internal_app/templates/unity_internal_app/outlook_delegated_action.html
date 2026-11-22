@@ -265,7 +265,7 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label">Recipient:</label>
-                            <input type="email" class="form-control" name="reply_recipient" value="{{ local_inbox.sender_address|default:email.from.emailAddress.address }}" required>
+                            <input type="text" class="form-control" name="reply_recipient" value="{{ local_inbox.sender_address|default:email.from.emailAddress.address }}" required>
                         </div>
                         
                         <div class="form-group">

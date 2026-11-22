@@ -794,9 +794,9 @@
                             </div>
                             <table class="w-full">
                                 <tr><th>Mobile 1</th><td><input type="text" name="mobile_1" value="{{ member.mobile_1 }}" class="glass-input contact-editable" readonly></td></tr>
-                                <tr><th>Email 1</th><td><input type="email" name="email_1" value="{{ member.email_1 }}" class="glass-input contact-editable" readonly></td></tr>
+                                <tr><th>Email 1</th><td><input type="text" name="email_1" value="{{ member.email_1 }}" class="glass-input contact-editable" readonly></td></tr>
                                 <tr><th>Mobile 2</th><td><input type="text" name="mobile_2" value="{{ member.mobile_2|default:'' }}" class="glass-input contact-editable" readonly></td></tr>
-                                <tr><th>Email 2</th><td><input type="email" name="email_2" value="{{ member.email_2|default:'' }}" class="glass-input contact-editable" readonly></td></tr>
+                                <tr><th>Email 2</th><td><input type="text" name="email_2" value="{{ member.email_2|default:'' }}" class="glass-input contact-editable" readonly></td></tr>
                             </table>
                         </form>
                     </div>
@@ -821,7 +821,7 @@
                                 <tr><th>First Name</th><td><input type="text" name="guardian_first_name" value="{{ member.guardian_first_name }}" class="glass-input guardian-editable" readonly></td></tr>
                                 <tr><th>Last Name</th><td><input type="text" name="guardian_last_name" value="{{ member.guardian_last_name }}" class="glass-input guardian-editable" readonly></td></tr>
                                 <tr><th>Guardian Mobile</th><td><input type="text" name="guardian_mobile" value="{{ member.guardian_mobile }}" class="glass-input guardian-editable" readonly></td></tr>
-                                <tr><th>Guardian Email</th><td><input type="email" name="guardian_email" value="{{ member.guardian_email }}" class="glass-input guardian-editable" readonly></td></tr>
+                                <tr><th>Guardian Email</th><td><input type="text" name="guardian_email" value="{{ member.guardian_email }}" class="glass-input guardian-editable" readonly></td></tr>
                                 <tr><th>Address</th><td><textarea name="guardian_address" class="glass-input h-32 guardian-editable" readonly>{{ member.guardian_address }}</textarea></td></tr>
                             </table>
                         </form>
@@ -892,17 +892,17 @@
                                 
                                 <div>
                                     <label class="text-xs font-bold uppercase opacity-60">To:</label>
-                                    <input type="email" name="to_email" value="{{ member.email_1 }}" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10 w-full p-2 rounded">
+                                    <input type="text" name="to_email" value="{{ member.email_1 }}" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10 w-full p-2 rounded">
                                 </div>
 
                                 <div>
                                     <label class="text-xs font-bold uppercase opacity-60">CC:</label>
-                                    <input type="email" name="cc_email" placeholder="Optional CC recipient" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10 w-full p-2 rounded">
+                                    <input type="text" name="cc_email" placeholder="Optional CC recipient" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10 w-full p-2 rounded">
                                 </div>
 
                                 <div>
                                     <label class="text-xs font-bold uppercase opacity-60">BCC:</label>
-                                    <input type="email" name="bcc_email" placeholder="Optional BCC recipient" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10 w-full p-2 rounded">
+                                    <input type="text" name="bcc_email" placeholder="Optional BCC recipient" class="glass-input bg-white bg-opacity-20 border-white border-opacity-10 w-full p-2 rounded">
                                 </div>
 
                                 <div>

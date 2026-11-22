@@ -64,6 +64,48 @@ def pssubf_switchboard(request):
 
 from .models import SystemLog
 
+# Regex matching: [Inbound | Emails | New Claim Pack Received (Complete)] Complete claim received
+BRACKETED_LOG_PATTERN = re.compile(
+    r'^\s*\[\s*([^|\]]+?)\s*\|\s*([^|\]]+?)\s*\|\s*([^\]]+?)\s*\]\s*(.*)$',
+    re.DOTALL
+)
+
+
+def _infer_log_category(call_type, existing_classification=None):
+    """Determines the SystemLog category from existing classification or call_type keywords."""
+    valid_categories = {'Query', 'Claim', 'Monthly Follow-up', 'Monthly Follow up', 'Urgent', 'Unsure'}
+    if existing_classification and str(existing_classification).strip() in valid_categories:
+        return str(existing_classification).strip()
+
+    ct_lower = (call_type or '').lower()
+    if 'claim' in ct_lower or 'termination' in ct_lower or 'ad-hoc' in ct_lower or 'ad hoc' in ct_lower:
+        return 'Claim'
+    if 'urgent' in ct_lower or 'complaint' in ct_lower or 'overdue' in ct_lower:
+        return 'Urgent'
+    if 'follow up' in ct_lower or 'follow-up' in ct_lower or 'monthly' in ct_lower:
+        return 'Monthly Follow-up'
+    return 'Query'
+
+
+def _extract_mip_from_task_id(task_email_id, delegate_map):
+    """Traces a task_email_id back to (mip_number, id_number) via prefix parsing or PssubfDelegate."""
+    if not task_email_id:
+        return '', ''
+
+    tid = str(task_email_id).strip()
+
+    # 1. Direct lookup in PssubfDelegate map (covers Outlook Graph email IDs)
+    if tid in delegate_map:
+        return delegate_map[tid]
+
+    # 2. Extract MIP from prefixed keys: PROFILE_57218096, NOTE_57218096, DIRECT_57218096_12, CLAIM_57218096
+    prefix_match = re.match(r'^(?:PROFILE_MOD_|PROFILE_|NOTE_|DIRECT_|CLAIM_)(\d+)', tid)
+    if prefix_match:
+        return prefix_match.group(1), ''
+
+    return '', ''
+
+
 @login_required
 def pssubf_log_view(request):
     # Check if an edit_id was passed via GET parameters (from the beneficiary profile page)
@@ -76,16 +118,12 @@ def pssubf_log_view(request):
             pass
 
     if request.method == 'POST':
-        # Check if action_type is "mark_complete" (from the mark complete button)
         action_type = request.POST.get('action_type')
         if action_type == 'mark_complete':
             messages.success(request, "Task marked as complete.")
             return redirect('pssubf_log_page')
 
-        # Grab the hidden ID field to check if this is an edit
         log_id = request.POST.get('log_id')
-        
-        # Extract form fields
         mip_number = request.POST.get('mip_number')
         call_direction = request.POST.get('call_direction')
         call_method = request.POST.get('call_method')
@@ -93,13 +131,11 @@ def pssubf_log_view(request):
         category = request.POST.get('category')
         content = request.POST.get('note_content')
 
-        # Fallbacks for removed UI elements (title and status)
         title = call_type if call_type else "General Note"
         status = "In Progress"
 
         if content:
             if log_id:
-                # --- UPDATE EXISTING LOG ---
                 try:
                     log_entry = SystemLog.objects.get(id=log_id)
                     log_entry.mip_number = mip_number
@@ -115,7 +151,6 @@ def pssubf_log_view(request):
                 except SystemLog.DoesNotExist:
                     messages.error(request, "Error: The log entry could not be found.")
             else:
-                # --- CREATE NEW LOG ---
                 SystemLog.objects.create(
                     mip_number=mip_number,
                     log_title=title,
@@ -128,60 +163,179 @@ def pssubf_log_view(request):
                     created_by=request.user.username
                 )
                 messages.success(request, "New internal note saved successfully.")
-                
+
             return redirect('pssubf_log_page')
         else:
             messages.error(request, "Note Content is required.")
 
-    # Base logs queryset
-    logs_queryset = SystemLog.objects.all().order_by('-created_at')
-    
-    # Retrieve Date Range parameters & action from GET request
+    # --- 1. PARSE DATE RANGE FILTERS ---
     date_from = request.GET.get('date_from')
     date_to = request.GET.get('date_to')
     action = request.GET.get('action')
 
+    start_dt = None
+    end_dt = None
+
     if date_from:
-        parsed_date_from = None
         for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%Y/%m/%d'):
             try:
-                parsed_date_from = datetime.strptime(date_from.strip(), fmt)
+                parsed_from = datetime.strptime(date_from.strip(), fmt)
+                naive_start = datetime.combine(parsed_from.date(), time.min)
+                start_dt = timezone.make_aware(naive_start) if getattr(settings, 'USE_TZ', False) else naive_start
                 break
             except ValueError:
                 continue
-        if parsed_date_from:
-            # Set to beginning of the day (00:00:00)
-            naive_start = datetime.combine(parsed_date_from.date(), time.min)
-            start_dt = timezone.make_aware(naive_start) if getattr(settings, 'USE_TZ', False) else naive_start
-            logs_queryset = logs_queryset.filter(created_at__gte=start_dt)
 
     if date_to:
-        parsed_date_to = None
         for fmt in ('%Y-%m-%d', '%d/%m/%Y', '%Y/%m/%d'):
             try:
-                parsed_date_to = datetime.strptime(date_to.strip(), fmt)
+                parsed_to = datetime.strptime(date_to.strip(), fmt)
+                naive_end = datetime.combine(parsed_to.date(), time.max)
+                end_dt = timezone.make_aware(naive_end) if getattr(settings, 'USE_TZ', False) else naive_end
                 break
             except ValueError:
                 continue
-        if parsed_date_to:
-            # Set to end of the day (23:59:59)
-            naive_end = datetime.combine(parsed_date_to.date(), time.max)
-            end_dt = timezone.make_aware(naive_end) if getattr(settings, 'USE_TZ', False) else naive_end
-            logs_queryset = logs_queryset.filter(created_at__lte=end_dt)
 
-    # Handle Export functionality (Excel export matching PSSUBF Call Logs.xlsx with Beneficiary LEFT JOIN)
+    # --- 2. FETCH FROM SystemLog, PssubfNote, AND PssubfAction ---
+    sys_qs = SystemLog.objects.all()
+    notes_qs = PssubfNote.objects.filter(note_text__contains='[').filter(note_text__contains='|')
+    actions_qs = PssubfAction.objects.filter(note_content__contains='[').filter(note_content__contains='|')
+
+    if start_dt:
+        sys_qs = sys_qs.filter(created_at__gte=start_dt)
+        notes_qs = notes_qs.filter(created_at__gte=start_dt)
+        actions_qs = actions_qs.filter(action_timestamp__gte=start_dt)
+
+    if end_dt:
+        sys_qs = sys_qs.filter(created_at__lte=end_dt)
+        notes_qs = notes_qs.filter(created_at__lte=end_dt)
+        actions_qs = actions_qs.filter(action_timestamp__lte=end_dt)
+
+    sys_logs = list(sys_qs.order_by('-created_at'))
+    note_rows = list(notes_qs.order_by('-created_at'))
+    action_rows = list(actions_qs.order_by('-action_timestamp'))
+
+    # Bulk lookup PssubfDelegate to resolve MIP & ID numbers for email-linked notes/actions
+    email_ids_to_resolve = set()
+    for n in note_rows:
+        if n.task_email_id and not str(n.task_email_id).startswith(('PROFILE_', 'NOTE_', 'DIRECT_', 'CLAIM_')):
+            email_ids_to_resolve.add(n.task_email_id)
+    for a in action_rows:
+        if a.task_email_id and not str(a.task_email_id).startswith(('PROFILE_', 'NOTE_', 'DIRECT_', 'CLAIM_')):
+            email_ids_to_resolve.add(a.task_email_id)
+
+    delegate_map = {}
+    if email_ids_to_resolve:
+        for d in PssubfDelegate.objects.filter(email_id__in=email_ids_to_resolve).only('email_id', 'member_group_code', 'id_number'):
+            delegate_map[d.email_id] = (
+                str(d.member_group_code or '').strip(),
+                str(d.id_number or '').strip(),
+            )
+
+    # --- 3. MERGE, PARSE & DEDUPLICATE ---
+    unified_logs = []
+    seen_keys = set()
+
+    def _dedup_key(mip, agent, direction, method, ctype, dt):
+        ts_minute = dt.strftime('%Y-%m-%d %H:%M') if dt else ''
+        return (
+            str(mip or '').strip().lower(),
+            str(agent or '').strip().lower(),
+            str(direction or '').strip().lower(),
+            str(method or '').strip().lower(),
+            str(ctype or '').strip().lower(),
+            ts_minute,
+        )
+
+    # A) Primary SystemLog records (always editable)
+    for log in sys_logs:
+        key = _dedup_key(log.mip_number, log.created_by, log.call_direction, log.call_method, log.call_type, log.created_at)
+        seen_keys.add(key)
+        unified_logs.append({
+            'id': log.id,
+            'is_editable': True,
+            'source': 'SystemLog',
+            'mip_number': log.mip_number or '',
+            'id_number': getattr(log, 'id_number', '') or '',
+            'call_direction': log.call_direction or '',
+            'call_method': log.call_method or '',
+            'call_type': log.call_type or '',
+            'category': log.category or 'Query',
+            'created_by': log.created_by or '',
+            'note_content': log.note_content or '',
+            'created_at': log.created_at,
+        })
+
+    # B) Matching PssubfNote records ([Direction | Method | Call Type] Content)
+    for note in note_rows:
+        match = BRACKETED_LOG_PATTERN.match(note.note_text or '')
+        if not match:
+            continue
+
+        direction, method, call_type, clean_content = [g.strip() for g in match.groups()]
+        mip_num, id_num = _extract_mip_from_task_id(note.task_email_id, delegate_map)
+        key = _dedup_key(mip_num, note.agent_name, direction, method, call_type, note.created_at)
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+
+        unified_logs.append({
+            'id': '',
+            'is_editable': False,
+            'source': 'PssubfNote',
+            'mip_number': mip_num,
+            'id_number': id_num,
+            'call_direction': direction,
+            'call_method': method,
+            'call_type': call_type,
+            'category': _infer_log_category(call_type, note.classification_at_time),
+            'created_by': note.agent_name or '',
+            'note_content': clean_content,
+            'created_at': note.created_at,
+        })
+
+    # C) Matching PssubfAction records ([Direction | Method | Call Type] Content)
+    for act in action_rows:
+        match = BRACKETED_LOG_PATTERN.match(act.note_content or '')
+        if not match:
+            continue
+
+        direction, method, call_type, clean_content = [g.strip() for g in match.groups()]
+        mip_num, id_num = _extract_mip_from_task_id(act.task_email_id, delegate_map)
+        key = _dedup_key(mip_num, act.action_user, direction, method, call_type, act.action_timestamp)
+        if key in seen_keys:
+            continue
+        seen_keys.add(key)
+
+        unified_logs.append({
+            'id': '',
+            'is_editable': False,
+            'source': 'PssubfAction',
+            'mip_number': mip_num,
+            'id_number': id_num,
+            'call_direction': direction,
+            'call_method': method,
+            'call_type': call_type,
+            'category': _infer_log_category(call_type),
+            'created_by': act.action_user or '',
+            'note_content': clean_content,
+            'created_at': act.action_timestamp,
+        })
+
+    # Sort combined timeline newest first
+    fallback_dt = timezone.now().replace(year=1900) if getattr(settings, 'USE_TZ', False) else datetime(1900, 1, 1)
+    unified_logs.sort(key=lambda x: x['created_at'] if x['created_at'] else fallback_dt, reverse=True)
+
+    # --- 4. EXCEL EXPORT (Matching PSSUBF Call Logs.xlsx with Beneficiary LEFT JOIN) ---
     if action == 'export':
         from openpyxl.styles import Font, Alignment
 
-        logs_list = list(logs_queryset)
-
-        # 1. Bulk LEFT JOIN lookup against PssubfBeneficiary (by MIP Number or ID Number)
         lookup_keys = set()
-        for log in logs_list:
-            if log.mip_number and str(log.mip_number).strip():
-                lookup_keys.add(str(log.mip_number).strip())
-            if getattr(log, 'id_number', None) and str(log.id_number).strip():
-                lookup_keys.add(str(log.id_number).strip())
+        for log in unified_logs:
+            if log['mip_number']:
+                lookup_keys.add(str(log['mip_number']).strip())
+            if log['id_number']:
+                lookup_keys.add(str(log['id_number']).strip())
 
         beneficiaries_by_mip = {}
         beneficiaries_by_id = {}
@@ -196,7 +350,6 @@ def pssubf_log_view(request):
                 if b.id_number:
                     beneficiaries_by_id[str(b.id_number).strip()] = b
 
-        # 2. Build Excel Workbook matching PSSUBF Call Logs.xlsx
         wb = openpyxl.Workbook()
         ws = wb.active
         ws.title = f"Call_Logs_{timezone.now().strftime('%Y-%m-%d %H_%M_%S')}"[:31]
@@ -218,11 +371,10 @@ def pssubf_log_view(request):
             cell.font = header_font
             cell.alignment = Alignment(horizontal='left', vertical='center')
 
-        for log in logs_list:
-            raw_mip = str(log.mip_number).strip() if log.mip_number else ''
-            raw_id = str(log.id_number).strip() if getattr(log, 'id_number', None) else ''
+        for log in unified_logs:
+            raw_mip = str(log['mip_number']).strip()
+            raw_id = str(log['id_number']).strip()
 
-            # Resolve Beneficiary via MIP first, then fallback to ID number
             b = (
                 beneficiaries_by_mip.get(raw_mip)
                 or beneficiaries_by_id.get(raw_mip)
@@ -233,30 +385,27 @@ def pssubf_log_view(request):
             id_passport = (b.id_number if b and b.id_number else raw_id) or ''
             mip_out = (b.membership_number if b and b.membership_number else raw_mip) or ''
 
-            # Make timestamp naive local datetime for Excel compatibility
             created_on = None
-            if log.created_at:
-                dt_local = timezone.localtime(log.created_at) if timezone.is_aware(log.created_at) else log.created_at
+            if log['created_at']:
+                dt_local = timezone.localtime(log['created_at']) if timezone.is_aware(log['created_at']) else log['created_at']
                 created_on = dt_local.replace(tzinfo=None)
 
             ws.append([
                 beneficiary_name,              # A - Beneficiary Name Surname
                 str(id_passport),              # B - ID/Passport
                 created_on,                    # C - Created On
-                log.call_direction or '',      # D - Call Direction
-                log.call_method or '',         # E - Call Method
-                log.call_type or '',           # F - Call Type
-                log.created_by or '',          # G - Created By
+                log['call_direction'],         # D - Call Direction
+                log['call_method'],            # E - Call Method
+                log['call_type'],              # F - Call Type
+                log['created_by'],             # G - Created By
                 mip_out,                       # H - MIP Number
             ])
 
             r_idx = ws.max_row
-            # Force ID/Passport (Col B) as text so leading zeros on SA IDs are never stripped
             ws.cell(r_idx, 2).number_format = '@'
             if created_on:
                 ws.cell(r_idx, 3).number_format = 'yyyy-mm-dd hh:mm:ss'
 
-        # Auto-fit column widths
         for col in ws.columns:
             max_len = 0
             col_letter = col[0].column_letter
@@ -265,7 +414,6 @@ def pssubf_log_view(request):
                     max_len = max(max_len, len(str(cell.value)))
             ws.column_dimensions[col_letter].width = min(max(max_len + 3, 14), 45)
 
-        # Dynamic filename
         if date_from and date_to:
             filename = f"PSSUBF Call Logs {date_from} to {date_to}.xlsx"
         else:
@@ -276,11 +424,11 @@ def pssubf_log_view(request):
         wb.save(response)
         return response
 
-    # Pagination setup: Display 36 records per page
-    paginator = Paginator(logs_queryset, 36)
+    # --- 5. PAGINATION (36 records per page) ---
+    paginator = Paginator(unified_logs, 36)
     page_number = request.GET.get('page')
     recent_logs = paginator.get_page(page_number)
-    
+
     return render(request, 'pssubf/Log.html', {
         'recent_logs': recent_logs,
         'edit_log': edit_log,

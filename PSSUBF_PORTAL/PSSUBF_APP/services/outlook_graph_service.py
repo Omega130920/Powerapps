@@ -6,6 +6,22 @@ from .token_manager import get_current_access_token
 
 logger = logging.getLogger(__name__)
 
+
+def _parse_recipients(recipient_input):
+    """Parses strings (comma or semicolon separated) or lists of email addresses into Microsoft Graph format."""
+    if not recipient_input:
+        return []
+
+    if isinstance(recipient_input, str):
+        raw_emails = [e.strip() for e in recipient_input.replace(',', ';').split(';') if e.strip()]
+    elif isinstance(recipient_input, list):
+        raw_emails = [e.strip() for e in recipient_input if isinstance(e, str) and e.strip()]
+    else:
+        raw_emails = []
+
+    return [{"emailAddress": {"address": email}} for email in raw_emails]
+
+
 def get_user_email_signature(user):
     """
     Maps system usernames to Full Names and renders the email signature template.
@@ -14,21 +30,24 @@ def get_user_email_signature(user):
         full_name = "PSSUBF Administrator"
     else:
         username = user.username if hasattr(user, 'username') else str(user)
-        
+
         # Map system usernames to the full name that should display in the signature
         name_mapping = {
             'LuanovanEck': 'Luano van Eck',
             'Testuser1': 'Test Agent',
             'omega': 'Omega System Assistant',
+            'Chris-Nicolla': 'Chris Nicolla',
+            'Athena': 'Athena',
+            'Vanessa': 'Vanessa',
         }
-        
+
         # Fallback to the username nicely formatted if not explicitly mapped
         full_name = name_mapping.get(username, username.replace('_', ' ').title())
-    
+
     context = {
         'agent_full_name': full_name,
     }
-    
+
     # Renders signature template located at pssubf/pssubf_email_signature.html
     try:
         return render_to_string('pssubf/pssubf_email_signature.html', context)
@@ -60,7 +79,7 @@ class OutlookGraphService:
                 response = requests.get(url, headers=headers, params=params, timeout=30)
             else:
                 response = requests.post(url, headers=headers, json=data, timeout=30)
-            
+
             # 202 Accepted (common for sendMail) returns empty text
             if response.status_code == 202 or not response.text:
                 return {}
@@ -79,16 +98,20 @@ class OutlookGraphService:
     def send_outlook_email(sender, recipient, subject, body, cc=None, bcc=None, attachments=None, user=None):
         """
         Sends an email via Microsoft Graph API.
-        Supports HTML body, Base64 attachments, CC, BCC, and automatically appends 
-        the user's personalized HTML signature if a user is provided.
+        Supports multiple To/CC/BCC recipients (comma or semicolon separated), HTML body,
+        Base64 attachments, and automatically appends the user's personalized HTML signature.
         """
         endpoint = "sendMail"
-        
+
         # Automatically append the agent's signature if user context is provided
         final_body = body
         if user:
             signature_html = get_user_email_signature(user)
             final_body = body + signature_html
+
+        to_list = _parse_recipients(recipient)
+        if not to_list:
+            return {'error': 'At least one valid recipient email address is required.'}
 
         message_payload = {
             "subject": subject,
@@ -96,32 +119,17 @@ class OutlookGraphService:
                 "contentType": "HTML",
                 "content": final_body
             },
-            "toRecipients": [
-                {
-                    "emailAddress": {
-                        "address": recipient
-                    }
-                }
-            ]
+            "toRecipients": to_list,
         }
 
-        # Handle CC recipients (allows comma-separated multiple emails)
-        if cc:
-            cc_list = [email.strip() for email in cc.split(',') if email.strip()]
-            if cc_list:
-                message_payload["ccRecipients"] = [
-                    {"emailAddress": {"address": email}} for email in cc_list
-                ]
+        cc_list = _parse_recipients(cc)
+        if cc_list:
+            message_payload["ccRecipients"] = cc_list
 
-        # Handle BCC recipients (allows comma-separated multiple emails)
-        if bcc:
-            bcc_list = [email.strip() for email in bcc.split(',') if email.strip()]
-            if bcc_list:
-                message_payload["bccRecipients"] = [
-                    {"emailAddress": {"address": email}} for email in bcc_list
-                ]
+        bcc_list = _parse_recipients(bcc)
+        if bcc_list:
+            message_payload["bccRecipients"] = bcc_list
 
-        # Add attachments if provided
         if attachments:
             message_payload["attachments"] = attachments
 
@@ -152,7 +160,7 @@ class OutlookGraphService:
         params = {'$select': 'id,name,contentType,size,isInline'}
         response = OutlookGraphService._make_graph_request(endpoint, method='GET', params=params)
         return response.get('value', [])
-    
+
     @staticmethod
     def get_attachment_raw(target_email, message_id, attachment_id):
         """

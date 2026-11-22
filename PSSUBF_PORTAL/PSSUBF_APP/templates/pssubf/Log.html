@@ -236,7 +236,7 @@
     <div class="glass-card">
         <div class="glass-header header-dark">
             <span>RECENT LOGS</span>
-            <span style="font-size: 0.8rem; font-weight: normal; opacity: 0.8;">(Click a row to edit)</span>
+            <span style="font-size: 0.8rem; font-weight: normal; opacity: 0.8;">(Click a Quick Log row to edit)</span>
         </div>
         
         <div class="table-responsive">
@@ -254,17 +254,16 @@
                 </thead>
                 <tbody>
                     {% for log in recent_logs %}
-                        <tr style="cursor: pointer;" 
+                        <tr {% if log.is_editable %}style="cursor: pointer;" onclick="loadLogIntoForm(this)"{% endif %}
                             data-id="{{ log.id }}"
                             data-mip="{{ log.mip_number|default_if_none:'' }}"
                             data-direction="{{ log.call_direction|default_if_none:'' }}"
                             data-calltype="{{ log.call_type|default_if_none:'' }}"
                             data-method="{{ log.call_method|default_if_none:'' }}"
                             data-category="{{ log.category }}"
-                            data-content="{{ log.note_content }}"
-                            onclick="loadLogIntoForm(this)">
+                            data-content="{{ log.note_content }}">
                             
-                            <td style="white-space: nowrap;"><strong>{{ log.mip_number|default:"-" }}</strong></td>
+                            <td style="white-space: nowrap;"><strong>{{ log.mip_number|default:log.id_number|default:"-" }}</strong></td>
                             <td>{{ log.call_direction|default:"-" }}</td>
                             <td>{{ log.call_type|default:"-" }}</td>
                             <td>{{ log.call_method|default:"-" }}</td>
@@ -274,8 +273,8 @@
                                     <span class="badge badge-urgent">Urgent</span>
                                 {% elif log.category == 'Claim' %}
                                     <span class="badge badge-claim">Claim</span>
-                                {% elif log.category == 'Monthly Follow up' %}
-                                    <span class="badge badge-followup">Monthly Follow up</span>
+                                {% elif log.category == 'Monthly Follow up' or log.category == 'Monthly Follow-up' %}
+                                    <span class="badge badge-followup">{{ log.category }}</span>
                                 {% else %}
                                     <span class="badge badge-default">{{ log.category }}</span>
                                 {% endif %}
