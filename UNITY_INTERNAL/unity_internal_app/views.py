@@ -4558,7 +4558,8 @@ def outlook_delegated_action(request, delegation_id):
     """
     Handles Notes, Replies, Metadata Updates, RESTORATION, and COMPLETION.
     Renders email body, inline CID images, and attachments 100% locally.
-    Saves outgoing replies with clean body, CC/BCC, local attachments (REPLY_<tx_id>), and a local .eml file.
+    Pre-populates the editable reply box with the quoted thread so users can
+    edit or remove sensitive history before sending.
     """
     delegation = get_object_or_404(EmailDelegation, pk=delegation_id)
     is_manager = request.user.username.lower() == 'omega' or request.user.is_superuser
@@ -4640,8 +4641,8 @@ def outlook_delegated_action(request, delegation_id):
             raw_subject = (request.POST.get('reply_subject') or '').strip()
             subject = raw_subject if raw_subject else f"RE: {email_display.get('subject') or delegation.email_category or 'Task Action'}"
 
-            raw_body = request.POST.get('reply_body', '')
-            if '<p>' in raw_body or '<br' in raw_body or '<div>' in raw_body:
+            raw_body = (request.POST.get('reply_body') or '').strip()
+            if '<p' in raw_body or '<br' in raw_body or '<div' in raw_body:
                 formatted_body = raw_body
             else:
                 formatted_body = raw_body.replace('\r\n', '<br>').replace('\n', '<br>')
@@ -4651,27 +4652,15 @@ def outlook_delegated_action(request, delegation_id):
             reply_files = request.FILES.getlist('reply_files') or request.FILES.getlist('attachments')
 
             user_signature = get_user_signature(request.user)
-            # Clean reply body (stored in DB for isolated Reply Thread view)
-            clean_reply_body = f"<div>{formatted_body}</div><br>{user_signature}"
+            thread_marker = '<div data-thread-divider="true"'
 
-            # Full outgoing email body (includes original email trail for the external recipient)
-            if local_inbox:
-                sent_date = local_inbox.received_at.strftime('%d %B %Y %H:%M') if local_inbox.received_at else 'Unknown'
-                thread_history = f"""
-                <br>
-                <div style="border:none; border-top:solid #B5C4DF 1.0pt; padding:3.0pt 0cm 0cm 0cm">
-                    <p style="margin:0cm; margin-bottom:.0001pt; font-size:11.0pt; font-family:'Calibri',sans-serif">
-                        <b>From:</b> {local_inbox.sender_name} &lt;{local_inbox.sender_address}&gt;<br>
-                        <b>Sent:</b> {sent_date}<br>
-                        <b>To:</b> {local_inbox.to_addresses}<br>
-                        <b>Subject:</b> {local_inbox.subject}
-                    </p>
-                </div>
-                <br>
-                {local_inbox.body_content or ''}
-                """
-                final_email_body = clean_reply_body + thread_history
+            # Insert signature between the user's new reply and whatever quoted thread they chose to keep
+            if thread_marker in formatted_body:
+                reply_part, thread_part = formatted_body.split(thread_marker, 1)
+                clean_reply_body = f"<div>{reply_part}</div><br>{user_signature}"
+                final_email_body = f"{clean_reply_body}<br>{thread_marker}{thread_part}"
             else:
+                clean_reply_body = f"<div>{formatted_body}</div><br>{user_signature}"
                 final_email_body = clean_reply_body
 
             response = OutlookGraphService.send_outlook_email(
@@ -4696,7 +4685,7 @@ def outlook_delegated_action(request, delegation_id):
                     subject,
                     recipient,
                     action_type=final_action_type,
-                    body=clean_reply_body,
+                    body=final_email_body,
                     cc_recipients=member_cc_email or None,
                     bcc_recipients=member_bcc_email or None,
                     attached_file=uploaded_file,
@@ -4725,6 +4714,28 @@ def outlook_delegated_action(request, delegation_id):
 
             return redirect('outlook_delegated_action', delegation_id=delegation_id)
 
+    # --- BUILD EDITABLE QUOTED THREAD FOR GET ---
+    quoted_thread_html = ""
+    if local_inbox and (local_inbox.body_content or '').strip():
+        sent_date = local_inbox.received_at.strftime('%d %B %Y %H:%M') if local_inbox.received_at else 'Unknown'
+        sender_name = local_inbox.sender_name or local_inbox.sender_address or 'Unknown'
+        sender_addr = local_inbox.sender_address or 'Unknown'
+        to_addresses = local_inbox.to_addresses or target_email
+        orig_subject = local_inbox.subject or ''
+
+        quoted_thread_html = f"""
+        <div data-thread-divider="true" style="border:none; border-top:solid #B5C4DF 1.0pt; padding:6px 0 0 0; margin-top:16px;">
+            <p style="margin:0; font-size:11.0pt; font-family:'Calibri',sans-serif; color:#333;">
+                <b>From:</b> {sender_name} &lt;{sender_addr}&gt;<br>
+                <b>Sent:</b> {sent_date}<br>
+                <b>To:</b> {to_addresses}<br>
+                <b>Subject:</b> {orig_subject}
+            </p>
+            <br>
+            {local_inbox.body_content}
+        </div>
+        """
+
     context = {
         'delegation': delegation,
         'email': email_display,
@@ -4733,6 +4744,7 @@ def outlook_delegated_action(request, delegation_id):
         'notes': delegation.notes.all().order_by('-created_at'),
         'target_email': target_email,
         'is_manager': is_manager,
+        'quoted_thread_html': quoted_thread_html,
     }
     return render(request, 'unity_internal_app/outlook_delegated_action.html', context)
 
@@ -6289,17 +6301,37 @@ def serve_local_attachment_view(request, att_pk):
     """
     Streams a locally stored attachment or inline CID image directly from disk
     using FileResponse (zero RAM bloat).
+    Automatically appends '.eml' to attached emails (message/rfc822) that have
+    no file extension so Outlook opens them with a single click.
     """
     att = get_object_or_404(UnityInternalEmailAttachment, pk=att_pk)
     abs_path = os.path.join(settings.MEDIA_ROOT, att.file_path)
     if not os.path.exists(abs_path):
         raise Http404("Local attachment file not found on disk.")
 
-    content_type = att.content_type or mimetypes.guess_type(att.name)[0] or 'application/octet-stream'
+    download_name = (att.name or os.path.basename(abs_path)).strip()
+    content_type = att.content_type or mimetypes.guess_type(download_name)[0] or 'application/octet-stream'
+
+    # Detect attached emails (message/rfc822 or extensionless RFC822 files) and ensure .eml extension
+    is_email_attachment = content_type.lower() == 'message/rfc822'
+    if not is_email_attachment and '.' not in os.path.basename(download_name):
+        try:
+            with open(abs_path, 'rb') as peek_f:
+                head = peek_f.read(512).decode('latin-1', errors='ignore')
+            if any(h in head for h in ('From:', 'Received:', 'MIME-Version:', 'Subject:')) and '\n' in head:
+                is_email_attachment = True
+                content_type = 'message/rfc822'
+        except Exception:
+            pass
+
+    if is_email_attachment and not download_name.lower().endswith('.eml'):
+        download_name = f"{download_name}.eml"
+
     response = FileResponse(open(abs_path, 'rb'), content_type=content_type)
     if not att.is_inline:
-        safe_filename = urllib.parse.quote(att.name)
-        response['Content-Disposition'] = f"attachment; filename=\"{safe_filename}\"; filename*=UTF-8''{safe_filename}"
+        safe_ascii = download_name.replace('"', "'")
+        safe_utf8 = urllib.parse.quote(download_name)
+        response['Content-Disposition'] = f"attachment; filename=\"{safe_ascii}\"; filename*=UTF-8''{safe_utf8}"
     return response
 
 

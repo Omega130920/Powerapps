@@ -670,17 +670,20 @@ from django.template.loader import render_to_string # Add this import to the top
 def send_task_email_view(request, email_id):
     if request.method == 'POST':
         task = get_object_or_404(CrmDelegateTo, email_id=email_id)
-        inbox_item = CrmInbox.objects.filter(email_id=email_id).first()
 
-        recipient = request.POST.get('recipient_email')
-        subject = request.POST.get('email_subject_reply')
-        raw_message_body = request.POST.get('email_body_reply', '')
+        recipient = (request.POST.get('recipient_email') or '').strip()
+        subject = (request.POST.get('email_subject_reply') or '').strip()
+        raw_message_body = (request.POST.get('email_body_reply') or '').strip()
 
-        if not raw_message_body or raw_message_body == "<p><br></p>":
+        if not raw_message_body or raw_message_body in ("<p><br></p>", "<div><br></div>"):
             messages.error(request, "Email body cannot be empty.")
             return redirect('delegate_action', email_id=email_id)
 
-        message_body = raw_message_body.replace('\r\n', '<br>').replace('\n', '<br>')
+        if '<p' in raw_message_body or '<br' in raw_message_body or '<div' in raw_message_body:
+            message_body = raw_message_body
+        else:
+            message_body = raw_message_body.replace('\r\n', '<br>').replace('\n', '<br>')
+
         logo_url = "https://static.futurasa.co.za/images/futura-logo.png"
         agent_name, agent_title = get_crm_signature_details(request.user)
 
@@ -692,8 +695,12 @@ def send_task_email_view(request, email_id):
             'agent_title': agent_title
         })
 
-        thread_history = _build_local_reply_thread_html(email_id, inbox_item=inbox_item, delegate_item=task)
-        full_message_body = f"<div>{message_body}</div><br><br>{signature_html}{thread_history}"
+        thread_marker = '<div data-thread-divider="true"'
+        if thread_marker in message_body:
+            reply_part, thread_part = message_body.split(thread_marker, 1)
+            full_message_body = f"<div>{reply_part}</div><br>{signature_html}<br>{thread_marker}{thread_part}"
+        else:
+            full_message_body = f"<div>{message_body}</div><br>{signature_html}"
 
         response = OutlookGraphService.send_outlook_email(
             recipient_email=recipient,
@@ -707,7 +714,7 @@ def send_task_email_view(request, email_id):
                 task_email_id=email_id,
                 action_type='REPLY_SENT',
                 action_user=request.user.username,
-                note_content=full_message_body,
+                note_content=f"Delegation Reply || TO:{recipient}",
                 body=full_message_body,
                 related_subject=subject
             )
@@ -1537,13 +1544,16 @@ def delegate_action_view(request, email_id):
     """
     Detailed view for a specific task in CRM_UNITY (100% locally rendered).
     Captures 'source' to handle conditional 'Back' button logic.
-    Supports multi-file output arrays for delegated reply updates.
+    Pre-populates the editable reply box with the quoted thread so users can
+    edit or remove sensitive history before sending.
+    Enforces compulsory note logging (all 3 fields required) before task completion.
     """
     task = get_object_or_404(CrmDelegateTo, email_id=email_id)
     target_email = settings.OUTLOOK_EMAIL_ADDRESS
 
     source = request.GET.get('from')
     action_history = CrmDelegateAction.objects.filter(task_email_id=email_id).order_by('-action_timestamp')
+    has_note = action_history.filter(action_type='add_note').exists()
 
     # Render email body and attachments 100% from local DB and disk
     inbox_item, delegate_item, _, email_body, attachments_list = _ensure_local_email_data(email_id)
@@ -1607,9 +1617,16 @@ def delegate_action_view(request, email_id):
                 messages.success(request, "Task metadata updated successfully.")
 
             elif action_type == 'add_note':
-                note_text = request.POST.get('internal_note')
-                comm_type = request.POST.get('communication_type')
-                action_note_val = request.POST.get('action_notes_email')
+                note_text = (request.POST.get('internal_note') or '').strip()
+                comm_type = (request.POST.get('communication_type') or '').strip()
+                action_note_val = (request.POST.get('action_notes_email') or '').strip()
+
+                if not comm_type or not action_note_val or not note_text:
+                    messages.error(request, "Please complete Action Note, Action Log Type, and Note Content before saving.")
+                    redirect_url = reverse('delegate_action', kwargs={'email_id': email_id})
+                    if source:
+                        redirect_url += f"?from={source}"
+                    return redirect(redirect_url)
 
                 current_notes_raw = task.internal_notes
 
@@ -1649,6 +1666,13 @@ def delegate_action_view(request, email_id):
                 messages.success(request, "Internal note saved and logged to SLA.")
 
             elif action_type == 'complete':
+                if not CrmDelegateAction.objects.filter(task_email_id=email_id, action_type='add_note').exists():
+                    messages.error(request, "You must add and save at least one note before completing this task.")
+                    redirect_url = reverse('delegate_action', kwargs={'email_id': email_id})
+                    if source:
+                        redirect_url += f"?from={source}"
+                    return redirect(redirect_url)
+
                 final_note = request.POST.get('completion_notes', 'Task completed.')
                 task.status = 'Completed'
                 task.save()
@@ -1672,16 +1696,19 @@ def delegate_action_view(request, email_id):
                 return redirect('tasks')
 
             elif action_type == 'send_response':
-                recipient = request.POST.get('recipient')
-                subject = request.POST.get('subject')
-                raw_body_html = request.POST.get('email_html_content', '')
+                recipient = (request.POST.get('recipient') or '').strip()
+                subject = (request.POST.get('subject') or '').strip()
+                raw_body_html = (request.POST.get('email_html_content') or '').strip()
                 action_log_type = request.POST.get('action_log_type', 'General Feedback')
 
-                cc_recipients = request.POST.get('member_cc_email', '')
-                bcc_recipients = request.POST.get('member_bcc_email', '')
+                cc_recipients = (request.POST.get('member_cc_email') or '').strip()
+                bcc_recipients = (request.POST.get('member_bcc_email') or '').strip()
                 uploaded_files = request.FILES.getlist('attachments')
 
-                body_html = raw_body_html.replace('\r\n', '<br>').replace('\n', '<br>')
+                if '<p' in raw_body_html or '<br' in raw_body_html or '<div' in raw_body_html:
+                    body_html = raw_body_html
+                else:
+                    body_html = raw_body_html.replace('\r\n', '<br>').replace('\n', '<br>')
 
                 if recipient and subject and body_html:
                     logo_url = "https://static.futurasa.co.za/images/futura-logo.png"
@@ -1695,9 +1722,13 @@ def delegate_action_view(request, email_id):
                         'agent_title': agent_title
                     })
 
-                    # Build thread history strictly from local DB (no Graph call)
-                    thread_history = _build_local_reply_thread_html(email_id, inbox_item=inbox_item, delegate_item=task)
-                    full_body_html = f"<div>{body_html}</div><br><br>{signature_html}{thread_history}"
+                    # Insert signature between the user's new reply and whatever quoted thread they chose to keep
+                    thread_marker = '<div data-thread-divider="true"'
+                    if thread_marker in body_html:
+                        reply_part, thread_part = body_html.split(thread_marker, 1)
+                        full_body_html = f"<div>{reply_part}</div><br>{signature_html}<br>{thread_marker}{thread_part}"
+                    else:
+                        full_body_html = f"<div>{body_html}</div><br>{signature_html}"
 
                     result = OutlookGraphService.send_outlook_email(
                         target_email=target_email,
@@ -1783,14 +1814,40 @@ def delegate_action_view(request, email_id):
         if act.action_type == 'REPLY_SENT' and act.note_content and "|| TO:" in act.note_content:
             act.note_content = act.note_content.split("|| TO:", 1)[0].strip()
 
+    # --- BUILD EDITABLE QUOTED THREAD FOR GET ---
+    quoted_thread_html = ""
+    if email_body and email_body.strip():
+        src_obj = inbox_item or task
+        raw_dt = getattr(src_obj, 'received_timestamp', None)
+        sent_date = raw_dt.strftime('%d %B %Y %H:%M') if raw_dt else 'Unknown'
+        sender_addr = getattr(src_obj, 'sender', None) or 'Unknown'
+        sender_name = getattr(src_obj, 'sender_name', None) or sender_addr
+        to_addresses = getattr(src_obj, 'to_recipients', None) or target_email
+        orig_subject = getattr(src_obj, 'subject', None) or ''
+
+        quoted_thread_html = f"""
+        <div data-thread-divider="true" style="border:none; border-top:solid #B5C4DF 1.0pt; padding:6px 0 0 0; margin-top:16px;">
+            <p style="margin:0; font-size:11.0pt; font-family:'Calibri',sans-serif; color:#333;">
+                <b>From:</b> {sender_name} &lt;{sender_addr}&gt;<br>
+                <b>Sent:</b> {sent_date}<br>
+                <b>To:</b> {to_addresses}<br>
+                <b>Subject:</b> {orig_subject}
+            </p>
+            <br>
+            {email_body}
+        </div>
+        """
+
     return render(request, 'delegate_action.html', {
         'task': task,
         'inbox_item': inbox_item,
         'action_history': action_history,
+        'has_note': has_note,
         'email_id': email_id,
         'attachments': attachments_list,
         'source': source,
         'email_body': email_body,
+        'quoted_thread_html': quoted_thread_html,
     })
 
 
@@ -2072,11 +2129,9 @@ def email_registry_view(request):
 @login_required
 def recycle_bin_view(request):
     """
-    MANAGER (omega) ONLY: View items marked for Recycle Bin.
-    Filters by the status string 'Recycled'.
+    View items marked for Recycle Bin.
+    Filters strictly by status='Recycled' (excludes 'Purged' items).
     """
-
-    # Status must match the 'final_status' variable in your service layer
     recycled_items = CrmDelegateTo.objects.filter(
         status='Recycled'
     ).order_by('-received_timestamp')
@@ -2088,31 +2143,69 @@ def recycle_bin_view(request):
 @login_required
 def delete_recycled_tasks_view(request):
     """
-    Handles the POST request from the 'Delete Selected' button.
+    Soft-deletes selected Recycle Bin items by setting status='Purged' on both
+    CrmDelegateTo and CrmInbox. This hides them everywhere on the front-end while
+    keeping their email_id in MySQL so Outlook sync never re-imports them.
     """
-    if request.method == 'POST' and request.user.username.lower() == 'omega':
-        email_ids = request.POST.getlist('email_ids')
+    if request.method == 'POST':
+        if request.user.username.lower() != 'omega' and not request.user.is_superuser:
+            messages.error(request, "Access restricted: only managers can permanently remove recycled emails.")
+            return redirect('recycle_bin')
+
+        email_ids = [eid.strip() for eid in request.POST.getlist('email_ids') if eid and eid.strip()]
         if email_ids:
-            # Physically delete or mark as permanently purged
-            count = CrmDelegateTo.objects.filter(email_id__in=email_ids).delete()
-            messages.success(request, f"Successfully purged {count[0]} emails from the system.")
+            with transaction.atomic():
+                updated_count = CrmDelegateTo.objects.filter(
+                    email_id__in=email_ids,
+                    status='Recycled'
+                ).update(status='Purged')
+
+                CrmInbox.objects.filter(
+                    email_id__in=email_ids
+                ).update(status='Purged')
+
+            messages.success(request, f"Successfully removed {updated_count} email(s) from the Recycle Bin.")
         else:
             messages.warning(request, "No items were selected for deletion.")
-            
+
     return redirect('recycle_bin')
 
 @login_required
 def serve_local_attachment_view(request, att_pk):
-    """Serves a locally stored attachment or inline CID image from disk."""
+    """
+    Serves a locally stored attachment or inline CID image directly from disk
+    using FileResponse (zero RAM bloat).
+    Automatically appends '.eml' to attached emails (message/rfc822) that have
+    no file extension so Outlook opens them with a single click.
+    """
     att = get_object_or_404(CrmEmailAttachment, pk=att_pk)
     abs_path = os.path.join(settings.MEDIA_ROOT, att.file_path)
     if not os.path.exists(abs_path):
         raise Http404("Local attachment file not found on disk.")
 
-    content_type = att.content_type or mimetypes.guess_type(att.name)[0] or 'application/octet-stream'
+    download_name = (att.name or os.path.basename(abs_path)).strip()
+    content_type = att.content_type or mimetypes.guess_type(download_name)[0] or 'application/octet-stream'
+
+    # Detect attached emails (message/rfc822 or extensionless RFC822 files) and ensure .eml extension
+    is_email_attachment = content_type.lower() == 'message/rfc822'
+    if not is_email_attachment and '.' not in os.path.basename(download_name):
+        try:
+            with open(abs_path, 'rb') as peek_f:
+                head = peek_f.read(512).decode('latin-1', errors='ignore')
+            if any(h in head for h in ('From:', 'Received:', 'MIME-Version:', 'Subject:')) and '\n' in head:
+                is_email_attachment = True
+                content_type = 'message/rfc822'
+        except Exception:
+            pass
+
+    if is_email_attachment and not download_name.lower().endswith('.eml'):
+        download_name = f"{download_name}.eml"
+
     response = FileResponse(open(abs_path, 'rb'), content_type=content_type)
     if not att.is_inline:
-        response['Content-Disposition'] = f'attachment; filename="{att.name}"'
+        safe_ascii = download_name.replace('"', "'")
+        safe_utf8 = urllib.parse.quote(download_name)
+        response['Content-Disposition'] = f'attachment; filename="{safe_ascii}"; filename*=UTF-8\'\'{safe_utf8}'
     return response
 
 
@@ -2611,8 +2704,9 @@ def get_date_filters(request):
 
 def get_unified_email_data(request):
     """
-    Helper function to merge CrmInbox (New) and CrmDelegateTo (Delegated) 
+    Helper function to merge CrmInbox (New) and CrmDelegateTo (Delegated)
     data into a single list for the UI and CSV Export.
+    Excludes any 'Purged' items so deleted Recycle Bin emails never appear anywhere.
     - Received Date comes strictly from CrmInbox (or synced lookup).
     - Delegated Date comes strictly from CrmDelegateTo.received_timestamp.
     """
@@ -2623,7 +2717,7 @@ def get_unified_email_data(request):
     last_reply_dict = {item['task_email_id']: item['last_replied'] for item in last_reply_map if item.get('task_email_id')}
 
     delegation_user_map = CrmDelegateAction.objects.filter(
-        action_type='restore_to_inbox' 
+        action_type='restore_to_inbox'
     ).values('task_email_id', 'action_user')
     user_dict = {item['task_email_id']: item['action_user'] for item in delegation_user_map if item.get('task_email_id')}
 
@@ -2643,26 +2737,40 @@ def get_unified_email_data(request):
             else:
                 action_note_map[eid] = content
 
-    # 2. Setup Filters 
+    # 2. Setup Filters
     date_filter, _, _ = get_date_filters(request)
 
-    # 3. Fetch Delegated Emails (CrmDelegateTo)
-    delegated_qs = CrmDelegateTo.objects.filter(date_filter).order_by('-received_timestamp')
+    # 3. Fetch Delegated Emails (CrmDelegateTo) — strictly exclude 'Purged'
+    delegated_qs = (
+        CrmDelegateTo.objects
+        .filter(date_filter)
+        .exclude(status='Purged')
+        .order_by('-received_timestamp')
+    )
     delegated_ids = {getattr(task, 'email_id') for task in delegated_qs if getattr(task, 'email_id', None)}
+
+    # Master set of ALL CrmDelegateTo IDs (including 'Purged' and out-of-range dates) so they never leak from CrmInbox
+    all_delegated_or_purged_ids = set(
+        CrmDelegateTo.objects.values_list('email_id', flat=True)
+    )
 
     # Map CrmInbox received_timestamps by email_id so we can look them up instantly
     inbox_received_map = {
-        item.email_id: item.received_timestamp 
+        item.email_id: item.received_timestamp
         for item in CrmInbox.objects.filter(email_id__in=delegated_ids)
     }
 
-    # 4. Fetch New/Pending Emails (CrmInbox)
-    new_emails_qs = CrmInbox.objects.filter(date_filter).exclude(
-        email_id__in=delegated_ids
-    ).order_by('-received_timestamp')
+    # 4. Fetch New/Pending Emails (CrmInbox) — strictly exclude 'Purged' and any delegated/purged IDs
+    new_emails_qs = (
+        CrmInbox.objects
+        .filter(date_filter)
+        .exclude(status='Purged')
+        .exclude(email_id__in=all_delegated_or_purged_ids)
+        .order_by('-received_timestamp')
+    )
 
     unified_list = []
-    
+
     try:
         cat_dict = CATEGORY_NAMES
     except NameError:
@@ -2671,11 +2779,11 @@ def get_unified_email_data(request):
     # Process Delegated Items (CrmDelegateTo)
     for task in delegated_qs:
         eid = getattr(task, 'email_id', '')
-        
-        # 🟢 Received Date comes from CrmInbox lookup, fallback to CrmDelegateTo if needed
+
+        # Received Date comes from CrmInbox lookup, fallback to CrmDelegateTo if needed
         received_time = inbox_received_map.get(eid) or getattr(task, 'arrival_timestamp', None)
-        
-        # 🟢 Delegated Date pulls strictly from CrmDelegateTo.received_timestamp
+
+        # Delegated Date pulls strictly from CrmDelegateTo.received_timestamp
         delegated_time = getattr(task, 'received_timestamp', None)
 
         unified_list.append({
@@ -2685,17 +2793,17 @@ def get_unified_email_data(request):
             'status': getattr(task, 'status', 'Delegated'),
             'delegated_to': getattr(task, 'delegated_to', None) or user_dict.get(eid, "System"),
             'member_group_code': getattr(task, 'member_group_code', getattr(task, 'Member_Group_Code', 'N/A')),
-            
-            'membership_number': getattr(task, 'mip_number', getattr(task, 'membership_number', 'N/A')), 
+
+            'membership_number': getattr(task, 'mip_number', getattr(task, 'membership_number', 'N/A')),
             'id_passport': getattr(task, 'id_passport', 'N/A'),
-            
+
             'category': cat_dict.get(str(getattr(task, 'category', '')), getattr(task, 'category', 'Unclassified')),
-            'type': getattr(task, 'type', 'None'), 
-            
-            'received_timestamp': received_time,      # From CrmInbox via mapping
-            'delegated_timestamp': delegated_time,    # Strictly from CrmDelegateTo.received_timestamp
+            'type': getattr(task, 'type', 'None'),
+
+            'received_timestamp': received_time,
+            'delegated_timestamp': delegated_time,
             'last_replied_timestamp': last_reply_dict.get(eid),
-            
+
             'action_note': action_note_map.get(eid, ''),
             'is_delegated': True
         })
@@ -2710,17 +2818,17 @@ def get_unified_email_data(request):
             'status': 'New',
             'delegated_to': 'Inbox (Unassigned)',
             'member_group_code': getattr(email, 'Member_Group_Code', getattr(email, 'member_group_code', 'N/A')),
-            
+
             'membership_number': 'N/A',
             'id_passport': getattr(email, 'id_passport', 'N/A'),
-            
+
             'category': getattr(email, 'category', 'Unclassified'),
-            'type': getattr(email, 'type', 'Incoming Email'), 
-            
-            'received_timestamp': getattr(email, 'received_timestamp', None), # From CrmInbox
-            'delegated_timestamp': None,                                       # None because it's not delegated yet
+            'type': getattr(email, 'type', 'Incoming Email'),
+
+            'received_timestamp': getattr(email, 'received_timestamp', None),
+            'delegated_timestamp': None,
             'last_replied_timestamp': None,
-            
+
             'action_note': action_note_map.get(eid, ''),
             'is_delegated': False
         })
@@ -2729,9 +2837,9 @@ def get_unified_email_data(request):
     search_text = request.GET.get('search', '').lower()
     if search_text:
         unified_list = [
-            row for row in unified_list 
-            if search_text in str(row.get('subject', '')).lower() or 
-               search_text in str(row.get('sender', '')).lower() or 
+            row for row in unified_list
+            if search_text in str(row.get('subject', '')).lower() or
+               search_text in str(row.get('sender', '')).lower() or
                search_text in str(row.get('member_group_code', '')).lower()
         ]
 
@@ -2740,24 +2848,63 @@ def get_unified_email_data(request):
     unified_list.sort(key=lambda x: x['received_timestamp'] or fallback_date, reverse=True)
     return unified_list
 
+def _apply_workflow_dropdown_filters(request, data):
+    """Applies Status and Delegated To dropdown filters to the unified email workflow data."""
+    status_filter = (request.GET.get('status') or '').strip()
+    delegated_to_filter = (request.GET.get('delegated_to') or '').strip()
+
+    if status_filter:
+        data = [
+            row for row in data
+            if str(row.get('status') or 'New').strip().lower() == status_filter.lower()
+        ]
+
+    if delegated_to_filter:
+        data = [
+            row for row in data
+            if str(row.get('delegated_to') or '').strip().lower() == delegated_to_filter.lower()
+        ]
+
+    return data
+
+
 @login_required
 def email_workflow_log_view(request):
     data = get_unified_email_data(request)
-    
-    paginator = Paginator(data, 25) 
+    data = _apply_workflow_dropdown_filters(request, data)
+
+    # Populate the 'Delegated To' dropdown with all distinct assigned agents (sorted A–Z)
+    delegated_to_options = sorted(
+        {
+            name.strip()
+            for name in CrmDelegateTo.objects.exclude(delegated_to__isnull=True)
+            .exclude(delegated_to__exact='')
+            .values_list('delegated_to', flat=True)
+            .distinct()
+            if name and name.strip()
+        },
+        key=lambda x: x.lower()
+    )
+
+    paginator = Paginator(data, 25)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
-    return render(request, 'email_workflow_log.html', {'page_obj': page_obj})
+    return render(request, 'email_workflow_log.html', {
+        'page_obj': page_obj,
+        'delegated_to_options': delegated_to_options,
+    })
+
 
 @login_required
 def export_email_workflow_csv(request):
     data = get_unified_email_data(request)
-    
+    data = _apply_workflow_dropdown_filters(request, data)
+
     # --- 🚀 BULK FETCH NOTES FROM crm_delegate_actions ---
     email_ids = [row['email_id'] for row in data if row.get('email_id')]
     notes_dict = {}
-    
+
     if email_ids:
         # Fetch actions with non-empty note_content for the current emails, ordered by timestamp
         notes_qs = CrmDelegateAction.objects.filter(
@@ -2767,42 +2914,42 @@ def export_email_workflow_csv(request):
         ).exclude(
             note_content__exact=''
         ).values('task_email_id', 'note_content', 'action_user', 'action_timestamp').order_by('action_timestamp')
-        
+
         for note in notes_qs:
             eid = note.get('task_email_id')
             # Safe string cast
             content = str(note.get('note_content') or '').strip()
-            
+
             if not content or not eid:
                 continue
-                
+
             formatted_note = content
-            
+
             if eid in notes_dict:
                 notes_dict[eid] += f" | {formatted_note}"
             else:
                 notes_dict[eid] = formatted_note
     # ---------------------------------------------------
-    
+
     response = HttpResponse(content_type='text/csv')
     filename = f"Email_Workflow_{timezone.now().strftime('%Y-%m-%d')}.csv"
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
 
     writer = csv.writer(response)
-    
+
     # 🚀 ADDED 'Delegated Date' AND KEPT ALL EXISTING HEADERS
     writer.writerow([
-        'Received Date', 
+        'Received Date',
         'Delegated Date',
-        'Sender', 
-        'Subject', 
-        'Status', 
-        'Agent (Assigned)', 
-        'Member Group Code',    
-        'Membership Number',    
-        'ID/Passport Number',   
+        'Sender',
+        'Subject',
+        'Status',
+        'Agent (Assigned)',
+        'Member Group Code',
+        'Membership Number',
+        'ID/Passport Number',
         'Category',
-        'Enquiry Selection', 
+        'Enquiry Selection',
         'Date Replied',
         'Notes'
     ])
@@ -2811,13 +2958,13 @@ def export_email_workflow_csv(request):
         # Safely check if received_timestamp exists before calling strftime
         received_dt = row['received_timestamp'].strftime('%Y-%m-%d %H:%M') if row.get('received_timestamp') else 'N/A'
         delegated_dt = row['delegated_timestamp'].strftime('%Y-%m-%d %H:%M') if row.get('delegated_timestamp') else 'N/A'
-        
+
         reply_dt = 'No Reply'
         if row.get('last_replied_timestamp'):
             reply_dt = row['last_replied_timestamp'].strftime('%Y-%m-%d %H:%M')
 
         agent_name = row.get('delegated_to') or 'Inbox (Unassigned)'
-        
+
         # Pull note matching task_email_id (or fallback to row['action_note'])
         email_note = notes_dict.get(row['email_id'], row.get('action_note', ''))
 
@@ -2830,7 +2977,7 @@ def export_email_workflow_csv(request):
             agent_name,
             row.get('member_group_code', 'N/A'),
             row.get('membership_number', 'N/A'),
-            row.get('id_passport', 'N/A'),       
+            row.get('id_passport', 'N/A'),
             row.get('category', 'Unclassified'),
             row.get('type', 'None'),
             reply_dt,

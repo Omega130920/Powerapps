@@ -109,6 +109,34 @@
     }
     textarea.form-control { min-height: 100px; resize: vertical; }
 
+    /* --- EDITABLE REPLY THREAD BOX --- */
+    .reply-editor-box {
+        min-height: 260px;
+        max-height: 550px;
+        overflow-y: auto;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        padding: 12px;
+        background: #fff;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
+        margin-bottom: 10px;
+    }
+    .reply-editor-box p { margin: 0; }
+    .reply-editor-box img { max-width: 100%; height: auto; }
+    .btn-clear-thread {
+        background: #e53935;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        padding: 4px 10px;
+        font-size: 12px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    .btn-clear-thread:hover { background: #c62828; }
+
     /* --- Email Body Adjustments --- */
     .email-body-html {
         padding: 15px; 
@@ -166,7 +194,7 @@
     }
     .collapse-toggle:hover { background: #e9ecef; }
     .collapse-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out, padding 0.3s ease-out; }
-    .collapse-content.show { max-height: 1100px; padding: 15px; }
+    .collapse-content.show { max-height: 2500px; padding: 15px; }
     .toggle-icon { transition: transform 0.3s ease; }
     .collapse-toggle[aria-expanded="true"] .toggle-icon { transform: rotate(180deg); }
     
@@ -291,12 +319,12 @@
                     <i class="fas fa-chevron-down toggle-icon"></i>
                 </button>
                 <div class="collapse-content" id="collapseReplyForm">
-                    <form method="POST" enctype="multipart/form-data" onsubmit="prepareEmailHtmlPayload(this)">
+                    <form method="POST" enctype="multipart/form-data" onsubmit="return prepareEmailHtmlPayload(this)">
                         {% csrf_token %}
                         <input type="hidden" name="action_type" value="send_reply">
                         <div style="margin-bottom: 10px;">
                             <label class="form-label">Recipient (To):</label>
-                            <input type="text" class="form-control" name="reply_recipient" value="{{ email.from.emailAddress.address }}" placeholder="recipient@example.com" required>
+                            <input type="text" class="form-control" name="reply_recipient" value="{{ email.from.emailAddress.address }}" placeholder="Separate multiple emails with ; or ," required>
                         </div>
                         <div style="margin-bottom: 10px;">
                             <label class="form-label">CC:</label>
@@ -343,10 +371,23 @@
                             <label class="form-label" style="margin-top: 0; color: #1e88e5;"><i class="fas fa-paperclip"></i> Attach Files (Hold Ctrl to select multiple):</label>
                             <input type="file" class="form-control" name="email_attachments" multiple style="background: white;">
                         </div>
+
                         <div style="margin-bottom: 15px;">
-                            <label class="form-label">Body:</label>
-                            <textarea class="form-control" id="raw_reply_body" name="reply_body" rows="6" required></textarea>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; margin-bottom: 5px;">
+                                <label class="form-label" style="margin: 0;">Body (Edit or remove previous communications below):</label>
+                                {% if quoted_thread_html %}
+                                <button type="button" class="btn-clear-thread" onclick="clearQuotedThread()">
+                                    Remove Previous Thread
+                                </button>
+                                {% endif %}
+                            </div>
+                            <div id="reply_body_editor" class="reply-editor-box" contenteditable="true">
+                                <div><br></div>
+                                {{ quoted_thread_html|safe }}
+                            </div>
+                            <input type="hidden" name="reply_body" id="reply_body_hidden">
                         </div>
+
                         <button type="submit" class="custom-btn btn-primary" style="width: 100%; padding: 12px;">Send Reply</button>
                     </form>
                 </div>
@@ -405,24 +446,27 @@
 </div>
 
 <script>
-    // Auto-translates textual breaks to HTML paragraphs before posting to Microsoft Graph API channels
+    function clearQuotedThread() {
+        const editor = document.getElementById('reply_body_editor');
+        if (!editor) return;
+        const divider = editor.querySelector('[data-thread-divider="true"]');
+        if (divider) {
+            divider.remove();
+        }
+    }
+
     function prepareEmailHtmlPayload(formInstance) {
-        const textarea = document.getElementById('raw_reply_body');
-        if (!textarea || !textarea.value) return;
-        
-        const rawText = textarea.value.trim();
-        const paragraphs = rawText.split('\n').map(p => p.trim());
-        let htmlPayload = "";
-        
-        paragraphs.forEach(para => {
-            if (para.length > 0) {
-                htmlPayload += `<p style="margin-top:0; margin-bottom:12px; font-family:sans-serif; font-size:14px; color:#222;">${para}</p>`;
-            } else {
-                htmlPayload += `<br />`;
-            }
-        });
-        
-        textarea.value = htmlPayload;
+        const editor = document.getElementById('reply_body_editor');
+        const hiddenInput = document.getElementById('reply_body_hidden');
+        if (!editor || !hiddenInput) return true;
+
+        const content = editor.innerHTML.trim();
+        if (!content || content === '<div><br></div>' || content === '<p><br></p>') {
+            alert('Email body cannot be empty.');
+            return false;
+        }
+        hiddenInput.value = content;
+        return true;
     }
 
     // --- COLLAPSE LOGIC ---

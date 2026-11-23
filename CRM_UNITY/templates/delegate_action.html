@@ -23,6 +23,12 @@
         .left-column { flex: 2; min-width: 500px; }
         .right-column { flex: 1; min-width: 350px; }
 
+        /* --- Alerts --- */
+        .alert-banner { padding: 10px 15px; border-radius: 5px; margin-bottom: 15px; font-size: 13px; font-weight: bold; }
+        .alert-error { background-color: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+        .alert-success { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+        .alert-info { background-color: #e3f2fd; color: #1565c0; border: 1px solid #90caf9; }
+
         /* --- Cards & Headers --- */
         .custom-card { border: 1px solid #ddd; border-radius: 6px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); background: #fff; overflow: hidden; }
         .card-header-primary { background-color: #007bff; color: white; padding: 12px 15px; font-weight: bold; display: flex; align-items: center; gap: 10px; }
@@ -58,6 +64,34 @@
         .task-header h1 { font-size: 22px; margin: 0 0 10px 0; color: #1e88e5; border-bottom: 2px solid #81c784; padding-bottom: 5px;}
         .status-badge { display: inline-block; background-color: #ffc107; color: #212529; padding: 3px 10px; border-radius: 50px; font-weight: bold; font-size: 12px; }
 
+        /* --- EDITABLE REPLY THREAD BOX --- */
+        .reply-editor-box {
+            min-height: 260px;
+            max-height: 550px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 12px;
+            background: #fff;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 10px;
+        }
+        .reply-editor-box p { margin: 0; }
+        .reply-editor-box img { max-width: 100%; height: auto; }
+        .btn-clear-thread {
+            background: #e53935;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .btn-clear-thread:hover { background: #c62828; }
+
         /* --- ATTACHMENT SECTION STYLES --- */
         .attachment-section {
             background-color: #f1f8e9;
@@ -90,6 +124,7 @@
 
         /* --- Forms --- */
         .form-label { font-weight: bold; display: block; margin-bottom: 4px; font-size: 12px; color: #555; }
+        .required-star { color: #d32f2f; margin-left: 2px; }
         .form-control { width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; margin-bottom: 8px; font-size: 13px; }
         
         /* --- Collapsible --- */
@@ -113,6 +148,7 @@
         .btn-restore { background-color: #d32f2f; color: white; width: 100%; font-size: 16px; margin-bottom: 15px; }
         .btn-success { background-color: #28a745; color: white; width: 100%; }
         .btn-primary { background-color: #007bff; color: white; }
+        .btn-disabled { background-color: #bdbdbd !important; color: #fff; cursor: not-allowed; width: 100%; }
 
         .hidden { display: none; }
 
@@ -160,6 +196,14 @@
 </div>
 
 <div class="task-container">
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert-banner {% if message.tags == 'error' %}alert-error{% elif message.tags == 'success' %}alert-success{% else %}alert-info{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    {% endif %}
 
     <div class="task-header">
         <h1><i class="fas fa-tasks"></i> Subject: {{ task.subject }}</h1>
@@ -245,6 +289,10 @@
                             <option value="3.4 Section 13A Council Action " data-category="3">3.4 Section 13A Council Action </option>
                             <option value="3.5 Section 13A Member Communication " data-category="3">3.5 Section 13A Member Communication </option>
                             <option value="3.6 Section 13A CBC Action" data-category="3">3.6 Section 13A CBC Action</option>
+                            <option value="3.7 30 Day Letter" data-category="3">3.7 30 Day Letter</option>
+                            <option value="3.8 60 Day Letter" data-category="3">3.8 60 Day Letter</option>
+                            <option value="3.9 90 Day Letter" data-category="3">3.9 90 Day Letter</option>
+                            <option value="3.10 No Risk Received" data-category="3">3.10 No Risk Received</option>
                             <option value="4.1 New Business Quote request" data-category="4">4.1 New Business Quote request</option>
                             <option value="4.2 New Business COA and Accepted Quote submission" data-category="4">4.2 New Business COA and Accepted Quote submission</option>
                             <option value="4.3 Welcome Email" data-category="4">4.3 Welcome Email</option>
@@ -434,7 +482,7 @@
                         <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px;">
                             <div>
                                 <label class="form-label">Recipient:</label>
-                                <input type="email" name="recipient" value="{{ task.sender_email|default:task.sender }}" class="form-control" required>
+                                <input type="text" name="recipient" value="{{ task.sender_email|default:task.sender }}" placeholder="Separate multiple emails with ; or ," class="form-control" required>
                             </div>
 
                             <div>
@@ -468,16 +516,24 @@
 
                         <div>
                             <label class="form-label">Subject:</label>
-                        <input type="text" id="email_subject_reply" name="subject" 
-                            value="RE: {{ task.subject }}" class="form-control" required>
+                            <input type="text" id="email_subject_reply" name="subject" 
+                                value="RE: {{ task.subject }}" class="form-control" required>
                             <small style="color: #777; font-size: 11px;">
                                 **Reference:** <span id="display_unique_ref">{{ task.member_group_code|default:"NO_REF" }}</span>
                             </small>
                         </div>
                         
-                        <label class="form-label" style="margin-top: 10px;">Email Body:</label>
-                        <div id="email_editor" style="min-height: 200px; border: 1px solid #ccc; padding: 10px; border-radius: 4px;" contenteditable="true">
-                            <p>Dear Client,</p><br><p>[Your message here]</p>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; margin-bottom: 5px;">
+                            <label class="form-label" style="margin: 0;">Email Body (Edit or remove previous communications below):</label>
+                            {% if quoted_thread_html %}
+                            <button type="button" class="btn-clear-thread" onclick="clearQuotedThread()">
+                                Remove Previous Thread
+                            </button>
+                            {% endif %}
+                        </div>
+                        <div id="email_editor" class="reply-editor-box" contenteditable="true">
+                            <div><br></div>
+                            {{ quoted_thread_html|safe }}
                         </div>
 
                         <div class="form-group" style="margin-top: 15px; margin-bottom: 20px;">
@@ -499,18 +555,18 @@
 
         <div class="right-column">
             <div class="custom-card">
-                <button class="collapse-toggle" style="border-bottom-color: #28a745;" data-target="#collapseNote">
-                    <span><i class="fas fa-plus-circle"></i> Add Note</span>
+                <button class="collapse-toggle" style="border-bottom-color: #28a745;" data-target="#collapseNote" aria-expanded="{% if not has_note %}true{% else %}false{% endif %}">
+                    <span><i class="fas fa-plus-circle"></i> Add Note <span class="required-star">*</span></span>
                     <i class="fas fa-chevron-down toggle-icon"></i>
                 </button>
-                <div class="collapse-content" id="collapseNote">
+                <div class="collapse-content {% if not has_note %}show{% endif %}" id="collapseNote">
                     <form method="POST">
                         {% csrf_token %}
                         <input type="hidden" name="action_type" value="add_note">
                         
                         <div style="margin-bottom: 12px;">
-                            <label class="form-label">Action Note:</label>
-                            <select name="communication_type" class="form-control">
+                            <label class="form-label">Action Note:<span class="required-star">*</span></label>
+                            <select name="communication_type" class="form-control" required>
                                 <option value="">Select Action Note</option>
                                 <option value="Outgoing Call">Outgoing Call</option>
                                 <option value="Notes Log">Notes Log</option>
@@ -522,8 +578,8 @@
                         </div>
 
                         <div style="margin-bottom: 12px;">
-                            <label class="form-label">Action Log Type:</label>
-                            <select name="action_notes_email" class="form-control">
+                            <label class="form-label">Action Log Type:<span class="required-star">*</span></label>
+                            <select name="action_notes_email" class="form-control" required>
                                 <option value="">Select Action Note</option>
                                 <option value="Feedback to Sanlam">Feedback to Sanlam</option>
                                 <option value="Feedback to Employer">Feedback to Employer</option>
@@ -540,7 +596,7 @@
                             </select>
                         </div>
 
-                        <label class="form-label">Note Content:</label>
+                        <label class="form-label">Note Content:<span class="required-star">*</span></label>
                         <textarea name="internal_note" class="form-control" rows="4" required></textarea>
                         
                         <button type="submit" class="custom-btn btn-success" style="margin-top: 10px;">
@@ -555,13 +611,18 @@
                     <i class="fas fa-chevron-down toggle-icon"></i>
                 </button>
                 <div class="collapse-content" id="collapseFinal">
+                    {% if has_note %}
                     <form method="POST">
                         {% csrf_token %}
                         <input type="hidden" name="action_type" value="complete">
-                        <label class="form-label">Resolution Summary:</label>
-                        <textarea name="completion_notes" class="form-control" placeholder="Briefly explain the outcome..."></textarea>
                         <button type="submit" class="custom-btn btn-success" style="background:#2e7d32;">Complete Task</button>
                     </form>
+                    {% else %}
+                    <p style="font-size: 12px; color: #c62828; margin: 0 0 10px 0; font-weight: bold;">
+                        <i class="fas fa-exclamation-circle"></i> Please add and save a note above before completing this task.
+                    </p>
+                    <button type="button" class="custom-btn btn-disabled" disabled>Complete Task</button>
+                    {% endif %}
                 </div>
                 {% endif %}
             </div>
@@ -587,6 +648,15 @@
         { value: '13', label: '13. General' },
         { value: '14', label: '14. Other' }
     ];
+
+    function clearQuotedThread() {
+        const editor = document.getElementById('email_editor');
+        if (!editor) return;
+        const divider = editor.querySelector('[data-thread-divider="true"]');
+        if (divider) {
+            divider.remove();
+        }
+    }
 
     document.addEventListener('DOMContentLoaded', function () {
         const catSelect = document.getElementById('email_category');
@@ -648,7 +718,7 @@
         if (emailForm && emailEditor && hiddenBodyInput) {
             emailForm.addEventListener('submit', function(e) {
                 const content = emailEditor.innerHTML.trim();
-                if (content === "" || content === "<p><br></p>" || content === "<p>Dear Client,</p><br><p>[Your message here]</p>") {
+                if (!content || content === "<div><br></div>" || content === "<p><br></p>") {
                     alert("Email body cannot be empty. Please enter your response message.");
                     e.preventDefault();
                     return false;

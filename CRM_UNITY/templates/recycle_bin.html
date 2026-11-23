@@ -8,6 +8,12 @@
 /* -------------------------------------- */
 /* BASE STYLES */
 /* -------------------------------------- */
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
 body {
     font-family: sans-serif;
     background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
@@ -15,25 +21,48 @@ body {
     flex-direction: column;
     justify-content: flex-start;
     align-items: center;
-    min-height: 100vh;
     padding: 20px;
     box-sizing: border-box;
 }
 .log-container {
-    max-width: 1400px; 
-    margin: 40px auto;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    margin: 20px auto 10px auto;
     padding: 20px;
     background-color: #ffffff;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+}
+.alert-banner {
+    padding: 10px 15px;
+    border-radius: 5px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    font-weight: bold;
+    flex-shrink: 0;
+}
+.alert-success { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+.alert-warning { background-color: #fff8e1; color: #e65100; border: 1px solid #ffe082; }
+.alert-error { background-color: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
+
+#delete_form {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
 }
 .log-header {
     border-bottom: 2px solid #aed581;
     padding-bottom: 10px;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-shrink: 0;
 }
 .log-header h1 {
     margin: 0;
@@ -48,7 +77,7 @@ body {
     transition: border-color 0.3s;
 }
 #search_input:focus {
-    border-color: #f4511e; /* Focus color for Recycle Bin theme */
+    border-color: #f4511e;
     outline: none;
 }
 .log-controls {
@@ -56,10 +85,9 @@ body {
     gap: 20px;
     align-items: center;
 }
-/* NEW STYLE for Delete Button */
 .btn-delete-selected {
     padding: 8px 15px;
-    background-color: #d32f2f; /* Red for Delete */
+    background-color: #d32f2f;
     color: white;
     border: none;
     border-radius: 5px;
@@ -67,10 +95,20 @@ body {
     font-size: 14px;
     transition: background-color 0.3s ease;
 }
-.btn-delete-selected:hover {
+.btn-delete-selected:hover:not(:disabled) {
     background-color: #b71c1c;
 }
-
+.btn-delete-selected:disabled {
+    background-color: #e57373;
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+.table-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    border: 1px solid #eee;
+    border-radius: 4px;
+}
 .task-table {
     width: 100%;
     border-collapse: collapse;
@@ -84,16 +122,18 @@ body {
     word-wrap: break-word;
 }
 .task-table th {
-    /* Recycle Bin table header color */
-    background-color: #f4511e; 
+    background-color: #f4511e;
     color: white;
     font-weight: 600;
     text-transform: uppercase;
+    position: sticky;
+    top: 0;
+    z-index: 10;
 }
-.task-table tr:nth-child(even) { background-color: #ffedea; } /* Light pink/orange for even rows */
-.task-table tr.data-row:hover { /* Updated hover class to only apply to data rows */
-    background-color: #ffccbc; /* Darker hover for archived */
-    cursor: default; /* Remove default pointer for row click */
+.task-table tr:nth-child(even) { background-color: #ffedea; }
+.task-table tr.data-row:hover {
+    background-color: #ffccbc;
+    cursor: default;
 }
 .status-recycled { color: #f4511e; font-weight: bold; }
 
@@ -105,21 +145,10 @@ body {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-/* Style for note text to distinguish from type text */
 .task-note-text {
-    color: #d84315; /* Darker red for note visibility */
+    color: #d84315;
     font-weight: 500;
     font-style: normal;
-}
-
-.dashboard-links a {
-    margin-right: 15px;
-    color: #1a73e8;
-    text-decoration: none;
-    font-weight: 500;
-}
-.dashboard-links a:hover {
-    text-decoration: underline;
 }
 .return-button {
     padding: 10px 20px;
@@ -128,11 +157,11 @@ body {
     border-radius: 5px;
     text-decoration: none;
     color: white;
+    font-weight: bold;
     cursor: pointer;
     transition: background-color 0.3s ease;
     text-align: center;
-    }
-
+}
 .return-button:hover {
     background-color: #66bb6a;
 }
@@ -140,90 +169,100 @@ body {
 </head>
 <body>
 
-    <div class="Dashboard" style="margin-top: 25px;">
+    <div class="Dashboard" style="margin-top: 10px; flex-shrink: 0;">
         <a href="{% url 'dashboard' %}" class="return-button">Back to Home Screen</a>
     </div>
 
 <div class="log-container">
-    <div class="log-header">
-        <h1>🗑️ Recycle Bin / Archived Emails</h1>
-        <div class="log-controls">
-            <input type="text" id="search_input" placeholder="🔍 Search all columns..." autofocus>
-            <form method="POST" action="{% url 'delete_recycled' %}" id="delete_form" style="display: contents;">
-                {% csrf_token %}
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert-banner {% if message.tags == 'error' %}alert-error{% elif message.tags == 'warning' %}alert-warning{% else %}alert-success{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    <form method="POST" action="{% url 'delete_recycled' %}" id="delete_form">
+        {% csrf_token %}
+
+        <div class="log-header">
+            <h1>🗑️ Recycle Bin / Archived Emails</h1>
+            <div class="log-controls">
+                <input type="text" id="search_input" placeholder="🔍 Search all columns..." autofocus>
                 <button type="submit" id="delete_btn" class="btn-delete-selected" disabled>
                     🗑️ Delete Selected
                 </button>
-            </form>
-            <p>Total Archived: <strong id="total-archived">{{ recycled_tasks|length }}</strong></p>
+                <p style="margin: 0;">Total Archived: <strong id="total-archived">{{ recycled_tasks|length }}</strong></p>
+            </div>
         </div>
-    </div>
-    
-    {% if recycled_tasks %}
-    <table class="task-table" id="main_table">
-        <thead>
-            <tr>
-                <th style="width: 3%;"><input type="checkbox" id="select_all"></th>
-                <th style="width: 25%;">Subject</th>
-                <th style="width: 12%;">Archived By</th>
-                <th style="width: 18%;">Sender</th>
-                <th style="width: 14%;">Received Timestamp</th>
-                <th style="width: 18%;">Reason / Enquiry Type</th> 
-                <th style="width: 10%;">Status</th> 
-            </tr>
-        </thead>
-        <tbody id="table_body">
-            {% for task in recycled_tasks %}
-            
-            <tr data-status="recycled" class="data-row">
-                
-                <td>
-                    <input type="checkbox" name="email_ids" value="{{ task.email_id }}" form="delete_form" class="delete-checkbox">
-                </td>
+        
+        {% if recycled_tasks %}
+        <div class="table-wrapper">
+            <table class="task-table" id="main_table">
+                <thead>
+                    <tr>
+                        <th style="width: 2%;"><input type="checkbox" id="select_all"></th>
+                        <th style="width: 30%;">Subject</th>
+                        <th style="width: 8%;">Archived By</th>
+                        <th style="width: 18%;">Sender</th>
+                        <th style="width: 12%;">Received Timestamp</th>
+                        <th style="width: 18%;">Reason / Enquiry Type</th> 
+                        <th style="width: 7%;">Status</th> 
+                    </tr>
+                </thead>
+                <tbody id="table_body">
+                    {% for task in recycled_tasks %}
+                    
+                    <tr data-status="recycled" class="data-row">
+                        
+                        <td>
+                            <input type="checkbox" name="email_ids" value="{{ task.email_id }}" class="delete-checkbox">
+                        </td>
 
-                <td title="{{ task.subject }}" 
-                    onclick="window.location.href='{% url 'delegate_action' email_id=task.email_id %}';"> 
-                    <a href="{% url 'delegate_action' email_id=task.email_id %}" style="text-decoration: none; color: inherit; display: block;">
-                        {{ task.subject }}
-                    </a>
-                </td>
-                
-                <td><strong>{{ task.delegated_by }}</strong></td>
-                
-                <td>{{ task.sender|default:"N/A" }}</td>
-                
-                <td>
-                    {{ task.received_timestamp|date:"Y-m-d H:i"|default:"N/A" }}
-                </td>
-                
-                <td>
-                    {% if task.notes %}
-                        {% with last_note=task.notes|last %}
-                            <span class="task-note-text" title="Note added by {{ last_note.user }} on {{ last_note.timestamp }}">
-                                NOTE: {{ last_note.note|slice:":40" }}...
+                        <td title="{{ task.subject }}" 
+                            onclick="window.location.href='{% url 'delegate_action' email_id=task.email_id %}';" style="cursor: pointer;"> 
+                            <a href="{% url 'delegate_action' email_id=task.email_id %}" style="text-decoration: none; color: inherit; display: block;">
+                                {{ task.subject }}
+                            </a>
+                        </td>
+                        
+                        <td><strong>{{ task.delegated_by }}</strong></td>
+                        
+                        <td>{{ task.sender|default:"N/A" }}</td>
+                        
+                        <td>
+                            {{ task.received_timestamp|date:"Y-m-d H:i"|default:"N/A" }}
+                        </td>
+                        
+                        <td>
+                            {% if task.notes %}
+                                {% with last_note=task.notes|last %}
+                                    <span class="task-note-text" title="Note added by {{ last_note.user }} on {{ last_note.timestamp }}">
+                                        NOTE: {{ last_note.note|slice:":40" }}...
+                                    </span>
+                                {% endwith %}
+                            {% else %}
+                                <span class="log-notes" title="{{ task.type|default:'No specific enquiry type.' }}">
+                                    {{ task.type|default:'Non-work related' }}
+                                </span>
+                            {% endif %}
+                        </td>
+                        
+                        <td title="{{ task.status }}">
+                            <span class="status-recycled">
+                                {{ task.status }}
                             </span>
-                        {% endwith %}
-                    {% else %}
-                        <span class="log-notes" title="{{ task.type|default:'No specific enquiry type.' }}">
-                            {{ task.type|default:'Non-work related' }}
-                        </span>
-                    {% endif %}
-                </td>
-                
-                <td title="{{ task.status }}">
-                    <span class="status-recycled">
-                        {{ task.status }}
-                    </span>
-                </td>
-            </tr>
-            
-            {% endfor %}
-        </tbody>
-    </table>
-    {% else %}
-    <p>🎉 The Recycle Bin is empty! All non-work related emails are cleared.</p>
-    {% endif %}
-
+                        </td>
+                    </tr>
+                    
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p>🎉 The Recycle Bin is empty! All non-work related emails are cleared.</p>
+        {% endif %}
+    </form>
 </div>
 
 <script>
@@ -233,13 +272,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const selectAllCheckbox = document.getElementById('select_all');
     const deleteCheckboxes = document.querySelectorAll('.delete-checkbox');
     const deleteButton = document.getElementById('delete_btn');
+    const deleteForm = document.getElementById('delete_form');
     
     if (!searchInput || !tableBody) {
         return;
     }
 
-    // --- 1. Live Search Logic (Unchanged) ---
-    const rows = tableBody.getElementsByClassName('data-row'); // Use the new class
+    // --- 1. Live Search Logic ---
+    const rows = tableBody.getElementsByClassName('data-row');
     
     function liveSearch() {
         const filter = searchInput.value.toLowerCase();
@@ -249,68 +289,66 @@ document.addEventListener('DOMContentLoaded', function() {
             const cells = row.getElementsByTagName('td');
             let found = false;
 
-            // Start from j=1 to skip the checkbox cell (index 0)
             for (let j = 1; j < cells.length; j++) {
                 const cellText = cells[j].innerText || cells[j].textContent;
-                
                 if (cellText.toLowerCase().indexOf(filter) > -1) {
                     found = true;
                     break; 
                 }
-                
             }
 
-            if (found) {
-                row.style.display = ""; 
-            } else {
-                row.style.display = "none";
-            }
+            row.style.display = found ? "" : "none";
+        }
+        if (selectAllCheckbox) {
+            selectAllCheckbox.checked = false;
         }
     }
 
     searchInput.addEventListener('input', liveSearch);
 
-    // --- 2. Multi-Select/Bulk Delete Logic (NEW) ---
-
-    // Function to update the Delete button state
+    // --- 2. Multi-Select/Bulk Delete Logic ---
     function updateDeleteButtonState() {
         const checkedCount = document.querySelectorAll('.delete-checkbox:checked').length;
         deleteButton.disabled = checkedCount === 0;
         deleteButton.textContent = checkedCount > 0 ? `🗑️ Delete Selected (${checkedCount})` : `🗑️ Delete Selected`;
     }
 
-    // Event listener for "Select All"
     if (selectAllCheckbox) {
         selectAllCheckbox.addEventListener('change', function() {
             deleteCheckboxes.forEach(checkbox => {
-                checkbox.checked = selectAllCheckbox.checked;
+                const row = checkbox.closest('tr');
+                if (row && row.style.display !== 'none') {
+                    checkbox.checked = selectAllCheckbox.checked;
+                }
             });
             updateDeleteButtonState();
         });
     }
 
-    // Event listeners for individual checkboxes
     deleteCheckboxes.forEach(checkbox => {
         checkbox.addEventListener('change', function() {
-            // If any checkbox is unchecked, uncheck the 'Select All' box
-            if (!this.checked) {
-                if (selectAllCheckbox) {
-                    selectAllCheckbox.checked = false;
-                }
-            }
-            // Check if all are checked to tick 'Select All'
-            else if (document.querySelectorAll('.delete-checkbox:checked').length === deleteCheckboxes.length) {
-                 if (selectAllCheckbox) {
-                    selectAllCheckbox.checked = true;
-                }
+            if (!this.checked && selectAllCheckbox) {
+                selectAllCheckbox.checked = false;
             }
             updateDeleteButtonState();
         });
     });
 
-    // Initialize button state
-    updateDeleteButtonState();
+    if (deleteForm) {
+        deleteForm.addEventListener('submit', function(e) {
+            const checkedCount = document.querySelectorAll('.delete-checkbox:checked').length;
+            if (checkedCount === 0) {
+                e.preventDefault();
+                return false;
+            }
+            if (!confirm(`Are you sure you want to permanently remove ${checkedCount} email(s) from the Recycle Bin?`)) {
+                e.preventDefault();
+                return false;
+            }
+        });
+    }
 
+    updateDeleteButtonState();
 });
 </script>
 

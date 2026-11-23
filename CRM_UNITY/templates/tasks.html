@@ -6,6 +6,12 @@
 <title>Delegated Tasks Log</title>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 <style>
+html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+}
 body {
     font-family: sans-serif;
     background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
@@ -13,27 +19,30 @@ body {
     flex-direction: column;
     justify-content: flex-start;
     align-items: center;
-    min-height: 100vh;
     padding: 20px;
-    margin: 0;
     box-sizing: border-box;
 }
 .log-container {
-    width: 95%;
-    max-width: 1600px;
-    margin: 40px auto;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+    margin: 20px auto 10px auto;
     padding: 20px;
     background-color: #ffffff;
     border-radius: 8px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
 }
 .log-header {
     border-bottom: 2px solid #aed581;
     padding-bottom: 10px;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-shrink: 0;
 }
 .log-header h1 {
     margin: 0;
@@ -45,6 +54,12 @@ body {
     border-radius: 4px;
     width: 300px;
     font-size: 14px;
+}
+.table-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    border: 1px solid #eee;
+    border-radius: 4px;
 }
 .task-table {
     width: 100%;
@@ -64,7 +79,9 @@ body {
     font-weight: 600;
     text-transform: uppercase;
     cursor: pointer; 
-    position: relative;
+    position: sticky;
+    top: 0;
+    z-index: 10;
     user-select: none;
 }
 .task-table th:hover {
@@ -97,7 +114,7 @@ body {
 </head>
 <body>
 
-    <div class="Dashboard" style="margin-top: 25px; display: flex; gap: 10px;">
+    <div class="Dashboard" style="margin-top: 10px; display: flex; gap: 10px; flex-shrink: 0;">
         <a href="{% url 'dashboard' %}" class="return-button">Back to Home Screen</a>
     </div>
 
@@ -106,44 +123,45 @@ body {
         <h1>📨 Delegated Tasks Log</h1>
         <div class="log-controls">
             <input type="text" id="search_input" placeholder="🔍 Search all columns..." autofocus>
-            <p>Active Delegated Tasks: <strong id="task_count">0</strong></p>
+            <p style="margin: 8px 0 0 0;">Active Delegated Tasks: <strong id="task_count">0</strong></p>
         </div>
     </div>
 
     {% if delegated_tasks %}
-    <table class="task-table" id="main_table">
-        <thead>
-            <tr>
-                <th style="width: 18%;" onclick="sortTable(0)">Subject <i class="fas fa-sort"></i></th>
-                <th style="width: 15%;" onclick="sortTable(1)">Email Address <i class="fas fa-sort"></i></th>
-                <th style="width: 8%;" onclick="sortTable(2)">MG Code <i class="fas fa-sort"></i></th>
-                <th style="width: 12%;" onclick="sortTable(3)">Date Received <i class="fas fa-sort"></i></th>
-                <th style="width: 12%;" onclick="sortTable(4)">Delegated Date <i class="fas fa-sort"></i></th>
-                <th style="width: 12%;" onclick="sortTable(5)">Category <i class="fas fa-sort"></i></th>
-                <th style="width: 15%;" onclick="sortTable(6)">Type <i class="fas fa-sort"></i></th>
-            </tr>
-        </thead>
-        <tbody id="table_body">
-            {% for task in delegated_tasks %}
-                {% if task.status == 'Delegated' %}
-                <tr class="clickable-row" onclick="window.location.href='{% url 'delegate_action' email_id=task.email_id %}';"> 
-                    <td title="{{ task.subject }}">{{ task.subject }}</td>
-                    <td title="{{ task.sender }}">{{ task.sender }}</td>
-                    <td>{{ task.member_group_code|default:"N/A" }}</td>
-                    <td data-sort="{{ task.arrival_timestamp|date:'U' }}">
-                        {{ task.arrival_timestamp|date:"d M Y H:i" }}
-                    </td>
-                    <td data-sort="{{ task.delegation_timestamp|date:'U' }}">
-                        <!-- 🟢 FIXED: Format now includes hours and minutes to display the full timestamp -->
-                        {{ task.delegation_timestamp|date:"d M Y H:i" }}
-                    </td>
-                    <td>{{ task.category|default:"N/A" }}</td>
-                    <td>{{ task.enquiry_type|default:"N/A" }}</td>
+    <div class="table-wrapper">
+        <table class="task-table" id="main_table">
+            <thead>
+                <tr>
+                    <th style="width: 18%;" onclick="sortTable(0)">Subject <i class="fas fa-sort"></i></th>
+                    <th style="width: 15%;" onclick="sortTable(1)">From <i class="fas fa-sort"></i></th>
+                    <th style="width: 8%;" onclick="sortTable(2)">MG Code <i class="fas fa-sort"></i></th>
+                    <th style="width: 12%;" onclick="sortTable(3)">Date Received <i class="fas fa-sort"></i></th>
+                    <th style="width: 12%;" onclick="sortTable(4)">Delegated Date <i class="fas fa-sort"></i></th>
+                    <th style="width: 12%;" onclick="sortTable(5)">Category <i class="fas fa-sort"></i></th>
+                    <th style="width: 15%;" onclick="sortTable(6)">Type <i class="fas fa-sort"></i></th>
                 </tr>
-                {% endif %}
-            {% endfor %}
-        </tbody>
-    </table>
+            </thead>
+            <tbody id="table_body">
+                {% for task in delegated_tasks %}
+                    {% if task.status == 'Delegated' %}
+                    <tr class="clickable-row" onclick="window.location.href='{% url 'delegate_action' email_id=task.email_id %}';"> 
+                        <td title="{{ task.subject }}">{{ task.subject }}</td>
+                        <td title="{{ task.sender }}">{{ task.sender }}</td>
+                        <td>{{ task.member_group_code|default:"N/A" }}</td>
+                        <td data-sort="{{ task.arrival_timestamp|date:'U' }}">
+                            {{ task.arrival_timestamp|date:"d M Y H:i" }}
+                        </td>
+                        <td data-sort="{{ task.delegation_timestamp|date:'U' }}">
+                            {{ task.delegation_timestamp|date:"d M Y H:i" }}
+                        </td>
+                        <td>{{ task.category|default:"N/A" }}</td>
+                        <td>{{ task.enquiry_type|default:"N/A" }}</td>
+                    </tr>
+                    {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
     {% else %}
     <p>🎉 You have no active delegated tasks at the moment.</p>
     {% endif %}

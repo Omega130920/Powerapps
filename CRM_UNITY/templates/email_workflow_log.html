@@ -35,6 +35,8 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
         }
         .log-header h1 {
             margin: 0;
@@ -46,18 +48,25 @@
         }
         .log-controls {
             display: flex;
-            gap: 12px;
+            gap: 10px;
             align-items: center;
+            flex-wrap: wrap;
         }
-        #search_input, .date-input {
-            padding: 10px 14px;
+        #search_input, .date-input, .filter-select {
+            padding: 10px 12px;
             border: 1px solid #c5e1a5;
             border-radius: 6px;
             font-size: 14px;
             outline: none;
+            background-color: #ffffff;
+            color: #333;
             transition: all 0.3s ease;
         }
-        #search_input:focus, .date-input:focus {
+        .filter-select {
+            cursor: pointer;
+            min-width: 145px;
+        }
+        #search_input:focus, .date-input:focus, .filter-select:focus {
             border-color: #43a047;
             box-shadow: 0 0 0 3px rgba(67, 160, 71, 0.1);
         }
@@ -195,7 +204,7 @@
             <i class="fas fa-home"></i> Back To Home Screen
         </a>
         
-        <a href="{% url 'export_email_workflow' %}?start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&search={{ request.GET.search }}" class="export-btn">
+        <a href="{% url 'export_email_workflow' %}?start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&search={{ request.GET.search }}&status={{ request.GET.status }}&delegated_to={{ request.GET.delegated_to }}" class="export-btn">
             <i class="fas fa-file-csv"></i> 📊 Export Filtered History (CSV)
         </a>
     </div>
@@ -205,6 +214,21 @@
             <h1><i class="fas fa-history"></i> Email Workflow Registry</h1>
             
             <form method="GET" class="log-controls">
+                <select name="status" class="filter-select" title="Filter by Status">
+                    <option value="">All Statuses</option>
+                    <option value="New" {% if request.GET.status == 'New' %}selected{% endif %}>New</option>
+                    <option value="Delegated" {% if request.GET.status == 'Delegated' %}selected{% endif %}>Delegated</option>
+                    <option value="Completed" {% if request.GET.status == 'Completed' %}selected{% endif %}>Completed</option>
+                    <option value="Recycled" {% if request.GET.status == 'Recycled' %}selected{% endif %}>Recycled</option>
+                </select>
+
+                <select name="delegated_to" class="filter-select" title="Filter by Delegated To">
+                    <option value="">All Agents</option>
+                    {% for agent in delegated_to_options %}
+                        <option value="{{ agent }}" {% if request.GET.delegated_to == agent %}selected{% endif %}>{{ agent }}</option>
+                    {% endfor %}
+                </select>
+
                 <input type="date" name="start_date" class="date-input" value="{{ request.GET.start_date }}" title="Start Date">
                 <input type="date" name="end_date" class="date-input" value="{{ request.GET.end_date }}" title="End Date">
                 <input type="text" name="search" id="search_input" placeholder="🔍 Search subject, sender, or code..." value="{{ request.GET.search }}">
@@ -278,15 +302,15 @@
 
         <div class="pagination">
             {% if page_obj.has_previous %}
-                <a href="?page=1&search={{ request.GET.search }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}">First</a>
-                <a href="?page={{ page_obj.previous_page_number }}&search={{ request.GET.search }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}">Previous</a>
+                <a href="?page=1&search={{ request.GET.search }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&status={{ request.GET.status }}&delegated_to={{ request.GET.delegated_to }}">First</a>
+                <a href="?page={{ page_obj.previous_page_number }}&search={{ request.GET.search }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&status={{ request.GET.status }}&delegated_to={{ request.GET.delegated_to }}">Previous</a>
             {% endif %}
 
             <span class="current">Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}</span>
 
             {% if page_obj.has_next %}
-                <a href="?page={{ page_obj.next_page_number }}&search={{ request.GET.search }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}">Next</a>
-                <a href="?page={{ page_obj.paginator.num_pages }}&search={{ request.GET.search }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}">Last</a>
+                <a href="?page={{ page_obj.next_page_number }}&search={{ request.GET.search }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&status={{ request.GET.status }}&delegated_to={{ request.GET.delegated_to }}">Next</a>
+                <a href="?page={{ page_obj.paginator.num_pages }}&search={{ request.GET.search }}&start_date={{ request.GET.start_date }}&end_date={{ request.GET.end_date }}&status={{ request.GET.status }}&delegated_to={{ request.GET.delegated_to }}">Last</a>
             {% endif %}
         </div>
 

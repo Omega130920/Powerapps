@@ -23,13 +23,41 @@
     .form-control { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; margin-bottom: 10px; }
     .collapse-toggle { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 15px; background: #f8f9fa; border: none; text-align: left; font-size: 16px; font-weight: bold; cursor: pointer; border-bottom: 3px solid rgb(105, 187, 85); color: #333; }
     .collapse-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
-    .collapse-content.show { max-height: 1200px; padding: 20px; }
+    .collapse-content.show { max-height: 2500px; padding: 20px; }
     .custom-btn { padding: 12px 15px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; transition: background-color 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; width: 100%; box-sizing: border-box; }
     .btn-primary { background-color: rgb(105, 187, 85); color: white; }
     .btn-success { background-color: #28a745; color: white; }
     .btn-update-metadata { background-color: rgb(105, 187, 85); color: white; }
     .btn-back { background-color: white; color: #343a40; border: 1px solid #343a40; }
     .btn-restore { background-color: #d32f2f; color: white; width: 100%; font-size: 18px; padding: 15px; margin-bottom: 15px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.15); display: flex; align-items: center; justify-content: center; gap: 12px; }
+
+    /* --- EDITABLE REPLY THREAD BOX --- */
+    .reply-editor-box {
+        min-height: 260px;
+        max-height: 550px;
+        overflow-y: auto;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        padding: 12px;
+        background: #fff;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        line-height: 1.5;
+        margin-bottom: 10px;
+    }
+    .reply-editor-box p { margin: 0; }
+    .reply-editor-box img { max-width: 100%; height: auto; }
+    .btn-clear-thread {
+        background: #e53935;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        padding: 4px 10px;
+        font-size: 12px;
+        font-weight: bold;
+        cursor: pointer;
+    }
+    .btn-clear-thread:hover { background: #c62828; }
 
     /* --- ATTACHMENT SPECIFIC STYLES --- */
     .attachment-section {
@@ -242,7 +270,7 @@
                     <i class="fas fa-chevron-down toggle-icon"></i>
                 </button>
                 <div class="collapse-content" id="collapseReplyForm">
-                    <form method="POST" enctype="multipart/form-data">
+                    <form method="POST" enctype="multipart/form-data" id="sendReplyForm">
                         {% csrf_token %}
                         <input type="hidden" name="email_log_type" value="REPLY">
                         <div class="form-group">
@@ -265,7 +293,7 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label">Recipient:</label>
-                            <input type="text" class="form-control" name="reply_recipient" value="{{ local_inbox.sender_address|default:email.from.emailAddress.address }}" required>
+                            <input type="text" class="form-control" name="reply_recipient" value="{{ local_inbox.sender_address|default:email.from.emailAddress.address }}" placeholder="Separate multiple emails with ; or ," required>
                         </div>
                         
                         <div class="form-group">
@@ -281,9 +309,21 @@
                             <label class="form-label">Subject:</label>
                             <input type="text" class="form-control" name="reply_subject" value="RE: {{ email.subject }}" required>
                         </div>
+
                         <div class="form-group">
-                            <label class="form-label">Body:</label>
-                            <textarea class="form-control" name="reply_body" rows="6"></textarea>
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px; margin-bottom: 5px;">
+                                <label class="form-label" style="margin: 0;">Body (Edit or remove previous communications below):</label>
+                                {% if quoted_thread_html %}
+                                <button type="button" class="btn-clear-thread" onclick="clearQuotedThread()">
+                                    Remove Previous Thread
+                                </button>
+                                {% endif %}
+                            </div>
+                            <div id="reply_body_editor" class="reply-editor-box" contenteditable="true">
+                                <div><br></div>
+                                {{ quoted_thread_html|safe }}
+                            </div>
+                            <input type="hidden" name="reply_body" id="reply_body_hidden">
                         </div>
                         
                         <div class="form-group">
@@ -373,6 +413,15 @@
 </div>
 
 <script>
+    function clearQuotedThread() {
+        const editor = document.getElementById('reply_body_editor');
+        if (!editor) return;
+        const divider = editor.querySelector('[data-thread-divider="true"]');
+        if (divider) {
+            divider.remove();
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', function () {
         document.querySelectorAll('.collapse-toggle').forEach(button => {
             const targetId = button.getAttribute('data-target');
@@ -387,6 +436,17 @@
                 });
             }
         });
+
+        const replyForm = document.getElementById('sendReplyForm');
+        if (replyForm) {
+            replyForm.addEventListener('submit', function () {
+                const editor = document.getElementById('reply_body_editor');
+                const hiddenInput = document.getElementById('reply_body_hidden');
+                if (editor && hiddenInput) {
+                    hiddenInput.value = editor.innerHTML;
+                }
+            });
+        }
     });
 </script>
 {% endblock %}
