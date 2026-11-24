@@ -695,12 +695,13 @@ def send_task_email_view(request, email_id):
             'agent_title': agent_title
         })
 
+        reply_style = "font-family: 'Century Gothic', Arial, sans-serif; font-size: 11pt; color: #000000; line-height: 1.5;"
         thread_marker = '<div data-thread-divider="true"'
         if thread_marker in message_body:
             reply_part, thread_part = message_body.split(thread_marker, 1)
-            full_message_body = f"<div>{reply_part}</div><br>{signature_html}<br>{thread_marker}{thread_part}"
+            full_message_body = f'<div style="{reply_style}">{reply_part}</div><br>{signature_html}<br>{thread_marker}{thread_part}'
         else:
-            full_message_body = f"<div>{message_body}</div><br>{signature_html}"
+            full_message_body = f'<div style="{reply_style}">{message_body}</div><br>{signature_html}'
 
         response = OutlookGraphService.send_outlook_email(
             recipient_email=recipient,
@@ -1723,12 +1724,13 @@ def delegate_action_view(request, email_id):
                     })
 
                     # Insert signature between the user's new reply and whatever quoted thread they chose to keep
+                    reply_style = "font-family: 'Century Gothic', Arial, sans-serif; font-size: 11pt; color: #000000; line-height: 1.5;"
                     thread_marker = '<div data-thread-divider="true"'
                     if thread_marker in body_html:
                         reply_part, thread_part = body_html.split(thread_marker, 1)
-                        full_body_html = f"<div>{reply_part}</div><br>{signature_html}<br>{thread_marker}{thread_part}"
+                        full_body_html = f'<div style="{reply_style}">{reply_part}</div><br>{signature_html}<br>{thread_marker}{thread_part}'
                     else:
-                        full_body_html = f"<div>{body_html}</div><br>{signature_html}"
+                        full_body_html = f'<div style="{reply_style}">{body_html}</div><br>{signature_html}'
 
                     result = OutlookGraphService.send_outlook_email(
                         target_email=target_email,

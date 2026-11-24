@@ -513,12 +513,13 @@ def outlook_delegated_action(request, delegation_id):
             signature_html = render_to_string('acvv_app/acvv_email_signature.html', signature_context)
 
             # Insert signature between the user's new reply and whatever quoted thread they chose to keep
+            reply_style = "font-family: 'Century Gothic', Arial, sans-serif; font-size: 11pt; color: #000000; line-height: 1.5;"
             thread_marker = '<div data-thread-divider="true"'
             if thread_marker in formatted_body:
                 reply_part, thread_part = formatted_body.split(thread_marker, 1)
-                full_html_body = f"<div>{reply_part}</div><br>{signature_html}<br>{thread_marker}{thread_part}"
+                full_html_body = f'<div style="{reply_style}">{reply_part}</div><br>{signature_html}<br>{thread_marker}{thread_part}'
             else:
-                full_html_body = f"<div>{formatted_body}</div><br>{signature_html}"
+                full_html_body = f'<div style="{reply_style}">{formatted_body}</div><br>{signature_html}'
 
             attachments_list = request.FILES.getlist('email_attachments')
             selected_action_type = request.POST.get('action_log_type') or "Correspondence"

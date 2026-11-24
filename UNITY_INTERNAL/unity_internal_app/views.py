@@ -4652,15 +4652,16 @@ def outlook_delegated_action(request, delegation_id):
             reply_files = request.FILES.getlist('reply_files') or request.FILES.getlist('attachments')
 
             user_signature = get_user_signature(request.user)
+            reply_style = "font-family: 'Century Gothic', Arial, sans-serif; font-size: 11pt; color: #000000; line-height: 1.5;"
             thread_marker = '<div data-thread-divider="true"'
 
             # Insert signature between the user's new reply and whatever quoted thread they chose to keep
             if thread_marker in formatted_body:
                 reply_part, thread_part = formatted_body.split(thread_marker, 1)
-                clean_reply_body = f"<div>{reply_part}</div><br>{user_signature}"
+                clean_reply_body = f'<div style="{reply_style}">{reply_part}</div><br>{user_signature}'
                 final_email_body = f"{clean_reply_body}<br>{thread_marker}{thread_part}"
             else:
-                clean_reply_body = f"<div>{formatted_body}</div><br>{user_signature}"
+                clean_reply_body = f'<div style="{reply_style}">{formatted_body}</div><br>{user_signature}'
                 final_email_body = clean_reply_body
 
             response = OutlookGraphService.send_outlook_email(
