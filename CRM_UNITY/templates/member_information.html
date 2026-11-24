@@ -36,9 +36,8 @@
     }
 
     .container {
-        width: 95%;
-        max-width: 98%;
-        height: 90vh;
+        width: 96%;
+        height: 92vh;
         display: flex;
         flex-direction: column;
         background-color: var(--color-background-container);
@@ -52,7 +51,7 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        margin-bottom: 20px;
+        margin-bottom: 10px;
     }
 
     h1 {
@@ -93,7 +92,7 @@
     /* Profile Layout (Tabs and Content) */
     .profile-layout {
         display: flex;
-        gap: 15px;
+        gap: 7px;
         flex: 1;
         min-height: 0; /* Important for flex-child scrolling */
     }
@@ -108,6 +107,7 @@
         width: 180px;
         border-right: 2px solid var(--color-border-light);
         overflow-y: auto;
+        overflow-x: hidden;
     }
     
     .tab-nav li {

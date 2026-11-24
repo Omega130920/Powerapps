@@ -2704,150 +2704,180 @@ def get_date_filters(request):
     return filters, start_str, end_str
 
 
-def get_unified_email_data(request):
+def get_unified_email_data(request, include_notes=False, include_replies=False):
     """
-    Helper function to merge CrmInbox (New) and CrmDelegateTo (Delegated)
-    data into a single list for the UI and CSV Export.
-    Excludes any 'Purged' items so deleted Recycle Bin emails never appear anywhere.
-    - Received Date comes strictly from CrmInbox (or synced lookup).
-    - Delegated Date comes strictly from CrmDelegateTo.received_timestamp.
+    High-performance helper to merge CrmInbox (New) and CrmDelegateTo (Delegated)
+    for the Email Workflow Registry and CSV Export.
+    - Uses .values() to NEVER load heavy body_html / internal_notes columns from MySQL.
+    - Pushes Status, Delegated To, and Search filters directly into MySQL.
+    - Excludes 'Purged' items so deleted Recycle Bin emails never appear.
     """
-    # 1. Action Lookup (Check for replies and user mappings)
-    last_reply_map = CrmDelegateAction.objects.filter(
-        action_type='REPLY_SENT'
-    ).values('task_email_id').annotate(last_replied=Max('action_timestamp'))
-    last_reply_dict = {item['task_email_id']: item['last_replied'] for item in last_reply_map if item.get('task_email_id')}
-
-    delegation_user_map = CrmDelegateAction.objects.filter(
-        action_type='restore_to_inbox'
-    ).values('task_email_id', 'action_user')
-    user_dict = {item['task_email_id']: item['action_user'] for item in delegation_user_map if item.get('task_email_id')}
-
-    action_notes_qs = CrmDelegateAction.objects.exclude(
-        note_content__isnull=True
-    ).exclude(
-        note_content__exact=''
-    ).values('task_email_id', 'note_content', 'action_timestamp').order_by('action_timestamp')
-
-    action_note_map = {}
-    for note in action_notes_qs:
-        eid = note.get('task_email_id')
-        content = str(note.get('note_content') or '').strip()
-        if eid and content:
-            if eid in action_note_map:
-                action_note_map[eid] += f" | {content}"
-            else:
-                action_note_map[eid] = content
-
-    # 2. Setup Filters
     date_filter, _, _ = get_date_filters(request)
+    status_filter = (request.GET.get('status') or '').strip()
+    delegated_to_filter = (request.GET.get('delegated_to') or '').strip()
+    search_text = (request.GET.get('search') or '').strip()
 
-    # 3. Fetch Delegated Emails (CrmDelegateTo) — strictly exclude 'Purged'
-    delegated_qs = (
-        CrmDelegateTo.objects
-        .filter(date_filter)
-        .exclude(status='Purged')
-        .order_by('-received_timestamp')
-    )
-    delegated_ids = {getattr(task, 'email_id') for task in delegated_qs if getattr(task, 'email_id', None)}
+    fetch_delegated = True
+    fetch_new = True
 
-    # Master set of ALL CrmDelegateTo IDs (including 'Purged' and out-of-range dates) so they never leak from CrmInbox
-    all_delegated_or_purged_ids = set(
-        CrmDelegateTo.objects.values_list('email_id', flat=True)
-    )
+    if status_filter:
+        if status_filter.lower() == 'new':
+            fetch_delegated = False
+        else:
+            fetch_new = False
 
-    # Map CrmInbox received_timestamps by email_id so we can look them up instantly
-    inbox_received_map = {
-        item.email_id: item.received_timestamp
-        for item in CrmInbox.objects.filter(email_id__in=delegated_ids)
-    }
-
-    # 4. Fetch New/Pending Emails (CrmInbox) — strictly exclude 'Purged' and any delegated/purged IDs
-    new_emails_qs = (
-        CrmInbox.objects
-        .filter(date_filter)
-        .exclude(status='Purged')
-        .exclude(email_id__in=all_delegated_or_purged_ids)
-        .order_by('-received_timestamp')
-    )
-
-    unified_list = []
+    if delegated_to_filter:
+        if delegated_to_filter.lower() == 'inbox (unassigned)':
+            fetch_delegated = False
+        else:
+            fetch_new = False
 
     try:
         cat_dict = CATEGORY_NAMES
     except NameError:
         cat_dict = {}
 
-    # Process Delegated Items (CrmDelegateTo)
-    for task in delegated_qs:
-        eid = getattr(task, 'email_id', '')
+    unified_list = []
 
-        # Received Date comes from CrmInbox lookup, fallback to CrmDelegateTo if needed
-        received_time = inbox_received_map.get(eid) or getattr(task, 'arrival_timestamp', None)
+    # --- 1. Fetch Delegated Emails (CrmDelegateTo) — lightweight columns only ---
+    if fetch_delegated:
+        del_qs = CrmDelegateTo.objects.filter(date_filter).exclude(status='Purged')
 
-        # Delegated Date pulls strictly from CrmDelegateTo.received_timestamp
-        delegated_time = getattr(task, 'received_timestamp', None)
+        if status_filter:
+            del_qs = del_qs.filter(status__iexact=status_filter)
+        if delegated_to_filter:
+            del_qs = del_qs.filter(delegated_to__iexact=delegated_to_filter)
+        if search_text:
+            del_qs = del_qs.filter(
+                Q(subject__icontains=search_text) |
+                Q(sender__icontains=search_text) |
+                Q(member_group_code__icontains=search_text)
+            )
 
-        unified_list.append({
-            'email_id': eid,
-            'subject': getattr(task, 'subject', 'No Subject') or "No Subject",
-            'sender': getattr(task, 'sender', 'Unknown') or "Unknown",
-            'status': getattr(task, 'status', 'Delegated'),
-            'delegated_to': getattr(task, 'delegated_to', None) or user_dict.get(eid, "System"),
-            'member_group_code': getattr(task, 'member_group_code', getattr(task, 'Member_Group_Code', 'N/A')),
+        delegated_rows = list(
+            del_qs.values(
+                'email_id', 'subject', 'sender', 'status', 'delegated_to',
+                'member_group_code', 'membership_number', 'id_passport',
+                'category', 'type', 'received_timestamp'
+            ).order_by('-received_timestamp')
+        )
 
-            'membership_number': getattr(task, 'mip_number', getattr(task, 'membership_number', 'N/A')),
-            'id_passport': getattr(task, 'id_passport', 'N/A'),
+        # Lightweight 2-column lookup for original CrmInbox received_timestamp
+        delegated_eids = [r['email_id'] for r in delegated_rows if r.get('email_id')]
+        inbox_received_map = {}
+        if delegated_eids:
+            inbox_received_map = dict(
+                CrmInbox.objects.filter(email_id__in=delegated_eids)
+                .values_list('email_id', 'received_timestamp')
+            )
 
-            'category': cat_dict.get(str(getattr(task, 'category', '')), getattr(task, 'category', 'Unclassified')),
-            'type': getattr(task, 'type', 'None'),
+        for r in delegated_rows:
+            eid = r.get('email_id') or ''
+            delegated_time = r.get('received_timestamp')
+            received_time = inbox_received_map.get(eid) or delegated_time
+            raw_cat = r.get('category')
 
-            'received_timestamp': received_time,
-            'delegated_timestamp': delegated_time,
-            'last_replied_timestamp': last_reply_dict.get(eid),
+            unified_list.append({
+                'email_id': eid,
+                'subject': r.get('subject') or 'No Subject',
+                'sender': r.get('sender') or 'Unknown',
+                'status': r.get('status') or 'Delegated',
+                'delegated_to': r.get('delegated_to') or 'System',
+                'member_group_code': r.get('member_group_code') or 'N/A',
+                'membership_number': r.get('membership_number') or 'N/A',
+                'id_passport': r.get('id_passport') or 'N/A',
+                'category': cat_dict.get(str(raw_cat or ''), raw_cat or 'Unclassified'),
+                'type': r.get('type') or 'None',
+                'received_timestamp': received_time,
+                'delegated_timestamp': delegated_time,
+                'last_replied_timestamp': None,
+                'action_note': '',
+                'is_delegated': True,
+            })
 
-            'action_note': action_note_map.get(eid, ''),
-            'is_delegated': True
-        })
+    # --- 2. Fetch New/Pending Emails (CrmInbox) — lightweight columns only ---
+    if fetch_new:
+        all_delegated_or_purged_ids = set(
+            CrmDelegateTo.objects.values_list('email_id', flat=True)
+        )
+        new_qs = (
+            CrmInbox.objects
+            .filter(date_filter)
+            .exclude(status='Purged')
+            .exclude(email_id__in=all_delegated_or_purged_ids)
+        )
 
-    # Process New Items (CrmInbox)
-    for email in new_emails_qs:
-        eid = getattr(email, 'email_id', '')
-        unified_list.append({
-            'email_id': eid,
-            'subject': getattr(email, 'subject', 'No Subject') or "No Subject",
-            'sender': getattr(email, 'sender', 'Unknown') or "Unknown",
-            'status': 'New',
-            'delegated_to': 'Inbox (Unassigned)',
-            'member_group_code': getattr(email, 'Member_Group_Code', getattr(email, 'member_group_code', 'N/A')),
+        if search_text:
+            new_qs = new_qs.filter(
+                Q(subject__icontains=search_text) |
+                Q(sender__icontains=search_text) |
+                Q(member_group_code__icontains=search_text)
+            )
 
-            'membership_number': 'N/A',
-            'id_passport': getattr(email, 'id_passport', 'N/A'),
+        new_rows = list(
+            new_qs.values(
+                'email_id', 'subject', 'sender', 'member_group_code',
+                'id_passport', 'category', 'type', 'received_timestamp'
+            ).order_by('-received_timestamp')
+        )
 
-            'category': getattr(email, 'category', 'Unclassified'),
-            'type': getattr(email, 'type', 'Incoming Email'),
+        for r in new_rows:
+            eid = r.get('email_id') or ''
+            unified_list.append({
+                'email_id': eid,
+                'subject': r.get('subject') or 'No Subject',
+                'sender': r.get('sender') or 'Unknown',
+                'status': 'New',
+                'delegated_to': 'Inbox (Unassigned)',
+                'member_group_code': r.get('member_group_code') or 'N/A',
+                'membership_number': 'N/A',
+                'id_passport': r.get('id_passport') or 'N/A',
+                'category': r.get('category') or 'Unclassified',
+                'type': r.get('type') or 'Incoming Email',
+                'received_timestamp': r.get('received_timestamp'),
+                'delegated_timestamp': None,
+                'last_replied_timestamp': None,
+                'action_note': '',
+                'is_delegated': False,
+            })
 
-            'received_timestamp': getattr(email, 'received_timestamp', None),
-            'delegated_timestamp': None,
-            'last_replied_timestamp': None,
-
-            'action_note': action_note_map.get(eid, ''),
-            'is_delegated': False
-        })
-
-    # 5. Search Filter
-    search_text = request.GET.get('search', '').lower()
-    if search_text:
-        unified_list = [
-            row for row in unified_list
-            if search_text in str(row.get('subject', '')).lower() or
-               search_text in str(row.get('sender', '')).lower() or
-               search_text in str(row.get('member_group_code', '')).lower()
-        ]
-
-    # Final Sort
+    # --- 3. Final Sort ---
     fallback_date = timezone.now().replace(year=1900)
     unified_list.sort(key=lambda x: x['received_timestamp'] or fallback_date, reverse=True)
+
+    # --- 4. Optional Bulk Enrichment (used by CSV export; HTML page enriches only its 25 rows) ---
+    if (include_notes or include_replies) and unified_list:
+        all_eids = [row['email_id'] for row in unified_list if row.get('email_id')]
+
+        if include_replies and all_eids:
+            last_reply_map = (
+                CrmDelegateAction.objects
+                .filter(task_email_id__in=all_eids, action_type='REPLY_SENT')
+                .values('task_email_id')
+                .annotate(last_replied=Max('action_timestamp'))
+            )
+            last_reply_dict = {item['task_email_id']: item['last_replied'] for item in last_reply_map}
+            for row in unified_list:
+                row['last_replied_timestamp'] = last_reply_dict.get(row['email_id'])
+
+        if include_notes and all_eids:
+            action_note_map = {}
+            notes_qs = (
+                CrmDelegateAction.objects
+                .filter(task_email_id__in=all_eids)
+                .exclude(note_content__isnull=True)
+                .exclude(note_content__exact='')
+                .values('task_email_id', 'note_content')
+                .order_by('action_timestamp')
+            )
+            for note in notes_qs:
+                eid = note.get('task_email_id')
+                content = str(note.get('note_content') or '').split('|| TO:', 1)[0].strip()
+                if eid and content:
+                    action_note_map[eid] = f"{action_note_map[eid]} | {content}" if eid in action_note_map else content
+            for row in unified_list:
+                row['action_note'] = action_note_map.get(row['email_id'], '')
+
     return unified_list
 
 def _apply_workflow_dropdown_filters(request, data):
@@ -2872,14 +2902,42 @@ def _apply_workflow_dropdown_filters(request, data):
 
 @login_required
 def email_workflow_log_view(request):
-    data = get_unified_email_data(request)
-    data = _apply_workflow_dropdown_filters(request, data)
+    # Fetch lightweight list WITHOUT scanning CrmDelegateAction for the whole DB
+    data = get_unified_email_data(request, include_notes=False, include_replies=False)
+
+    # Paginate FIRST (25 rows per page)
+    paginator = Paginator(data, 25)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    # Fetch Action Notes ONLY for the 25 rows visible on this page
+    page_eids = [row['email_id'] for row in page_obj.object_list if row.get('email_id')]
+    if page_eids:
+        action_note_map = {}
+        notes_qs = (
+            CrmDelegateAction.objects
+            .filter(task_email_id__in=page_eids)
+            .exclude(note_content__isnull=True)
+            .exclude(note_content__exact='')
+            .values('task_email_id', 'note_content')
+            .order_by('action_timestamp')
+        )
+        for note in notes_qs:
+            eid = note.get('task_email_id')
+            content = str(note.get('note_content') or '').split('|| TO:', 1)[0].strip()
+            if eid and content:
+                action_note_map[eid] = f"{action_note_map[eid]} | {content}" if eid in action_note_map else content
+
+        for row in page_obj.object_list:
+            row['action_note'] = action_note_map.get(row['email_id'], '')
 
     # Populate the 'Delegated To' dropdown with all distinct assigned agents (sorted A–Z)
     delegated_to_options = sorted(
         {
             name.strip()
-            for name in CrmDelegateTo.objects.exclude(delegated_to__isnull=True)
+            for name in CrmDelegateTo.objects
+            .exclude(status='Purged')
+            .exclude(delegated_to__isnull=True)
             .exclude(delegated_to__exact='')
             .values_list('delegated_to', flat=True)
             .distinct()
@@ -2887,10 +2945,6 @@ def email_workflow_log_view(request):
         },
         key=lambda x: x.lower()
     )
-
-    paginator = Paginator(data, 25)
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
 
     return render(request, 'email_workflow_log.html', {
         'page_obj': page_obj,
@@ -2900,38 +2954,7 @@ def email_workflow_log_view(request):
 
 @login_required
 def export_email_workflow_csv(request):
-    data = get_unified_email_data(request)
-    data = _apply_workflow_dropdown_filters(request, data)
-
-    # --- 🚀 BULK FETCH NOTES FROM crm_delegate_actions ---
-    email_ids = [row['email_id'] for row in data if row.get('email_id')]
-    notes_dict = {}
-
-    if email_ids:
-        # Fetch actions with non-empty note_content for the current emails, ordered by timestamp
-        notes_qs = CrmDelegateAction.objects.filter(
-            task_email_id__in=email_ids
-        ).exclude(
-            note_content__isnull=True
-        ).exclude(
-            note_content__exact=''
-        ).values('task_email_id', 'note_content', 'action_user', 'action_timestamp').order_by('action_timestamp')
-
-        for note in notes_qs:
-            eid = note.get('task_email_id')
-            # Safe string cast
-            content = str(note.get('note_content') or '').strip()
-
-            if not content or not eid:
-                continue
-
-            formatted_note = content
-
-            if eid in notes_dict:
-                notes_dict[eid] += f" | {formatted_note}"
-            else:
-                notes_dict[eid] = formatted_note
-    # ---------------------------------------------------
+    data = get_unified_email_data(request, include_notes=True, include_replies=True)
 
     response = HttpResponse(content_type='text/csv')
     filename = f"Email_Workflow_{timezone.now().strftime('%Y-%m-%d')}.csv"
@@ -2939,7 +2962,6 @@ def export_email_workflow_csv(request):
 
     writer = csv.writer(response)
 
-    # 🚀 ADDED 'Delegated Date' AND KEPT ALL EXISTING HEADERS
     writer.writerow([
         'Received Date',
         'Delegated Date',
@@ -2957,7 +2979,6 @@ def export_email_workflow_csv(request):
     ])
 
     for row in data:
-        # Safely check if received_timestamp exists before calling strftime
         received_dt = row['received_timestamp'].strftime('%Y-%m-%d %H:%M') if row.get('received_timestamp') else 'N/A'
         delegated_dt = row['delegated_timestamp'].strftime('%Y-%m-%d %H:%M') if row.get('delegated_timestamp') else 'N/A'
 
@@ -2966,9 +2987,6 @@ def export_email_workflow_csv(request):
             reply_dt = row['last_replied_timestamp'].strftime('%Y-%m-%d %H:%M')
 
         agent_name = row.get('delegated_to') or 'Inbox (Unassigned)'
-
-        # Pull note matching task_email_id (or fallback to row['action_note'])
-        email_note = notes_dict.get(row['email_id'], row.get('action_note', ''))
 
         writer.writerow([
             received_dt,
@@ -2983,7 +3001,7 @@ def export_email_workflow_csv(request):
             row.get('category', 'Unclassified'),
             row.get('type', 'None'),
             reply_dt,
-            email_note
+            row.get('action_note', '')
         ])
 
     return response

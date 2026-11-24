@@ -7,6 +7,13 @@
     <title>Email Workflow History - Unified Log</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+        html, body {
+            max-width: 100%;
+            overflow-x: hidden;
+        }
         body {
             font-family: 'Inter', sans-serif;
             background: linear-gradient(to bottom, #d1e2c4, rgb(143, 207, 127));
@@ -15,56 +22,68 @@
             justify-content: flex-start;
             align-items: center;
             min-height: 100vh;
-            padding: 20px;
+            padding: 5px;
             margin: 0;
-            box-sizing: border-box;
+        }
+        .top-bar {
+            width: 100%;
+            margin-top: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
         }
         .log-container {
             width: 100%;
-            max-width: 1550px; 
-            margin: 20px auto;
-            padding: 25px;
+
+            margin: 16px auto;
+            padding: 10px;
             background-color: #ffffff;
             border-radius: 12px;
             box-shadow: 0 10px 25px rgba(0,0,0,0.1);
         }
         .log-header {
             border-bottom: 2px solid #aed581;
-            padding-bottom: 20px;
-            margin-bottom: 25px;
+            padding-bottom: 16px;
+            margin-bottom: 20px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
-            gap: 15px;
+            gap: 12px;
         }
         .log-header h1 {
             margin: 0;
             color: #2e7d32;
-            font-size: 24px;
+            font-size: 22px;
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 10px;
         }
         .log-controls {
             display: flex;
-            gap: 10px;
+            gap: 8px;
             align-items: center;
             flex-wrap: wrap;
         }
         #search_input, .date-input, .filter-select {
-            padding: 10px 12px;
+            padding: 8px 10px;
             border: 1px solid #c5e1a5;
             border-radius: 6px;
-            font-size: 14px;
+            font-size: 13px;
             outline: none;
             background-color: #ffffff;
             color: #333;
             transition: all 0.3s ease;
+            max-width: 100%;
         }
         .filter-select {
             cursor: pointer;
-            min-width: 145px;
+            min-width: 130px;
+        }
+        #search_input {
+            width: 210px;
         }
         #search_input:focus, .date-input:focus, .filter-select:focus {
             border-color: #43a047;
@@ -76,18 +95,21 @@
             table-layout: fixed;
         }
         .task-table th, .task-table td {
-            padding: 14px 12px;
+            padding: 12px 10px;
             border-bottom: 1px solid #f1f8e9;
             text-align: left;
-            font-size: 13px;
-            word-wrap: break-word;
+            font-size: 12.5px;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            vertical-align: middle;
         }
         .task-table th {
             background-color: #43a047;
             color: white;
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.4px;
+            font-size: 11.5px;
         }
         .task-table tr:nth-child(even) { background-color: #f9fbe7; }
         .task-table tr.clickable-row:hover {
@@ -97,13 +119,13 @@
         
         /* Status Badges */
         .status-badge {
-            padding: 5px 10px;
+            padding: 4px 8px;
             border-radius: 20px;
             font-weight: 800;
             font-size: 10px;
             display: inline-block;
             text-align: center;
-            min-width: 80px;
+            white-space: nowrap;
         }
         .status-new { color: #1e88e5; background: #e3f2fd; border: 1px solid #bbdefb; }
         .status-delegated { color: #f7931e; background: #fff3e0; border: 1px solid #ffe0b2; }
@@ -114,31 +136,32 @@
             font-style: italic;
             color: #689f38;
             font-size: 11px;
-            margin-top: 5px;
+            margin-top: 4px;
         }
 
         .action-btn {
             background-color: #43a047;
             color: white;
             border: none;
-            padding: 10px 20px;
-            font-size: 13px;
+            padding: 9px 16px;
+            font-size: 12.5px;
             font-weight: bold;
             border-radius: 6px;
             cursor: pointer;
             transition: background 0.2s;
+            white-space: nowrap;
         }
         .action-btn:hover { background-color: #2e7d32; }
 
         .export-btn {
             background-color: #1b5e20;
             color: white;
-            padding: 12px 20px;
+            padding: 10px 18px;
             border-radius: 8px;
             text-decoration: none;
             font-weight: bold;
-            font-size: 14px;
-            display: flex;
+            font-size: 13.5px;
+            display: inline-flex;
             align-items: center;
             gap: 8px;
             transition: transform 0.2s, background 0.2s;
@@ -150,13 +173,14 @@
         }
 
         .return-button {
-            padding: 12px 20px;
+            padding: 10px 18px;
             background-color: #ffffff;
             border: 2px solid #81c784;
             border-radius: 8px;
             text-decoration: none;
             color: #2e7d32;
             font-weight: bold;
+            font-size: 13.5px;
             display: inline-flex;
             align-items: center;
             gap: 8px;
@@ -169,20 +193,21 @@
 
         /* Pagination */
         .pagination {
-            margin-top: 30px;
+            margin-top: 24px;
             display: flex;
             justify-content: center;
             align-items: center;
+            flex-wrap: wrap;
             gap: 8px;
         }
         .pagination a, .pagination span {
-            padding: 8px 16px;
+            padding: 7px 14px;
             border: 1px solid #c5e1a5;
             background: white;
             text-decoration: none;
             color: #2e7d32;
             border-radius: 6px;
-            font-size: 14px;
+            font-size: 13.5px;
             transition: all 0.2s;
         }
         .pagination a:hover {
@@ -195,11 +220,57 @@
             border-color: #43a047;
             font-weight: bold;
         }
+
+        /* Compact Laptop View */
+        @media (max-width: 1280px) {
+            body { padding: 12px; }
+            .log-container { padding: 15px; }
+            .task-table th, .task-table td { padding: 9px 7px; font-size: 12px; }
+            #search_input { width: 175px; }
+            .filter-select { min-width: 115px; }
+        }
+
+        /* Tablet / Small Screen Responsive Card View (Zero Sideways Scroll) */
+        @media (max-width: 900px) {
+            .log-controls { width: 100%; }
+            .log-controls > * { flex: 1 1 140px; }
+            .task-table, .task-table thead, .task-table tbody, .task-table th, .task-table td, .task-table tr {
+                display: block;
+                width: 100%;
+            }
+            .task-table thead { display: none; }
+            .task-table tr.clickable-row {
+                border: 1px solid #c5e1a5;
+                border-radius: 8px;
+                margin-bottom: 12px;
+                padding: 8px 12px;
+                background: #ffffff !important;
+            }
+            .task-table td {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                gap: 12px;
+                padding: 6px 0;
+                border-bottom: 1px dashed #e8f5e9;
+                text-align: right;
+            }
+            .task-table td:last-child { border-bottom: none; }
+            .task-table td::before {
+                content: attr(data-label);
+                font-weight: 700;
+                color: #2e7d32;
+                text-transform: uppercase;
+                font-size: 11px;
+                text-align: left;
+                flex-shrink: 0;
+            }
+        }
     </style>
 </head>
 <body>
 
-    <div style="margin-top: 25px; width: 100%; max-width: 1550px; display: flex; justify-content: space-between; align-items: center;">
+    <div class="top-bar">
         <a href="{% url 'dashboard' %}" class="return-button">
             <i class="fas fa-home"></i> Back To Home Screen
         </a>
@@ -240,25 +311,23 @@
         <table class="task-table" id="main_table">
             <thead>
                 <tr>
-                    <th style="width: 11%;">Received Date</th>
-                    <th style="width: 11%;">Delegated Date</th>
-                    <th style="width: 24%;">Subject</th>
-                    <th style="width: 13%;">From</th>
-                    <th style="width: 7%;">MG Code</th>
-                    <th style="width: 8%;">Status</th>
-                    <th style="width: 11%;">Delegated To</th>
-                    <th style="width: 15%;">Action Note</th>
+                    <th style="width: 10%;">Received Date</th>
+                    <th style="width: 10%;">Delegated Date</th>
+                    <th style="width: 22%;">Subject</th>
+                    <th style="width: 15%;">From</th>
+                    <th style="width: 8%;">MG Code</th>
+                    <th style="width: 9%;">Status</th>
+                    <th style="width: 10%;">Delegated To</th>
+                    <th style="width: 16%;">Action Note</th>
                 </tr>
             </thead>
             <tbody id="table_body">
                 {% for row in page_obj %}
                 <tr onclick="window.location.href='{% if request.user.is_superuser or request.user.groups.all.0.name == 'Managers' %}{% url 'delegate_email' email_id=row.email_id %}{% elif row.is_delegated %}{% url 'delegate_action' email_id=row.email_id %}{% else %}{% url 'delegate_email' email_id=row.email_id %}{% endif %}';" class="clickable-row">
                     
-                    <!-- Received Date from crm_inbox -->
-                    <td class="font-mono">{{ row.received_timestamp|date:"Y-m-d H:i"|default:"-" }}</td>
+                    <td data-label="Received Date">{{ row.received_timestamp|date:"Y-m-d H:i"|default:"-" }}</td>
                     
-                    <!-- Delegated Date from crm_delegate_to -->
-                    <td class="font-mono">
+                    <td data-label="Delegated Date">
                         {% if row.delegated_timestamp %}
                             {{ row.delegated_timestamp|date:"Y-m-d H:i" }}
                         {% else %}
@@ -266,14 +335,16 @@
                         {% endif %}
                     </td>
 
-                    <td>
-                        <div style="font-weight: 600; color: #333;">{{ row.subject|truncatechars:60 }}</div>
-                        <div class="log-notes"><i class="fas fa-tag"></i> {{ row.category|default:"Unclassified" }}</div>
+                    <td data-label="Subject">
+                        <div>
+                            <div style="font-weight: 600; color: #333;">{{ row.subject|truncatechars:60 }}</div>
+                            <div class="log-notes"><i class="fas fa-tag"></i> {{ row.category|default:"Unclassified" }}</div>
+                        </div>
                     </td>
-                    <td style="color: #555;">{{ row.sender|truncatechars:40 }}</td>
-                    <td class="font-bold">{{ row.member_group_code }}</td>
+                    <td data-label="From" style="color: #555;">{{ row.sender|truncatechars:40 }}</td>
+                    <td data-label="MG Code" style="font-weight: 600;">{{ row.member_group_code }}</td>
                     
-                    <td>
+                    <td data-label="Status">
                         <span class="status-badge 
                             {% if row.status == 'New' %}status-new
                             {% elif row.status == 'Delegated' %}status-delegated
@@ -283,10 +354,9 @@
                             {{ row.status|upper }}
                         </span>
                     </td>
-                    <td style="font-weight: 500;">{{ row.delegated_to|default:"-" }}</td>
+                    <td data-label="Delegated To" style="font-weight: 500;">{{ row.delegated_to|default:"-" }}</td>
                     
-                    <!-- Action Note -->
-                    <td>
+                    <td data-label="Action Note">
                         {% if row.action_note %}
                             <span style="color: #2e7d32; font-weight: 500;">
                                 <i class="fas fa-sticky-note"></i> {{ row.action_note|truncatechars:50 }}
