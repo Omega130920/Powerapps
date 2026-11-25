@@ -30,7 +30,21 @@
         box-shadow: 0 4px 12px rgba(0,0,0,0.1);
         display: flex;
         flex-direction: column;
+        box-sizing: border-box;
     }
+
+    /* --- ALERT MESSAGES BANNER --- */
+    .alert-banner {
+        padding: 10px 14px;
+        border-radius: 5px;
+        margin-bottom: 12px;
+        font-size: 13px;
+        font-weight: 600;
+        flex-shrink: 0;
+    }
+    .alert-success { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
+    .alert-warning { background-color: #fff8e1; color: #e65100; border: 1px solid #ffe082; }
+    .alert-error { background-color: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
 
     .log-header {
         border-bottom: 2px solid #aed581;
@@ -39,17 +53,26 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
         flex-shrink: 0;
     }
     .log-header h1 { margin: 0; color: #1b5e20; font-size: 24px; }
     
-    .log-controls { display: flex; gap: 15px; align-items: center; }
+    .log-controls { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
     
+    .search-form {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        margin: 0;
+    }
+
     #search_input {
         padding: 8px 12px;
         border: 1px solid #ccc;
         border-radius: 4px;
-        width: 300px;
+        width: 280px;
         font-size: 14px;
     }
 
@@ -107,6 +130,8 @@
         font-weight: 600;
         font-size: 13px;
         display: inline-block;
+        border: none;
+        cursor: pointer;
     }
 
     .return-button {
@@ -155,10 +180,18 @@
 
     <div style="width: 100%; max-width: 1400px;">
         <a href="{% url 'dashboard' %}" class="btn return-button">← Back To Home Screen</a>
-        <a href="?sync=true" class="btn" style="background-color: #0288d1; color: white;">🔄 Sync with Outlook</a>
+        <a href="?sync=true" id="sync_btn" class="btn" style="background-color: #0288d1; color: white;">🔄 Sync with Outlook</a>
     </div>
 
 <div class="log-container">
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert-banner {% if message.tags == 'error' %}alert-error{% elif message.tags == 'warning' %}alert-warning{% else %}alert-success{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    {% endif %}
+
     <div class="log-header">
         <h1>📨 Live Inbox</h1>
         <div class="log-controls">
@@ -168,7 +201,14 @@
                 <option value="oldest">Oldest to Newest</option>
             </select>
 
-            <input type="text" id="search_input" placeholder="🔍 Search subject or sender..." autofocus>
+            <form method="GET" class="search-form">
+                <input type="text" name="search" id="search_input" value="{{ search_query|default:'' }}" placeholder="🔍 Search all pending (press Enter)..." autofocus>
+                <button type="submit" class="btn" style="background-color: #43a047; color: white;">Search</button>
+                {% if search_query %}
+                    <a href="{% url 'fetch_emails' %}" class="btn" style="background-color: #757575; color: white;">Clear</a>
+                {% endif %}
+            </form>
+
             <p style="margin: 0; font-size: 14px; color: #555;">Total Pending: <strong id="pending_count">{{ total_pending }}</strong></p>
         </div>
     </div>
@@ -203,7 +243,11 @@
                 {% empty %}
                 <tr class="no-emails">
                     <td colspan="5" style="text-align: center; padding: 30px; color: #777;">
-                        No pending emails found in the live inbox.
+                        {% if search_query %}
+                            No pending emails found matching "<strong>{{ search_query }}</strong>".
+                        {% else %}
+                            No pending emails found in the live inbox.
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}
@@ -218,13 +262,13 @@
         </div>
         <div class="pagination-controls">
             {% if email_list.has_previous %}
-                <a href="?page={{ email_list.previous_page_number }}" class="page-btn">← Previous</a>
+                <a href="?page={{ email_list.previous_page_number }}{% if search_query %}&search={{ search_query|urlencode }}{% endif %}" class="page-btn">← Previous</a>
             {% else %}
                 <span class="page-btn disabled">← Previous</span>
             {% endif %}
 
             {% if email_list.has_next %}
-                <a href="?page={{ email_list.next_page_number }}" class="page-btn">Next →</a>
+                <a href="?page={{ email_list.next_page_number }}{% if search_query %}&search={{ search_query|urlencode }}{% endif %}" class="page-btn">Next →</a>
             {% else %}
                 <span class="page-btn disabled">Next →</span>
             {% endif %}
@@ -232,8 +276,7 @@
     </div>
 </div>
 
-
-<iframe id="hidden_refresher" src="{{ request.path }}{% if request.GET.page %}?page={{ request.GET.page }}{% endif %}"></iframe>
+<iframe id="hidden_refresher" src="{{ request.path }}{% if request.GET.page or search_query %}?{% if request.GET.page %}page={{ request.GET.page }}{% endif %}{% if request.GET.page and search_query %}&{% endif %}{% if search_query %}search={{ search_query|urlencode }}{% endif %}{% endif %}"></iframe>
 
 <script>
 let sortOrder = {}; // Tracks ASC/DESC for each column
@@ -271,10 +314,26 @@ document.addEventListener('DOMContentLoaded', function() {
     const totalDisplay = document.getElementById('pending_count');
     const iframe = document.getElementById('hidden_refresher');
     const dateSortFilter = document.getElementById('date_sort_filter');
+    const syncBtn = document.getElementById('sync_btn');
+    const initialServerSearch = (searchInput ? searchInput.value : '').trim().toLowerCase();
 
-    // 1. SEARCH FILTER
+    if (syncBtn) {
+        syncBtn.addEventListener('click', function() {
+            this.textContent = '⏳ Syncing with Outlook...';
+            this.style.pointerEvents = 'none';
+            this.style.opacity = '0.75';
+        });
+    }
+
+    // 1. LIVE CLIENT-SIDE FILTER (for instant typing on current page; press Enter/Search for full DB search)
     function applyFilter() {
-        const filter = searchInput.value.toLowerCase();
+        const filter = searchInput.value.trim().toLowerCase();
+        // If the input still matches the server-side search query, show all rows returned by MySQL
+        if (filter === initialServerSearch && initialServerSearch !== '') {
+            const rows = tableBody.querySelectorAll('tr:not(.no-emails)');
+            Array.from(rows).forEach(row => { row.style.display = ""; });
+            return;
+        }
         const rows = tableBody.querySelectorAll('tr:not(.no-emails)');
         Array.from(rows).forEach(row => {
             const text = row.textContent.toLowerCase();

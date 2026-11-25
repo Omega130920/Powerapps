@@ -522,19 +522,18 @@ def logout_view(request):
 def fetch_emails_view(request):
     """
     Loads instantly from the local database.
-    When ?sync=true is passed, uses Graph ONLY to check for new emails and fully download them locally.
-    Strictly excludes any email that already exists in CrmDelegateTo so delegated emails never reappear.
+    When ?sync=true is passed, scans up to 300 recent Outlook messages (paginated),
+    downloads up to 25 new emails per click to prevent web timeouts, and isolates errors per email.
+    Supports server-side ?search= across all pending emails.
     """
     if request.user.username.lower() != 'omega' and not request.user.is_superuser:
         messages.error(request, "Access restricted.")
         return redirect('tasks')
 
-    # Always get the master set of already-delegated/recycled/completed email IDs
     already_delegated_ids = set(
         CrmDelegateTo.objects.values_list('email_id', flat=True)
     )
 
-    # Self-heal any CrmInbox row that is still marked 'Pending' despite already being in CrmDelegateTo
     if already_delegated_ids:
         CrmInbox.objects.filter(
             email_id__in=already_delegated_ids,
@@ -542,42 +541,77 @@ def fetch_emails_view(request):
         ).update(status='Delegated')
 
     if request.GET.get('sync') == 'true':
-        inbox_data = OutlookGraphService.fetch_inbox_messages(top_count=100)
+        inbox_data = OutlookGraphService.fetch_inbox_messages_paginated(max_messages=300, page_size=100)
         if isinstance(inbox_data, dict) and 'error' not in inbox_data:
             emails = inbox_data.get('value', [])
             fully_synced_ids = set(
                 CrmInbox.objects.filter(is_fully_synced=True).values_list('email_id', flat=True)
             )
+            pending_new = [
+                msg for msg in emails
+                if msg.get('id') and msg.get('id') not in fully_synced_ids and msg.get('id') not in already_delegated_ids
+            ]
+
             synced_count = 0
-            for msg in emails:
-                email_id = msg.get('id')
-                # Never re-ingest as a new pending email if it's already synced or already delegated
-                if email_id and email_id not in fully_synced_ids and email_id not in already_delegated_ids:
+            failed_count = 0
+            batch_limit = 25
+
+            for msg in pending_new[:batch_limit]:
+                try:
                     if ingest_single_email_from_graph(msg):
                         synced_count += 1
-            messages.success(request, f"Inbox synchronized ({synced_count} new emails downloaded locally).")
+                except Exception as e:
+                    failed_count += 1
+                    logger.error(f"Manual sync failed for {msg.get('id')}: {e}", exc_info=True)
+
+            remaining = max(0, len(pending_new) - batch_limit)
+            if remaining > 0:
+                messages.success(
+                    request,
+                    f"Downloaded {synced_count} new emails ({remaining} more waiting in Outlook — click Sync again or let the background job finish)."
+                )
+            elif failed_count > 0:
+                messages.warning(
+                    request,
+                    f"Inbox synchronized ({synced_count} new emails downloaded; {failed_count} skipped due to errors — check server logs)."
+                )
+            else:
+                messages.success(request, f"Inbox synchronized ({synced_count} new emails downloaded locally).")
         else:
             err = inbox_data.get('error', 'Unknown error') if isinstance(inbox_data, dict) else 'Connection error'
             messages.warning(request, f"Showing local emails. Outlook sync notice: {err}")
         return redirect('fetch_emails')
 
-    # Strictly filter to Pending emails AND exclude any email_id present in CrmDelegateTo
+    search_query = (request.GET.get('search') or '').strip()
+
     display_emails = (
         CrmInbox.objects
         .filter(status='Pending')
         .exclude(email_id__in=already_delegated_ids)
+        .defer('body_html')
         .order_by('-received_timestamp')
     )
-    for email in display_emails:
-        email.received_at = email.received_timestamp
 
+    if search_query:
+        display_emails = display_emails.filter(
+            Q(subject__icontains=search_query) |
+            Q(sender__icontains=search_query) |
+            Q(snippet__icontains=search_query) |
+            Q(member_group_code__icontains=search_query)
+        )
+
+    total_pending = display_emails.count()
     paginator = Paginator(display_emails, 50)
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
 
+    for email in page_obj.object_list:
+        email.received_at = email.received_timestamp
+
     return render(request, 'inbox.html', {
         'email_list': page_obj,
-        'total_pending': display_emails.count()
+        'total_pending': total_pending,
+        'search_query': search_query,
     })
 
 

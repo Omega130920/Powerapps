@@ -245,10 +245,19 @@ def ingest_single_email_from_graph(msg_or_id, target_email=None):
 class Command(BaseCommand):
     help = 'Downloads new incoming emails, full HTML bodies, recipients, attachments, and .eml backups from Microsoft Graph to local storage'
 
-    def handle(self, *args, **options):
-        self.stdout.write("Starting Outlook email synchronization (Sync-Once, Render-Locally)...")
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--limit',
+            type=int,
+            default=300,
+            help='Maximum number of recent Outlook Inbox messages to scan (follows @odata.nextLink pages).'
+        )
 
-        inbox_data = OutlookGraphService.fetch_inbox_messages(top_count=100)
+    def handle(self, *args, **options):
+        max_messages = options.get('limit', 300)
+        self.stdout.write(f"Starting Outlook email synchronization (scanning latest {max_messages} inbox messages)...")
+
+        inbox_data = OutlookGraphService.fetch_inbox_messages_paginated(max_messages=max_messages, page_size=100)
 
         if not isinstance(inbox_data, dict) or 'error' in inbox_data:
             err_msg = inbox_data.get('error', 'Unknown error') if isinstance(inbox_data, dict) else str(inbox_data)
@@ -257,7 +266,6 @@ class Command(BaseCommand):
 
         emails = inbox_data.get('value', [])
 
-        # Identify which emails are already fully synced OR already delegated/processed
         fully_synced_ids = set(
             CrmInbox.objects.filter(is_fully_synced=True).values_list('email_id', flat=True)
         )
@@ -265,18 +273,30 @@ class Command(BaseCommand):
             CrmDelegateTo.objects.values_list('email_id', flat=True)
         )
 
-        # Ensure any CrmInbox row that is already in CrmDelegateTo is not stuck on 'Pending'
+        # Ensure any CrmInbox row already in CrmDelegateTo is not stuck on 'Pending'
         if already_delegated_ids:
             CrmInbox.objects.filter(email_id__in=already_delegated_ids, status='Pending').update(status='Delegated')
 
         new_count = 0
+        failed_count = 0
         for msg in emails:
             email_id = msg.get('id')
             if not email_id or email_id in fully_synced_ids or email_id in already_delegated_ids:
                 continue
 
-            entry = ingest_single_email_from_graph(msg)
-            if entry:
-                new_count += 1
+            try:
+                entry = ingest_single_email_from_graph(msg)
+                if entry:
+                    new_count += 1
+                    fully_synced_ids.add(email_id)
+            except Exception as e:
+                failed_count += 1
+                subj = msg.get('subject', 'No Subject')
+                logger.error(f"Failed ingesting email '{subj}' ({email_id}): {e}", exc_info=True)
+                self.stderr.write(self.style.WARNING(f"Skipped failed email '{subj}': {e}"))
 
-        self.stdout.write(self.style.SUCCESS(f"Sync complete: {new_count} emails fully downloaded to local DB and disk."))
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Sync complete: {new_count} new emails downloaded locally (scanned {len(emails)}, failed {failed_count})."
+            )
+        )

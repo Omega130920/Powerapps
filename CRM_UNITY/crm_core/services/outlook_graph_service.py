@@ -178,14 +178,49 @@ class OutlookGraphService:
     @staticmethod
     def fetch_inbox_messages(target_email=None, top_count=100):
         """
-        Fetches recent emails for ingestion, including full HTML body, From, To, CC, and BCC.
+        Lightweight inbox poll (excludes heavy body HTML so Graph never times out).
+        Full body is fetched individually only for brand-new emails.
         """
         endpoint = (
             f"mailFolders/inbox/messages?$top={top_count}"
-            f"&$select=id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,bodyPreview,body,hasAttachments"
+            f"&$select=id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,bodyPreview,hasAttachments"
             f"&$orderby=receivedDateTime desc"
         )
         return OutlookGraphService._make_graph_request(endpoint, target_email=target_email)
+
+    @staticmethod
+    def fetch_inbox_messages_paginated(target_email=None, max_messages=300, page_size=100):
+        """
+        Walks Microsoft Graph @odata.nextLink pages up to max_messages so bursts of
+        100+ emails (e.g. bulk FSCA letters) are never skipped.
+        Returns {'value': [...]} or {'error': '...'}.
+        """
+        all_messages = []
+        endpoint = (
+            f"mailFolders/inbox/messages?$top={page_size}"
+            f"&$select=id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,bodyPreview,hasAttachments"
+            f"&$orderby=receivedDateTime desc"
+        )
+
+        while endpoint and len(all_messages) < max_messages:
+            resp = OutlookGraphService._make_graph_request(endpoint, target_email=target_email)
+            if not isinstance(resp, dict) or 'error' in resp:
+                if all_messages:
+                    break
+                return resp
+
+            batch = resp.get('value', [])
+            if not batch:
+                break
+
+            all_messages.extend(batch)
+            next_link = resp.get('@odata.nextLink')
+            if next_link and '/mailFolders/' in next_link:
+                endpoint = 'mailFolders/' + next_link.split('/mailFolders/', 1)[1]
+            else:
+                endpoint = None
+
+        return {'value': all_messages[:max_messages]}
 
     @staticmethod
     def send_outlook_email(target_email=None, recipient_email=None, subject=None, body_content=None, content_type='HTML', attachments=None, cc_email=None, bcc_email=None, user=None):
