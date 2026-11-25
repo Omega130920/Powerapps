@@ -102,14 +102,18 @@ class OutlookGraphService:
     def _make_graph_request(endpoint, target_email=None, method='GET', data=None, is_mime=False):
         """
         Unified request handler using System Service Token with dynamic target_email fallback.
+        Supports both relative Graph endpoints and full @odata.nextLink URLs.
         Uses ImmutableId so an email's ID never changes even if moved between folders or from Drafts to Sent Items.
         """
         access_token = get_current_access_token()
         if not access_token:
             return {'error': 'Could not acquire access token'}
 
-        mailbox = target_email or getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', '')
-        url = f"{GRAPH_API_URL}/users/{mailbox}/{endpoint}"
+        if str(endpoint).startswith(('http://', 'https://')):
+            url = endpoint
+        else:
+            mailbox = target_email or getattr(settings, 'OUTLOOK_EMAIL_ADDRESS', '')
+            url = f"{GRAPH_API_URL}/users/{mailbox}/{endpoint}"
 
         headers = {
             'Authorization': f'Bearer {access_token}',
@@ -189,7 +193,7 @@ class OutlookGraphService:
         return OutlookGraphService._make_graph_request(endpoint, target_email=target_email)
 
     @staticmethod
-    def fetch_inbox_messages_paginated(target_email=None, max_messages=300, page_size=100):
+    def fetch_inbox_messages_paginated(target_email=None, max_messages=700, page_size=100):
         """
         Walks Microsoft Graph @odata.nextLink pages up to max_messages so bursts of
         100+ emails (e.g. bulk FSCA letters) are never skipped.
@@ -214,19 +218,15 @@ class OutlookGraphService:
                 break
 
             all_messages.extend(batch)
-            next_link = resp.get('@odata.nextLink')
-            if next_link and '/mailFolders/' in next_link:
-                endpoint = 'mailFolders/' + next_link.split('/mailFolders/', 1)[1]
-            else:
-                endpoint = None
+            endpoint = resp.get('@odata.nextLink')
 
         return {'value': all_messages[:max_messages]}
-    
+
     @staticmethod
-    def fetch_inbox_messages_by_date_range(start_iso_utc, end_iso_utc, target_email=None, max_messages=500):
+    def fetch_inbox_messages_by_date_range(start_iso_utc, end_iso_utc, target_email=None, max_messages=1000):
         """
         Fetches Outlook Inbox messages strictly within a UTC ISO-8601 date window
-        using Graph $filter + @odata.nextLink pagination.
+        using Graph $filter + full @odata.nextLink pagination.
         """
         all_messages = []
         endpoint = (
@@ -234,7 +234,7 @@ class OutlookGraphService:
             f"$filter=receivedDateTime%20ge%20{start_iso_utc}%20and%20receivedDateTime%20le%20{end_iso_utc}"
             f"&$top=100"
             f"&$select=id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,bodyPreview,hasAttachments"
-            f"&$orderby=receivedDateTime%20desc"
+            f"&$orderby=receivedDateTime desc"
         )
 
         while endpoint and len(all_messages) < max_messages:
@@ -249,11 +249,7 @@ class OutlookGraphService:
                 break
 
             all_messages.extend(batch)
-            next_link = resp.get('@odata.nextLink')
-            if next_link and '/mailFolders/' in next_link:
-                endpoint = 'mailFolders/' + next_link.split('/mailFolders/', 1)[1]
-            else:
-                endpoint = None
+            endpoint = resp.get('@odata.nextLink')
 
         return {'value': all_messages[:max_messages]}
 

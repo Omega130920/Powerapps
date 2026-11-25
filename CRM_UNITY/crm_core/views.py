@@ -522,8 +522,9 @@ def logout_view(request):
 def fetch_emails_view(request):
     """
     Loads instantly from the local database.
-    When ?sync=true is passed, scans up to 300 recent Outlook messages (paginated),
+    When ?sync=true is passed, scans up to 700 recent Outlook messages (paginated),
     downloads up to 25 new emails per click to prevent web timeouts, and isolates errors per email.
+    When ?sync_date=YYYY-MM-DD is passed, scans up to 1000 Outlook messages for that exact SAST day.
     Supports server-side ?search= across all pending emails.
     """
     if request.user.username.lower() != 'omega' and not request.user.is_superuser:
@@ -539,7 +540,7 @@ def fetch_emails_view(request):
             email_id__in=already_delegated_ids,
             status='Pending'
         ).update(status='Delegated')
-        
+
     sync_date_str = (request.GET.get('sync_date') or '').strip()
     if sync_date_str:
         from datetime import datetime, timedelta
@@ -552,7 +553,7 @@ def fetch_emails_view(request):
             messages.error(request, "Invalid sync_date format. Use YYYY-MM-DD (e.g. ?sync_date=2026-11-24).")
             return redirect('fetch_emails')
 
-        inbox_data = OutlookGraphService.fetch_inbox_messages_by_date_range(start_utc, end_utc, max_messages=500)
+        inbox_data = OutlookGraphService.fetch_inbox_messages_by_date_range(start_utc, end_utc, max_messages=1000)
         if isinstance(inbox_data, dict) and 'error' not in inbox_data:
             emails = inbox_data.get('value', [])
             fully_synced_ids = set(
@@ -609,7 +610,7 @@ def fetch_emails_view(request):
         return redirect('fetch_emails')
 
     if request.GET.get('sync') == 'true':
-        inbox_data = OutlookGraphService.fetch_inbox_messages_paginated(max_messages=300, page_size=100)
+        inbox_data = OutlookGraphService.fetch_inbox_messages_paginated(max_messages=700, page_size=100)
         if isinstance(inbox_data, dict) and 'error' not in inbox_data:
             emails = inbox_data.get('value', [])
             fully_synced_ids = set(
