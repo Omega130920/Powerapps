@@ -539,6 +539,74 @@ def fetch_emails_view(request):
             email_id__in=already_delegated_ids,
             status='Pending'
         ).update(status='Delegated')
+        
+    sync_date_str = (request.GET.get('sync_date') or '').strip()
+    if sync_date_str:
+        from datetime import datetime, timedelta
+        try:
+            target_day = datetime.strptime(sync_date_str, '%Y-%m-%d')
+            # Convert full SAST day (UTC+2) to UTC ISO-8601 window for Graph
+            start_utc = (target_day - timedelta(hours=2)).strftime('%Y-%m-%dT%H:%M:%SZ')
+            end_utc = (target_day + timedelta(hours=22) - timedelta(seconds=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        except ValueError:
+            messages.error(request, "Invalid sync_date format. Use YYYY-MM-DD (e.g. ?sync_date=2026-11-24).")
+            return redirect('fetch_emails')
+
+        inbox_data = OutlookGraphService.fetch_inbox_messages_by_date_range(start_utc, end_utc, max_messages=500)
+        if isinstance(inbox_data, dict) and 'error' not in inbox_data:
+            emails = inbox_data.get('value', [])
+            fully_synced_ids = set(
+                CrmInbox.objects.filter(is_fully_synced=True).values_list('email_id', flat=True)
+            )
+
+            in_delegated_count = 0
+            in_inbox_count = 0
+            pending_new = []
+
+            for msg in emails:
+                eid = msg.get('id')
+                if not eid:
+                    continue
+                if eid in already_delegated_ids:
+                    in_delegated_count += 1
+                elif eid in fully_synced_ids:
+                    in_inbox_count += 1
+                else:
+                    pending_new.append(msg)
+
+            synced_count = 0
+            failed_count = 0
+            last_error = ""
+            batch_limit = 25
+
+            for msg in pending_new[:batch_limit]:
+                try:
+                    if ingest_single_email_from_graph(msg):
+                        synced_count += 1
+                except Exception as e:
+                    failed_count += 1
+                    last_error = str(e)
+                    logger.error(f"Date catch-up failed for {msg.get('id')}: {e}", exc_info=True)
+
+            remaining = max(0, len(pending_new) - batch_limit)
+            diag_msg = (
+                f"Date Sync ({sync_date_str}): Graph found {len(emails)} emails | "
+                f"Downloaded now: {synced_count} | Remaining: {remaining} | "
+                f"Already in Inbox: {in_inbox_count} | Already Delegated/Recycled/Purged: {in_delegated_count} | "
+                f"Failed: {failed_count}"
+            )
+            if last_error:
+                diag_msg += f" | Error: {last_error[:180]}"
+
+            if failed_count > 0:
+                messages.warning(request, diag_msg)
+            else:
+                messages.success(request, diag_msg)
+        else:
+            err = inbox_data.get('error', 'Unknown error') if isinstance(inbox_data, dict) else 'Connection error'
+            messages.error(request, f"Date Sync ({sync_date_str}) Graph error: {err}")
+
+        return redirect('fetch_emails')
 
     if request.GET.get('sync') == 'true':
         inbox_data = OutlookGraphService.fetch_inbox_messages_paginated(max_messages=300, page_size=100)

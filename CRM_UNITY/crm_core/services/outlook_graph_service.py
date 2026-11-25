@@ -221,6 +221,41 @@ class OutlookGraphService:
                 endpoint = None
 
         return {'value': all_messages[:max_messages]}
+    
+    @staticmethod
+    def fetch_inbox_messages_by_date_range(start_iso_utc, end_iso_utc, target_email=None, max_messages=500):
+        """
+        Fetches Outlook Inbox messages strictly within a UTC ISO-8601 date window
+        using Graph $filter + @odata.nextLink pagination.
+        """
+        all_messages = []
+        endpoint = (
+            f"mailFolders/inbox/messages?"
+            f"$filter=receivedDateTime%20ge%20{start_iso_utc}%20and%20receivedDateTime%20le%20{end_iso_utc}"
+            f"&$top=100"
+            f"&$select=id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,bodyPreview,hasAttachments"
+            f"&$orderby=receivedDateTime%20desc"
+        )
+
+        while endpoint and len(all_messages) < max_messages:
+            resp = OutlookGraphService._make_graph_request(endpoint, target_email=target_email)
+            if not isinstance(resp, dict) or 'error' in resp:
+                if all_messages:
+                    break
+                return resp
+
+            batch = resp.get('value', [])
+            if not batch:
+                break
+
+            all_messages.extend(batch)
+            next_link = resp.get('@odata.nextLink')
+            if next_link and '/mailFolders/' in next_link:
+                endpoint = 'mailFolders/' + next_link.split('/mailFolders/', 1)[1]
+            else:
+                endpoint = None
+
+        return {'value': all_messages[:max_messages]}
 
     @staticmethod
     def send_outlook_email(target_email=None, recipient_email=None, subject=None, body_content=None, content_type='HTML', attachments=None, cc_email=None, bcc_email=None, user=None):
