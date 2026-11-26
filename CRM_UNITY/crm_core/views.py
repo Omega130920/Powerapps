@@ -525,7 +525,7 @@ def fetch_emails_view(request):
     When ?sync=true is passed, scans up to 700 recent Outlook messages (paginated),
     downloads up to 25 new emails per click to prevent web timeouts, and isolates errors per email.
     When ?sync_date=YYYY-MM-DD is passed, scans up to 1000 Outlook messages for that exact SAST day.
-    Supports server-side ?search= across all pending emails.
+    Supports live server-side ?search= across all pending/new emails.
     """
     if request.user.username.lower() != 'omega' and not request.user.is_superuser:
         messages.error(request, "Access restricted.")
@@ -538,7 +538,7 @@ def fetch_emails_view(request):
     if already_delegated_ids:
         CrmInbox.objects.filter(
             email_id__in=already_delegated_ids,
-            status='Pending'
+            status__in=['Pending', 'New']
         ).update(status='Delegated')
 
     sync_date_str = (request.GET.get('sync_date') or '').strip()
@@ -655,7 +655,7 @@ def fetch_emails_view(request):
 
     display_emails = (
         CrmInbox.objects
-        .filter(status='Pending')
+        .filter(status__in=['Pending', 'New'])
         .exclude(email_id__in=already_delegated_ids)
         .defer('body_html')
         .order_by('-received_timestamp')

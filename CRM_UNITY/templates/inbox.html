@@ -202,11 +202,9 @@
             </select>
 
             <form method="GET" class="search-form">
-                <input type="text" name="search" id="search_input" value="{{ search_query|default:'' }}" placeholder="🔍 Search all pending (press Enter)..." autofocus>
+                <input type="text" name="search" id="search_input" value="{{ search_query|default:'' }}" placeholder="🔍 Search all pending emails..." autofocus>
                 <button type="submit" class="btn" style="background-color: #43a047; color: white;">Search</button>
-                {% if search_query %}
-                    <a href="{% url 'fetch_emails' %}" class="btn" style="background-color: #757575; color: white;">Clear</a>
-                {% endif %}
+                <a href="{% url 'fetch_emails' %}" id="clear_search_btn" class="btn" style="background-color: #757575; color: white; {% if not search_query %}display: none;{% endif %}">Clear</a>
             </form>
 
             <p style="margin: 0; font-size: 14px; color: #555;">Total Pending: <strong id="pending_count">{{ total_pending }}</strong></p>
@@ -281,7 +279,6 @@
 <script>
 let sortOrder = {}; // Tracks ASC/DESC for each column
 
-// --- 🟢 NEW SORTING LOGIC ---
 function sortInboxTable(n) {
     const tableBody = document.getElementById("table_body");
     const rows = Array.from(tableBody.querySelectorAll("tr:not(.no-emails)"));
@@ -310,12 +307,16 @@ function sortInboxTable(n) {
 
 document.addEventListener('DOMContentLoaded', function() {
     const searchInput = document.getElementById('search_input');
+    const clearSearchBtn = document.getElementById('clear_search_btn');
     const tableBody = document.getElementById('table_body');
     const totalDisplay = document.getElementById('pending_count');
+    const paginationContainer = document.querySelector('.pagination-container');
     const iframe = document.getElementById('hidden_refresher');
     const dateSortFilter = document.getElementById('date_sort_filter');
     const syncBtn = document.getElementById('sync_btn');
-    const initialServerSearch = (searchInput ? searchInput.value : '').trim().toLowerCase();
+
+    let searchDebounceTimer = null;
+    let activeFetchController = null;
 
     if (syncBtn) {
         syncBtn.addEventListener('click', function() {
@@ -325,64 +326,103 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // 1. LIVE CLIENT-SIDE FILTER (for instant typing on current page; press Enter/Search for full DB search)
-    function applyFilter() {
-        const filter = searchInput.value.trim().toLowerCase();
-        // If the input still matches the server-side search query, show all rows returned by MySQL
-        if (filter === initialServerSearch && initialServerSearch !== '') {
-            const rows = tableBody.querySelectorAll('tr:not(.no-emails)');
-            Array.from(rows).forEach(row => { row.style.display = ""; });
-            return;
+    function applyCurrentSort() {
+        if (!dateSortFilter) return;
+        const currentSortVal = dateSortFilter.value;
+        if (currentSortVal === 'newest') {
+            sortOrder[2] = true;
+            sortInboxTable(2);
+        } else if (currentSortVal === 'oldest') {
+            sortOrder[2] = false;
+            sortInboxTable(2);
         }
-        const rows = tableBody.querySelectorAll('tr:not(.no-emails)');
-        Array.from(rows).forEach(row => {
-            const text = row.textContent.toLowerCase();
-            row.style.display = text.includes(filter) ? "" : "none";
-        });
-    }
-    searchInput.addEventListener('input', applyFilter);
-
-    // 2. 🟢 DATE SORT DROPDOWN TRIGGER
-    if (dateSortFilter) {
-        dateSortFilter.addEventListener('change', function() {
-            const val = this.value;
-            if (val === 'newest') {
-                sortOrder[2] = true; 
-                sortInboxTable(2);
-            } else if (val === 'oldest') {
-                sortOrder[2] = false; 
-                sortInboxTable(2);
-            }
-        });
     }
 
-    // 3. THE SILENT UPDATE
-    iframe.onload = function() {
+    // 1. LIVE FULL-DATABASE SEARCH (queries MySQL across ALL pending pages as you type)
+    async function runServerSearch(queryText) {
+        if (activeFetchController) {
+            activeFetchController.abort();
+        }
+        activeFetchController = new AbortController();
+
+        const params = new URLSearchParams();
+        if (queryText) {
+            params.set('search', queryText);
+        }
+        const targetUrl = params.toString()
+            ? `${window.location.pathname}?${params.toString()}`
+            : window.location.pathname;
+
         try {
-            const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-            const newRows = iframeDoc.getElementById('table_body').innerHTML;
-            const newCount = iframeDoc.getElementById('pending_count').innerText;
+            const resp = await fetch(targetUrl, { signal: activeFetchController.signal });
+            if (!resp.ok) return;
+            const html = await resp.text();
+            const doc = new DOMParser().parseFromString(html, 'text/html');
 
-            tableBody.innerHTML = newRows;
-            totalDisplay.innerText = newCount;
+            const newBody = doc.getElementById('table_body');
+            const newCount = doc.getElementById('pending_count');
+            const newPagination = doc.querySelector('.pagination-container');
 
-            const currentSortVal = dateSortFilter.value;
-            if (currentSortVal === 'newest') {
-                sortOrder[2] = true; sortInboxTable(2);
-            } else if (currentSortVal === 'oldest') {
-                sortOrder[2] = false; sortInboxTable(2);
+            if (newBody) tableBody.innerHTML = newBody.innerHTML;
+            if (newCount) totalDisplay.innerText = newCount.innerText;
+            if (newPagination && paginationContainer) {
+                paginationContainer.innerHTML = newPagination.innerHTML;
+            }
+            if (clearSearchBtn) {
+                clearSearchBtn.style.display = queryText ? 'inline-block' : 'none';
             }
 
-            applyFilter();
-        } catch (e) {
-            console.warn("Background refresh error:", e);
-        }
-    };
+            // Keep URL and background refresher synced to the active search
+            window.history.replaceState({}, '', targetUrl);
+            if (iframe) iframe.src = targetUrl;
 
-    // 4. REFRESH TIMER (30 seconds)
-    setInterval(function() {
-        iframe.contentWindow.location.reload();
-    }, 30000);
+            applyCurrentSort();
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                console.warn("Live server search error:", err);
+            }
+        }
+    }
+
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            const q = this.value.trim();
+            clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = setTimeout(() => runServerSearch(q), 400);
+        });
+    }
+
+    // 2. DATE SORT DROPDOWN TRIGGER
+    if (dateSortFilter) {
+        dateSortFilter.addEventListener('change', applyCurrentSort);
+    }
+
+    // 3. SILENT BACKGROUND REFRESH (preserves current search & page)
+    if (iframe) {
+        iframe.onload = function() {
+            try {
+                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                const newBody = iframeDoc.getElementById('table_body');
+                const newCount = iframeDoc.getElementById('pending_count');
+                const newPagination = iframeDoc.querySelector('.pagination-container');
+
+                if (newBody) tableBody.innerHTML = newBody.innerHTML;
+                if (newCount) totalDisplay.innerText = newCount.innerText;
+                if (newPagination && paginationContainer) {
+                    paginationContainer.innerHTML = newPagination.innerHTML;
+                }
+                applyCurrentSort();
+            } catch (e) {
+                console.warn("Background refresh error:", e);
+            }
+        };
+
+        setInterval(function() {
+            if (document.activeElement !== searchInput) {
+                iframe.contentWindow.location.reload();
+            }
+        }, 30000);
+    }
 });
 </script>
 
